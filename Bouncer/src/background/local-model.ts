@@ -1,6 +1,6 @@
 // WebLLM local model engine: lifecycle, inference, preemption, keep-alive
 
-import { CreateMLCEngine, hasModelInCache, prebuiltAppConfig } from "@mlc-ai/web-llm";
+import { CreateMLCEngine, hasModelInCache, deleteModelAllInfoInCache, prebuiltAppConfig } from "@mlc-ai/web-llm";
 import type { MLCEngine, AppConfig, ChatCompletion, MLCEngineConfig } from "@mlc-ai/web-llm";
 import type { LocalModelDef, LocalModelStatus, EvaluationPostData, ChatMessage } from '../types';
 import { PREDEFINED_MODELS } from '../shared/models';
@@ -289,6 +289,68 @@ export class LocalEngine {
     const cached = await this.checkCached(modelId);
     await this.updateStatus(modelId, { state: cached ? 'cached' : 'not_downloaded' });
     return true;
+  }
+
+  // Delete one model's cached weights/wasm/tokenizer/chat-config from the
+  // browser Cache API. Other cached models are untouched: deleteModelAllInfoInCache
+  // derives the same keys (findModelRecord + cleanModelUrl) that hasModelInCache
+  // and download use, scoped to this modelId only. It throws ModelNotFoundError
+  // if the id can't be resolved, so the try/catch is load-bearing — on failure
+  // we re-sync status to whatever actually remains in cache.
+  async deleteModelCache(modelId: string): Promise<{ success: boolean; error?: string }> {
+    if (!modelId) return { success: false, error: 'No model ID provided' };
+
+    // Free the model before wiping it: abort an in-flight download (mirrors
+    // cancelDownload), or unload the engine if this exact model is loaded. A
+    // different loaded model keeps running — we only touch the engine when it
+    // holds modelId.
+    if (this.isInitializingModel(modelId)) {
+      if (this._initAbortController) {
+        this._initAbortController.abort();
+      }
+      await this.reset();
+    } else if (this.isModelLoaded(modelId)) {
+      await this.reset();
+    }
+
+    try {
+      const { appConfig } = buildModelConfig(modelId);
+      await deleteModelAllInfoInCache(modelId, appConfig);
+      await this._purgeTensorManifest(modelId, appConfig);
+      await this.updateStatus(modelId, { state: 'not_downloaded' });
+      return { success: true };
+    } catch (e) {
+      console.error('[WebLLM] Error deleting model cache for', modelId, ':', e);
+      const cached = await this.checkCached(modelId);
+      await this.updateStatus(modelId, { state: cached ? 'cached' : 'not_downloaded' });
+      return { success: false, error: (e as Error).message };
+    }
+  }
+
+  // WebLLM's deleteTensorCache (vendor/web-llm) deletes every weight shard but
+  // leaves the tensor-cache.json manifest orphaned in the "webllm/model" Cache
+  // Storage bucket — so deleteModelAllInfoInCache never fully cleans up. Remove
+  // that one leftover so a delete is actually complete and these ~KB manifests
+  // don't accumulate across delete/re-download cycles. cleanModelUrl only ever
+  // appends ("/", "resolve/main/") to the record's `model`, so the stored key
+  // always startsWith that bare URL — a scoping match unique to this model that
+  // doesn't depend on reimplementing cleanModelUrl. Best-effort: never throws.
+  private async _purgeTensorManifest(modelId: string, appConfig: AppConfig | undefined): Promise<void> {
+    if (typeof caches === 'undefined') return;
+    const record = appConfig?.model_list?.find(m => m.model_id === modelId)
+      ?? prebuiltAppConfig.model_list.find(m => m.model_id === modelId);
+    const modelBaseUrl = record?.model?.replace(/\/+$/, '');
+    if (!modelBaseUrl) return;
+    try {
+      const modelCache = await caches.open('webllm/model');
+      for (const req of await modelCache.keys()) {
+        if (req.url.startsWith(modelBaseUrl) && req.url.endsWith('/tensor-cache.json')) {
+          await modelCache.delete(req);
+        }
+      }
+    } catch (e) {
+      console.warn('[WebLLM] Could not purge orphaned tensor-cache.json for', modelId, ':', (e as Error).message);
+    }
   }
 
   // Synchronous teardown for service worker onSuspend: stop timers and null out

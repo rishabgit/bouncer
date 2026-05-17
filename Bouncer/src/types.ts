@@ -256,6 +256,7 @@ export type ContentToBackgroundMessage =
   | { type: 'getAllLocalModelStatuses' }
   | { type: 'initializeWebLLM'; modelId: string }
   | { type: 'cancelLocalModelDownload'; modelId: string }
+  | { type: 'deleteLocalModel'; modelId: string }
   | { type: 'preemptInference' }
   | { type: 'overrideCacheEntry'; post: string; imageUrls: string[]; shouldHide: boolean; reasoning?: string }
   | { type: 'sendFeedback'; decision: string; tweetData: { text: string; imageUrls: string[] }; reasoning?: string; rawResponse?: string; siteId?: SiteId }

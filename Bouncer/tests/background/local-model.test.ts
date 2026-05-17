@@ -528,6 +528,37 @@ describe('localEngine.deleteModelCache', () => {
     const statuses = (storageData.localModelStatuses || {}) as Record<string, Record<string, unknown>>;
     expect(statuses['TestModel-MLC']?.state).toBe('cached');
   });
+
+  it('purges only this model\'s orphaned tensor-cache.json manifest', async () => {
+    // WebLLM's deleteModelInCache deletes the shards but leaves
+    // tensor-cache.json behind; deleteModelCache must scrub it.
+    modelsState.PREDEFINED_MODELS = { local: [{
+      name: 'TestModel-MLC', display: 'Test',
+      webllmConfig: { model: 'https://huggingface.co/test/TestModel-MLC', model_lib: 'https://x/test.wasm' },
+    }] };
+    (deleteModelAllInfoInCache as Mock).mockResolvedValue(undefined);
+
+    const orphan = 'https://huggingface.co/test/TestModel-MLC/resolve/main/tensor-cache.json';
+    const otherModel = 'https://huggingface.co/test/OtherModel/resolve/main/tensor-cache.json';
+    const deleted: string[] = [];
+    const modelCache = {
+      keys: vi.fn(async () => [{ url: orphan }, { url: otherModel }]),
+      delete: vi.fn(async (req: { url: string }) => { deleted.push(req.url); return true; }),
+    };
+    const prevCaches = (globalThis as unknown as { caches?: unknown }).caches;
+    (globalThis as unknown as { caches: unknown }).caches = {
+      open: vi.fn(async (n: string) => (n === 'webllm/model' ? modelCache : { keys: async () => [], delete: async () => false })),
+    };
+
+    try {
+      const result = await localEngine.deleteModelCache('TestModel-MLC');
+      expect(result.success).toBe(true);
+      // Only this model's manifest — not OtherModel's.
+      expect(deleted).toEqual([orphan]);
+    } finally {
+      (globalThis as unknown as { caches?: unknown }).caches = prevCaches;
+    }
+  });
 });
 
 // ==================== Idle timeout ====================

@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('@mlc-ai/web-llm', () => ({
   CreateMLCEngine: vi.fn(),
   hasModelInCache: vi.fn(),
+  deleteModelAllInfoInCache: vi.fn(),
   prebuiltAppConfig: {
     model_list: [
       {
@@ -38,7 +39,7 @@ vi.mock('../../src/shared/prompts.js', () => ({
 
 import { buildModelConfig, localEngine, parseLocalModelResponse } from '../../src/background/local-model.js';
 import { InferenceQueue, inferenceQueue } from '../../src/background/inference-queue.js';
-import { CreateMLCEngine, hasModelInCache } from '@mlc-ai/web-llm';
+import { CreateMLCEngine, hasModelInCache, deleteModelAllInfoInCache } from '@mlc-ai/web-llm';
 import { isGPUDeviceLostError } from '../../src/shared/utils.js';
 import type { Mock } from 'vitest';
 import type { LocalModelDef } from '../../src/types.js';
@@ -433,6 +434,99 @@ describe('localEngine.cancelDownload', () => {
     expect(engine).toBeNull();
     // Engine should have been unloaded since it completed after abort
     expect(mockEngine.unload).toHaveBeenCalled();
+  });
+});
+
+// ==================== localEngine.deleteModelCache ====================
+
+describe('localEngine.deleteModelCache', () => {
+  let storageData: Record<string, unknown>;
+
+  beforeEach(async () => {
+    (CreateMLCEngine as Mock).mockReset();
+    (hasModelInCache as Mock).mockReset();
+    (deleteModelAllInfoInCache as Mock).mockReset();
+    modelsState.PREDEFINED_MODELS = { local: [{ name: 'TestModel-MLC', display: 'Test' }] };
+
+    await localEngine.reset();
+
+    storageData = {};
+    globalThis.chrome = {
+      storage: {
+        local: {
+          get: vi.fn(async () => storageData),
+          set: vi.fn(async (data: Record<string, unknown>) => { Object.assign(storageData, data); }),
+        } as unknown as chrome.storage.LocalStorageArea,
+      },
+    } as unknown as typeof chrome;
+
+    Object.defineProperty(globalThis, 'navigator', {
+      value: { gpu: {} },
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  it('returns error for an empty model id', async () => {
+    const result = await localEngine.deleteModelCache('');
+    expect(result.success).toBe(false);
+    expect(deleteModelAllInfoInCache as Mock).not.toHaveBeenCalled();
+  });
+
+  it('deletes the cache and sets status to not_downloaded when model is not loaded', async () => {
+    (deleteModelAllInfoInCache as Mock).mockResolvedValue(undefined);
+
+    const result = await localEngine.deleteModelCache('TestModel-MLC');
+
+    expect(result.success).toBe(true);
+    expect(deleteModelAllInfoInCache as Mock).toHaveBeenCalledWith('TestModel-MLC', undefined);
+    const statuses = (storageData.localModelStatuses || {}) as Record<string, Record<string, unknown>>;
+    expect(statuses['TestModel-MLC']?.state).toBe('not_downloaded');
+  });
+
+  it('unloads the engine before deleting when the model is currently loaded', async () => {
+    (deleteModelAllInfoInCache as Mock).mockResolvedValue(undefined);
+    const mockEngine = { unload: vi.fn().mockResolvedValue(undefined) };
+    localEngine.engine = mockEngine as unknown as typeof localEngine.engine;
+    localEngine.loadedModel = 'TestModel-MLC';
+    expect(localEngine.isModelLoaded('TestModel-MLC')).toBe(true);
+
+    const result = await localEngine.deleteModelCache('TestModel-MLC');
+
+    expect(result.success).toBe(true);
+    expect(mockEngine.unload).toHaveBeenCalled();
+    expect(deleteModelAllInfoInCache as Mock).toHaveBeenCalled();
+    expect(localEngine.engine).toBeNull();
+    expect(localEngine.loadedModel).toBeNull();
+  });
+
+  it('aborts an in-progress download before deleting', async () => {
+    (hasModelInCache as Mock).mockResolvedValue(false);
+    (deleteModelAllInfoInCache as Mock).mockResolvedValue(undefined);
+    (CreateMLCEngine as Mock).mockImplementation(() => new Promise(() => {}));
+
+    localEngine.initialize('TestModel-MLC');
+    await new Promise(r => setTimeout(r, 10));
+    expect(localEngine.isInitializingModel('TestModel-MLC')).toBe(true);
+
+    const result = await localEngine.deleteModelCache('TestModel-MLC');
+
+    expect(result.success).toBe(true);
+    expect(localEngine.isInitializing()).toBe(false);
+    expect(localEngine.engine).toBeNull();
+    expect(deleteModelAllInfoInCache as Mock).toHaveBeenCalled();
+  });
+
+  it('returns success:false and re-syncs status when deletion throws', async () => {
+    (deleteModelAllInfoInCache as Mock).mockRejectedValue(new Error('ModelNotFound'));
+    (hasModelInCache as Mock).mockResolvedValue(true);
+
+    const result = await localEngine.deleteModelCache('TestModel-MLC');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('ModelNotFound');
+    const statuses = (storageData.localModelStatuses || {}) as Record<string, Record<string, unknown>>;
+    expect(statuses['TestModel-MLC']?.state).toBe('cached');
   });
 });
 

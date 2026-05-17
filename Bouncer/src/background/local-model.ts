@@ -1,6 +1,6 @@
 // WebLLM local model engine: lifecycle, inference, preemption, keep-alive
 
-import { CreateMLCEngine, hasModelInCache, prebuiltAppConfig } from "@mlc-ai/web-llm";
+import { CreateMLCEngine, hasModelInCache, deleteModelAllInfoInCache, prebuiltAppConfig } from "@mlc-ai/web-llm";
 import type { MLCEngine, AppConfig, ChatCompletion, MLCEngineConfig } from "@mlc-ai/web-llm";
 import type { LocalModelDef, LocalModelStatus, EvaluationPostData, ChatMessage } from '../types';
 import { PREDEFINED_MODELS } from '../shared/models';
@@ -289,6 +289,41 @@ export class LocalEngine {
     const cached = await this.checkCached(modelId);
     await this.updateStatus(modelId, { state: cached ? 'cached' : 'not_downloaded' });
     return true;
+  }
+
+  // Delete one model's cached weights/wasm/tokenizer/chat-config from the
+  // browser Cache API. Other cached models are untouched: deleteModelAllInfoInCache
+  // derives the same keys (findModelRecord + cleanModelUrl) that hasModelInCache
+  // and download use, scoped to this modelId only. It throws ModelNotFoundError
+  // if the id can't be resolved, so the try/catch is load-bearing — on failure
+  // we re-sync status to whatever actually remains in cache.
+  async deleteModelCache(modelId: string): Promise<{ success: boolean; error?: string }> {
+    if (!modelId) return { success: false, error: 'No model ID provided' };
+
+    // Free the model before wiping it: abort an in-flight download (mirrors
+    // cancelDownload), or unload the engine if this exact model is loaded. A
+    // different loaded model keeps running — we only touch the engine when it
+    // holds modelId.
+    if (this.isInitializingModel(modelId)) {
+      if (this._initAbortController) {
+        this._initAbortController.abort();
+      }
+      await this.reset();
+    } else if (this.isModelLoaded(modelId)) {
+      await this.reset();
+    }
+
+    try {
+      const { appConfig } = buildModelConfig(modelId);
+      await deleteModelAllInfoInCache(modelId, appConfig);
+      await this.updateStatus(modelId, { state: 'not_downloaded' });
+      return { success: true };
+    } catch (e) {
+      console.error('[WebLLM] Error deleting model cache for', modelId, ':', e);
+      const cached = await this.checkCached(modelId);
+      await this.updateStatus(modelId, { state: cached ? 'cached' : 'not_downloaded' });
+      return { success: false, error: (e as Error).message };
+    }
   }
 
   // Synchronous teardown for service worker onSuspend: stop timers and null out

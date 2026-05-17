@@ -783,6 +783,32 @@ async function removeModel(modelKey: string, e: Event) {
   renderModelDropdown(newModels, dropdownState.selectedModel);
 }
 
+// Local (WebLLM) model weights live in browser Cache Storage, not in
+// customModels, so removeModel() can't delete them. This sends the background
+// a one-shot delete (no confirm — matches the custom-model "×" button). The
+// in-flight Set + disabled button just debounce double-clicks.
+const deletingModels = new Set<string>();
+
+async function deleteLocalModelWeights(modelName: string, btn: HTMLButtonElement, e: Event) {
+  e.stopPropagation();
+  if (deletingModels.has(modelName)) return;
+  deletingModels.add(modelName);
+  btn.disabled = true;
+  try {
+    const res: { success?: boolean; error?: string } =
+      await chrome.runtime.sendMessage({ type: 'deleteLocalModel', modelId: modelName });
+    if (!res?.success) console.error('[Popup] deleteLocalModel failed:', res?.error);
+  } catch (err) {
+    console.error('[Popup] deleteLocalModel error:', err);
+  } finally {
+    deletingModels.delete(modelName);
+    // Authoritatively re-fetch cache status; updateLocalModelStatus() also
+    // re-renders the dropdown, so the deleted model's bin disappears and its
+    // ⬇ indicator returns without waiting on the storage-change listener.
+    await updateLocalModelStatus();
+  }
+}
+
 function getApiDisplayName(api: string) {
   return PROVIDER_DISPLAY_NAMES[api] || api;
 }
@@ -859,8 +885,19 @@ function renderModelDropdown(customModels: ModelDef[], selectedModel: string) {
       }
 
       const backendLabel = (model as LocalModelDef & { backend?: string }).backend === 'mlc' ? 'MLC' : 'local';
-      localItem.replaceChildren(parseHTML(`<span class="model-dropdown-item-text">${escapeHtml(model.display)} <span class="local-badge">${backendLabel}</span>${statusIndicator}</span>`));
-      localItem.addEventListener('click', asyncHandler(() => selectModel(modelKey)));
+      // Only downloaded models get a delete control, and it lives here in the
+      // dropdown (not the Local Model section, which only renders for the
+      // *selected* model) so any downloaded model — selected or not — can be
+      // removed.
+      const deleteBtn = isReady
+        ? '<button class="model-dropdown-item-delete" title="Delete downloaded model">🗑</button>'
+        : '';
+      localItem.replaceChildren(parseHTML(`<span class="model-dropdown-item-text">${escapeHtml(model.display)} <span class="local-badge">${backendLabel}</span>${statusIndicator}</span>${deleteBtn}`));
+      localItem.querySelector('.model-dropdown-item-text')!.addEventListener('click', asyncHandler(() => selectModel(modelKey)));
+      const delEl = localItem.querySelector<HTMLButtonElement>('.model-dropdown-item-delete');
+      if (delEl) delEl.addEventListener('click', (e) => {
+        deleteLocalModelWeights(model.name, delEl, e).catch(err => console.error('[Popup] deleteLocalModelWeights failed:', err));
+      });
       menu.appendChild(localItem);
     });
 
@@ -1345,6 +1382,13 @@ async function updateLocalModelStatus() {
 
   // Always update UI, even on error
   updateLocalModelSectionUI();
+  // The first dropdown render (loadSettings → renderModelDropdown) runs before
+  // these real cache statuses arrive, so it shows every local model as
+  // not_downloaded (no delete control / wrong download indicator). Re-render
+  // now that localModelStatuses is populated. The storage listener only fires
+  // on background status *writes*, not this fetch, so this is the path that
+  // makes the initial popup-open state correct.
+  await refreshModelDropdownWithLocal();
 }
 
 // Get the currently selected local model (if any)

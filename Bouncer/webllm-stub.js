@@ -10,4 +10,8 @@ export async function hasModelInCache() {
   return false;
 }
 
+export async function deleteModelAllInfoInCache() {
+  // No-op: iOS builds have no WebGPU/WebLLM cache to delete.
+}
+
 export const prebuiltAppConfig = { model_list: [] };

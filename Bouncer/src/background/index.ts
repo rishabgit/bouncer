@@ -591,6 +591,15 @@ async function handleMessage(
       return { success: true, cancelled, modelId };
     }
 
+    case 'deleteLocalModel': {
+      const modelId = message.modelId;
+      if (!modelId) {
+        return { success: false, error: 'No model ID provided' };
+      }
+      const result = await localEngine.deleteModelCache(modelId);
+      return { ...result, modelId };
+    }
+
     default:
       return { error: `Unknown message type: ${(message as { type: string }).type}` };
   }

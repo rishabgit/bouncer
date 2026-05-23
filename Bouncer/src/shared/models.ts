@@ -27,7 +27,7 @@ export const PREDEFINED_MODELS: PredefinedModelsMap = {
       isLocal: true,
       supportsImages: false,
       sizeGB: 2.2,
-      inferenceParams: { temperature: 0.7, top_p: 0.8, presence_penalty: 1.5 },
+      inferenceParams: { temperature: 0.7, top_p: 0.8, presence_penalty: 0 },
       webllmConfig: {
         overrides: {
           context_window_size: 1024,
@@ -43,7 +43,7 @@ export const PREDEFINED_MODELS: PredefinedModelsMap = {
       isLocal: true,
       supportsImages: true,
       sizeGB: 2.8,
-      inferenceParams: { temperature: 0.7, top_p: 0.8, presence_penalty: 1.5 },
+      inferenceParams: { temperature: 0.7, top_p: 0.8, presence_penalty: 0 },
       webllmConfig: {
         model_type: 2, // ModelType.VLM
         overrides: {

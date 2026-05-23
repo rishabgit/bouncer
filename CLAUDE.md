@@ -35,6 +35,26 @@ npm run test
 - **Post tracking**: Filtered posts stored in `filteredPosts` array with their HTML, reasoning, image URLs, and post URLs.
 - **Reasoning popups**: Each filtered post can show an AI-generated reasoning explaining why it was filtered.
 
+### Local model (Qwen3.5): thinking is disabled at the model level
+
+The local WebLLM models are imbue's custom MLC builds. Their
+`mlc-chat-config.json` ships conv_template **`qwen3_5_nothink`**, whose
+assistant role is hardcoded to begin with an empty pre-closed
+`<think>\n\n</think>` — so Qwen3.5 emits **no chain-of-thought by default**,
+even though base Qwen3/Qwen3.5 default thinking ON. Implications:
+
+- `extra_body.enable_thinking` is a **no-op for Qwen3.5** (already off via the
+  template); only `Qwen3-4B` needs/uses that runtime flag.
+- The model has no hidden `<think>` deliberation, so the **visible reasoning
+  the prompt asks for (written before the classification label) is the only
+  test-time "thinking"** — keep reasoning-before-label ordering in any
+  prompt/structured-output changes.
+
+Verified from source (`mlc-chat-config.json`):
+
+- [Qwen3.5-4B-q4f16_1-MLC-2](https://huggingface.co/imbue/Qwen3.5-4B-q4f16_1-MLC-2/raw/main/mlc-chat-config.json)
+- [Qwen3.5-4B-vision-q4f16_1-MLC-2](https://huggingface.co/imbue/Qwen3.5-4B-vision-q4f16_1-MLC-2/raw/main/mlc-chat-config.json)
+
 ### Content Script Flow
 
 1. Extension injects content script on Twitter/X pages

@@ -5,18 +5,18 @@ import type { ChatMessage, EvaluationPostData } from '../types';
 // System prompt for local models processing one post at a time
 export const LOCAL_SYSTEM_PROMPT = `You filter posts. Write 10-15 words identifying what the post is about, then state if it matches a filter category.
 
-Example outputs (NOTE: you may not be filtering on these categories!):
+Example outputs (the categories here are illustrative placeholders — only judge against the categories you are actually given):
 
 <example>
-<filter_categories>sports</filter_categories>
-<post>The Lakers won last night against the Bucks!</post>
-Post about NBA basketball game results, which is sports content. Matches sports.
+<filter_categories>sprockets</filter_categories>
+<post>Just installed a new sprocket on my bike — rides so smooth now.</post>
+Post about installing a bike sprocket, which is sprockets content. Matches sprockets.
 </example>
 
 <example>
-<filter_categories>politics</filter_categories>
-<post>I love cooking dinner each night with my husband</post>
-Post about making dinner at home, which is Food/lifestyle content, not politics content. No match.
+<filter_categories>sprockets</filter_categories>
+<post>Had a wonderful morning walk in the park today.</post>
+Post about a morning walk, unrelated to sprockets. No match.
 </example>
 
 You will be provided with a post (<post>) and a list of filter categories (<filter_categories>).

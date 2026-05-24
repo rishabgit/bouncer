@@ -223,99 +223,112 @@
   overflow-y: auto;
 }
 
-/* Toast Notifications */
-.post-filter-toast-container {
+/* Feed-level model-status indicator (bottom-left, theme-aware): a single
+   state-driven pill shown when the local model isn't ready to classify.
+   Defaults to the dark palette; light/dim overrides are scoped to the
+   html.twitter-{theme} class set by updateTheme() in content/ui.ts. */
+.bouncer-model-status {
   position: fixed;
   bottom: 20px;
-  right: 20px;
+  left: 20px;
   z-index: 999998;
   display: flex;
-  flex-direction: column-reverse;
+  align-items: center;
   gap: 10px;
+  max-width: 340px;
+  padding: 10px 12px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+  background: #15202b;
+  color: #e7e9ea;
+  border: 1px solid #38444d;
+  border-left: 4px solid rgb(29, 155, 240);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transform: translateY(8px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
   pointer-events: none;
 }
 
-.post-filter-toast {
-  background: #15202b;
-  border: 1px solid #38444d;
-  border-left: 4px solid #f4212e;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
-  width: 320px;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 13px;
-  color: #e7e9ea;
-  overflow: hidden;
-  pointer-events: auto;
-  opacity: 0;
-  transform: translateX(100%);
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.post-filter-toast.toast-visible {
+.bouncer-model-status.visible {
   opacity: 1;
-  transform: translateX(0);
+  transform: translateY(0);
+  pointer-events: auto;
 }
 
-.post-filter-toast.toast-hiding {
-  opacity: 0;
-  transform: translateX(100%);
+.bouncer-model-status-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgb(29, 155, 240);
 }
 
-.toast-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 12px;
-  background: #192734;
-  border-bottom: 1px solid #38444d;
+.bouncer-model-status-text {
+  flex: 1 1 auto;
+  word-break: break-word;
 }
 
-.toast-title {
+.bouncer-model-status-text strong {
   font-weight: 600;
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #f4212e;
 }
 
-.toast-close {
+.bouncer-model-status-close {
+  flex: 0 0 auto;
   background: none;
   border: none;
   color: #8899a6;
   font-size: 18px;
-  cursor: pointer;
-  padding: 0;
   line-height: 1;
+  cursor: pointer;
+  padding: 0 2px;
 }
 
-.toast-close:hover {
+.bouncer-model-status-close:hover {
   color: #fff;
 }
 
-.toast-content {
-  padding: 10px 12px;
-  line-height: 1.4;
-  color: #e7e9ea;
-  word-break: break-word;
-}
-
-.toast-reason {
-  padding: 8px 12px;
-  font-size: 11px;
-  color: #8899a6;
-  background: #192734;
-  border-top: 1px solid #38444d;
-  font-style: italic;
-}
-
-/* Warning toast (e.g., missing API key) */
-.post-filter-toast.post-filter-warning {
+/* Variants */
+.bouncer-model-status--warning {
   border-left-color: #ffad1f;
 }
 
-.post-filter-toast.post-filter-warning .toast-title {
-  color: #ffad1f;
+.bouncer-model-status--warning .bouncer-model-status-dot {
+  background: #ffad1f;
+}
+
+.bouncer-model-status--progress .bouncer-model-status-dot {
+  animation: bouncer-status-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes bouncer-status-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Light theme */
+html.twitter-light .bouncer-model-status {
+  background: #fff;
+  border-color: #cfd9de;
+  color: #0f1419;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+html.twitter-light .bouncer-model-status-close {
+  color: #536471;
+}
+
+html.twitter-light .bouncer-model-status-close:hover {
+  color: #0f1419;
+}
+
+/* Dim theme */
+html.twitter-dim .bouncer-model-status {
+  background: rgb(21, 32, 43);
+  border-color: #38444d;
+  color: #f7f9f9;
 }
 
 /* Slop Tab Styles */

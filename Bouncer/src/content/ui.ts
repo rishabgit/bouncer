@@ -55,16 +55,15 @@ let activePopupArticle: HTMLElement | null = null;
 // Persists across in-place re-renders so the user's tab selection isn't lost
 // when a late-arriving detectorResponse triggers a refresh.
 let activePopupTab: string | null = null;
-let toastContainer: HTMLElement | null = null;
 const annoyingReasonsCache: WeakMap<HTMLElement, Promise<{ reasons: string[]; hadImages?: boolean }>> = new WeakMap();
 
 // Track previous count for animation
 let previousFilteredCount = 0;
 
-// Track current model loading state
-
-// Track if we've shown the API key warning
-let apiKeyWarningShown = false;
+// Feed-level model-status indicator (bottom-left, theme-aware): one state-driven
+// element shown when the local model isn't ready to classify. See updateModelStatusIndicator.
+let modelStatusEl: HTMLElement | null = null;
+let modelStatusDismissed: ModelUiState | null = null; // derived state the user dismissed
 
 // ==================== Update Banner ====================
 
@@ -1457,7 +1456,10 @@ export function updateModelLoadingProgress(statuses: Record<string, LocalModelSt
 
   if (!status) return;
 
-  const isLoading = status.state === 'downloading' || status.state === 'initializing' || status.state === 'cached';
+  // 'cached' means downloaded-but-idle (loads transparently on demand), so it is
+  // not shown as loading here — matching the feed-level indicator. Only the
+  // genuinely in-progress states surface the bar.
+  const isLoading = status.state === 'downloading' || status.state === 'initializing';
 
   containers.forEach(container => {
     if (container && container.isConnected) {
@@ -1469,10 +1471,7 @@ export function updateModelLoadingProgress(statuses: Record<string, LocalModelSt
         const textEl = loadingEl.querySelector('.model-loading-text')!;
         const fillEl = loadingEl.querySelector<HTMLElement>('.model-loading-progress-fill')!;
 
-        if (status.state === 'cached') {
-          textEl.textContent = 'Loading model...';
-          fillEl.style.width = '0%';
-        } else if (status.text) {
+        if (status.text) {
           textEl.textContent = status.text;
           fillEl.style.width = `${(status.progress || 0) * 100}%`;
         } else {
@@ -1487,15 +1486,114 @@ export function updateModelLoadingProgress(statuses: Record<string, LocalModelSt
 
 }
 
+// ==================== Feed-level model-status indicator ====================
+//
+// A single state-driven element (bottom-left, theme-aware) that surfaces *why*
+// filtering isn't happening when the local model isn't ready. It is a pure
+// function of storage (selectedModel + localModelStatuses), updated by
+// initModelLoadingListener below — so it stays in sync with the popup without
+// any extra message plumbing. The popup remains the place to set up a model.
+
+type ModelUiState = 'ready' | 'needs_setup' | 'loading' | 'unsupported' | 'error';
+
+// Pure mapping: storage state → derived UI state.
+function deriveModelUiState(
+  selectedModel: string,
+  statuses: Record<string, LocalModelStatus>,
+): ModelUiState {
+  if (!selectedModel || !selectedModel.startsWith('local:')) return 'needs_setup';
+  const status = statuses[selectedModel.split(':')[1]];
+  switch (status?.state) {
+    // ready or cached = usable now. 'cached' means downloaded but the engine is
+    // cold; it loads transparently on the next post, so we stay hidden rather
+    // than claim "loading" while nothing is happening. The genuinely in-progress
+    // (and possibly slow) load surfaces via 'initializing' below.
+    case 'ready':
+    case 'cached': return 'ready';
+    case 'downloading':
+    case 'initializing': return 'loading';
+    case 'unsupported': return 'unsupported';
+    case 'error': return 'error';
+    case 'not_downloaded':
+    default: return 'needs_setup';
+  }
+}
+
+interface ModelStatusView { variant: 'info' | 'progress' | 'warning'; body: string; dismissible: boolean; }
+
+function modelStatusView(
+  state: ModelUiState,
+  statuses: Record<string, LocalModelStatus>,
+  selectedModel: string,
+): ModelStatusView | null {
+  switch (state) {
+    case 'needs_setup':
+      return { variant: 'info', body: 'Open the Bouncer extension to download a model and start filtering.', dismissible: true };
+    case 'loading': {
+      const status = statuses[selectedModel.split(':')[1]];
+      const pct = typeof status?.progress === 'number' ? Math.round(status.progress * 100) : null;
+      const detail = status?.text || (pct !== null ? `${pct}%` : '');
+      return { variant: 'progress', body: `Loading model…${detail ? ' ' + detail : ''}`, dismissible: false };
+    }
+    case 'unsupported':
+      return { variant: 'warning', body: "This browser can't run local models — WebGPU isn't available.", dismissible: true };
+    case 'error':
+      return { variant: 'warning', body: 'The local model failed to load. Open the Bouncer extension to retry.', dismissible: true };
+    case 'ready':
+    default:
+      return null;
+  }
+}
+
+function ensureModelStatusEl(): HTMLElement {
+  if (modelStatusEl && document.body.contains(modelStatusEl)) return modelStatusEl;
+  modelStatusEl = document.createElement('div');
+  modelStatusEl.className = 'bouncer-model-status';
+  document.body.appendChild(modelStatusEl);
+  return modelStatusEl;
+}
+
+// Update (and create on demand) the indicator from the current storage state.
+export function updateModelStatusIndicator(
+  statuses: Record<string, LocalModelStatus>,
+  selectedModel: string,
+): void {
+  const state = deriveModelUiState(selectedModel, statuses);
+
+  // Clear a stale dismissal when the condition changes, so a new state (e.g. an
+  // error after the setup hint was dismissed) still surfaces.
+  if (modelStatusDismissed !== null && modelStatusDismissed !== state) modelStatusDismissed = null;
+
+  const view = modelStatusDismissed === state ? null : modelStatusView(state, statuses, selectedModel);
+  if (!view) {
+    if (modelStatusEl) modelStatusEl.classList.remove('visible');
+    return;
+  }
+
+  const el = ensureModelStatusEl();
+  el.classList.remove('bouncer-model-status--info', 'bouncer-model-status--progress', 'bouncer-model-status--warning');
+  el.classList.add(`bouncer-model-status--${view.variant}`);
+  el.replaceChildren(parseHTML(
+    `<span class="bouncer-model-status-dot"></span>` +
+    `<span class="bouncer-model-status-text"><strong>Bouncer:</strong> ${escapeHtml(view.body)}</span>` +
+    (view.dismissible ? `<button class="bouncer-model-status-close" aria-label="Dismiss">&times;</button>` : '')
+  ));
+  if (view.dismissible) {
+    el.querySelector('.bouncer-model-status-close')?.addEventListener('click', () => {
+      modelStatusDismissed = state;
+      el.classList.remove('visible');
+    });
+  }
+  requestAnimationFrame(() => el.classList.add('visible'));
+}
+
 export function initModelLoadingListener() {
   // Get initial state
   getStorage(['localModelStatuses', 'selectedModel']).then((data) => {
-    if (data.localModelStatuses) {
-      updateModelLoadingProgress(
-        data.localModelStatuses,
-        data.selectedModel || ''
-      );
-    }
+    const statuses = (data.localModelStatuses || {});
+    const selectedModel = data.selectedModel || '';
+    updateModelLoadingProgress(statuses, selectedModel);
+    updateModelStatusIndicator(statuses, selectedModel);
   }).catch(err => console.error('[UI] Failed to load model statuses:', err));
 
   // Listen for changes
@@ -1507,6 +1605,7 @@ export function initModelLoadingListener() {
         const selectedModel = data.selectedModel || '';
 
         updateModelLoadingProgress(newStatuses, selectedModel);
+        updateModelStatusIndicator(newStatuses, selectedModel);
 
         // Check if selected local model just became ready - trigger re-evaluation
         if (selectedModel?.startsWith('local:')) {
@@ -1522,7 +1621,10 @@ export function initModelLoadingListener() {
     }
     if (areaName === 'local' && changes.selectedModel) {
       getStorage(['localModelStatuses']).then((data) => {
-        updateModelLoadingProgress(data.localModelStatuses || {}, changes.selectedModel.newValue as string);
+        const statuses = (data.localModelStatuses || {});
+        const selectedModel = changes.selectedModel.newValue as string;
+        updateModelLoadingProgress(statuses, selectedModel);
+        updateModelStatusIndicator(statuses, selectedModel);
       }).catch(err => console.error('[UI] Failed to get model statuses:', err));
     }
   });
@@ -2210,7 +2312,6 @@ function refreshActivePopupIfFor(article: HTMLElement) {
 function detectorLabel(name: string): string {
   switch (name) {
     case 'filter': return 'Filter';
-    case 'aiText': return 'AI text';
     default: return name;
   }
 }
@@ -2219,47 +2320,6 @@ function handleOutsideClick(e: MouseEvent) {
   if (activePopup && !activePopup.contains(e.target as Node)) {
     hideReasoningPopup();
   }
-}
-
-// ==================== Toasts ====================
-
-function getToastContainer() {
-  if (!toastContainer || !document.body.contains(toastContainer)) {
-    toastContainer = document.createElement('div');
-    toastContainer.className = 'post-filter-toast-container';
-    document.body.appendChild(toastContainer);
-  }
-  return toastContainer;
-}
-
-function dismissToast(toast: HTMLElement) {
-  if (!toast || !toast.parentNode) return;
-  toast.classList.remove('toast-visible');
-  toast.classList.add('toast-hiding');
-  setTimeout(() => {
-    if (toast.parentNode) {
-      toast.parentNode.removeChild(toast);
-    }
-  }, 300);
-}
-
-export function showApiKeyWarning() {
-  if (apiKeyWarningShown) return;
-  apiKeyWarningShown = true;
-
-  const container = getToastContainer();
-  const toast = document.createElement('div');
-  toast.className = 'post-filter-toast post-filter-warning';
-  toast.replaceChildren(parseHTML(`
-    <div class="toast-header">
-      <span class="toast-title">Feed Filter</span>
-      <button class="toast-close">&times;</button>
-    </div>
-    <div class="toast-content">No API key configured. Click the extension icon to add your Claude API key.</div>
-  `));
-  container.appendChild(toast);
-  requestAnimationFrame(() => toast.classList.add('toast-visible'));
-  toast.querySelector('.toast-close')!.addEventListener('click', () => dismissToast(toast));
 }
 
 function showCategoryLimitWarning() {

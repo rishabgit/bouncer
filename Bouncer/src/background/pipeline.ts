@@ -298,26 +298,17 @@ export function replayDetectorStates(tabId: number, evaluationId: string, evalRe
     return;
   }
 
-  // Legacy entry without per-detector state. Show two tabs and attribute the
-  // cached reasoning to whichever detector likely produced it (by category).
-  const isAi = evalResult.category === 'AI-generated';
-  const winnerName = isAi ? 'aiText' : 'filter';
-  const otherName = isAi ? 'filter' : 'aiText';
-  void sendToTab(tabId, { type: 'evaluationStarted', evaluationId, detectorNames: ['filter', 'aiText'] });
+  // Legacy entry without per-detector state — replay as a single filter tab with
+  // the cached reasoning. (Pre-strip entries could also carry an AI-text detector,
+  // which no longer exists in this local-only fork.)
+  void sendToTab(tabId, { type: 'evaluationStarted', evaluationId, detectorNames: ['filter'] });
   void sendToTab(tabId, {
     type: 'detectorResponse',
     evaluationId,
-    detectorName: winnerName,
+    detectorName: 'filter',
     shouldHide: evalResult.shouldHide,
     reasoning: evalResult.reasoning,
     category: evalResult.category ?? null,
-  });
-  void sendToTab(tabId, {
-    type: 'detectorResponse',
-    evaluationId,
-    detectorName: otherName,
-    skipped: true,
-    skipReason: 'No detail available (cached before tabs were added)',
   });
 }
 

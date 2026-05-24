@@ -25,7 +25,7 @@ import {
   showSettingsModal, renderFilteredPostsView,
   initModelLoadingListener,
   markPostPending, markPostVerified, getVerificationBar,
-  storeFilteredPost, hidePost, showApiKeyWarning,
+  storeFilteredPost, hidePost,
   addContextMenuHandler,
   addWhyAnnoyingButton,
   processImportCodeInPost,
@@ -283,21 +283,14 @@ import { formatPostForEvaluation } from '../shared/utils';
       }
 
       if ('retry' in response) {
-        // Retry cases (model_not_downloaded, settings_changed) - remove from processed so post retries
+        // Retry cases (no model selected, model not downloaded, settings changed) -
+        // remove from processed so the post is re-evaluated once a model is ready.
+        // The feed-level model-status indicator (storage-driven) explains what to do.
         processedPosts.delete(article);
         return;
       }
 
       if ('error' in response) {
-        if (response.error === 'no_api_key') {
-          showApiKeyWarning();
-          postReasonings.set(article, {
-            shouldHide: false,
-            reasoning: 'No API key configured.'
-          });
-          markPostVerified(article);
-          return;
-        }
         // PipelineError - track for retry via error broadcasts
         postReasonings.set(article, { shouldHide: false, isApiError: true, reasoning: response.reasoning });
         if (content.postUrl) errorPostUrls.add(content.postUrl);

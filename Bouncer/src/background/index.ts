@@ -136,23 +136,28 @@ async function handleMessage(
       // Ensure tab is registered (re-registers after service worker restart)
       if (tabId) activeContentTabs.add(tabId);
 
-      // Posts always flow through processBatch so the popup gets a consistent
-      // two-tab dispatch (filter + aiText), even when neither is configured.
-      // The detectors then mark themselves skipped with appropriate reasons.
+      // Posts flow through processBatch so the popup gets a consistent filter-tab
+      // dispatch even when no phrases are configured (the detector marks itself
+      // skipped with a reason).
       const settings = await getSettings(message.siteId);
 
-      // Check if local model is selected but not ready
+      // No usable local model — none selected, or this browser has no WebGPU.
+      // Return retry (not an error) so the content script leaves the post alone,
+      // drops it from processedPosts, and re-evaluates once a model is ready. The
+      // in-feed model-status indicator tells the user how to set one up.
       const isLocalModel = settings.selectedModel?.startsWith('local:');
-      if (isLocalModel) {
-        const modelId = settings.selectedModel.split(':')[1];
-        const notDownloaded = !localEngine.isModelLoaded(modelId) && !localEngine.isInitializing();
+      if (!isLocalModel || !navigator.gpu) {
+        return { retry: true as const, reasoning: !navigator.gpu ? 'WebGPU not supported' : 'No model selected' };
+      }
 
-        if (notDownloaded) {
-          // Check if model is cached - if not, return early
-          const cached = await localEngine.checkCached(modelId);
-          if (!cached) {
-            return { retry: true as const, reasoning: 'Local model not downloaded yet.' };
-          }
+      // A model is selected. If it isn't downloaded yet (not loaded, not
+      // initializing, not cached), ask the content script to retry later.
+      const modelId = settings.selectedModel.split(':')[1];
+      const notDownloaded = !localEngine.isModelLoaded(modelId) && !localEngine.isInitializing();
+      if (notDownloaded) {
+        const cached = await localEngine.checkCached(modelId);
+        if (!cached) {
+          return { retry: true as const, reasoning: 'Local model not downloaded yet.' };
         }
       }
 

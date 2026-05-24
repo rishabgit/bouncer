@@ -32,7 +32,7 @@ export interface DetectorResult {
 }
 
 export interface Detector {
-  /** Short stable identifier used in logs (e.g. "filter", "aiText"). */
+  /** Short stable identifier used in logs (e.g. "filter"). */
   name: string;
   /** Already-started detector promise. The caller is responsible for kicking
    *  off the request so all detectors run in parallel from the moment they're

@@ -46,7 +46,7 @@ export type PipelineResponse = EvaluationResult | PipelineError | PipelineRetry 
 
 /** Evaluation failed — content should track for retry via error broadcasts. */
 export interface PipelineError {
-  error: 'auth' | 'rate_limit' | 'not_found' | 'server_error' | 'no_api_key';
+  error: 'auth' | 'rate_limit' | 'not_found' | 'server_error';
   reasoning: string;
 }
 

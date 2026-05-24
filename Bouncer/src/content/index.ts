@@ -17,7 +17,7 @@ const updateIOSFilteredCount = (): void => {};
 const handleDOMMutationIOS = (): void => {};
 
 import {
-  initUI, checkAuthStatus,
+  initUI,
   getFilteredPosts, getFilteredTabActive,
   updateTheme,
   injectFilterPhrasesInput, injectBottomFilterBox, injectMobileFilterBox,
@@ -567,7 +567,6 @@ import { formatPostForEvaluation } from '../shared/utils';
     filterReplies = data.filterReplies !== false;
 
     await checkLocalModelActive();
-    await checkAuthStatus();
 
     if (enabled) {
       observePosts();

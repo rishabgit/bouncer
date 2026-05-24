@@ -10,14 +10,10 @@ const env = process.argv.includes('--dev') ? 'dev' : 'prod';
 const targetArg = process.argv.find((a) => a.startsWith('--target='));
 const target = targetArg ? targetArg.split('=')[1] : 'chrome';
 
-// This is a local-only fork: all cloud/remote backends (and the Firebase auth +
-// Imbue websocket they needed) were removed, so there are no build-time secrets.
-// HAS_IMBUE_BACKEND is hard-wired to "false" — a few inert branches in the
-// content script still reference it and must resolve to a literal at build time.
+// This is a local-only fork: all cloud/remote backends were removed, so there
+// are no build-time secrets. NODE_ENV is the only define the vendored deps read.
 const define = {
   'process.env.NODE_ENV': '"production"',
-  'process.env.HAS_IMBUE_BACKEND': '"false"',
-  'process.env.BOUNCER_ENV': JSON.stringify(env),
 };
 
 const adapterTsPath = path.join(__dirname, 'adapters/twitter/TwitterAdapter.ts');

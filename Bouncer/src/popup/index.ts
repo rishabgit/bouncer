@@ -1,31 +1,16 @@
-// Bouncer - Popup Script
+// Bouncer - Popup Script (local-only)
 
-import type { ModelDef, LocalModelDef, LocalModelStatus, StorageSchema } from '../types';
+import type { ModelDef, LocalModelStatus } from '../types';
 import { PREDEFINED_MODELS, DEFAULT_MODEL } from '../shared/models';
 import { escapeHtml, parseHTML } from '../shared/utils';
-import { getStorage, setStorage, removeStorage, clampThreshold } from '../shared/storage';
+import { getStorage, setStorage } from '../shared/storage';
 import { asyncHandler } from '../shared/async';
-
-// Storage key for predefined model API kwargs overrides
-// Format: { "api:modelName": { key: value, ... }, ... }
-let predefinedModelKwargs: Record<string, Record<string, unknown>> = {};
-
-const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
-  ...(process.env.HAS_IMBUE_BACKEND === 'true' ? { imbue: 'Imbue (Default)' } : {}),
-  local: 'Local',
-  openrouter: 'OpenRouter',
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  gemini: 'Gemini'
-};
 
 // Track local model statuses (per-model)
 let localModelStatuses: Record<string, LocalModelStatus> = {};
 let webgpuSupported = true;
-const isIOSDevice = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-// In-app mode detection
+// In-app mode detection (native WebView bridge sets chrome._polyfilled)
 const isInAppMode = typeof chrome !== 'undefined' && chrome._polyfilled;
 
 // User-friendly error message mapping for WebLLM errors
@@ -98,114 +83,47 @@ document.addEventListener('DOMContentLoaded', () => { init().catch(err => consol
 export async function init() {
   console.log('[Popup] init() called');
   try {
-  const isModal = window.self !== window.top;
+    const isModal = window.self !== window.top;
 
-  // Detect if we're in an iframe (modal mode)
-  if (isModal) {
-    document.body.classList.add('modal-mode');
+    // Detect if we're in an iframe (modal mode)
+    if (isModal) {
+      document.body.classList.add('modal-mode');
 
-    // Set up close buttons to message parent
-    for (const btn of document.querySelectorAll('.modal-close-btn')) {
-      btn.addEventListener('click', () => {
-        window.parent.postMessage({ type: 'closeSettingsModal' }, '*');
-      });
-    }
-
-    // Listen for theme message from parent
-    window.addEventListener('message', (event) => {
-      const data = event.data as { type?: string; theme?: string } | null;
-      if (data && data.type === 'setTheme') {
-        const theme = data.theme;
-        document.body.classList.remove('light-mode', 'dim-mode', 'dark-mode');
-        document.body.classList.add(`${theme}-mode`);
+      // Set up close buttons to message parent
+      for (const btn of document.querySelectorAll('.modal-close-btn')) {
+        btn.addEventListener('click', () => {
+          window.parent.postMessage({ type: 'closeSettingsModal' }, '*');
+        });
       }
-    });
 
-    // Report content height changes to parent so iframe can resize dynamically
-    const sendSize = () => {
-      const height = document.body.scrollHeight + 2;
-      window.parent.postMessage({ type: 'settingsResize', height }, '*');
-    };
-    const resizeObserver = new ResizeObserver(sendSize);
-    resizeObserver.observe(document.body);
-    sendSize();
-  }
-
-  // Check auth status and show appropriate screen.
-  //
-  // On open-source / BYOK-only builds (HAS_IMBUE_BACKEND !== 'true') there's
-  // nothing to sign in to, so the whole sign-in screen is dead code and we
-  // skip the round-trip entirely. The background's getAuthStatus returns
-  // authenticated:true in that case anyway, but Safari's MV3 message round-
-  // trip is flakier than Chrome/Firefox — an undefined response there would
-  // surface the sign-in screen with a dead "Activate Bouncer" button. Gating
-  // at build time eliminates the failure mode and the bytes.
-  const signinContainer = document.getElementById('signinContainer');
-  const mainContainer = document.getElementById('mainContainer');
-  const popupGoogleSignIn = document.getElementById('popupGoogleSignIn');
-  if (process.env.HAS_IMBUE_BACKEND === 'true') {
-    try {
-      const authResponse: { authenticated?: boolean; isSafari?: boolean } = await chrome.runtime.sendMessage({ type: 'getAuthStatus' });
-      if (!authResponse?.authenticated) {
-        if (signinContainer) signinContainer.style.display = '';
-        if (mainContainer) mainContainer.style.display = 'none';
-
-        // On Safari, show Apple sign-in button instead of Google
-        if (authResponse?.isSafari && popupGoogleSignIn) {
-          popupGoogleSignIn.replaceChildren(parseHTML(`
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" width="18" height="18" style="margin-right: 8px;">
-              <path d="M17.05 20.28c-.98.95-2.05.88-3.08.4-1.09-.5-2.08-.48-3.24 0-1.44.62-2.2.44-3.06-.4C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z" fill="currentColor"/>
-            </svg>
-            Activate Bouncer
-          `));
-          const explanation = signinContainer?.querySelector('.signin-description');
-          if (explanation) explanation.textContent = 'Sign in with Apple to start filtering your feed.';
+      // Listen for theme message from parent
+      window.addEventListener('message', (event) => {
+        const data = event.data as { type?: string; theme?: string } | null;
+        if (data && data.type === 'setTheme') {
+          const theme = data.theme;
+          document.body.classList.remove('light-mode', 'dim-mode', 'dark-mode');
+          document.body.classList.add(`${theme}-mode`);
         }
+      });
 
-        // Wire up sign-in button
-        popupGoogleSignIn?.addEventListener('click', () => { (async () => {
-          const result: { success?: boolean } = await chrome.runtime.sendMessage({ type: 'launchAuth' });
-          if (result?.success) {
-            if (signinContainer) signinContainer.style.display = 'none';
-            if (mainContainer) mainContainer.style.display = '';
-            await loadSettings();
-            setupEventListeners();
-            await updateOpenRouterStatus();
-            await updateRateLimitAlert();
-            await updateLocalModelStatus();
-            setupLocalModelListeners();
-            setupStorageListener();
-          }
-        })().catch(err => console.error('[Popup] Sign-in failed:', err)); });
-        return;
-      }
-    } catch {
-      // If we can't check auth, show main UI anyway
+      // Report content height changes to parent so iframe can resize dynamically
+      const sendSize = () => {
+        const height = document.body.scrollHeight + 2;
+        window.parent.postMessage({ type: 'settingsResize', height }, '*');
+      };
+      const resizeObserver = new ResizeObserver(sendSize);
+      resizeObserver.observe(document.body);
+      sendSize();
     }
-  }
 
-  console.log('[Popup] About to loadSettings');
-  await loadSettings();
-  console.log('[Popup] loadSettings done, setupEventListeners');
-  setupEventListeners();
-  console.log('[Popup] setupEventListeners done');
+    await loadSettings();
+    setupEventListeners();
 
-  // In-app mode: skip OpenRouter status and rate limit (DOM elements may not exist, messages may hang)
-  if (!isInAppMode) {
-    await updateOpenRouterStatus();
-    await updateRateLimitAlert();
-  } else {
-    console.log('[Popup] Skipping updateOpenRouterStatus and updateRateLimitAlert in in-app mode');
-  }
-
-  // Initialize local model UI
-  console.log('[Popup] About to updateLocalModelStatus');
-  await updateLocalModelStatus();
-  console.log('[Popup] About to setupLocalModelListeners');
-  setupLocalModelListeners();
-
-  setupStorageListener();
-  console.log('[Popup] init() completed successfully');
+    // Initialize local model UI
+    await updateLocalModelStatus();
+    setupLocalModelListeners();
+    setupStorageListener();
+    console.log('[Popup] init() completed successfully');
   } catch (e) {
     console.error('[Popup] init() ERROR:', e, (e as Error).stack);
   }
@@ -213,112 +131,28 @@ export async function init() {
 
 function setupStorageListener() {
   chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName === 'local' && changes.authErrorApis) {
-      loadSettings().catch(err => console.error('[Popup] loadSettings failed:', err));
-    }
-    if (areaName === 'local' && changes.localModelStatuses) {
+    if (areaName !== 'local') return;
+    if (changes.localModelStatuses) {
       localModelStatuses = (changes.localModelStatuses.newValue as Record<string, LocalModelStatus>) || {};
       updateLocalModelSectionUI();
       refreshModelDropdownWithLocal().catch(err => console.error('[Popup] refreshModelDropdownWithLocal failed:', err));
     }
-    if (areaName === 'local' && changes.aiTextFilterEnabled) {
-      const enabled = changes.aiTextFilterEnabled.newValue === true;
-      const aiTextEl = document.getElementById('enableAiTextFilter') as HTMLInputElement | null;
-      if (aiTextEl) aiTextEl.checked = enabled;
-      setThresholdBlockEnabled(enabled);
-    }
-    if (areaName === 'local' && changes.aiTextFilterExperimental) {
-      const enabled = changes.aiTextFilterExperimental.newValue === true;
-      const expEl = document.getElementById('enableAiTextExperimental') as HTMLInputElement | null;
-      if (expEl) expEl.checked = enabled;
-      setAiTextExperimentalContentVisible(enabled);
-    }
-    if (areaName === 'local' && changes.filterReplies) {
+    if (changes.filterReplies) {
       const checked = changes.filterReplies.newValue !== false;
       const el = document.getElementById('enableFilterReplies') as HTMLInputElement | null;
       if (el && el.checked !== checked) el.checked = checked;
-    }
-    if (areaName === 'local' && changes.aiTextDetectionThreshold) {
-      const v = clampThreshold(changes.aiTextDetectionThreshold.newValue);
-      const thresholdEl = document.getElementById('aiTextThreshold') as HTMLInputElement | null;
-      if (thresholdEl) thresholdEl.value = String(v);
-      const valueEl = document.getElementById('aiTextThresholdValue');
-      if (valueEl) valueEl.textContent = `${Math.round(v * 100)}%`;
     }
   });
 }
 
 async function loadSettings() {
-  const data = await getStorage([
-    'enabled',
-    'selectedModel',
-    'customModels',
-    'openrouterApiKey',
-    'openaiApiKey',
-    'openaiApiBase',
-    'geminiApiKey',
-    'anthropicApiKey',
-    'predefinedModelKwargs',
-    'authErrorApis',
-    'localModelsEnabled',
-    'aiTextFilterEnabled',
-    'aiTextDetectionThreshold',
-    'aiTextFilterExperimental',
-    'filterReplies'
-  ]);
-
-  // Load predefined model kwargs overrides
-  predefinedModelKwargs = data.predefinedModelKwargs || {};
-
-  // API keys
-  (document.getElementById('openaiApiKey') as HTMLInputElement).value = data.openaiApiKey || '';
-  (document.getElementById('openaiApiBase') as HTMLInputElement).value = data.openaiApiBase || '';
-  (document.getElementById('geminiApiKey') as HTMLInputElement).value = data.geminiApiKey || '';
-  (document.getElementById('anthropicApiKey') as HTMLInputElement).value = data.anthropicApiKey || '';
-  updateAnthropicEnabledUI(!!data.anthropicApiKey);
-
-  // Local models toggle
-  const localModelsEnabled = data.localModelsEnabled || false;
-  (document.getElementById('enableLocalModels') as HTMLInputElement).checked = localModelsEnabled;
-  dropdownState.localModelsEnabled = localModelsEnabled;
+  const data = await getStorage(['selectedModel', 'customModels', 'filterReplies']);
 
   // "Filter replies in conversations" toggle (defaults to true so existing
   // installs keep filtering replies). The content script reads the same
   // key and skips reply evaluation on permalink pages when this is off.
   const filterRepliesEl = document.getElementById('enableFilterReplies') as HTMLInputElement | null;
   if (filterRepliesEl) filterRepliesEl.checked = data.filterReplies !== false;
-
-  // AI-text-detection toggle (gated on auth via parent mainContainer visibility)
-  const aiTextEl = document.getElementById('enableAiTextFilter') as HTMLInputElement | null;
-  const aiEnabled = data.aiTextFilterEnabled === true;
-  if (aiTextEl) aiTextEl.checked = aiEnabled;
-
-  const thresholdEl = document.getElementById('aiTextThreshold') as HTMLInputElement | null;
-  if (thresholdEl) {
-    const v = clampThreshold(data.aiTextDetectionThreshold);
-    thresholdEl.value = String(v);
-    const valueEl = document.getElementById('aiTextThresholdValue');
-    if (valueEl) valueEl.textContent = `${Math.round(v * 100)}%`;
-  }
-  setThresholdBlockEnabled(aiEnabled);
-
-  // AI-text-filter experimental gate. The AI detector is Imbue-only
-  // (callImbueAiTextDetection), so hide the entire UI surface — the
-  // experimental toggle and its content — when the Imbue backend isn't
-  // configured at build time.
-  const expEl = document.getElementById('enableAiTextExperimental') as HTMLInputElement | null;
-  if (process.env.HAS_IMBUE_BACKEND !== 'true') {
-    const expToggle = expEl?.closest<HTMLElement>('.experimental-toggle');
-    if (expToggle) expToggle.style.display = 'none';
-    setAiTextExperimentalContentVisible(false);
-  } else {
-    const expEnabled = data.aiTextFilterExperimental === true;
-    if (expEl) expEl.checked = expEnabled;
-    setAiTextExperimentalContentVisible(expEnabled);
-  }
-
-  // Update API provider states
-  updateApiProviderStates(data);
 
   // Model selection
   renderModelDropdown(data.customModels || [], data.selectedModel || DEFAULT_MODEL);
@@ -327,367 +161,28 @@ async function loadSettings() {
   updateLocalModelSectionVisibility();
 }
 
-// Toggle the AI threshold block's disabled visual + interaction state.
-// Driven from both the load path and the toggle's change handler so the
-// slider always reflects whether the feature is on.
-function setThresholdBlockEnabled(enabled: boolean) {
-  const block = document.getElementById('aiTextThresholdBlock');
-  if (block) block.setAttribute('aria-disabled', enabled ? 'false' : 'true');
-}
-
-function setAiTextExperimentalContentVisible(visible: boolean) {
-  const content = document.getElementById('aiTextFilterExperimentalContent');
-  if (content) content.style.display = visible ? '' : 'none';
-}
-
-function updateAnthropicEnabledUI(isEnabled: boolean) {
-  document.getElementById('anthropicKeyEntry')!.style.display = isEnabled ? 'none' : 'block';
-  document.getElementById('anthropicEnabled')!.style.display = isEnabled ? 'block' : 'none';
-  document.getElementById('anthropicError')!.style.display = 'none';
-  (document.getElementById('anthropicEnableBtn') as HTMLButtonElement).disabled = true;
-  (document.getElementById('anthropicEnableBtn') as HTMLButtonElement).textContent = 'Enable';
-  (document.getElementById('anthropicEnableBtn') as HTMLButtonElement).classList.remove('verifying');
-}
-
-function updateApiProviderStates(data: Partial<StorageSchema>) {
-  // Update dropdownState with which APIs are authenticated
-  // Note: 'local' is always available (no auth required)
-  dropdownState.authenticatedApis = {
-    openrouter: !!data.openrouterApiKey,
-    openai: !!data.openaiApiKey,
-    gemini: !!data.geminiApiKey,
-    anthropic: !!data.anthropicApiKey,
-    local: true
-  };
-
-  // Get providers with auth errors (object mapping provider name -> boolean)
-  const authErrorApis = data.authErrorApis || {};
-
-  // Update OpenRouter badge
-  const openrouterBadge = document.getElementById('openrouterStatusBadge')!;
-  openrouterBadge.classList.remove('connected', 'auth-error');
-  if (authErrorApis.openrouter && data.openrouterApiKey) {
-    openrouterBadge.textContent = 'Auth error';
-    openrouterBadge.classList.add('auth-error');
-  } else if (data.openrouterApiKey) {
-    openrouterBadge.textContent = 'Enabled';
-    openrouterBadge.classList.add('connected');
-  } else {
-    openrouterBadge.textContent = 'Not enabled';
-  }
-
-  // Update OpenAI badge
-  const openaiBadge = document.getElementById('openaiStatusBadge')!;
-  openaiBadge.classList.remove('connected', 'auth-error');
-  if (authErrorApis.openai && data.openaiApiKey) {
-    openaiBadge.textContent = 'Auth error';
-    openaiBadge.classList.add('auth-error');
-  } else if (data.openaiApiKey) {
-    openaiBadge.textContent = 'Enabled';
-    openaiBadge.classList.add('connected');
-  } else {
-    openaiBadge.textContent = 'Not enabled';
-  }
-
-  // Update Gemini badge
-  const geminiBadge = document.getElementById('geminiStatusBadge')!;
-  geminiBadge.classList.remove('connected', 'auth-error');
-  if (authErrorApis.gemini && data.geminiApiKey) {
-    geminiBadge.textContent = 'Auth error';
-    geminiBadge.classList.add('auth-error');
-  } else if (data.geminiApiKey) {
-    geminiBadge.textContent = 'Enabled';
-    geminiBadge.classList.add('connected');
-  } else {
-    geminiBadge.textContent = 'Not enabled';
-  }
-
-  // Update Anthropic badge
-  const anthropicBadge = document.getElementById('anthropicStatusBadge')!;
-  anthropicBadge.classList.remove('connected', 'auth-error');
-  if (authErrorApis.anthropic && data.anthropicApiKey) {
-    anthropicBadge.textContent = 'Auth error';
-    anthropicBadge.classList.add('auth-error');
-  } else if (data.anthropicApiKey) {
-    anthropicBadge.textContent = 'Enabled';
-    anthropicBadge.classList.add('connected');
-  } else {
-    anthropicBadge.textContent = 'Not enabled';
-  }
-
-  // Check if selected model's provider is still authenticated
-  if (dropdownState.selectedModel && dropdownState.selectedModel !== 'imbue') {
-    const [api] = dropdownState.selectedModel.split(':');
-    // For local models, check if local models are enabled
-    if (api === 'local') {
-      if (!dropdownState.localModelsEnabled) {
-        selectModel(DEFAULT_MODEL).catch(err => console.error('[Popup] selectModel failed:', err));
-      }
-    } else if (!dropdownState.authenticatedApis[api]) {
-      // Provider no longer authenticated, reset to default
-      selectModel(DEFAULT_MODEL).catch(err => console.error('[Popup] selectModel failed:', err));
-    }
-  }
-}
-
 function setupEventListeners() {
-
   // Model dropdown
   setupModelDropdown();
-
-  // API provider collapsible headers
-  document.querySelectorAll('.api-provider-header').forEach(header => {
-    header.addEventListener('click', () => {
-      const provider = header.closest('.api-provider');
-      provider?.classList.toggle('expanded');
-    });
-  });
-
-  // OpenAI API key
-  document.getElementById('openaiApiKey')!.addEventListener('change', (e) => { (async () => {
-    const key = (e.target as HTMLInputElement).value.trim();
-    await setStorage({ openaiApiKey: key });
-    const data = await getStorage(['openrouterApiKey', 'openaiApiKey', 'openaiApiBase', 'geminiApiKey', 'anthropicApiKey', 'customModels', 'selectedModel', 'authErrorApis']);
-    updateApiProviderStates(data);
-    renderModelDropdown(data.customModels || [], data.selectedModel || DEFAULT_MODEL);
-  })().catch(err => console.error('[Popup] openaiApiKey change failed:', err)); });
-
-  // OpenAI API base URL
-  document.getElementById('openaiApiBase')!.addEventListener('change', (e) => { (async () => {
-    const base = (e.target as HTMLInputElement).value.trim();
-    await setStorage({ openaiApiBase: base });
-  })().catch(err => console.error('[Popup] openaiApiBase change failed:', err)); });
-
-  // Anthropic API key - enable/disable button to input field
-  const anthropicKeyInput = document.getElementById('anthropicApiKey') as HTMLInputElement;
-  const anthropicEnableBtn = document.getElementById('anthropicEnableBtn') as HTMLButtonElement;
-
-  anthropicKeyInput.addEventListener('input', () => {
-    anthropicEnableBtn.disabled = !anthropicKeyInput.value.trim();
-    document.getElementById('anthropicError')!.style.display = 'none';
-  });
-
-  anthropicEnableBtn.addEventListener('click', () => { (async () => {
-    const key = anthropicKeyInput.value.trim();
-    if (!key) return;
-
-    const errorEl = document.getElementById('anthropicError')!;
-    errorEl.style.display = 'none';
-    anthropicEnableBtn.disabled = true;
-    anthropicEnableBtn.classList.add('verifying');
-    anthropicEnableBtn.textContent = 'Verifying...';
-
-    try {
-      const requestBody = {
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1,
-        messages: [{ role: 'user', content: 'hi' }]
-      };
-      const requestHeaders: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      };
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: requestHeaders,
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        const body = await response.text();
-        let msg = 'Invalid API key';
-        if (response.status === 401 || response.status === 403) {
-          msg = 'Invalid API key. Check that your key is correct.';
-        } else if (response.status === 429) {
-          msg = 'Rate limited. Key looks valid — try again shortly.';
-        } else {
-          try {
-            const parsed = JSON.parse(body) as { error?: { message?: string } };
-            msg = parsed.error?.message || `API error (${response.status})`;
-          } catch { msg = `API error (${response.status})`; }
-        }
-
-        // 429 means the key is valid, just rate limited — allow enabling
-        if (response.status === 429) {
-          // Clear any stale auth error for anthropic
-          const authErrors429 = (await getStorage(['authErrorApis'])).authErrorApis || {};
-          if (authErrors429.anthropic) {
-            delete authErrors429.anthropic;
-            await setStorage({ authErrorApis: authErrors429 });
-          }
-          await setStorage({ anthropicApiKey: key });
-          const data = await getStorage(['openrouterApiKey', 'openaiApiKey', 'geminiApiKey', 'anthropicApiKey', 'customModels', 'selectedModel', 'authErrorApis']);
-          updateApiProviderStates(data);
-          updateAnthropicEnabledUI(true);
-          renderModelDropdown(data.customModels || [], data.selectedModel || DEFAULT_MODEL);
-        } else {
-          errorEl.textContent = msg;
-          errorEl.style.display = 'block';
-          anthropicEnableBtn.disabled = false;
-        }
-      } else {
-        // Clear any stale auth error for anthropic
-        const authErrorsOk = (await getStorage(['authErrorApis'])).authErrorApis || {};
-        if (authErrorsOk.anthropic) {
-          delete authErrorsOk.anthropic;
-          await setStorage({ authErrorApis: authErrorsOk });
-        }
-        // Success — save the key
-        await setStorage({ anthropicApiKey: key });
-        const data = await getStorage(['openrouterApiKey', 'openaiApiKey', 'geminiApiKey', 'anthropicApiKey', 'customModels', 'selectedModel', 'authErrorApis']);
-        updateApiProviderStates(data);
-        updateAnthropicEnabledUI(true);
-        renderModelDropdown(data.customModels || [], data.selectedModel || DEFAULT_MODEL);
-      }
-    } catch (err) {
-      console.error('[Anthropic] Network error during verification:', err);
-      errorEl.textContent = 'Network error. Could not reach Anthropic API.';
-      errorEl.style.display = 'block';
-      anthropicEnableBtn.disabled = false;
-    }
-
-    anthropicEnableBtn.classList.remove('verifying');
-    anthropicEnableBtn.textContent = 'Enable';
-  })().catch(err => console.error('[Popup] Anthropic enable failed:', err)); });
-
-  // Anthropic disable button
-  document.getElementById('anthropicDisableBtn')!.addEventListener('click', () => { (async () => {
-    await removeStorage('anthropicApiKey');
-    anthropicKeyInput.value = '';
-    updateAnthropicEnabledUI(false);
-    const data = await getStorage(['openrouterApiKey', 'openaiApiKey', 'geminiApiKey', 'anthropicApiKey', 'customModels', 'selectedModel', 'authErrorApis']);
-    updateApiProviderStates(data);
-    renderModelDropdown(data.customModels || [], data.selectedModel || DEFAULT_MODEL);
-  })().catch(err => console.error('[Popup] Anthropic disable failed:', err)); });
-
-  // Gemini API key
-  document.getElementById('geminiApiKey')!.addEventListener('change', (e) => { (async () => {
-    const key = (e.target as HTMLInputElement).value.trim();
-    await setStorage({ geminiApiKey: key });
-    const data = await getStorage(['openrouterApiKey', 'openaiApiKey', 'geminiApiKey', 'anthropicApiKey', 'customModels', 'selectedModel', 'authErrorApis']);
-    updateApiProviderStates(data);
-    renderModelDropdown(data.customModels || [], data.selectedModel || DEFAULT_MODEL);
-  })().catch(err => console.error('[Popup] geminiApiKey change failed:', err)); });
-
-  // OpenRouter: Safari has no chrome.identity, so launchWebAuthFlow throws.
-  // Show the API-key paste input instead and hide the OAuth button. The
-  // input mirrors the same chrome.storage.local.openrouterApiKey field the
-  // OAuth flow would have written, so everything downstream is identical.
-  const isSafariPopup = /^((?!chrome|android|crios|fxios|edg|opr).)*safari/i.test(navigator.userAgent);
-  if (isSafariPopup) {
-    const signInBtn = document.getElementById('openrouterSignIn') as HTMLButtonElement | null;
-    if (signInBtn) signInBtn.style.display = 'none';
-    const keyField = document.getElementById('openrouterApiKeyField');
-    if (keyField) keyField.style.display = '';
-    const keyInput = document.getElementById('openrouterApiKey') as HTMLInputElement | null;
-    if (keyInput) {
-      // Seed input from storage (async, but fine — `loadSettings` already
-      // populated other inputs before we got here; this is just a backstop).
-      getStorage(['openrouterApiKey'])
-        .then((d) => { keyInput.value = d.openrouterApiKey || ''; })
-        .catch((err) => console.error('[Popup] seed openrouterApiKey failed:', err));
-      keyInput.addEventListener('change', (e) => { (async () => {
-        const key = (e.target as HTMLInputElement).value.trim();
-        await setStorage({ openrouterApiKey: key });
-        await updateOpenRouterStatus();
-      })().catch(err => console.error('[Popup] openrouterApiKey change failed:', err)); });
-    }
-  } else {
-    document.getElementById('openrouterSignIn')!.addEventListener('click', asyncHandler(startOpenRouterOAuth));
-  }
-
-  // OpenRouter sign out
-  document.getElementById('openrouterSignOut')!.addEventListener('click', asyncHandler(signOutOpenRouter));
-
-  // AI-text-detection toggle. Cache invalidation + post re-evaluation are
-  // handled by the storage-change listener in background/index.ts. The
-  // threshold slider's enabled/disabled state mirrors this checkbox.
-  document.getElementById('enableAiTextExperimental')?.addEventListener('change', (e) => { (async () => {
-    const enabled = (e.target as HTMLInputElement).checked;
-    setAiTextExperimentalContentVisible(enabled);
-    await setStorage({ aiTextFilterExperimental: enabled });
-    // When experimental is turned off, also disable the underlying AI text filter
-    // so the pipeline naturally stops applying it (mirrors how disabling local
-    // models switches a selected local model back to imbue).
-    if (!enabled) {
-      await setStorage({ aiTextFilterEnabled: false });
-    }
-  })().catch(err => console.error('[Popup] enableAiTextExperimental change failed:', err)); });
-
-  document.getElementById('enableAiTextFilter')?.addEventListener('change', (e) => { (async () => {
-    const enabled = (e.target as HTMLInputElement).checked;
-    setThresholdBlockEnabled(enabled);
-    await setStorage({ aiTextFilterEnabled: enabled });
-  })().catch(err => console.error('[Popup] enableAiTextFilter change failed:', err)); });
 
   document.getElementById('enableFilterReplies')?.addEventListener('change', (e) => { (async () => {
     const checked = (e.target as HTMLInputElement).checked;
     await setStorage({ filterReplies: checked });
   })().catch(err => console.error('[Popup] enableFilterReplies change failed:', err)); });
-
-  // AI-text-detection threshold (range slider). Live-update the percentage
-  // display on `input` (every drag tick); persist only on `change` (release)
-  // so we don't write to storage 100 times mid-drag.
-  const thresholdInputEl = document.getElementById('aiTextThreshold') as HTMLInputElement | null;
-  const thresholdValueEl = document.getElementById('aiTextThresholdValue');
-  const renderThresholdPercent = (v: number) => {
-    if (thresholdValueEl) thresholdValueEl.textContent = `${Math.round(v * 100)}%`;
-  };
-  thresholdInputEl?.addEventListener('input', (e) => {
-    renderThresholdPercent(parseFloat((e.target as HTMLInputElement).value));
-  });
-  thresholdInputEl?.addEventListener('change', (e) => { (async () => {
-    const v = parseFloat((e.target as HTMLInputElement).value);
-    if (!Number.isFinite(v)) return;
-    const clamped = Math.min(1, Math.max(0, v));
-    renderThresholdPercent(clamped);
-    await setStorage({ aiTextDetectionThreshold: clamped });
-  })().catch(err => console.error('[Popup] aiTextThreshold change failed:', err)); });
-
-  // Local models toggle
-  document.getElementById('enableLocalModels')!.addEventListener('change', (e) => { (async () => {
-    const enabled = (e.target as HTMLInputElement).checked;
-    dropdownState.localModelsEnabled = enabled;
-    await setStorage({ localModelsEnabled: enabled });
-
-    // If disabling local models and a local model was selected, switch to default
-    if (!enabled && dropdownState.selectedModel?.startsWith('local:')) {
-      await selectModel(DEFAULT_MODEL);
-    }
-
-    // Re-render dropdown to show/hide local models
-    const data = await getStorage(['customModels', 'selectedModel']);
-    renderModelDropdown(data.customModels || [], data.selectedModel || DEFAULT_MODEL);
-
-    // Update local model section visibility
-    updateLocalModelSectionVisibility();
-  })().catch(err => console.error('[Popup] enableLocalModels change failed:', err)); });
-
 }
 
-// ==================== Custom Model Dropdown ====================
+// ==================== Model Dropdown ====================
 
 interface DropdownState {
   isOpen: boolean;
   customModels: ModelDef[];
   selectedModel: string;
-  localModelsEnabled: boolean;
-  authenticatedApis: Record<string, boolean>;
 }
 
 const dropdownState: DropdownState = {
   isOpen: false,
   customModels: [],
   selectedModel: DEFAULT_MODEL,
-  localModelsEnabled: false,
-  authenticatedApis: {
-    openrouter: false,
-    openai: false,
-    gemini: false,
-    anthropic: false
-  }
 };
 
 function setupModelDropdown() {
@@ -740,15 +235,6 @@ async function selectModel(modelKey: string) {
   // Update local model section visibility and UI when selection changes
   updateLocalModelSectionVisibility();
   updateLocalModelSectionUI();
-
-  // Remove rate limit alert if switching away from OpenRouter or if alert exists
-  const alert = document.querySelector('.rate-limit-alert');
-  if (alert) {
-    const isOpenRouter = modelKey.startsWith('openrouter:');
-    if (!isOpenRouter) {
-      alert.remove();
-    }
-  }
 }
 
 // Show/hide the local model section based on whether a local model is selected
@@ -809,16 +295,6 @@ async function deleteLocalModelWeights(modelName: string, btn: HTMLButtonElement
   }
 }
 
-function getApiDisplayName(api: string) {
-  return PROVIDER_DISPLAY_NAMES[api] || api;
-}
-
-function getModelsForProvider(api: string) {
-  const predefined = PREDEFINED_MODELS[api] || [];
-  const custom = dropdownState.customModels.filter(m => m.api === api);
-  return { predefined, custom };
-}
-
 function renderModelDropdown(customModels: ModelDef[], selectedModel: string) {
   // Update state
   dropdownState.customModels = customModels;
@@ -828,44 +304,20 @@ function renderModelDropdown(customModels: ModelDef[], selectedModel: string) {
   const selectedText = document.querySelector('.model-dropdown-text')!;
   if (!selectedModel) {
     selectedText.textContent = 'Select a model';
-  } else if (selectedModel === 'imbue') {
-    selectedText.textContent = 'Imbue (Default)';
   } else {
-    // Parse model key (format: api:modelName)
+    // Parse model key (format: local:modelName)
     const [api, ...nameParts] = selectedModel.split(':');
     const modelName = nameParts.join(':');
-    // Find display name from predefined models
     const predefinedModel = (PREDEFINED_MODELS[api] || []).find(m => m.name === modelName);
-    const displayName = predefinedModel ? predefinedModel.display : modelName;
-    // Check if this model has apiKwargs configured (only show indicator for custom models)
-    let kwargsIndicator = '';
-    if (!predefinedModel) {
-      // Only show gear indicator for custom models
-      const customModel = customModels.find(m => m.api === api && m.name === modelName);
-      const hasKwargs = customModel && customModel.apiKwargs && Object.keys(customModel.apiKwargs).length > 0;
-      kwargsIndicator = hasKwargs ? ' \u2699' : '';
-    }
-    // Don't append API name for local models since their display names already include "(Local)"
-    const apiSuffix = api === 'local' ? '' : ` (${getApiDisplayName(api)})`;
-    selectedText.textContent = `${displayName}${kwargsIndicator}${apiSuffix}`;
+    selectedText.textContent = predefinedModel ? predefinedModel.display : modelName;
   }
 
   // Build menu items
   const menu = document.getElementById('modelDropdownMenu')!;
   menu.replaceChildren();
 
-  // Add Imbue option (direct select, no submenu). Hidden in open-source
-  // builds with no Imbue backend wired up.
-  if (process.env.HAS_IMBUE_BACKEND === 'true') {
-    const imbueItem = document.createElement('div');
-    imbueItem.className = 'model-dropdown-item' + (selectedModel === 'imbue' ? ' selected' : '');
-    imbueItem.replaceChildren(parseHTML('<span class="model-dropdown-item-text">Imbue (Default) <span class="free-badge">free</span></span>'));
-    imbueItem.addEventListener('click', asyncHandler(() => selectModel('imbue')));
-    menu.appendChild(imbueItem);
-  }
-
-  // Add local models (only show if enabled and WebGPU supported)
-  if (dropdownState.localModelsEnabled && (webgpuSupported || isIOSDevice) && PREDEFINED_MODELS.local) {
+  // Local models (only show if WebGPU is supported)
+  if ((webgpuSupported || isInAppMode) && PREDEFINED_MODELS.local) {
     // Add predefined local models
     PREDEFINED_MODELS.local.forEach(model => {
       const modelKey = `local:${model.name}`;
@@ -879,12 +331,11 @@ function renderModelDropdown(customModels: ModelDef[], selectedModel: string) {
       // Show different indicators based on status
       let statusIndicator = '';
       if (isDownloading) {
-        statusIndicator = '<span class="download-indicator">\u23F3</span>';
+        statusIndicator = '<span class="download-indicator">⏳</span>';
       } else if (!isReady) {
-        statusIndicator = '<span class="download-indicator">\u2B07</span>';
+        statusIndicator = '<span class="download-indicator">⬇</span>';
       }
 
-      const backendLabel = (model as LocalModelDef & { backend?: string }).backend === 'mlc' ? 'MLC' : 'local';
       // Only downloaded models get a delete control, and it lives here in the
       // dropdown (not the Local Model section, which only renders for the
       // *selected* model) so any downloaded model — selected or not — can be
@@ -892,7 +343,7 @@ function renderModelDropdown(customModels: ModelDef[], selectedModel: string) {
       const deleteBtn = isReady
         ? '<button class="model-dropdown-item-delete" title="Delete downloaded model">🗑</button>'
         : '';
-      localItem.replaceChildren(parseHTML(`<span class="model-dropdown-item-text">${escapeHtml(model.display)} <span class="local-badge">${backendLabel}</span>${statusIndicator}</span>${deleteBtn}`));
+      localItem.replaceChildren(parseHTML(`<span class="model-dropdown-item-text">${escapeHtml(model.display)} <span class="local-badge">local</span>${statusIndicator}</span>${deleteBtn}`));
       localItem.querySelector('.model-dropdown-item-text')!.addEventListener('click', asyncHandler(() => selectModel(modelKey)));
       const delEl = localItem.querySelector<HTMLButtonElement>('.model-dropdown-item-delete');
       if (delEl) delEl.addEventListener('click', (e) => {
@@ -915,9 +366,9 @@ function renderModelDropdown(customModels: ModelDef[], selectedModel: string) {
       // Show different indicators based on status
       let statusIndicator = '';
       if (isDownloading) {
-        statusIndicator = '<span class="download-indicator">\u23F3</span>';
+        statusIndicator = '<span class="download-indicator">⏳</span>';
       } else if (!isReady) {
-        statusIndicator = '<span class="download-indicator">\u2B07</span>';
+        statusIndicator = '<span class="download-indicator">⬇</span>';
       }
 
       localItem.replaceChildren(parseHTML(`
@@ -930,435 +381,16 @@ function renderModelDropdown(customModels: ModelDef[], selectedModel: string) {
     });
   }
 
-  // Count how many alternative APIs are configured and have models
-  const providers = ['openai', 'anthropic', 'gemini', 'openrouter'];
-  const configuredProviders = providers.filter(api => {
-    if (!dropdownState.authenticatedApis[api]) return false;
-    const { predefined, custom } = getModelsForProvider(api);
-    return predefined.length > 0 || custom.length > 0;
-  });
-
-  // If only one alternative API is configured, show models directly (flat list)
-  if (configuredProviders.length === 1) {
-    const api = configuredProviders[0];
-    const { predefined, custom } = getModelsForProvider(api);
-
-    // Add predefined models directly
-    predefined.forEach(model => {
-      const modelKey = `${api}:${model.name}`;
-      const freeBadge = model.isFree ? ' <span class="free-badge">FREE*</span>' : '';
-      const modelItem = document.createElement('div');
-      modelItem.className = 'model-dropdown-item' + (selectedModel === modelKey ? ' selected' : '');
-      modelItem.replaceChildren(parseHTML(`
-        <span class="model-dropdown-item-text">${escapeHtml(model.display)}${freeBadge}</span>
-      `));
-      modelItem.querySelector('.model-dropdown-item-text')!.addEventListener('click', asyncHandler(() => selectModel(modelKey)));
-      menu.appendChild(modelItem);
-    });
-
-    // Add custom models directly
-    custom.forEach(model => {
-      const modelKey = `${api}:${model.name}`;
-      const hasKwargs = model.apiKwargs && Object.keys(model.apiKwargs).length > 0;
-      const modelItem = document.createElement('div');
-      modelItem.className = 'model-dropdown-item' + (selectedModel === modelKey ? ' selected' : '');
-      modelItem.replaceChildren(parseHTML(`
-        <span class="model-dropdown-item-text">${escapeHtml(model.name)}</span>
-        <button class="model-dropdown-item-settings${hasKwargs ? ' has-kwargs' : ''}" title="Configure provider options">\u2699</button>
-        <button class="model-dropdown-item-remove" title="Remove model">&times;</button>
-      `));
-      modelItem.querySelector('.model-dropdown-item-text')!.addEventListener('click', asyncHandler(() => selectModel(modelKey)));
-      modelItem.querySelector('.model-dropdown-item-settings')!.addEventListener('click', (e) => {
-        e.stopPropagation();
-        openModelKwargsEditor(modelKey, model.name, false);
-      });
-      modelItem.querySelector('.model-dropdown-item-remove')!.addEventListener('click', (e) => { removeModel(modelKey, e).catch(err => console.error('[Popup] removeModel failed:', err)); });
-      menu.appendChild(modelItem);
-    });
-  } else if (configuredProviders.length > 1) {
-    // Multiple APIs configured - use nested accordion
-    configuredProviders.forEach(api => {
-      const { predefined, custom } = getModelsForProvider(api);
-      const providerItem = createProviderItem(api, predefined, custom, selectedModel);
-      menu.appendChild(providerItem);
-    });
-  }
-
-  // Empty-state placeholder. Fires for fresh installs of open-source
-  // builds where nothing has been configured yet (Imbue gated off, no
-  // local models enabled, no provider keys, no custom models) — without
-  // this the dropdown opens to a blank panel.
+  // Empty-state placeholder.
   if (menu.childElementCount === 0) {
     const empty = document.createElement('div');
     empty.className = 'model-dropdown-empty';
-    empty.textContent = 'Enable a provider below to start filtering';
+    empty.textContent = webgpuSupported
+      ? 'No local models available'
+      : 'WebGPU not supported — local models unavailable';
     menu.appendChild(empty);
   }
 }
-
-
-// Open the kwargs editor modal for a model
-function openModelKwargsEditor(modelKey: string, displayName: string, isPredefined: boolean) {
-  const [api, ...nameParts] = modelKey.split(':');
-  const modelName = nameParts.join(':');
-
-  // Get existing kwargs
-  let existingKwargs: Record<string, unknown> = {};
-  if (isPredefined) {
-    // If user has previously saved custom kwargs for this model, use those directly
-    // (this preserves removals of default keys)
-    if (modelKey in predefinedModelKwargs) {
-      existingKwargs = { ...predefinedModelKwargs[modelKey] };
-    } else {
-      // Otherwise, use predefined defaults
-      const predefinedModel = (PREDEFINED_MODELS[api] || []).find(m => m.name === modelName);
-      if (predefinedModel && predefinedModel.apiKwargs) {
-        existingKwargs = { ...predefinedModel.apiKwargs };
-      }
-    }
-  } else {
-    const customModel = dropdownState.customModels.find(m => m.api === api && m.name === modelName);
-    existingKwargs = customModel?.apiKwargs || {};
-  }
-
-  // Create modal
-  const modal = document.createElement('div');
-  modal.className = 'kwargs-editor-modal';
-  modal.replaceChildren(parseHTML(`
-    <div class="kwargs-editor-content">
-      <div class="kwargs-editor-header">
-        <span>API Options: ${escapeHtml(displayName)}</span>
-        <button class="kwargs-editor-close">&times;</button>
-      </div>
-      <div class="kwargs-editor-body">
-        <p class="hint" style="margin-bottom: 8px;">Configure API parameters (e.g., reasoning_effort, temperature)</p>
-        <div class="kwargs-editor-rows"></div>
-        <button type="button" class="add-kwargs-btn kwargs-editor-add">+ Add Parameter</button>
-      </div>
-      <div class="kwargs-editor-actions">
-        <button class="cancel-btn kwargs-editor-cancel">Cancel</button>
-        <button class="add-btn kwargs-editor-save">Save</button>
-      </div>
-    </div>
-  `));
-
-  document.body.appendChild(modal);
-
-  const rowsContainer = modal.querySelector('.kwargs-editor-rows')!;
-
-  // Add existing kwargs as rows
-  const entries = Object.entries(existingKwargs);
-  if (entries.length === 0) {
-    addKwargsEditorRow(rowsContainer);
-  } else {
-    entries.forEach(([key, value]) => {
-      addKwargsEditorRow(rowsContainer, key, typeof value === 'string' ? value : JSON.stringify(value));
-    });
-  }
-
-  // Event listeners
-  modal.querySelector('.kwargs-editor-close')!.addEventListener('click', () => modal.remove());
-  modal.querySelector('.kwargs-editor-cancel')!.addEventListener('click', () => modal.remove());
-  modal.querySelector('.kwargs-editor-add')!.addEventListener('click', () => addKwargsEditorRow(rowsContainer));
-  modal.querySelector('.kwargs-editor-save')!.addEventListener('click', () => { (async () => {
-    const kwargs = collectKwargsFromEditor(rowsContainer);
-    await saveModelKwargs(modelKey, kwargs, isPredefined);
-    modal.remove();
-    // Re-render dropdown to show updated indicators
-    renderModelDropdown(dropdownState.customModels, dropdownState.selectedModel);
-  })().catch(err => console.error('[Popup] kwargs save failed:', err)); });
-
-  // Close on backdrop click
-  modal.addEventListener('click', (e) => {
-    if (e.target === modal) modal.remove();
-  });
-}
-
-// Add a row to the kwargs editor
-function addKwargsEditorRow(container: Element, key = '', value = '') {
-  const row = document.createElement('div');
-  row.className = 'api-kwargs-row';
-  row.replaceChildren(parseHTML(`
-    <input type="text" class="api-kwargs-key" placeholder="key" value="${escapeHtml(key)}">
-    <input type="text" class="api-kwargs-value" placeholder="value" value="${escapeHtml(value)}">
-    <button type="button" class="api-kwargs-remove" title="Remove">&times;</button>
-  `));
-
-  row.querySelector('.api-kwargs-remove')!.addEventListener('click', () => {
-    row.remove();
-    if (container.querySelectorAll('.api-kwargs-row').length === 0) {
-      addKwargsEditorRow(container);
-    }
-  });
-
-  container.appendChild(row);
-}
-
-// Collect kwargs from the editor
-function collectKwargsFromEditor(container: Element) {
-  const kwargs: Record<string, unknown> = {};
-  container.querySelectorAll('.api-kwargs-row').forEach(row => {
-    const key = (row.querySelector('.api-kwargs-key') as HTMLInputElement).value.trim();
-    const value = (row.querySelector('.api-kwargs-value') as HTMLInputElement).value.trim();
-    if (key && value) {
-      try {
-        kwargs[key] = JSON.parse(value);
-      } catch {
-        kwargs[key] = value;
-      }
-    }
-  });
-  return kwargs;
-}
-
-// Save model kwargs
-async function saveModelKwargs(modelKey: string, kwargs: Record<string, unknown>, isPredefined: boolean) {
-  const [api, ...nameParts] = modelKey.split(':');
-  const modelName = nameParts.join(':');
-
-  if (isPredefined) {
-    // Always save to predefinedModelKwargs (even if empty) to track that user has customized this model
-    // This ensures that if the user removes all defaults, they stay removed
-    predefinedModelKwargs[modelKey] = kwargs;
-    await setStorage({ predefinedModelKwargs });
-  } else {
-    // Save to custom model
-    const modelIndex = dropdownState.customModels.findIndex(m => m.api === api && m.name === modelName);
-    if (modelIndex !== -1) {
-      if (Object.keys(kwargs).length > 0) {
-        dropdownState.customModels[modelIndex].apiKwargs = kwargs;
-      } else {
-        delete dropdownState.customModels[modelIndex].apiKwargs;
-      }
-      await setStorage({ customModels: dropdownState.customModels });
-    }
-  }
-
-  // Clear cache since model config changed
-  await chrome.runtime.sendMessage({ type: 'clearCache' });
-}
-
-function createProviderItem(api: string, predefinedModels: ModelDef[], customModels: ModelDef[], selectedModel: string) {
-  const item = document.createElement('div');
-  item.className = 'model-dropdown-item provider-item';
-  item.dataset.provider = api;
-
-  // Check if any model from this provider is selected
-  const isProviderSelected = selectedModel.startsWith(`${api}:`);
-
-  // Create header (clickable to expand/collapse)
-  const header = document.createElement('div');
-  header.className = 'provider-item-header';
-  header.replaceChildren(parseHTML(`
-    <span class="model-dropdown-item-text">${getApiDisplayName(api)}</span>
-    ${isProviderSelected ? '<span class="provider-selected-indicator">&#8226;</span>' : ''}
-    <span class="provider-arrow">&#9656;</span>
-  `));
-
-  // Toggle expand/collapse on header click
-  header.addEventListener('click', (e) => {
-    e.stopPropagation();
-    item.classList.toggle('expanded');
-  });
-
-  item.appendChild(header);
-
-  // Create submenu
-  const submenu = document.createElement('div');
-  submenu.className = 'model-submenu';
-
-  // Add predefined models
-  predefinedModels.forEach(model => {
-    const modelKey = `${api}:${model.name}`;
-    const freeBadge = model.isFree ? ' <span class="free-badge">FREE*</span>' : '';
-    const modelItem = document.createElement('div');
-    modelItem.className = 'model-dropdown-item submenu-item' +
-      (selectedModel === modelKey ? ' selected' : '');
-    modelItem.dataset.model = modelKey;
-    modelItem.replaceChildren(parseHTML(`
-      <span class="model-dropdown-item-text">${escapeHtml(model.display)}${freeBadge}</span>
-    `));
-    modelItem.querySelector('.model-dropdown-item-text')!.addEventListener('click', (e) => {
-      e.stopPropagation();
-      selectModel(modelKey).catch(err => console.error('[Popup] selectModel failed:', err));
-    });
-    submenu.appendChild(modelItem);
-  });
-
-  // Add custom models
-  customModels.forEach(model => {
-    const modelKey = `${api}:${model.name}`;
-    const hasKwargs = model.apiKwargs && Object.keys(model.apiKwargs).length > 0;
-    const modelItem = document.createElement('div');
-    modelItem.className = 'model-dropdown-item submenu-item' +
-      (selectedModel === modelKey ? ' selected' : '');
-    modelItem.dataset.model = modelKey;
-    modelItem.replaceChildren(parseHTML(`
-      <span class="model-dropdown-item-text">${escapeHtml(model.name)}</span>
-      <button class="model-dropdown-item-settings${hasKwargs ? ' has-kwargs' : ''}" title="Configure provider options">\u2699</button>
-      <button class="model-dropdown-item-remove" title="Remove model">&times;</button>
-    `));
-
-    modelItem.querySelector('.model-dropdown-item-text')!.addEventListener('click', (e) => {
-      e.stopPropagation();
-      selectModel(modelKey).catch(err => console.error('[Popup] selectModel failed:', err));
-    });
-    modelItem.querySelector('.model-dropdown-item-settings')!.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openModelKwargsEditor(modelKey, model.name, false);
-    });
-    modelItem.querySelector('.model-dropdown-item-remove')!.addEventListener('click', (e) => {
-      removeModel(modelKey, e).catch(err => console.error('[Popup] removeModel failed:', err));
-    });
-
-    submenu.appendChild(modelItem);
-  });
-
-  item.appendChild(submenu);
-
-  return item;
-}
-
-// ==================== OpenRouter OAuth ====================
-
-// Generate a random code verifier for PKCE
-// Start the OpenRouter OAuth flow via background script
-async function startOpenRouterOAuth() {
-  const signInBtn = document.getElementById('openrouterSignIn') as HTMLButtonElement;
-  signInBtn.disabled = true;
-  signInBtn.textContent = 'Signing in...';
-
-  try {
-    const response: { success?: boolean; error?: string; cancelled?: boolean } =
-      await chrome.runtime.sendMessage({ type: 'launchOpenRouterAuth' });
-
-    if (response?.success) {
-      await updateOpenRouterStatus();
-    } else if (response?.error) {
-      console.error('OpenRouter OAuth error:', response.error);
-    }
-  } catch (error: unknown) {
-    console.error('OpenRouter OAuth error:', error);
-  } finally {
-    signInBtn.disabled = false;
-    signInBtn.replaceChildren(parseHTML(`
-      <svg class="openrouter-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </svg>
-      Sign in with OpenRouter
-    `));
-  }
-}
-
-// Update the UI to show OpenRouter connection status
-async function updateOpenRouterStatus() {
-  const data = await getStorage(['openrouterApiKey', 'openaiApiKey', 'geminiApiKey', 'anthropicApiKey', 'customModels', 'selectedModel', 'authErrorApis']);
-  const signedOutSection = document.getElementById('openrouterSignedOut')!;
-  const signedInSection = document.getElementById('openrouterSignedIn')!;
-
-  const isSignedIn = !!data.openrouterApiKey;
-
-  if (isSignedIn) {
-    signedOutSection.style.display = 'none';
-    signedInSection.style.display = 'block';
-  } else {
-    signedOutSection.style.display = 'block';
-    signedInSection.style.display = 'none';
-  }
-
-  // Update all API provider states
-  updateApiProviderStates(data);
-  renderModelDropdown(data.customModels || [], data.selectedModel || DEFAULT_MODEL);
-}
-
-// Sign out from OpenRouter
-async function signOutOpenRouter() {
-  await removeStorage('openrouterApiKey');
-  // Clear the Safari paste-input so re-opening signed-out view doesn't
-  // show the stale (just-removed) key.
-  const keyInput = document.getElementById('openrouterApiKey') as HTMLInputElement | null;
-  if (keyInput) keyInput.value = '';
-  await updateOpenRouterStatus();
-}
-
-// ==================== Rate Limit Alert ====================
-
-// Configuration for provider-specific rate limit alerts
-const RATE_LIMIT_ALERT_CONFIG: Record<string, { title: string; description: string; link: string; linkText: string; otherProviders: string }> = {
-  openrouter_credits: {
-    title: 'OpenRouter Free Limit Reached',
-    description: 'Your OpenRouter account has used all free requests for today. To continue filtering:',
-    link: 'https://openrouter.ai/credits',
-    linkText: 'Add credits to your OpenRouter account',
-    otherProviders: 'OpenAI, Gemini'
-  },
-  gemini_free_tier: {
-    title: 'Gemini Free Limit Reached',
-    description: 'Your Gemini usage has exceeded the free tier quota. To continue filtering:',
-    link: 'https://ai.google.dev/gemini-api/docs/rate-limits',
-    linkText: 'Check your rate limits and upgrade your plan',
-    otherProviders: 'OpenAI, OpenRouter'
-  }
-};
-
-// Check error status from background and show rate limit alert if applicable
-async function updateRateLimitAlert() {
-  try {
-    const status: { errorType?: string | null; subType?: string | null } | null = await chrome.runtime.sendMessage({ type: 'getErrorStatus' });
-
-    if (status?.errorType === 'rate_limit' && status.subType && RATE_LIMIT_ALERT_CONFIG[status.subType]) {
-      createRateLimitAlert(status.subType);
-    } else {
-      clearRateLimitAlert();
-    }
-  } catch (err) {
-    console.debug('Failed to check error status:', err);
-  }
-}
-
-// Create and show a rate limit alert banner for the given type
-function createRateLimitAlert(rateLimitType: string) {
-  const config = RATE_LIMIT_ALERT_CONFIG[rateLimitType];
-  if (!config) return;
-
-  // Don't add duplicate alerts
-  if (document.querySelector(`.rate-limit-alert[data-type="${rateLimitType}"]`)) return;
-
-  // Clear any other rate limit alerts first
-  clearRateLimitAlert();
-
-  const alert = document.createElement('div');
-  alert.className = 'rate-limit-alert';
-  alert.dataset.type = rateLimitType;
-  alert.replaceChildren(parseHTML(`
-    <div class="rate-limit-alert-content">
-      <strong>${config.title}</strong>
-      <p>${config.description}</p>
-      <ul>
-        <li><a href="${config.link}" target="_blank" rel="noopener">${config.linkText}</a></li>
-        <li>Or switch to the free Imbue model below</li>
-        <li>Or configure a different provider (${config.otherProviders})</li>
-      </ul>
-    </div>
-  `));
-
-  // Insert at the beginning of the container
-  const container = document.querySelector('.container');
-  if (container) {
-    container.insertBefore(alert, container.firstChild);
-  }
-}
-
-// Clear all rate limit alert banners
-function clearRateLimitAlert() {
-  const alerts = document.querySelectorAll('.rate-limit-alert');
-  for (const alert of alerts) {
-    alert.remove();
-  }
-}
-
 
 // ==================== Local Model (WebLLM) ====================
 
@@ -1373,21 +405,13 @@ async function updateLocalModelStatus() {
     localModelStatuses = {};
     webgpuSupported = true; // Assume supported, will be corrected if not
   }
-  // Hide the local models toggle on iOS (insufficient memory for local inference)
-  // or if WebGPU is not supported
-  const localModelsToggle = document.querySelector<HTMLElement>('.local-models-toggle');
-  if (localModelsToggle) {
-    localModelsToggle.style.display = (webgpuSupported || isIOSDevice) ? '' : 'none';
-  }
 
   // Always update UI, even on error
   updateLocalModelSectionUI();
   // The first dropdown render (loadSettings → renderModelDropdown) runs before
   // these real cache statuses arrive, so it shows every local model as
   // not_downloaded (no delete control / wrong download indicator). Re-render
-  // now that localModelStatuses is populated. The storage listener only fires
-  // on background status *writes*, not this fetch, so this is the path that
-  // makes the initial popup-open state correct.
+  // now that localModelStatuses is populated.
   await refreshModelDropdownWithLocal();
 }
 
@@ -1556,7 +580,6 @@ function updateLocalModelSectionUI() {
 function setupLocalModelListeners() {
   const downloadBtn = document.getElementById('downloadLocalModel') as HTMLButtonElement | null;
   const retryBtn = document.getElementById('retryLocalModel') as HTMLButtonElement | null;
-  console.log('[Popup] setupLocalModelListeners: downloadBtn=', !!downloadBtn, 'retryBtn=', !!retryBtn);
 
   if (downloadBtn) {
     downloadBtn.addEventListener('click', () => { (async () => {
@@ -1566,12 +589,10 @@ function setupLocalModelListeners() {
         return;
       }
 
-      console.log('[Popup] Download button clicked, model:', selectedLocalModel.name);
       downloadBtn.disabled = true;
       downloadBtn.replaceChildren(parseHTML('<span class="download-icon">&#8987;</span> Starting...'));
 
       try {
-        console.log('[Popup] Sending initializeWebLLM message for:', selectedLocalModel.name);
         const result: unknown = await chrome.runtime.sendMessage({ type: 'initializeWebLLM', modelId: selectedLocalModel.name });
         console.log('[Popup] initializeWebLLM response:', result);
       } catch (err) {

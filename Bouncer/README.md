@@ -1,6 +1,6 @@
 # Bouncer — Desktop Extension
 
-The main codebase for the Bouncer browser extension (Chrome MV3, Firefox, Safari desktop).
+The main codebase for the Bouncer browser extension (Chrome MV3, Firefox, Safari desktop). This is a **local-only fork** — classification runs entirely on-device via WebLLM; all cloud/remote backends have been removed.
 
 ## Build
 
@@ -35,16 +35,13 @@ src/
     pipeline.ts          # Post evaluation queue, batching, caching, error state
     local-model.ts       # WebLLM engine lifecycle, inference, preemption
     inference-queue.ts   # Serial priority queue for local model tasks
-    providers.ts         # API calls (OpenAI, Gemini, Anthropic, Imbue, OpenRouter)
-    auth.ts              # Google OAuth, token management
-    ws-manager.ts        # WebSocket connection to Imbue backend
+    detectors.ts         # Detector orchestration (runs the local classifier)
   content/
     index.ts             # MutationObserver, post detection, queue submission
     ui.ts                # Sidebar, modals, alerts, theming, filter management
-    ios.ts               # iOS-specific UI (FAB button, full-screen overlay)
   shared/
-    models.ts            # Model definitions and API endpoints
-    prompts.ts           # System prompts for local and API models
+    models.ts            # Local model definitions
+    prompts.ts           # System prompt + message builder for the local model
     storage.ts           # Typed chrome.storage wrappers
     utils.ts             # Cache keys, response parsing, formatting
     alerts.ts            # Alert configuration
@@ -64,7 +61,6 @@ manifest.json                        # Chrome MV3 manifest
 
 - **[@mlc-ai/web-llm](https://github.com/mlc-ai/web-llm)** — in-browser model inference via WebGPU (vendored)
 - **[DOMPurify](https://github.com/cure53/DOMPurify)** — HTML sanitization
-- **[Firebase](https://firebase.google.com/)** — authentication
 - **[esbuild](https://esbuild.github.io/)** — bundler
 - **[vitest](https://vitest.dev/)** — test runner
 - **[TypeScript](https://www.typescriptlang.org/)** — type checking (no emit, esbuild handles transpilation)

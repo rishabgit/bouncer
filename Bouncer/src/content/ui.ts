@@ -8,10 +8,9 @@ import {
   encodeFilterPackCode, decodeFilterPackCode, buildFilterPackShareUrl,
   FILTER_PACK_SHARE_URL_REGEX,
 } from '../shared/share-encoding';
-import type { BackgroundToContentMessage, ContentUIDeps, FilteredPost, PostContent, LocalModelStatus } from '../types';
+import type { ContentUIDeps, FilteredPost, PostContent, LocalModelStatus } from '../types';
 import { getStorage, setStorage, getDescriptions, setDescriptions } from '../shared/storage';
 import { getReleaseNote } from './release-notes';
-import { runIOSImportAnimation } from './ios';
 
 // Dependencies (set by initUI from index.ts)
 let _deps: ContentUIDeps;
@@ -33,21 +32,6 @@ export function initUI(deps: ContentUIDeps) {
   // Register the single page-wide tooltip-dismissal listener (replaces a
   // per-post capture-phase listener that used to accumulate with each post).
   setupAnnoyingTooltipCloser();
-
-  // Listen for auth state changes from background
-  console.log('[Bouncer] initUI: registering onMessage listener for authStateChanged');
-  chrome.runtime.onMessage.addListener((message: BackgroundToContentMessage) => {
-    if (message.type === 'authStateChanged') {
-      console.log('[Bouncer] authStateChanged received:', message);
-      isAuthenticated = message.authenticated;
-      if (isAuthenticated) {
-        console.log('[Bouncer] Calling refreshAllFilterBoxes after auth');
-        refreshAllFilterBoxes();
-      } else {
-        console.log('[Bouncer] authenticated=false, skipping refresh');
-      }
-    }
-  });
 }
 
 // Must be called before injecting filter boxes
@@ -263,16 +247,6 @@ const placeholderItemsHTML = [...PLACEHOLDER_PHRASES, PLACEHOLDER_PHRASES[0]]
   .map(p => `<span>${p}</span>`).join('');
 const placeholderHTML = `<span class="filter-input-wrapper"><input type="text" class="filter-phrases-input"><span class="filter-placeholder-cycle" aria-hidden="true"><span class="filter-placeholder-track">${placeholderItemsHTML}</span></span></span>`;
 
-// Toggle row injected into every authenticated filter box. Visibility is gated
-// by the same auth check that gates the rest of the box.
-const aiTextToggleHTML = `
-  <label class="filter-ai-text-toggle">
-    <input type="checkbox" class="filter-ai-text-toggle-input">
-    <span class="filter-ai-text-toggle-slider" aria-hidden="true"></span>
-    <span class="filter-ai-text-toggle-label">Filter AI-generated text</span>
-  </label>
-`;
-
 function injectPlaceholderKeyframes() {
   const n = PLACEHOLDER_PHRASES.length;
   const step = 100 / n;
@@ -370,7 +344,6 @@ function buildFilterContainerHTML(showSignOut = false): string {
           <div class="model-loading-progress-fill"></div>
         </div>
       </div>
-      ${aiTextToggleHTML}
       <div class="filter-phrases-actions">
         <div class="filter-phrases-actions-left">
           <button class="filtered-toggle-btn">
@@ -583,24 +556,6 @@ function setupFilterBoxEventHandlers(container: HTMLElement) {
   const placeholderCycle = container.querySelector('.filter-placeholder-cycle');
   const toggleBtn = container.querySelector('.filtered-toggle-btn:not(.filter-pack-toggle-btn)')!;
   const settingsBtn = container.querySelector('.filter-settings-btn')!;
-  const aiTextToggle = container.querySelector<HTMLInputElement>('.filter-ai-text-toggle-input');
-
-  // AI-text-detection toggle. Cache invalidation + post re-evaluation are
-  // handled by the storage-change listener in background/index.ts.
-  if (aiTextToggle) {
-    const aiTextToggleRow = aiTextToggle.closest<HTMLElement>('.filter-ai-text-toggle');
-    getStorage(['aiTextFilterEnabled', 'aiTextFilterExperimental']).then(data => {
-      aiTextToggle.checked = data.aiTextFilterEnabled === true;
-      if (aiTextToggleRow) {
-        aiTextToggleRow.style.display = data.aiTextFilterExperimental === true ? '' : 'none';
-      }
-    }).catch(err => console.error('[UI] Failed to load aiTextFilterEnabled:', err));
-
-    aiTextToggle.addEventListener('change', () => {
-      chrome.storage.local.set({ aiTextFilterEnabled: aiTextToggle.checked })
-        .catch(err => console.error('[UI] Failed to save aiTextFilterEnabled:', err));
-    });
-  }
 
   // Show/hide animated placeholder based on input state and existing phrases
   function updatePlaceholderVisibility() {
@@ -1236,19 +1191,9 @@ function buildImportButton(phrases: string[]): HTMLElement {
     e.stopPropagation();
     e.preventDefault();
     const article = btn.closest<HTMLElement>('article');
-    if (_deps.IS_IOS) {
-      // The native FAB lives outside the WebView, so the desktop "fly the
-      // tweet image into the on-page Bouncer box" choreography doesn't
-      // translate. ios.ts owns the iOS-specific genie animation; we just
-      // hand it the article + the import callback.
-      runIOSImportAnimation(article, () => confirmAndImportPack(phrases)).catch((err) =>
-        console.error('[Bouncer] import failed:', err),
-      );
-    } else {
-      flyScreenshotAndImport(article, phrases).catch((err) =>
-        console.error('[Bouncer] import failed:', err),
-      );
-    }
+    flyScreenshotAndImport(article, phrases).catch((err) =>
+      console.error('[Bouncer] import failed:', err),
+    );
   });
   return btn;
 }

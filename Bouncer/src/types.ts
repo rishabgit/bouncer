@@ -18,7 +18,7 @@ export interface DetectorSnapshot {
   skipReason?: string;
 }
 
-/** The cached verdict for a post — what parseAPIResponse produces and what gets stored. */
+/** The cached verdict for a post — what the local classifier produces and what gets stored. */
 export interface EvaluationResult {
   shouldHide: boolean;
   reasoning: string;
@@ -140,19 +140,10 @@ export interface APIConfig {
 
 /** Fields shared between runtime Settings and the chrome.storage.local schema. */
 interface SettingsBase {
-  apiKey: string;
-  openaiApiKey: string;
-  openaiApiBase: string;
-  openrouterApiKey: string;
-  geminiApiKey: string;
-  anthropicApiKey: string;
   enabled: boolean;
-  useEmbeddings: boolean;
   selectedModel: string;
   customModels: ModelDef[];
   predefinedModelKwargs: Record<string, Record<string, unknown>>;
-  aiTextFilterEnabled: boolean;
-  aiTextDetectionThreshold: number;
   // When false, replies on permalink (/status/<id>) pages are not
   // submitted for evaluation. The main timeline is unaffected either way.
   // Defaults to true to preserve historical behavior.
@@ -258,14 +249,7 @@ export type ContentToBackgroundMessage =
   | { type: 'cancelLocalModelDownload'; modelId: string }
   | { type: 'deleteLocalModel'; modelId: string }
   | { type: 'preemptInference' }
-  | { type: 'overrideCacheEntry'; post: string; imageUrls: string[]; shouldHide: boolean; reasoning?: string }
-  | { type: 'sendFeedback'; decision: string; tweetData: { text: string; imageUrls: string[] }; reasoning?: string; rawResponse?: string; siteId?: SiteId }
-  | { type: 'getAuthStatus' }
-  | { type: 'launchAuth' }
-  | { type: 'appleSignIn'; idToken: string; rawNonce: string }
-  | { type: 'nativeAppleSignIn' }
-  | { type: 'signOut' }
-  | { type: 'launchOpenRouterAuth' };
+  | { type: 'overrideCacheEntry'; post: string; imageUrls: string[]; shouldHide: boolean; reasoning?: string };
 
 export type BackgroundToContentMessage =
   | { type: 'ping' }
@@ -276,7 +260,6 @@ export type BackgroundToContentMessage =
   | { type: 'getPositions'; postUrls: string[] }
   | { type: 'processingPost'; postUrl: string }
   | { type: 'annoyingProgress'; verified: number; total: number }
-  | { type: 'authStateChanged'; authenticated: boolean }
   | { type: 'evaluationStarted'; evaluationId: string; detectorNames: string[] }
   | { type: 'detectorResponse'; evaluationId: string; detectorName: string; shouldHide?: boolean; reasoning?: string; category?: string | null; error?: string; skipped?: boolean; skipReason?: string };
 
@@ -333,18 +316,14 @@ export type DescriptionKey = `descriptions_${SiteId}`;
 
 /** Typed schema for chrome.storage.local keys. */
 export type StorageSchema = SettingsBase & {
-  authErrorApis: Record<string, boolean>;
   localModelsEnabled: boolean;
-  aiTextFilterExperimental: boolean;
   localModelStatuses: Record<string, LocalModelStatus>;
   evaluationCache: Record<string, EvaluationResult>;
   stats: { filtered: number; evaluated: number; totalCost: number };
-  googleAuthToken: string;
-  openrouterCodeVerifier: string;
   lastSeenVersion: string;
 } & DescriptionKeys;
 
-// ==================== API Response Types ====================
+// ==================== Chat Completion Response ====================
 
 /** Shape of an OpenAI-compatible chat completions response. */
 export interface DirectAPIResponse {
@@ -352,37 +331,3 @@ export interface DirectAPIResponse {
     message: { content: string };
   }>;
 }
-
-// ==================== Imbue Backend Responses ====================
-
-/** Common envelope fields present on all Imbue WebSocket responses. */
-interface ImbueResponseBase {
-  processingTime: number;
-  jobId: string;
-}
-
-/** Response from the filterPost / validatePhrase actions.
- *  The backend parses the LLM output server-side into shouldHide/reasoning/category. */
-export interface ImbueFilterResponse extends ImbueResponseBase {
-  shouldHide: boolean;
-  reasoning: string | null;
-  category?: string | null;
-  rawResponse: string;
-}
-
-/** Response from the suggestAnnoying action.
- *  The backend parses one category label per line from the LLM output. */
-export interface ImbueSuggestResponse extends ImbueResponseBase {
-  suggestions: string[];
-  rawResponse: string;
-}
-
-/** Response from the detectAiText action. Confidence is in [0, 1];
- *  the threshold for "is AI" lives client-side. No rawResponse — the worker
- *  emits a score directly, not LLM text. */
-export interface ImbueAiTextResponse extends ImbueResponseBase {
-  confidence: number;
-}
-
-/** Discriminated Imbue response — callers should narrow via the action they sent. */
-export type ImbueAPIResponse = ImbueFilterResponse | ImbueSuggestResponse | ImbueAiTextResponse;

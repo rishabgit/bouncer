@@ -2,19 +2,16 @@
 
 import {
   generateCacheKey,
-  parseAPIResponse, checkRateLimitError, checkApiError, checkAuthenticationError,
+  checkRateLimitError, checkApiError, checkAuthenticationError,
   RATE_LIMIT_TYPE_CONFIG, API_ERROR_TYPE_CONFIG,
 } from '../shared/utils';
-import { PREDEFINED_MODELS, API_DISPLAY_NAMES, DEFAULT_MODEL } from '../shared/models';
-import { buildAPIMessages } from '../shared/prompts';
-import { callDirectAPI, callAnthropicAPI, callImbueAPI, callImbueAiTextDetection } from './providers';
+import { PREDEFINED_MODELS, DEFAULT_MODEL } from '../shared/models';
 import { runDetectors, type Detector, type DetectorResult } from './detectors';
 import { callLocalInference, localEngine } from './local-model';
-import { getStorage, setStorage, removeStorage, getDescriptions, clampThreshold, DEFAULT_AI_TEXT_DETECTION_THRESHOLD } from '../shared/storage';
-export { DEFAULT_AI_TEXT_DETECTION_THRESHOLD };
+import { getStorage, setStorage, removeStorage, getDescriptions } from '../shared/storage';
 import type {
   EvaluationResult, PipelineResponse, PipelineError, PendingEvaluation,
-  ErrorState, Settings, APIConfig, ChatMessage, BackgroundToContentMessage, LocalModelDef,
+  ErrorState, Settings, APIConfig, BackgroundToContentMessage, LocalModelDef,
   SiteId, DetectorSnapshot,
 } from '../types';
 
@@ -36,21 +33,6 @@ const RATE_LIMIT_RETRY_INTERVAL_MS = 60000; // 1 minute
 export const QUEUE_BACKLOG_THRESHOLD = 5;
 
 
-// Posts shorter than this aren't sent to the AI-text detector. Short text
-// produces unreliable scores and burns quota.
-const AI_TEXT_DETECTION_MIN_WORDS = 10;
-
-// Word count using ICU word-boundary segmentation (Unicode UAX #29). Counts
-// word-like segments — handles contractions ("don't" → 1), hyphenated forms
-// ("well-known" → 1), URLs sensibly, and CJK / Thai dictionary segmentation.
-const wordSegmenter = new Intl.Segmenter(undefined, { granularity: 'word' });
-function countWords(text: string): number {
-  if (!text) return 0;
-  let n = 0;
-  for (const seg of wordSegmenter.segment(text)) if (seg.isWordLike) n++;
-  return n;
-}
-
 // =============================================================================
 // Multi-detector orchestration helpers used by processBatch.
 // =============================================================================
@@ -61,42 +43,16 @@ interface TabPlanEntry {
   skipReason?: string;
 }
 
-// Why AI detection won't run for a given post (or null if it will). Priority:
-// toggle off → post too short. Auth is handled at WS handshake time (Google
-// token on Chrome, App Check on iOS); we mirror the filter detector and let
-// any handshake failure surface through the existing auth-error banner
-// rather than gating per-post here.
-function computeAiSkipReason(
-  aiToggleOn: boolean,
-  rawText: string,
-): string | null {
-  // AI text detection is currently Imbue-only (callImbueAiTextDetection).
-  // Open-source builds without the Imbue backend always skip this detector.
-  if (process.env.HAS_IMBUE_BACKEND !== 'true') return 'AI detection requires Imbue backend';
-  if (!aiToggleOn) return 'AI detection disabled';
-  const wc = countWords(rawText);
-  if (wc < AI_TEXT_DETECTION_MIN_WORDS) {
-    return `Post too short (${wc} words; need ${AI_TEXT_DETECTION_MIN_WORDS})`;
-  }
-  return null;
-}
-
-// The full per-post plan. Always two entries so the popup is consistent. A
-// detector that can't run gets a skipReason instead of a willRun=true flag.
+// The per-post plan: one 'filter' entry (the local classifier). A filter that
+// can't run (no phrases configured) gets a skipReason instead of willRun=true.
 function buildTabPlan(
   filterEnabled: boolean,
-  aiSkipReason: string | null,
 ): TabPlanEntry[] {
   return [
     {
       name: 'filter',
       willRun: filterEnabled,
       skipReason: filterEnabled ? undefined : 'No filter phrases configured',
-    },
-    {
-      name: 'aiText',
-      willRun: !aiSkipReason,
-      skipReason: aiSkipReason ?? undefined,
     },
   ];
 }
@@ -176,40 +132,15 @@ async function runDetectorsAndCaptureSnapshots(
   return result;
 }
 
-// Construct the live detector list from settings + per-post gates. Filter is
-// index 0 (highest priority); AI is index 1 when it'll actually run.
+// Construct the live detector list from settings. Only the user filter (the
+// local classifier) runs.
 function buildLiveDetectors(args: {
   filterEnabled: boolean;
-  aiEnabled: boolean;
   runFilter: () => Promise<DetectorResult>;
-  rawText: string;
-  imageUrls: string[];
-  aiThreshold: number;
 }): Detector[] {
   const detectors: Detector[] = [];
   if (args.filterEnabled) {
     detectors.push({ name: 'filter', promise: args.runFilter() });
-  }
-  if (args.aiEnabled) {
-    detectors.push({
-      name: 'aiText',
-      promise: (async (): Promise<DetectorResult> => {
-        // AI detection sees only the post content — no "Author: " prefix.
-        const aiResp = await callImbueAiTextDetection(
-          { text: args.rawText, imageUrls: args.imageUrls },
-        );
-        const isAi = aiResp.confidence >= args.aiThreshold;
-        const pct = `${(aiResp.confidence * 100).toFixed(0)}%`;
-        return {
-          shouldHide: isAi,
-          reasoning: isAi
-            ? `AI-generated text detected (confidence ${pct})`
-            : `Text not detected as AI-generated (confidence ${pct})`,
-          category: isAi ? 'AI-generated' : null,
-          rawResponse: null,
-        };
-      })(),
-    });
   }
   return detectors;
 }
@@ -227,14 +158,6 @@ function buildDetectorStates(
   };
 }
 
-
-// Map API names to their corresponding settings key for API key lookup
-const API_KEY_SETTINGS: Record<string, keyof Settings> = {
-  openrouter: 'openrouterApiKey',
-  openai: 'openaiApiKey',
-  gemini: 'geminiApiKey',
-  anthropic: 'anthropicApiKey'
-};
 
 // ==================== Pipeline State ====================
 
@@ -414,9 +337,8 @@ function broadcastToTabs(message: BackgroundToContentMessage): void {
 export async function getSettings(siteId?: SiteId): Promise<Settings> {
   const descriptionsKey = siteId ? `descriptions_${siteId}` as const : undefined;
   const settingsKeys = [
-    'apiKey', 'openaiApiKey', 'openaiApiBase', 'openrouterApiKey', 'geminiApiKey',
-    'anthropicApiKey', 'enabled', 'useEmbeddings', 'selectedModel',
-    'customModels', 'predefinedModelKwargs', 'aiTextFilterEnabled', 'aiTextDetectionThreshold',
+    'enabled', 'selectedModel',
+    'customModels', 'predefinedModelKwargs',
     'filterReplies'
   ] as const;
   const [data, descriptions] = await Promise.all([
@@ -424,20 +346,11 @@ export async function getSettings(siteId?: SiteId): Promise<Settings> {
     descriptionsKey ? getDescriptions(descriptionsKey) : Promise.resolve([] as string[])
   ]);
   return {
-    apiKey: data.apiKey || '',
-    openaiApiKey: data.openaiApiKey || '',
-    openaiApiBase: data.openaiApiBase || '',
-    openrouterApiKey: data.openrouterApiKey || '',
-    geminiApiKey: data.geminiApiKey || '',
-    anthropicApiKey: data.anthropicApiKey || '',
     enabled: data.enabled !== false,
     descriptions,
-    useEmbeddings: data.useEmbeddings || false,
     selectedModel: data.selectedModel || DEFAULT_MODEL,
     customModels: data.customModels || [],
     predefinedModelKwargs: data.predefinedModelKwargs || {},
-    aiTextFilterEnabled: data.aiTextFilterEnabled === true,
-    aiTextDetectionThreshold: clampThreshold(data.aiTextDetectionThreshold),
     filterReplies: data.filterReplies !== false
   };
 }
@@ -447,7 +360,6 @@ export async function getSettings(siteId?: SiteId): Promise<Settings> {
 // Broadcast unified error status to all tabs
 export async function broadcastErrorStatus(): Promise<void> {
   const settings = await getSettings();
-  const hasAlternativeApis = !!(settings.openaiApiKey || settings.geminiApiKey || settings.openrouterApiKey || settings.anthropicApiKey);
 
   const status: BackgroundToContentMessage = {
     type: 'errorStatusUpdate',
@@ -456,24 +368,13 @@ export async function broadcastErrorStatus(): Promise<void> {
     count: errorState.count,
     apiDisplayName: errorState.apiDisplayName,
     selectedModel: settings.selectedModel,
-    hasAlternativeApis
+    hasAlternativeApis: false
   };
   broadcastToTabs(status);
 }
 
 // Reset error state and broadcast
-// Only clears the auth error for the current model's provider, preserving errors for other providers
 export async function clearErrorState(): Promise<void> {
-  const settings = await getSettings();
-  if (settings.selectedModel && settings.selectedModel !== 'imbue') {
-    const [apiName] = settings.selectedModel.split(':');
-    const data = await getStorage(['authErrorApis']);
-    const authErrorApis = { ...(data.authErrorApis || {}) };
-    if (authErrorApis[apiName]) {
-      delete authErrorApis[apiName];
-      await setStorage({ authErrorApis });
-    }
-  }
   errorState = { type: null, subType: null, count: 0, apiDisplayName: null };
   serverErrorRetried = false;
   if (errorRetryTimeout) {
@@ -547,14 +448,13 @@ export function getLatencySampleCount(): number {
 
 async function broadcastLatencyStatus(): Promise<void> {
   const settings = await getSettings();
-  const hasAlternativeApis = !!(settings.openaiApiKey || settings.geminiApiKey || settings.openrouterApiKey || settings.anthropicApiKey);
 
   const status: BackgroundToContentMessage = {
     type: 'latencyUpdate',
     isHighLatency: isHighLatency(),
     medianLatency: getMedianLatency(),
     selectedModel: settings.selectedModel,
-    hasAlternativeApis
+    hasAlternativeApis: false
   };
   broadcastToTabs(status);
 }
@@ -678,11 +578,11 @@ async function prioritizeByViewportDistance(queue: PendingEvaluation[]): Promise
 // ==================== Error classification ====================
 
 // Classify an error message into a type using priority ordering: auth > rate_limit > api_error.
-// apiName is needed to determine if auth errors should be checked (excluded for imbue/local).
+// apiName is needed to determine if auth errors should be checked (excluded for local).
 // Returns { errorType, subType } where both may be null if no pattern matches.
 export function classifyError(errorMessage: string, apiName: string): { errorType: ErrorState['type']; subType: string | null } {
-  // Auth errors only apply to external API providers
-  if (apiName !== 'imbue' && apiName !== 'local' && checkAuthenticationError(errorMessage)) {
+  // Auth errors only apply to external API providers (none in this local-only fork).
+  if (apiName !== 'local' && checkAuthenticationError(errorMessage)) {
     return { errorType: 'auth', subType: null };
   }
 
@@ -759,11 +659,10 @@ async function processBatch(): Promise<void> {
     return;
   }
 
-  // Filter and AI detection are independent gating mechanisms. Even when both
-  // are off we still flow through the tab-dispatch logic below so the popup
-  // always shows two tabs (both marked skipped).
+  // The filter runs only when the user has configured filter phrases. We still
+  // flow through the tab-dispatch logic below so the popup shows the filter tab
+  // (marked skipped when no phrases are set).
   const filterEnabled = !!(settings.descriptions && settings.descriptions.length > 0);
-  const aiToggleOn = settings.aiTextFilterEnabled;
 
   // Check cache
   const imageUrls = item.imageUrls || [];
@@ -780,108 +679,38 @@ async function processBatch(): Promise<void> {
   const postData = { text: item.post, imageUrls };
   const startTime = Date.now();
 
-  // Even with no filter phrases configured, still send the tweet to our
-  // servers (with empty categories) so we capture feed contents for
-  // analytics. Fire-and-forget — the result is discarded and no UI
-  // indicators are shown. Only runs when the Imbue backend is wired up
-  // at build time; open-source builds skip this telemetry.
-  if (
-    process.env.HAS_IMBUE_BACKEND === 'true'
-    && !filterEnabled
-    && settings.selectedModel === 'imbue'
-  ) {
-    void callImbueAPI(postData, [], 'filterPost').catch(err =>
-      console.warn('[Bouncer] Empty-filter tweet send failed:', (err as Error).message)
-    );
-  }
-
-  // Build API config (only used when the filter path runs)
-  let apiConfig: APIConfig;
-
-  if (process.env.HAS_IMBUE_BACKEND === 'true' && settings.selectedModel === 'imbue') {
-    apiConfig = { modelName: 'imbue', apiName: 'imbue', apiKey: null };
-  } else if (isLocalModel) {
-    const modelName = settings.selectedModel.split(':')[1];
-    const modelConfig = PREDEFINED_MODELS.local?.find(m => m.name === modelName) || {} as LocalModelDef;
-    apiConfig = { modelName, apiName: 'local', modelConfig };
-  } else {
-    const [apiName, ...nameParts] = settings.selectedModel.split(':');
-    const modelName = nameParts.join(':');
-    const apiKey = (settings[API_KEY_SETTINGS[apiName]] as string) || null;
-    apiConfig = { modelName, apiName, apiKey };
-
-    if (apiName === 'openai' && settings.openaiApiBase) {
-      apiConfig.apiBase = settings.openaiApiBase;
-    }
-
-    let apiKwargs: Record<string, unknown> = {};
-    const predefinedModels = PREDEFINED_MODELS[apiName] || [];
-    const predefinedModel = predefinedModels.find(m => m.name === modelName);
-    if (predefinedModel) {
-      if (settings.selectedModel in settings.predefinedModelKwargs) {
-        apiKwargs = { ...settings.predefinedModelKwargs[settings.selectedModel] };
-      } else if (predefinedModel.apiKwargs) {
-        apiKwargs = { ...predefinedModel.apiKwargs };
-      }
-    }
-    const customModel = settings.customModels.find(m => m.api === apiName && m.name === modelName);
-    if (customModel?.apiKwargs) apiKwargs = customModel.apiKwargs;
-    if (Object.keys(apiKwargs).length > 0) apiConfig.apiKwargs = apiKwargs;
-  }
+  // Build API config (only used when the filter path runs). Local-only: the
+  // selected model is always a local WebLLM model.
+  const modelName = settings.selectedModel.split(':')[1];
+  const modelConfig = PREDEFINED_MODELS.local?.find(m => m.name === modelName) || {} as LocalModelDef;
+  const apiConfig: APIConfig = { modelName, apiName: 'local', modelConfig };
 
   try {
     let result: DetectorResult;
 
-    // The user-selected filter pipeline. Returns whether the user's filter rules apply.
+    // The user-selected filter pipeline — local WebLLM inference.
     const runFilter = async (): Promise<DetectorResult> => {
-      if (isLocalModel) {
-        const postUrl = item.postUrl;
-        const onInferenceStart = postUrl
-          ? () => { void sendToTab(batchTabId, { type: 'processingPost', postUrl }); }
-          : undefined;
-        return await callLocalInference(postData, settings.descriptions, apiConfig.modelConfig as LocalModelDef | null, apiConfig.modelName, { onInferenceStart });
-      } else if (apiConfig.apiName === 'imbue') {
-        const imbueResponse = await callImbueAPI(postData, settings.descriptions, 'filterPost');
-        return {
-          shouldHide: imbueResponse.shouldHide,
-          reasoning: imbueResponse.reasoning || 'No reasoning provided',
-          category: imbueResponse.category || null,
-          rawResponse: imbueResponse.rawResponse || null,
-        };
-      } else if (apiConfig.apiName === 'anthropic') {
-        const messages = buildAPIMessages(postData, settings.descriptions);
-        const rawContent = await callAnthropicAPI(messages, apiConfig);
-        return { ...parseAPIResponse(rawContent), rawResponse: rawContent };
-      } else {
-        const messages = buildAPIMessages(postData, settings.descriptions);
-        const rawContent = await callDirectAPI(messages, apiConfig);
-        return { ...parseAPIResponse(rawContent), rawResponse: rawContent };
-      }
+      const postUrl = item.postUrl;
+      const onInferenceStart = postUrl
+        ? () => { void sendToTab(batchTabId, { type: 'processingPost', postUrl }); }
+        : undefined;
+      return await callLocalInference(postData, settings.descriptions, apiConfig.modelConfig as LocalModelDef | null, apiConfig.modelName, { onInferenceStart });
     };
 
-    // Per-post detector orchestration. Three logical phases: plan tabs and
-    // dispatch their initial state to the content script; build the live
-    // detector list; race them and capture snapshots for cache persistence.
-    const aiSkipReason = computeAiSkipReason(aiToggleOn, item.rawText);
-    const aiEnabled = !aiSkipReason;
-
-    const tabPlan = buildTabPlan(filterEnabled, aiSkipReason);
+    // Per-post detector orchestration: plan the tab and dispatch its initial
+    // state to the content script; build the live detector list; race and
+    // capture snapshots for cache persistence.
+    const tabPlan = buildTabPlan(filterEnabled);
     const snapshots = dispatchInitialTabs(batchTabId, item.evaluationId, tabPlan);
 
     const detectors = buildLiveDetectors({
       filterEnabled,
-      aiEnabled,
       runFilter,
-      rawText: item.rawText,
-      imageUrls,
-      aiThreshold: settings.aiTextDetectionThreshold,
     });
 
     if (detectors.length === 0) {
-      // Nothing to run — tabs were already dispatched as skipped above.
-      result = tabPlan.length > 0
-        ? { shouldHide: false, reasoning: `All detectors skipped: ${tabPlan.map(t => `${t.name} (${t.skipReason})`).join(', ')}` }
-        : { shouldHide: false, reasoning: 'AI detection unavailable (signed out) and no filter phrases set.' };
+      // Nothing to run — the filter tab was already dispatched as skipped above.
+      result = { shouldHide: false, reasoning: 'No filter phrases set.' };
     } else {
       result = await runDetectorsAndCaptureSnapshots(
         detectors,
@@ -970,14 +799,7 @@ async function processBatch(): Promise<void> {
     const subType = classified.subType;
     let reasoning = (error as Error).message;
 
-    if (errorType === 'auth') {
-      const displayName = API_DISPLAY_NAMES[apiConfig.apiName] || apiConfig.apiName;
-      errorState.apiDisplayName = displayName;
-      const authData = await getStorage(['authErrorApis']);
-      const authErrorApis = { ...(authData.authErrorApis || {}) };
-      authErrorApis[apiConfig.apiName] = true;
-      await setStorage({ authErrorApis });
-    } else if (errorType === 'rate_limit') {
+    if (errorType === 'rate_limit') {
       const typeConfig = RATE_LIMIT_TYPE_CONFIG[subType!];
       reasoning = typeConfig?.reasoning || 'Rate limited - will retry when model is switched or after 1 minute of inactivity';
     } else if (errorType === 'not_found' || errorType === 'server_error') {
@@ -1080,7 +902,7 @@ export async function handleSettingsChange(changes: Record<string, chrome.storag
     await clearEvaluationCache();
   }
 
-  if ((changes.selectedModel || changes.openaiApiKey || changes.geminiApiKey || changes.openrouterApiKey || changes.anthropicApiKey) && errorState.count > 0) {
+  if (changes.selectedModel && errorState.count > 0) {
     triggerErrorRetry().catch(err => console.error('[Error] triggerErrorRetry failed:', err));
   }
 }
@@ -1106,84 +928,31 @@ export function handlePageLoad(tabId: number): void {
 // Validate a single filter phrase by running the post through the actual filter model
 async function validateFilterPhrase(postText: string, imageUrls: string[], phrase: string, settings: Settings): Promise<boolean> {
   const postData = { text: postText, imageUrls: imageUrls || [] };
-  const isLocalModel = settings.selectedModel?.startsWith('local:');
-
-  if (process.env.HAS_IMBUE_BACKEND === 'true' && settings.selectedModel === 'imbue') {
-    const imbueResponse = await callImbueAPI(postData, [phrase], 'validatePhrase');
-    return imbueResponse.shouldHide === true;
-  } else if (isLocalModel) {
-    const modelName = settings.selectedModel.split(':')[1];
-    const modelConfig = PREDEFINED_MODELS.local?.find(m => m.name === modelName) || {} as LocalModelDef;
-    const localResult = await callLocalInference(postData, [phrase], modelConfig, modelName, { priority: 1 });
-    return localResult.shouldHide === true;
-  } else {
-    const [apiName, ...nameParts] = settings.selectedModel.split(':');
-    const modelName = nameParts.join(':');
-    const apiKey = (settings[API_KEY_SETTINGS[apiName]] as string) || null;
-    const apiConfig: APIConfig = { modelName, apiName, apiKey };
-    if (apiName === 'openai' && settings.openaiApiBase) {
-      apiConfig.apiBase = settings.openaiApiBase;
-    }
-    const messages = buildAPIMessages(postData, [phrase]);
-    const callFn = apiName === 'anthropic' ? callAnthropicAPI : callDirectAPI;
-    const rawContent = await callFn(messages, apiConfig);
-    const parsed = parseAPIResponse(rawContent);
-    return parsed.shouldHide === true;
-  }
+  const modelName = settings.selectedModel.split(':')[1];
+  const modelConfig = PREDEFINED_MODELS.local?.find(m => m.name === modelName) || {} as LocalModelDef;
+  const localResult = await callLocalInference(postData, [phrase], modelConfig, modelName, { priority: 1 });
+  return localResult.shouldHide === true;
 }
 
-// Generate candidate filter phrases using the configured model
-async function generateCandidatePhrases(postText: string, imageUrls: string[], count: number, rejectPhrases: string[], settings: Settings): Promise<string[]> {
-  const isLocalModel = settings.selectedModel?.startsWith('local:');
-
+// Generate candidate filter phrases using the local model.
+// Local WebLLM models don't support image inputs — use text only.
+async function generateCandidatePhrases(postText: string, _imageUrls: string[], count: number, rejectPhrases: string[], settings: Settings): Promise<string[]> {
   const rejected = rejectPhrases.length > 0
     ? ` Do NOT suggest any of these: ${rejectPhrases.join(', ')}.`
     : '';
 
-  const hasImages = imageUrls && imageUrls.length > 0;
-  const imageNote = hasImages ? ' Consider BOTH the text and any attached images when suggesting categories.' : '';
-  const simpleSystemPrompt = `Given a social media post, suggest exactly ${count} broad content category labels (1-3 words each) that someone might want to filter out because the post is annoying, obnoxious, or unpleasant. Each label must be a general topic or content type such that if another model were asked "does this post relate to [label]?", it would say yes. Focus on what makes the post grating or unwelcome. At least one of the ${count} labels MUST describe a negative emotional tone or off-putting quality of the post. ${imageNote}${rejected} Output ONLY the ${count} category labels, one per line, nothing else.`;
-  let result: string[];
+  const simpleSystemPrompt = `Given a social media post, suggest exactly ${count} broad content category labels (1-3 words each) that someone might want to filter out because the post is annoying, obnoxious, or unpleasant. Each label must be a general topic or content type such that if another model were asked "does this post relate to [label]?", it would say yes. Focus on what makes the post grating or unwelcome. At least one of the ${count} labels MUST describe a negative emotional tone or off-putting quality of the post.${rejected} Output ONLY the ${count} category labels, one per line, nothing else.`;
 
-  if (process.env.HAS_IMBUE_BACKEND === 'true' && settings.selectedModel === 'imbue') {
-    const postData = { text: postText, imageUrls: imageUrls || [] };
-    const imbueResponse = await callImbueAPI(postData, undefined, 'suggestAnnoying');
-    const suggestions = imbueResponse.suggestions || [];
-    result = suggestions.slice(0, count);
-  } else if (isLocalModel) {
-    // Local WebLLM models don't support image inputs — use text only
-    const modelName = settings.selectedModel.split(':')[1];
-    await localEngine.ensureLoaded(modelName);
-    const rawText = await localEngine.generate([
-      { role: 'system', content: simpleSystemPrompt },
-      { role: 'user', content: postText }
-    ], 150, { priority: 1, temperature: 0.7 });
-    result = rawText.split('\n')
-      .map(l => l.replace(/^\d+[.)-]\s*/, '').trim())
-      .filter(l => l && l.length <= 40 && !l.startsWith('<'))
-      .slice(0, count);
-  } else {
-    const [apiName, ...nameParts] = settings.selectedModel.split(':');
-    const modelName = nameParts.join(':');
-    const apiKey = (settings[API_KEY_SETTINGS[apiName]] as string) || null;
-    const apiConfig: APIConfig = { modelName, apiName, apiKey };
-    if (apiName === 'openai' && settings.openaiApiBase) {
-      apiConfig.apiBase = settings.openaiApiBase;
-    }
-    // Build multimodal user content when images are present
-    const userContent: ChatMessage['content'] = hasImages
-      ? [
-          { type: 'text', text: postText },
-          ...imageUrls.map(url => ({ type: 'image_url', image_url: { url } }))
-        ]
-      : postText;
-    const callFn = apiName === 'anthropic' ? callAnthropicAPI : callDirectAPI;
-    const rawText = await callFn([
-      { role: 'system', content: simpleSystemPrompt },
-      { role: 'user', content: userContent }
-    ], apiConfig);
-    result = rawText.split('\n').map(l => l.replace(/^\d+[.)-]\s*/, '').trim()).filter(l => l && l.length <= 40 && !l.startsWith('<')).slice(0, count);
-  }
+  const modelName = settings.selectedModel.split(':')[1];
+  await localEngine.ensureLoaded(modelName);
+  const rawText = await localEngine.generate([
+    { role: 'system', content: simpleSystemPrompt },
+    { role: 'user', content: postText }
+  ], 150, { priority: 1, temperature: 0.7 });
+  const result = rawText.split('\n')
+    .map(l => l.replace(/^\d+[.)-]\s*/, '').trim())
+    .filter(l => l && l.length <= 40 && !l.startsWith('<'))
+    .slice(0, count);
   return result.map(item => item.toLowerCase());
 }
 

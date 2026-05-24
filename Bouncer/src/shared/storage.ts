@@ -73,14 +73,3 @@ export async function getDescriptions(descriptionsKey: DescriptionKey): Promise<
 export async function setDescriptions(descriptionsKey: DescriptionKey, descriptions: string[]): Promise<void> {
   await chrome.storage.local.set({ [descriptionsKey]: descriptions });
 }
-
-// Default confidence threshold for the AI-text-detection worker. The worker
-// returns a score in [0, 1]; posts at or above the active threshold are
-// classified as AI-generated.
-export const DEFAULT_AI_TEXT_DETECTION_THRESHOLD = 0.7;
-
-/** Clamp a stored threshold to [0, 1] and fall back to the default for missing/non-finite values. */
-export function clampThreshold(v: unknown): number {
-  if (typeof v !== 'number' || !Number.isFinite(v)) return DEFAULT_AI_TEXT_DETECTION_THRESHOLD;
-  return Math.min(1, Math.max(0, v));
-}

@@ -2,9 +2,11 @@
 
 A browser extension that filters unwanted posts from Twitter/X feeds using AI. Users define filter topics (e.g., "crypto", "engagement bait") and the AI classifies and hides matching posts.
 
+**Local-only fork.** This is a modified, local-only fork of [imbue-ai/bouncer](https://github.com/imbue-ai/bouncer) (AGPL-3.0). Every non-local backend has been removed — the direct cloud APIs (OpenAI/Gemini/OpenRouter/Anthropic), the Imbue WebSocket backend + Firebase auth, and AI-text detection. Classification runs **only** on-device via WebLLM/Qwen (WebGPU). Upstream has since migrated local inference to LiteRT-LM; this fork deliberately stays on WebLLM. When editing, do not reintroduce cloud/provider/auth code paths.
+
 ## Project Structure
 
-**Important:** `Bouncer_xcode/` contains only iOS app code. The desktop extension code lives in `Bouncer/`.
+**Important:** All extension code lives in `Bouncer/`; load it unpacked from there. The native Xcode wrapper project (macOS Safari + iOS apps) was removed from this fork. iOS is not supported (WKWebView has no WebGPU).
 
 ## Build & Development
 

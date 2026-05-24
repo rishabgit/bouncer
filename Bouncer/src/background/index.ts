@@ -8,15 +8,12 @@ import { localEngine } from './local-model';
 import {
   initPipeline, loadCache, saveCache,
   setActiveTab, enqueuePost, isKeyPending, clearTabQueue,
-  scheduleBatch, broadcastQueueStatus, getSettings, sendToTab,
-  errorState, triggerErrorRetry,
+  scheduleBatch, broadcastQueueStatus, getSettings,
+  errorState,
   evaluationCache, clearEvaluationCache,
   handleSettingsChange, handleFilterPackChange, handlePageLoad, suggestAnnoyingReasons,
   replayDetectorStates,
 } from './pipeline';
-import { sendFeedback } from './providers';
-import { imbueWebSocket } from './ws-manager';
-import { launchAuthFlow, refreshAuthToken, getAuthToken, handleAppleSignIn, signOut, IS_SAFARI } from './auth';
 
 // ==================== Tab tracking ====================
 
@@ -79,27 +76,6 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 // ==================== Startup ====================
 
-// On Safari, access cookies for key domains on startup to trigger permission prompts early.
-// chrome.cookies.get requires the "cookies" permission + host permission for the URL,
-// which reliably surfaces Safari's "Allow on Websites" dialog.
-if (IS_SAFARI && chrome.cookies) {
-  // On open-source / BYOK-only builds BOUNCER_SIGNIN_DOMAIN is unset, which
-  // would produce `https:///` — Safari's cookies.get throws synchronously on
-  // invalid URLs, killing the rest of this module (including the
-  // chrome.runtime.onMessage listener registration below). Skip any empty
-  // domain entries so the background script always finishes loading.
-  const signinDomain = process.env.BOUNCER_SIGNIN_DOMAIN;
-  const domains = [
-    'https://x.com/',
-    ...(signinDomain ? [`https://${signinDomain}/`] : []),
-  ];
-  for (const url of domains) {
-    chrome.cookies.get({ url, name: '_dummy' }, (cookie) => {
-      console.log(`[Startup] cookies.get for ${url}: cookie=${cookie ? 'present' : 'null'}, lastError=${chrome.runtime.lastError?.message ?? 'none'}`);
-    });
-  }
-}
-
 // Open uninstall survey when the extension is removed (not supported in Safari)
 if (chrome.runtime.setUninstallURL) {
   chrome.runtime.setUninstallURL("https://forms.gle/41CSXsBcRMnjofVw8")
@@ -111,7 +87,6 @@ if (chrome.runtime.setUninstallURL) {
 (async () => {
   try {
     await loadCache();
-    await refreshAuthToken();
     // Wire up pipeline with shared state
     initPipeline(activeContentTabs);
     await localEngine.syncAllStatuses();
@@ -249,35 +224,6 @@ async function handleMessage(
       return { success: true };
     }
 
-    case 'sendFeedback': {
-      try {
-        const settings = await getSettings(message.siteId || 'twitter');
-
-        // Look up cached evaluation to get the actual rawResponse and parsed reasoning
-        const postText = message.tweetData?.text || '';
-        const imageUrls = message.tweetData?.imageUrls || [];
-        const cacheKey = generateCacheKey(postText, imageUrls);
-        const cached = evaluationCache.get(cacheKey);
-
-        const feedbackMessage = {
-          action: "feedback" as const,
-          tweetData: message.tweetData,
-          categories: settings.descriptions || [],
-          version: chrome.runtime?.getManifest?.()?.version || 'unknown',
-          model: cached?.model || settings.selectedModel || 'unknown',
-          rawResponse: message.rawResponse || cached?.rawResponse || '',
-          reasoning: message.reasoning || cached?.reasoning || '',
-          decision: message.decision || ''
-        };
-        const authToken = await getAuthToken();
-        void sendFeedback(feedbackMessage, authToken);
-        return { success: true };
-      } catch (err) {
-        console.error('[Bouncer] sendFeedback error:', err);
-        return { success: false, error: (err as Error).message };
-      }
-    }
-
     case 'overrideCacheEntry': {
       await loadCache();
       const cacheKey = generateCacheKey(message.post, message.imageUrls || []);
@@ -315,14 +261,13 @@ async function handleMessage(
 
     case 'getErrorStatus': {
       const settings = await getSettings();
-      const hasAlternativeApis = !!(settings.openaiApiKey || settings.geminiApiKey || settings.openrouterApiKey || settings.anthropicApiKey);
       return {
         errorType: errorState.type,
         subType: errorState.subType,
         count: errorState.count,
         apiDisplayName: errorState.apiDisplayName,
         selectedModel: settings.selectedModel,
-        hasAlternativeApis: hasAlternativeApis
+        hasAlternativeApis: false
       };
     }
 
@@ -354,232 +299,6 @@ async function handleMessage(
       }
 
       return { statuses, webgpuSupported };
-    }
-
-    case 'getAuthStatus': {
-      // When no Imbue backend is configured (open-source build), there's
-      // nothing to sign in to. Tell the UI we're "authenticated" so the
-      // sign-in prompts stay hidden and the filter UI renders directly.
-      if (process.env.HAS_IMBUE_BACKEND !== 'true') {
-        return { authenticated: true, isSafari: IS_SAFARI };
-      }
-      const token = await getAuthToken();
-      return { authenticated: !!token, isSafari: IS_SAFARI };
-    }
-
-    case 'launchAuth': {
-      if (process.env.HAS_IMBUE_BACKEND !== 'true') {
-        return { success: false, error: 'Imbue backend not configured' };
-      }
-      // iOS: no Google OAuth available -- use anonymous auth (already handled by getAuthToken)
-      const isIOS = typeof window !== 'undefined' && typeof (window as unknown as Record<string, unknown>).__ff_getAppCheckToken === 'function';
-      if (isIOS) {
-        const token = await getAuthToken();
-        if (token) {
-          for (const tid of activeContentTabs) {
-            void sendToTab(tid, { type: 'authStateChanged', authenticated: true });
-          }
-        }
-        return { success: !!token };
-      }
-
-      try {
-        const method = (message as { method?: string }).method;
-        const token = await launchAuthFlow(method);
-        if (token) {
-          for (const tid of activeContentTabs) {
-            void sendToTab(tid, { type: 'authStateChanged', authenticated: true });
-          }
-        }
-        return { success: !!token };
-      } catch (err) {
-        console.error('[Auth] On-demand auth flow error:', err);
-        return { success: false, error: (err as Error).message };
-      }
-    }
-
-    case 'nativeAppleSignIn': {
-      try {
-        console.log('[Auth] Requesting native Apple sign-in via sendNativeMessage...');
-        interface NativeResponse {
-          action?: string;
-          hostBundleId?: string;
-          identityToken?: string;
-          rawNonce?: string;
-          error?: string;
-        }
-        const browserApi = (globalThis as unknown as { browser?: { runtime: { sendNativeMessage: (id: string, msg: unknown) => Promise<NativeResponse> } } }).browser;
-        if (!browserApi) {
-          return { success: false, error: 'Native messaging not available' };
-        }
-        const nativeResponse = await browserApi.runtime.sendNativeMessage(
-          'application.id',
-          { type: 'signInWithApple' }
-        );
-        console.log('[Auth] Native response:', JSON.stringify(nativeResponse));
-
-        // If the extension handler tells us to open the host app
-        if (nativeResponse?.action === 'openHostApp') {
-          console.log('[Auth] Opening host app for sign-in...');
-          // Open the host app — it will handle Sign in with Apple
-          // and store the token in shared UserDefaults
-          await chrome.tabs.create({ url: `bouncer://signin` });
-          return { success: false, error: 'Please complete sign-in in the Bouncer app' };
-        }
-
-        if (nativeResponse?.identityToken) {
-          const token = await handleAppleSignIn(
-            nativeResponse.identityToken,
-            nativeResponse.rawNonce || '',
-            undefined,
-            'apple.com'
-          );
-          if (token) {
-            for (const tid of activeContentTabs) {
-              void sendToTab(tid, { type: 'authStateChanged', authenticated: true });
-            }
-          }
-          return { success: !!token };
-        } else {
-          console.error('[Auth] Native sign-in returned no token:', nativeResponse);
-          return { success: false, error: nativeResponse?.error || 'No token returned' };
-        }
-      } catch (err) {
-        console.error('[Auth] Native Apple sign-in error:', err);
-        return { success: false, error: (err as Error).message };
-      }
-    }
-
-    case 'signOut': {
-      try {
-        await signOut();
-        for (const tid of activeContentTabs) {
-          void sendToTab(tid, { type: 'authStateChanged', authenticated: false });
-        }
-        return { success: true };
-      } catch (err) {
-        console.error('[Auth] Sign out error:', err);
-        return { success: false, error: (err as Error).message };
-      }
-    }
-
-    case 'appleSignIn': {
-      try {
-        const appleMsg = message as {
-          idToken: string;
-          rawNonce: string;
-          firebaseToken?: string;
-          providerId?: string;
-        };
-        console.log('[Auth] appleSignIn received, providerId:', appleMsg.providerId);
-        const token = await handleAppleSignIn(
-          appleMsg.idToken,
-          appleMsg.rawNonce,
-          appleMsg.firebaseToken,
-          appleMsg.providerId,
-        );
-        console.log('[Auth] handleAppleSignIn result:', !!token);
-        if (token) {
-          console.log('[Auth] Broadcasting authStateChanged to', activeContentTabs.size, 'tabs:', [...activeContentTabs]);
-          for (const tid of activeContentTabs) {
-            sendToTab(tid, { type: 'authStateChanged', authenticated: true })
-              .then((r) => console.log('[Auth] authStateChanged delivered to tab', tid, 'response=', r))
-              .catch((err: unknown) => {
-                const msg = err instanceof Error ? err.message : String(err);
-                console.error('[Auth] authStateChanged FAILED to tab', tid, ':', msg);
-              });
-          }
-        }
-
-
-        return { success: !!token };
-      } catch (err) {
-        console.error('[Auth] Sign-in error:', err);
-        return { success: false, error: (err as Error).message };
-      }
-    }
-
-    case 'launchOpenRouterAuth': {
-      try {
-        // Generate PKCE codes
-        const array = new Uint8Array(32);
-        crypto.getRandomValues(array);
-        const codeVerifier = btoa(String.fromCharCode(...array))
-          .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-        const encoder = new TextEncoder();
-        const hash = await crypto.subtle.digest('SHA-256', encoder.encode(codeVerifier));
-        const codeChallenge = btoa(String.fromCharCode(...new Uint8Array(hash)))
-          .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-        const redirectUrl = chrome.identity.getRedirectURL();
-
-        const authUrl = new URL('https://openrouter.ai/auth');
-        authUrl.searchParams.set('callback_url', redirectUrl);
-        authUrl.searchParams.set('code_challenge', codeChallenge);
-        authUrl.searchParams.set('code_challenge_method', 'S256');
-        authUrl.searchParams.set('title', 'Bouncer');
-
-        const responseUrl = await chrome.identity.launchWebAuthFlow({
-          url: authUrl.toString(),
-          interactive: true,
-        });
-
-        if (!responseUrl) {
-          return { success: false, error: 'No response URL from OAuth flow' };
-        }
-
-        const url = new URL(responseUrl);
-        const code = url.searchParams.get('code');
-        if (!code) {
-          return { success: false, error: 'No authorization code received' };
-        }
-
-        // Exchange code for API key
-        const tokenResponse = await fetch('https://openrouter.ai/api/v1/auth/keys', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            code,
-            code_verifier: codeVerifier,
-            code_challenge_method: 'S256',
-          }),
-        });
-
-        if (!tokenResponse.ok) {
-          const errorText = await tokenResponse.text();
-          console.error('[OpenRouter] Token exchange failed:', tokenResponse.status, errorText);
-          return { success: false, error: `Token exchange failed: ${tokenResponse.status}` };
-        }
-
-        const data = await tokenResponse.json() as { key?: string };
-        if (!data.key) {
-          return { success: false, error: 'No API key in response' };
-        }
-
-        // Check if first auth for auto-model-switch. Users on the default
-        // (Imbue when configured, empty string otherwise) get bumped onto
-        // the free model so they have a working configuration
-        // immediately after signing in.
-        const storageData = await getStorage(['openrouterApiKey', 'selectedModel']);
-        const isFirstAuth = !storageData.openrouterApiKey;
-        const currentModel = storageData.selectedModel || '';
-
-        await setStorage({ openrouterApiKey: data.key });
-
-        if (isFirstAuth && (currentModel === 'imbue' || !currentModel)) {
-          await setStorage({ selectedModel: 'openrouter:nvidia/nemotron-nano-12b-v2-vl:free' });
-        }
-
-        return { success: true };
-      } catch (err) {
-        const message = (err as Error).message || '';
-        if (message.includes('canceled') || message.includes('closed')) {
-          return { success: false, cancelled: true };
-        }
-        console.error('[OpenRouter] OAuth error:', err);
-        return { success: false, error: message };
-      }
     }
 
     case 'cancelLocalModelDownload': {
@@ -703,27 +422,6 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
     if (filtersChanged) {
       handleFilterPackChange();
     }
-
-    if (changes.aiTextFilterEnabled || changes.aiTextDetectionThreshold) {
-      await handleSettingsChange(changes);
-    }
-
-    // Also retry error posts when API keys change (even without other settings changes)
-    if (changes.openaiApiKey || changes.geminiApiKey || changes.openrouterApiKey || changes.anthropicApiKey) {
-      // Clear auth error for the provider whose key changed
-      const authData = await getStorage(['authErrorApis']);
-      const authErrorApis = { ...(authData.authErrorApis || {}) };
-      let authChanged = false;
-      if (changes.openaiApiKey && authErrorApis.openai) { delete authErrorApis.openai; authChanged = true; }
-      if (changes.geminiApiKey && authErrorApis.gemini) { delete authErrorApis.gemini; authChanged = true; }
-      if (changes.openrouterApiKey && authErrorApis.openrouter) { delete authErrorApis.openrouter; authChanged = true; }
-      if (changes.anthropicApiKey && authErrorApis.anthropic) { delete authErrorApis.anthropic; authChanged = true; }
-      if (authChanged) await setStorage({ authErrorApis });
-
-      if (errorState.count > 0) {
-        triggerErrorRetry().catch(err => console.error('[Background] triggerErrorRetry error:', err));
-      }
-    }
   })().catch(err => console.error('[Background] Storage change handler error:', err));
 });
 
@@ -763,9 +461,6 @@ chrome.runtime.onInstalled.addListener((details) => {
 // Note: onSuspend is not available in Safari service workers
 if (chrome.runtime.onSuspend) {
   chrome.runtime.onSuspend.addListener(() => {
-    imbueWebSocket.disconnect();
     localEngine.teardown();
   });
 }
-
-

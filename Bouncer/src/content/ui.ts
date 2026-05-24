@@ -8,10 +8,9 @@ import {
   encodeFilterPackCode, decodeFilterPackCode, buildFilterPackShareUrl,
   FILTER_PACK_SHARE_URL_REGEX,
 } from '../shared/share-encoding';
-import type { BackgroundToContentMessage, ContentUIDeps, FilteredPost, PostContent, LocalModelStatus } from '../types';
+import type { ContentUIDeps, FilteredPost, PostContent, LocalModelStatus } from '../types';
 import { getStorage, setStorage, getDescriptions, setDescriptions } from '../shared/storage';
 import { getReleaseNote } from './release-notes';
-import { runIOSImportAnimation } from './ios';
 
 // Dependencies (set by initUI from index.ts)
 let _deps: ContentUIDeps;
@@ -33,25 +32,7 @@ export function initUI(deps: ContentUIDeps) {
   // Register the single page-wide tooltip-dismissal listener (replaces a
   // per-post capture-phase listener that used to accumulate with each post).
   setupAnnoyingTooltipCloser();
-
-  // Listen for auth state changes from background
-  console.log('[Bouncer] initUI: registering onMessage listener for authStateChanged');
-  chrome.runtime.onMessage.addListener((message: BackgroundToContentMessage) => {
-    if (message.type === 'authStateChanged') {
-      console.log('[Bouncer] authStateChanged received:', message);
-      isAuthenticated = message.authenticated;
-      if (isAuthenticated) {
-        console.log('[Bouncer] Calling refreshAllFilterBoxes after auth');
-        refreshAllFilterBoxes();
-      } else {
-        console.log('[Bouncer] authenticated=false, skipping refresh');
-      }
-    }
-  });
 }
-
-// Must be called before injecting filter boxes
-export { checkAuthStatus };
 
 // ==================== UI State ====================
 
@@ -84,136 +65,6 @@ let previousFilteredCount = 0;
 
 // Track if we've shown the API key warning
 let apiKeyWarningShown = false;
-
-// ==================== Auth State ====================
-
-// Open-source / BYOK-only builds (no Imbue backend) have nothing to sign in
-// to. Seed `true` so the in-page filter UI never flashes the sign-in screen
-// during init, and so even a missing/late getAuthStatus response on Safari
-// can't drop us back onto it.
-let isAuthenticated = process.env.HAS_IMBUE_BACKEND !== 'true';
-
-// Check auth status from background and cache it
-async function checkAuthStatus() {
-  if (process.env.HAS_IMBUE_BACKEND !== 'true') {
-    isAuthenticated = true;
-    return isAuthenticated;
-  }
-  try {
-    const response: { authenticated?: boolean; isSafari?: boolean } = await chrome.runtime.sendMessage({ type: 'getAuthStatus' });
-    isAuthenticated = response?.authenticated ?? false;
-  } catch {
-    isAuthenticated = false;
-  }
-  return isAuthenticated;
-}
-
-// Synchronous Safari detection via user agent. Previously set from an async
-// chrome.runtime.sendMessage round-trip, which could race with first render
-// and leave the UI showing the Google-branded sign-in even on Safari.
-const isSafari = /^((?!chrome|android|crios|fxios|edg|opr).)*safari/i.test(navigator.userAgent);
-
-// Sign-out button: dev builds only, and only on platforms that actually
-// have sign-in (iOS uses anonymous auth, no sign-out UI). Inlined at build
-// time from .env.{dev,prod}. Xcode injects uppercase "DEV", npm scripts use
-// lowercase "dev" — case-insensitive compare covers both.
-const IS_DEV_BUILD = (process.env.BOUNCER_ENV || '').toLowerCase() === 'dev';
-
-// Launch sign-in via background script (Google on Chrome, Apple on Safari)
-async function launchSignIn() {
-  try {
-    if (isSafari) {
-      // Safari: opens sign-in page in a new tab. Auth state change will come via broadcast.
-      console.log('[Bouncer] Opening Apple sign-in tab...');
-      await chrome.runtime.sendMessage({ type: 'launchAuth' });
-      return;
-    }
-    console.log('[Bouncer] Launching Google sign-in...');
-    const response: { success?: boolean } = await chrome.runtime.sendMessage({ type: 'launchAuth' });
-    if (response?.success) {
-      isAuthenticated = true;
-      refreshAllFilterBoxes();
-    }
-  } catch (err) {
-    console.error('[Bouncer] Sign-in failed:', err);
-  }
-}
-
-// Destroy and re-create all filter box UIs (after auth state change).
-// Query the DOM directly instead of relying on module-local references so we
-// also clean up stale nodes left by a previous content-script injection
-// (Safari re-injects when the user changes per-site permissions).
-function refreshAllFilterBoxes() {
-  const existing = document.querySelectorAll(
-    '.filter-phrases-sidebar, .filter-phrases-bottom, .filter-phrases-mobile'
-  );
-  console.log('[Bouncer] refreshAllFilterBoxes: removing', existing.length, 'existing box(es)');
-  existing.forEach((el) => el.remove());
-  filterPhrasesContainer = null;
-  bottomFilterContainer = null;
-  mobileFilterContainer = null;
-
-  injectFilterPhrasesInput();
-  injectBottomFilterBox();
-  injectMobileFilterBox();
-
-  // Trigger post processing now that we're authenticated
-  if (isAuthenticated && _deps.processExistingPosts) {
-    _deps.processExistingPosts();
-  }
-}
-
-// HTML for the sign-in state shown inside filter boxes
-function getSignInHTML() {
-  if (isSafari) {
-    return `
-      <div class="filter-phrases-container">
-        <span class="filter-phrases-box-name">Bouncer</span>
-        <div class="filter-signin-prompt">
-          <button class="google-signin-btn">
-            Activate Bouncer
-          </button>
-          <p class="ff-signin-explanation">Sign in to start filtering your feed</p>
-        </div>
-      </div>
-    `;
-  }
-  return `
-    <div class="filter-phrases-container">
-      <span class="filter-phrases-box-name">Bouncer</span>
-      <div class="filter-signin-prompt">
-        <button class="google-signin-btn">
-          <svg class="google-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4"/>
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-          </svg>
-          Activate Bouncer
-        </button>
-        <p class="ff-signin-explanation">Google sign-in helps us prevent abuse</p>
-      </div>
-    </div>
-  `;
-}
-
-// Wire up the sign-in button click handler inside a container
-function setupSignInButton(container: HTMLElement) {
-  if (isSafari) {
-    const btn = container.querySelector('.google-signin-btn');
-    if (btn) {
-      btn.addEventListener('click', asyncHandler(async () => {
-        console.log('[Bouncer] Opening sign-in page...');
-        await chrome.runtime.sendMessage({ type: 'launchAuth' });
-      }));
-    }
-  } else {
-    const btn = container.querySelector('.google-signin-btn');
-    if (btn) {
-      btn.addEventListener('click', asyncHandler(launchSignIn));
-    }
-  }
-}
 
 // ==================== Update Banner ====================
 
@@ -262,16 +113,6 @@ const PLACEHOLDER_DURATION = 10; // seconds for full cycle
 const placeholderItemsHTML = [...PLACEHOLDER_PHRASES, PLACEHOLDER_PHRASES[0]]
   .map(p => `<span>${p}</span>`).join('');
 const placeholderHTML = `<span class="filter-input-wrapper"><input type="text" class="filter-phrases-input"><span class="filter-placeholder-cycle" aria-hidden="true"><span class="filter-placeholder-track">${placeholderItemsHTML}</span></span></span>`;
-
-// Toggle row injected into every authenticated filter box. Visibility is gated
-// by the same auth check that gates the rest of the box.
-const aiTextToggleHTML = `
-  <label class="filter-ai-text-toggle">
-    <input type="checkbox" class="filter-ai-text-toggle-input">
-    <span class="filter-ai-text-toggle-slider" aria-hidden="true"></span>
-    <span class="filter-ai-text-toggle-label">Filter AI-generated text</span>
-  </label>
-`;
 
 function injectPlaceholderKeyframes() {
   const n = PLACEHOLDER_PHRASES.length;
@@ -349,7 +190,7 @@ function updateSidebarFilterVisibility() {
   }
 }
 
-function buildFilterContainerHTML(showSignOut = false): string {
+function buildFilterContainerHTML(): string {
   return `
     <div class="filter-phrases-container">
       <div class="bouncer-update-banner-slot"></div>
@@ -370,7 +211,6 @@ function buildFilterContainerHTML(showSignOut = false): string {
           <div class="model-loading-progress-fill"></div>
         </div>
       </div>
-      ${aiTextToggleHTML}
       <div class="filter-phrases-actions">
         <div class="filter-phrases-actions-left">
           <button class="filtered-toggle-btn">
@@ -381,7 +221,6 @@ function buildFilterContainerHTML(showSignOut = false): string {
         <div class="filter-phrases-actions-right">
           <button class="filter-pack-share-btn" type="button" aria-label="Share your filters">${shareIconSVG}</button>
           <button class="filter-settings-btn" type="button" aria-label="Settings">${settingsIconSVG}</button>
-          ${showSignOut ? '<button class="filter-signout-btn" style="font-size:12px;color:#71767b;background:none;border:none;cursor:pointer;padding:2px 0;">Sign out</button>' : ''}
         </div>
       </div>
     </div>
@@ -519,28 +358,7 @@ export function injectFilterPhrasesInput() {
     ? 'filter-phrases-sidebar filter-phrases-sidebar--in-wrapper'
     : 'filter-phrases-sidebar';
 
-  if (process.env.HAS_IMBUE_BACKEND === 'true' && !isAuthenticated) {
-    filterPhrasesContainer.replaceChildren(parseHTML(getSignInHTML()));
-    insertParent.insertBefore(filterPhrasesContainer, insertBeforeRef);
-    if (usingWrapper && wrapper) setupFixedInWrapper(filterPhrasesContainer, wrapper);
-    updateTheme();
-    setupSignInButton(filterPhrasesContainer);
-    updateSidebarFilterVisibility();
-    return;
-  }
-
-  // Hide the dev sign-out affordance entirely on open-source builds — there's
-  // no Imbue auth session to terminate, and the post-signout `isAuthenticated
-  // = false` would otherwise drop the user onto the sign-in screen with no
-  // way back (we never re-authenticate, since `launchAuth` is also a no-op).
-  const showSignOut = IS_DEV_BUILD && !_deps.IS_IOS && process.env.HAS_IMBUE_BACKEND === 'true';
-  console.log('[Bouncer] Signout button check: IS_DEV_BUILD=', IS_DEV_BUILD,
-    'IS_IOS=', _deps.IS_IOS,
-    'HAS_IMBUE_BACKEND=', process.env.HAS_IMBUE_BACKEND,
-    'BOUNCER_ENV=', process.env.BOUNCER_ENV,
-    '→ showSignOut=', showSignOut);
-
-  filterPhrasesContainer.replaceChildren(parseHTML(buildFilterContainerHTML(showSignOut)));
+  filterPhrasesContainer.replaceChildren(parseHTML(buildFilterContainerHTML()));
 
   // Insert at the chosen target (inside the wrapper, or fallback at top of sidebarContent)
   insertParent.insertBefore(filterPhrasesContainer, insertBeforeRef);
@@ -553,18 +371,6 @@ export function injectFilterPhrasesInput() {
   setupFilterBoxEventHandlers(filterPhrasesContainer);
   maybeRenderUpdateBanner(filterPhrasesContainer).catch(err =>
     console.error('[UI] maybeRenderUpdateBanner failed (sidebar):', err));
-
-  // Sign out button (dev builds on Safari/Chrome — iOS has no sign-in)
-  const signOutBtn = filterPhrasesContainer.querySelector('.filter-signout-btn');
-  if (signOutBtn) {
-    signOutBtn.addEventListener('click', asyncHandler(async () => {
-      console.log('[Bouncer] Signing out...');
-      const res: unknown = await chrome.runtime.sendMessage({ type: 'signOut' });
-      console.log('[Bouncer] Sign out result:', res);
-      isAuthenticated = false;
-      refreshAllFilterBoxes();
-    }));
-  }
 
   // Update visibility based on current page
   updateSidebarFilterVisibility();
@@ -583,24 +389,6 @@ function setupFilterBoxEventHandlers(container: HTMLElement) {
   const placeholderCycle = container.querySelector('.filter-placeholder-cycle');
   const toggleBtn = container.querySelector('.filtered-toggle-btn:not(.filter-pack-toggle-btn)')!;
   const settingsBtn = container.querySelector('.filter-settings-btn')!;
-  const aiTextToggle = container.querySelector<HTMLInputElement>('.filter-ai-text-toggle-input');
-
-  // AI-text-detection toggle. Cache invalidation + post re-evaluation are
-  // handled by the storage-change listener in background/index.ts.
-  if (aiTextToggle) {
-    const aiTextToggleRow = aiTextToggle.closest<HTMLElement>('.filter-ai-text-toggle');
-    getStorage(['aiTextFilterEnabled', 'aiTextFilterExperimental']).then(data => {
-      aiTextToggle.checked = data.aiTextFilterEnabled === true;
-      if (aiTextToggleRow) {
-        aiTextToggleRow.style.display = data.aiTextFilterExperimental === true ? '' : 'none';
-      }
-    }).catch(err => console.error('[UI] Failed to load aiTextFilterEnabled:', err));
-
-    aiTextToggle.addEventListener('change', () => {
-      chrome.storage.local.set({ aiTextFilterEnabled: aiTextToggle.checked })
-        .catch(err => console.error('[UI] Failed to save aiTextFilterEnabled:', err));
-    });
-  }
 
   // Show/hide animated placeholder based on input state and existing phrases
   function updatePlaceholderVisibility() {
@@ -727,25 +515,6 @@ export function injectBottomFilterBox() {
   bottomFilterContainer = document.createElement('div');
   bottomFilterContainer.className = 'filter-phrases-bottom expanded';
 
-  if (process.env.HAS_IMBUE_BACKEND === 'true' && !isAuthenticated) {
-    bottomFilterContainer.replaceChildren(parseHTML(`
-      <div class="filter-collapse-handle">
-        <span class="filter-collapse-chevron"></span>
-      </div>
-      ${getSignInHTML()}
-    `));
-    document.body.appendChild(bottomFilterContainer);
-    updateBottomFilterPosition();
-    updateBottomFilterVisibility();
-    updateTheme();
-    setupSignInButton(bottomFilterContainer);
-    const collapseHandle = bottomFilterContainer.querySelector('.filter-collapse-handle')!;
-    collapseHandle.addEventListener('click', () => {
-      toggleBottomFilter(!bottomFilterExpanded);
-    });
-    return;
-  }
-
   bottomFilterContainer.replaceChildren(parseHTML(`
     <div class="filter-collapse-handle">
       <span class="filter-collapse-chevron"></span>
@@ -820,15 +589,6 @@ export function injectMobileFilterBox() {
   // Create the mobile filter container
   mobileFilterContainer = document.createElement('div');
   mobileFilterContainer.className = 'filter-phrases-mobile';
-
-  if (process.env.HAS_IMBUE_BACKEND === 'true' && !isAuthenticated) {
-    mobileFilterContainer.replaceChildren(parseHTML(getSignInHTML()));
-    nav.parentNode!.insertBefore(mobileFilterContainer, nav);
-    updateTheme();
-    setupSignInButton(mobileFilterContainer);
-    updateMobileFilterVisibility();
-    return;
-  }
 
   mobileFilterContainer.replaceChildren(parseHTML(buildFilterContainerHTML()));
 
@@ -953,11 +713,7 @@ async function runShareFilterPackForIOS(): Promise<void> {
   wrapper.style.zIndex = '-1';
   wrapper.style.pointerEvents = 'none';
   wrapper.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
-  wrapper.replaceChildren(parseHTML(buildFilterContainerHTML(false)));
-
-  // Strip elements that don't belong in a shared screenshot — the AI-text
-  // toggle is a personal setting, not part of the filter pack identity.
-  wrapper.querySelector('.filter-ai-text-toggle')?.remove();
+  wrapper.replaceChildren(parseHTML(buildFilterContainerHTML()));
 
   const list = wrapper.querySelector<HTMLElement>('.filter-phrases-list');
   if (list) renderPhrasesInContainer(list, phrases);
@@ -1236,19 +992,9 @@ function buildImportButton(phrases: string[]): HTMLElement {
     e.stopPropagation();
     e.preventDefault();
     const article = btn.closest<HTMLElement>('article');
-    if (_deps.IS_IOS) {
-      // The native FAB lives outside the WebView, so the desktop "fly the
-      // tweet image into the on-page Bouncer box" choreography doesn't
-      // translate. ios.ts owns the iOS-specific genie animation; we just
-      // hand it the article + the import callback.
-      runIOSImportAnimation(article, () => confirmAndImportPack(phrases)).catch((err) =>
-        console.error('[Bouncer] import failed:', err),
-      );
-    } else {
-      flyScreenshotAndImport(article, phrases).catch((err) =>
-        console.error('[Bouncer] import failed:', err),
-      );
-    }
+    flyScreenshotAndImport(article, phrases).catch((err) =>
+      console.error('[Bouncer] import failed:', err),
+    );
   });
   return btn;
 }
@@ -2701,18 +2447,6 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
   btn.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
-
-    // Require authentication before allowing suggest annoyances
-    // iOS: App Check provides auth automatically — no Google sign-in needed
-    if (!isAuthenticated && !_deps.IS_IOS) {
-      document.querySelectorAll('.ff-annoying-tooltip').forEach(t => t.remove());
-      const tooltip = document.createElement('div');
-      tooltip.className = 'ff-annoying-tooltip';
-      btn.style.position = 'relative';
-      tooltip.replaceChildren(parseHTML(`<span class="ff-annoying-empty">Sign in ${isSafari ? 'with Apple' : 'with Google'} to use this feature</span>`));
-      btn.appendChild(tooltip);
-      return;
-    }
 
     // If tooltip already open on this button, close it
     if (btnTooltip && btnTooltip.isConnected) {

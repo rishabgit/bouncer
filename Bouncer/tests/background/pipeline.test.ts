@@ -56,11 +56,6 @@ describe('classifyError', () => {
     expect(result.errorType).toBe('auth');
   });
 
-  it('does not classify auth errors for imbue provider', () => {
-    const result = classifyError('401 Unauthorized', 'imbue');
-    expect(result.errorType).toBeNull();
-  });
-
   it('does not classify auth errors for local provider', () => {
     const result = classifyError('401 Unauthorized', 'local');
     expect(result.errorType).toBeNull();

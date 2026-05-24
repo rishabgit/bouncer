@@ -5,15 +5,19 @@ import type { PlatformAdapter, PostContent, PipelineResponse, BackgroundToConten
 import { getStorage, removeStorage, getDescriptions, setDescriptions } from '../shared/storage';
 import { FILTER_PACK_CODE_PREFIX } from '../shared/share-encoding';
 
-import {
-  IS_IOS, initIOS,
-  getFFPageActive, getIOSPageContainer, getFFFabButton,
-  renderIOSCategories, updateIOSFilteredCount,
-  handleDOMMutationIOS,
-} from './ios';
+// iOS support was removed from this local-only fork (WKWebView has no WebGPU),
+// so these are desktop no-ops that keep the shared UI module's shape stable.
+const IS_IOS = false;
+const initIOS = (_opts: unknown): void => {};
+const getFFPageActive = (): boolean => false;
+const getIOSPageContainer = (): HTMLElement | null => null;
+const getFFFabButton = (): HTMLElement | null => null;
+const renderIOSCategories = (): void => {};
+const updateIOSFilteredCount = (): void => {};
+const handleDOMMutationIOS = (): void => {};
 
 import {
-  initUI, checkAuthStatus,
+  initUI,
   getFilteredPosts, getFilteredTabActive,
   updateTheme,
   injectFilterPhrasesInput, injectBottomFilterBox, injectMobileFilterBox,
@@ -163,7 +167,7 @@ import { formatPostForEvaluation } from '../shared/utils';
   async function checkLocalModelActive() {
     try {
       const data = await getStorage(['selectedModel']);
-      const model = data.selectedModel || 'imbue';
+      const model = data.selectedModel || '';
       isLocalModelActive = model.startsWith('local:');
     } catch (err) {
       console.debug('[Bouncer] Failed to check model type:', err);
@@ -563,7 +567,6 @@ import { formatPostForEvaluation } from '../shared/utils';
     filterReplies = data.filterReplies !== false;
 
     await checkLocalModelActive();
-    await checkAuthStatus();
 
     if (enabled) {
       observePosts();
@@ -616,7 +619,7 @@ import { formatPostForEvaluation } from '../shared/utils';
         }
       }
       if (changes.selectedModel) {
-        const newModel = (changes.selectedModel.newValue as string) || 'imbue';
+        const newModel = (changes.selectedModel.newValue as string) || '';
         isLocalModelActive = newModel.startsWith('local:') || false;
       }
       if (changes[descriptionsKey]) {
@@ -627,19 +630,6 @@ import { formatPostForEvaluation } from '../shared/utils';
         if (newDescs.length > oldDescs.length) {
           reEvaluateAllPosts();
         }
-      }
-      if (changes.aiTextFilterEnabled) {
-        // Sync each filter box's checkbox to the new value, then re-evaluate
-        // all posts since the cache has been invalidated by the background.
-        const checked = changes.aiTextFilterEnabled.newValue === true;
-        document.querySelectorAll<HTMLInputElement>('.filter-ai-text-toggle-input')
-          .forEach(el => { if (el.checked !== checked) el.checked = checked; });
-        reEvaluateAllPosts();
-      }
-      if (changes.aiTextFilterExperimental) {
-        const expEnabled = changes.aiTextFilterExperimental.newValue === true;
-        document.querySelectorAll<HTMLElement>('.filter-ai-text-toggle')
-          .forEach(el => { el.style.display = expEnabled ? '' : 'none'; });
       }
       if (changes.filterReplies) {
         filterReplies = changes.filterReplies.newValue !== false;

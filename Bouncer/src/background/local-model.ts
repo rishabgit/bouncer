@@ -1,13 +1,17 @@
-// WebLLM local model engine: lifecycle, inference, preemption, keep-alive
+// Local model orchestrator: lifecycle, status, queue, keep-alive, preemption.
+// Model-specific calls are delegated to a pluggable LocalBackend.
 
-import { CreateMLCEngine, hasModelInCache, deleteModelAllInfoInCache, prebuiltAppConfig } from "@mlc-ai/web-llm";
-import type { MLCEngine, AppConfig, ChatCompletion, MLCEngineConfig } from "@mlc-ai/web-llm";
 import type { LocalModelDef, LocalModelStatus, EvaluationPostData, ChatMessage } from '../types';
 import { PREDEFINED_MODELS } from '../shared/models';
 import { isGPUDeviceLostError, isNetworkError, formatLocalInferenceResult } from '../shared/utils';
 import { LOCAL_SYSTEM_PROMPT, buildLocalUserMessage } from '../shared/prompts';
 import { inferenceQueue } from './inference-queue';
 import { getStorage, setStorage } from '../shared/storage';
+import type { LocalBackend } from './backends/types';
+import { WebllmBackend, isWebllmCached, deleteWebllmCache } from './backends/webllm-backend';
+
+// Re-exported so existing importers (and tests) keep their import path.
+export { buildModelConfig } from './backends/webllm-backend';
 
 declare global {
   interface Navigator {
@@ -24,37 +28,17 @@ const INFERENCE_TIMEOUT_MS = 30000;
 const DOWNLOAD_MAX_RETRIES = 3;
 const DOWNLOAD_RETRY_DELAY_MS = 2000;
 
-// Keys that belong on the ModelRecord (appConfig), not chatOpts.
-const MODEL_RECORD_KEYS = new Set(['model', 'model_lib', 'model_type']);
-
 // ==================== Pure helpers ====================
 
-// Build both the appConfig (ModelRecord for CreateMLCEngine) and chatOpts
-// (chat-level overrides) from a model's webllmConfig. Keeps the
-// "which keys go where" split defined in one place.
-export function buildModelConfig(modelId: string): { appConfig: AppConfig | undefined; chatOpts: Record<string, unknown> } {
-  const modelDef = PREDEFINED_MODELS.local.find(m => m.name === modelId);
-  const webllmConfig = modelDef?.webllmConfig;
-  const { overrides, ...recordFields } = webllmConfig || {};
+// Pick the backend for a model. Only WebLLM exists today; the LiteRT path is
+// wired in here when the second backend lands.
+function selectBackend(_modelDef: LocalModelDef): LocalBackend {
+  return new WebllmBackend();
+}
 
-  let appConfig: AppConfig | undefined;
-  if (recordFields.model) {
-    appConfig = { model_list: [{ model_id: modelId, ...recordFields, ...(overrides && { overrides }) } as AppConfig['model_list'][number]] };
-  } else {
-    const prebuiltRecord = prebuiltAppConfig.model_list.find(m => m.model_id === modelId);
-    const hasRecordFields = Object.keys(recordFields).length > 0;
-    if (prebuiltRecord && hasRecordFields) {
-      appConfig = { model_list: [{ ...prebuiltRecord, ...recordFields, ...(overrides && { overrides }) }] };
-    }
-  }
-
-  const chatOpts: Record<string, unknown> = { context_window_size: 1024 };
-  if (overrides) Object.assign(chatOpts, overrides);
-  for (const [key, value] of Object.entries(recordFields)) {
-    if (!MODEL_RECORD_KEYS.has(key)) chatOpts[key] = value;
-  }
-
-  return { appConfig, chatOpts };
+// Probe whether a model's weights are already on disk, without loading them.
+async function backendIsCached(modelDef: LocalModelDef): Promise<boolean> {
+  return isWebllmCached(modelDef);
 }
 
 // Parse a local model's freeform response to extract a hide/show decision and reasoning.
@@ -79,26 +63,19 @@ export function parseLocalModelResponse(rawResponse: string | null): { shouldHid
   return { shouldHide, reasoning };
 }
 
-// Merge model-level inference params with per-call overrides into a single request object.
-function buildInferenceRequest(modelConfig: LocalModelDef | Record<string, never>, requestOpts: Record<string, unknown>): Record<string, unknown> {
-  return {
-    ...(modelConfig as LocalModelDef).inferenceParams,
-    ...requestOpts,
-    ...((modelConfig as LocalModelDef).extraBody && { extra_body: (modelConfig as LocalModelDef).extraBody }),
-  };
-}
-
 // ==================== LocalEngine ====================
 
 export class LocalEngine {
-  engine: MLCEngine | null;
+  // The active backend. Null when no model is loaded. Named `engine` for
+  // backward compatibility with call sites that check it for truthiness.
+  engine: LocalBackend | null;
   loadedModel: string | null;
   _modelConfig: LocalModelDef | null;
 
   // Initialization tracking
   _initializingModel: string | null;
-  _initPromise: Promise<MLCEngine | null> | null;
-  _initPromiseResolve: ((engine: MLCEngine | null) => void) | null;
+  _initPromise: Promise<LocalBackend | null> | null;
+  _initPromiseResolve: ((backend: LocalBackend | null) => void) | null;
   _initAbortController: AbortController | null;
 
   // Keep-alive and idle timeout
@@ -139,14 +116,14 @@ export class LocalEngine {
   async ensureLoaded(modelId: string): Promise<void> {
     await this.syncStatus(modelId);
     if (!this.isModelLoaded(modelId)) {
-      const engine = await this.initialize(modelId);
-      if (!engine) {
+      const backend = await this.initialize(modelId);
+      if (!backend) {
         throw new Error('Local model not available. WebGPU may not be supported or model not downloaded.');
       }
     }
   }
 
-  async initialize(modelId: string): Promise<MLCEngine | null> {
+  async initialize(modelId: string): Promise<LocalBackend | null> {
     if (!modelId) {
       console.error('[WebLLM] No model ID provided');
       return null;
@@ -164,6 +141,12 @@ export class LocalEngine {
       await this.updateStatus(modelId, { state: 'unsupported', reason: 'WebGPU not supported' });
       return null;
     }
+
+    // Resolve the model definition. `_modelConfig` keeps the historical
+    // "found-or-null" value; the backend always gets a non-null def so a
+    // user-added/custom model id still resolves via the prebuilt registry.
+    const modelDef = PREDEFINED_MODELS.local.find(m => m.name === modelId) || null;
+    const backendModelDef = modelDef ?? ({ name: modelId } as LocalModelDef);
 
     // Start tracking initialization BEFORE any async work so concurrent callers
     // see isInitializingModel() and wait on _initPromise.
@@ -189,6 +172,8 @@ export class LocalEngine {
       });
     }
 
+    const backend = selectBackend(backendModelDef);
+
     // Retry loop for network errors
     let retryCount = 0;
     while (true) {
@@ -200,37 +185,24 @@ export class LocalEngine {
       try {
         await this.updateStatus(modelId, { state: 'initializing', progress: 0, text: retryCount > 0 ? `Retrying (${retryCount}/${DOWNLOAD_MAX_RETRIES})...` : 'Starting...' });
 
-        const engineConfig: MLCEngineConfig & { initProgressCallback: (progress: { progress: number; text: string }) => void } = {
-          initProgressCallback: (progress: { progress: number; text: string }) => {
-            if (abortSignal.aborted) return;
-            const displayText = progress.text
-              .replace(/^Fetching param cache/, 'Downloading param cache')
-              .replace(/\bcache\[(\d+)\s*\/\s*(\d+)\]/, 'cache [$1 / $2]')
-              .replace(/\. It can take a while.*$/, '');
-            this.updateStatus(modelId, {
-              state: 'downloading',
-              progress: progress.progress,
-              text: displayText
-            }).catch(err => console.error('[WebLLM] Failed to update download status:', err));
-          }
-        };
-
-        const { appConfig, chatOpts } = buildModelConfig(modelId);
-        if (appConfig) {
-          (engineConfig as MLCEngineConfig & { appConfig?: AppConfig }).appConfig = appConfig;
-        }
-
-        const engine = await CreateMLCEngine(modelId, engineConfig as MLCEngineConfig, chatOpts);
+        await backend.initialize(backendModelDef, (progress) => {
+          if (abortSignal.aborted) return;
+          this.updateStatus(modelId, {
+            state: 'downloading',
+            progress: progress.progress,
+            text: progress.text,
+          }).catch(err => console.error('[WebLLM] Failed to update download status:', err));
+        }, abortSignal);
 
         if (abortSignal.aborted) {
-          try { await engine.unload(); } catch { /* ignore */ }
+          try { await backend.unload(); } catch { /* ignore */ }
           this._completeInit(null);
           return null;
         }
 
-        this.engine = engine;
+        this.engine = backend;
         this.loadedModel = modelId;
-        this._modelConfig = PREDEFINED_MODELS.local.find(m => m.name === modelId) || null;
+        this._modelConfig = modelDef;
 
         await this.updateStatus(modelId, { state: 'ready' });
 
@@ -291,19 +263,14 @@ export class LocalEngine {
     return true;
   }
 
-  // Delete one model's cached weights/wasm/tokenizer/chat-config from the
-  // browser Cache API. Other cached models are untouched: deleteModelAllInfoInCache
-  // derives the same keys (findModelRecord + cleanModelUrl) that hasModelInCache
-  // and download use, scoped to this modelId only. It throws ModelNotFoundError
-  // if the id can't be resolved, so the try/catch is load-bearing — on failure
-  // we re-sync status to whatever actually remains in cache.
+  // Delete one model's cached weights from the browser Cache API. Frees the
+  // model before wiping it (abort an in-flight download, or unload the engine
+  // if this exact model is loaded); a different loaded model keeps running. The
+  // actual cache wipe is delegated to the backend; on failure we re-sync status
+  // to whatever actually remains in cache.
   async deleteModelCache(modelId: string): Promise<{ success: boolean; error?: string }> {
     if (!modelId) return { success: false, error: 'No model ID provided' };
 
-    // Free the model before wiping it: abort an in-flight download (mirrors
-    // cancelDownload), or unload the engine if this exact model is loaded. A
-    // different loaded model keeps running — we only touch the engine when it
-    // holds modelId.
     if (this.isInitializingModel(modelId)) {
       if (this._initAbortController) {
         this._initAbortController.abort();
@@ -314,9 +281,8 @@ export class LocalEngine {
     }
 
     try {
-      const { appConfig } = buildModelConfig(modelId);
-      await deleteModelAllInfoInCache(modelId, appConfig);
-      await this._purgeTensorManifest(modelId, appConfig);
+      const modelDef = PREDEFINED_MODELS.local.find(m => m.name === modelId) ?? ({ name: modelId } as LocalModelDef);
+      await deleteWebllmCache(modelDef);
       await this.updateStatus(modelId, { state: 'not_downloaded' });
       return { success: true };
     } catch (e) {
@@ -324,32 +290,6 @@ export class LocalEngine {
       const cached = await this.checkCached(modelId);
       await this.updateStatus(modelId, { state: cached ? 'cached' : 'not_downloaded' });
       return { success: false, error: (e as Error).message };
-    }
-  }
-
-  // WebLLM's deleteTensorCache (vendor/web-llm) deletes every weight shard but
-  // leaves the tensor-cache.json manifest orphaned in the "webllm/model" Cache
-  // Storage bucket — so deleteModelAllInfoInCache never fully cleans up. Remove
-  // that one leftover so a delete is actually complete and these ~KB manifests
-  // don't accumulate across delete/re-download cycles. cleanModelUrl only ever
-  // appends ("/", "resolve/main/") to the record's `model`, so the stored key
-  // always startsWith that bare URL — a scoping match unique to this model that
-  // doesn't depend on reimplementing cleanModelUrl. Best-effort: never throws.
-  private async _purgeTensorManifest(modelId: string, appConfig: AppConfig | undefined): Promise<void> {
-    if (typeof caches === 'undefined') return;
-    const record = appConfig?.model_list?.find(m => m.model_id === modelId)
-      ?? prebuiltAppConfig.model_list.find(m => m.model_id === modelId);
-    const modelBaseUrl = record?.model?.replace(/\/+$/, '');
-    if (!modelBaseUrl) return;
-    try {
-      const modelCache = await caches.open('webllm/model');
-      for (const req of await modelCache.keys()) {
-        if (req.url.startsWith(modelBaseUrl) && req.url.endsWith('/tensor-cache.json')) {
-          await modelCache.delete(req);
-        }
-      }
-    } catch (e) {
-      console.warn('[WebLLM] Could not purge orphaned tensor-cache.json for', modelId, ':', (e as Error).message);
     }
   }
 
@@ -386,40 +326,31 @@ export class LocalEngine {
 
   // ---- Inference ----
 
-  // Run a completion: queue, handle preemption, resetChat, timeout, strip think blocks.
-  // Returns the raw text content from the model.
+  // Run a completion: queue, handle preemption, timeout, strip think blocks.
+  // The model-specific call (reset, request shape, think-strip) lives in the
+  // backend; this method owns the queue, preemption, timeout, and idle reset.
   async generate(
     messages: ChatMessage[],
     maxTokens: number,
     { priority = 0, temperature, onStart }: { priority?: number; temperature?: number; onStart?: () => void } = {}
   ): Promise<string> {
-    const requestOpts: Record<string, unknown> = { messages, max_tokens: maxTokens };
-    if (temperature !== undefined) requestOpts.temperature = temperature;
-    const request = buildInferenceRequest(this._modelConfig || ({} as Record<string, never>), requestOpts);
+    const params: Record<string, unknown> = {};
+    if (temperature !== undefined) params.temperature = temperature;
 
     return inferenceQueue.enqueue(async () => {
-      // Wait for any previous interruptGenerate() to settle
+      // Wait for any previous interrupt() to settle
       if (this._interruptSettledPromise) {
         await this._interruptSettledPromise;
         this._interruptSettledPromise = null;
-      }
-      // WebLLM bug workaround: clear stale interruptSignal
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
-      if (this.engine && (this.engine as any).interruptSignal) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
-        (this.engine as any).interruptSignal = false;
       }
 
       this._preempted = false;
       if (onStart) onStart();
       try {
-        await this.engine!.resetChat();
-        const completion = await this._callWithTimeout(request);
+        const raw = await this._callWithTimeout(messages, maxTokens, params);
 
         if (this._preempted) throw new Error('Inference preempted');
 
-        const raw = (completion.choices[0]?.message?.content || '')
-          .replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
         this._resetIdleTimeout();
         return raw;
       } catch (error) {
@@ -447,7 +378,7 @@ export class LocalEngine {
     if (this._preempted) return;
     this._preempted = true;
     if (this.engine) {
-      this._interruptSettledPromise = this.engine.interruptGenerate().catch(e =>
+      this._interruptSettledPromise = this.engine.interrupt().catch(e =>
         console.error('[Preempt] Failed to interrupt generation:', e)
       );
     }
@@ -485,14 +416,8 @@ export class LocalEngine {
   }
 
   async checkCached(modelId: string): Promise<boolean> {
-    try {
-      const { appConfig } = buildModelConfig(modelId);
-      const cached = await hasModelInCache(modelId, appConfig);
-      return cached;
-    } catch (e) {
-      console.error('[WebLLM] Error checking cache for', modelId, ':', e);
-      return false;
-    }
+    const modelDef = PREDEFINED_MODELS.local.find(m => m.name === modelId) ?? ({ name: modelId } as LocalModelDef);
+    return backendIsCached(modelDef);
   }
 
   async syncStatus(modelId: string): Promise<LocalModelStatus | undefined> {
@@ -503,10 +428,9 @@ export class LocalEngine {
     if (!storedStatus) return storedStatus;
 
     let needsUpdate = false;
-    const { appConfig } = buildModelConfig(modelId);
 
     if (storedStatus.state === 'ready' && !this.isModelLoaded(modelId)) {
-      const cached = await hasModelInCache(modelId, appConfig);
+      const cached = await this.checkCached(modelId);
       if (!cached) {
         statuses[modelId] = { state: 'not_downloaded' };
         needsUpdate = true;
@@ -518,7 +442,7 @@ export class LocalEngine {
 
     if ((storedStatus.state === 'downloading' || storedStatus.state === 'initializing') &&
         !this.isInitializing()) {
-      const cached = await hasModelInCache(modelId, appConfig);
+      const cached = await this.checkCached(modelId);
       statuses[modelId] = { state: cached ? 'cached' : 'not_downloaded' };
       needsUpdate = true;
     }
@@ -527,7 +451,7 @@ export class LocalEngine {
     // reality — the engine isn't running.  Re-check the cache so the UI shows
     // an actionable state instead of a stale error.
     if (storedStatus.state === 'error' && !this.isInitializing()) {
-      const cached = await hasModelInCache(modelId, appConfig);
+      const cached = await this.checkCached(modelId);
       statuses[modelId] = { state: cached ? 'cached' : 'not_downloaded' };
       needsUpdate = true;
     }
@@ -576,21 +500,21 @@ export class LocalEngine {
 
   // ---- Private: initialization tracking ----
 
-  _startInit(modelId: string): Promise<MLCEngine | null> {
+  _startInit(modelId: string): Promise<LocalBackend | null> {
     this._initializingModel = modelId;
     this._initAbortController = new AbortController();
-    this._initPromise = new Promise<MLCEngine | null>(resolve => {
+    this._initPromise = new Promise<LocalBackend | null>(resolve => {
       this._initPromiseResolve = resolve;
     });
     return this._initPromise;
   }
 
-  _completeInit(engine: MLCEngine | null): void {
+  _completeInit(backend: LocalBackend | null): void {
     this._initializingModel = null;
     this._initAbortController = null;
     this._stopDownloadKeepAlive();
     if (this._initPromiseResolve) {
-      this._initPromiseResolve(engine);
+      this._initPromiseResolve(backend);
       this._initPromiseResolve = null;
     }
     this._initPromise = null;
@@ -666,28 +590,29 @@ export class LocalEngine {
 
   // ---- Private: inference timeout ----
 
-  _callWithTimeout(request: Record<string, unknown>, timeoutMs: number = INFERENCE_TIMEOUT_MS): Promise<ChatCompletion> {
+  _callWithTimeout(messages: ChatMessage[], maxTokens: number, params: Record<string, unknown>, timeoutMs: number = INFERENCE_TIMEOUT_MS): Promise<string> {
     return new Promise((resolve, reject) => {
       let completed = false;
 
-      const timeoutId = setTimeout(async () => {
+      const onTimeout = async (): Promise<void> => {
         if (completed) return;
         completed = true;
         console.warn(`[WebLLM] Inference timeout after ${timeoutMs}ms, interrupting...`);
         try {
-          await this.engine!.interruptGenerate();
+          await this.engine!.interrupt();
         } catch (e) {
           console.error('[WebLLM] Failed to interrupt generation:', e);
         }
         reject(new Error('Inference timeout - model took too long to respond'));
-      }, timeoutMs);
+      };
+      const timeoutId = setTimeout(() => { void onTimeout(); }, timeoutMs);
 
-      this.engine!.chat.completions.create(request as unknown as Parameters<MLCEngine['chat']['completions']['create']>[0])
+      this.engine!.generate(messages, maxTokens, params)
         .then(result => {
           if (completed) return;
           completed = true;
           clearTimeout(timeoutId);
-          resolve(result as ChatCompletion);
+          resolve(result);
         })
         .catch(error => {
           if (completed) return;

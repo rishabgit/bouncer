@@ -61,8 +61,12 @@ export class WebllmBackend implements LocalBackend {
         if (abortSignal.aborted) return;
         const displayText = progress.text
           .replace(/^Fetching param cache/, 'Downloading param cache')
+          .replace(/^Loading model from cache/, 'Loading from cache')
           .replace(/\bcache\[(\d+)\s*\/\s*(\d+)\]/, 'cache [$1 / $2]')
-          .replace(/\. It can take a while.*$/, '');
+          .replace(/:\s*\d+\s*MB loaded\b.*$/i, '')
+          .replace(/,?\s*\d+\s*secs?\s+elapsed\.?/i, '')
+          .replace(/\. It can take a while.*$/, '')
+          .trim();
         onProgress({ progress: progress.progress, text: displayText });
       }
     };

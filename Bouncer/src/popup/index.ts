@@ -373,10 +373,10 @@ function renderModelDropdown(customModels: ModelDef[], selectedModel: string) {
             `<span class="local-badge">local</span>` +
             `<span class="model-engine-badge">${engineLabel}</span>` +
             recommendedBadge +
-            statusIndicator +
           `</div>` +
           `<div class="model-dropdown-item-meta">${escapeHtml(meta)}</div>` +
         `</div>` +
+        statusIndicator +
         deleteBtn
       ));
       localItem.querySelector('.model-dropdown-item-main')!.addEventListener('click', asyncHandler(() => selectModel(modelKey)));

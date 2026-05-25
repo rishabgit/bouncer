@@ -1525,7 +1525,7 @@ function localModelDisplay(modelId: string): string {
   return PREDEFINED_MODELS.local.find(m => m.name === modelId)?.display ?? 'the model';
 }
 
-interface ModelStatusView { variant: 'info' | 'progress' | 'warning'; body: string; dismissible: boolean; }
+interface ModelStatusView { variant: 'info' | 'progress' | 'warning'; body: string; dismissible: boolean; percent?: number; }
 
 function modelStatusView(
   state: ModelUiState,
@@ -1543,8 +1543,9 @@ function modelStatusView(
       // progress) → set the honest "first run can take a minute" expectation,
       // which is the silent phase users mistake for a hang.
       if (status?.state === 'downloading' && typeof status.progress === 'number') {
-        const detail = status.text || `${Math.round(status.progress * 100)}%`;
-        return { variant: 'progress', body: `Downloading ${display}… ${detail}`, dismissible: false };
+        // Show a clean percent + progress bar — never WebLLM's verbose internal
+        // string (shard counts / MB / "N secs elapsed"), which reads as noise.
+        return { variant: 'progress', body: `Downloading ${display}`, dismissible: false, percent: Math.round(status.progress * 100) };
       }
       return { variant: 'progress', body: `Loading ${display} — the first run can take up to a minute.`, dismissible: false };
     }
@@ -1586,11 +1587,25 @@ export function updateModelStatusIndicator(
   const el = ensureModelStatusEl();
   el.classList.remove('bouncer-model-status--info', 'bouncer-model-status--progress', 'bouncer-model-status--warning');
   el.classList.add(`bouncer-model-status--${view.variant}`);
+  const pct = view.percent;
+  const labelHtml = `<strong>Bouncer:</strong> ${escapeHtml(view.body)}`;
+  const textHtml = typeof pct === 'number'
+    ? `<div class="bouncer-model-status-text"><div>${labelHtml}</div>` +
+        `<div class="bouncer-model-status-progress">` +
+          `<div class="bouncer-model-status-progress-track"><div class="bouncer-model-status-progress-fill"></div></div>` +
+          `<span class="bouncer-model-status-progress-pct">${pct}%</span>` +
+        `</div></div>`
+    : `<span class="bouncer-model-status-text">${labelHtml}</span>`;
   el.replaceChildren(parseHTML(
     `<span class="bouncer-model-status-dot"></span>` +
-    `<span class="bouncer-model-status-text"><strong>Bouncer:</strong> ${escapeHtml(view.body)}</span>` +
+    textHtml +
     (view.dismissible ? `<button class="bouncer-model-status-close" aria-label="Dismiss">&times;</button>` : '')
   ));
+  // Set the fill width after parsing — parseHTML/sanitizers can drop inline styles.
+  if (typeof pct === 'number') {
+    const fill = el.querySelector<HTMLElement>('.bouncer-model-status-progress-fill');
+    if (fill) fill.style.width = `${pct}%`;
+  }
   if (view.dismissible) {
     el.querySelector('.bouncer-model-status-close')?.addEventListener('click', () => {
       modelStatusDismissed = state;

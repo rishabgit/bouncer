@@ -81,3 +81,7 @@ Verified from source (`mlc-chat-config.json`):
 3. New posts are sent to the AI for classification against user-defined filter topics
 4. Posts classified as matching a filter are hidden and added to `filteredPosts`
 5. Users can view filtered posts via the "View filtered" button
+
+### Reviewing the UI visually: the popup needs screenshots
+
+Claude-in-Chrome (browser automation) **can't** access this extension's own pages — Chrome's cross-extension sandbox blocks it (`Cannot access a chrome-extension:// URL of different extension`), so the **popup/options can only be reviewed via screenshots the user pastes**; there is no automated path, so don't re-attempt driving the popup. (The content-script UI injected on x.com *is* drivable.)

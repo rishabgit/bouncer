@@ -2687,63 +2687,6 @@ body.ff-ios .ff-ios-page.dark-mode .ff-ios-page-header {
   padding-bottom: 6px;
 }
 
-/* "What's new" update banner shown inside the filter box once per version. */
-.bouncer-update-banner {
-  position: relative;
-  margin-bottom: 10px;
-  padding: 10px 32px 10px 12px;
-  border-radius: 12px;
-  background: rgba(255, 196, 87, 0.10);
-  border: 1px solid rgba(255, 196, 87, 0.35);
-  font-size: 13px;
-  line-height: 1.35;
-}
-
-.bouncer-update-banner-title {
-  font-weight: 700;
-  margin-bottom: 4px;
-}
-
-.bouncer-update-banner-bullets {
-  margin: 0;
-  padding-left: 18px;
-}
-
-.bouncer-update-banner-bullets li {
-  margin: 2px 0;
-}
-
-.bouncer-update-banner-close {
-  position: absolute;
-  top: 4px;
-  right: 6px;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  border: none;
-  background: transparent;
-  color: inherit;
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  opacity: 0.7;
-}
-
-.bouncer-update-banner-close:hover {
-  opacity: 1;
-}
-
-.light-mode .bouncer-update-banner {
-  background: rgba(190, 130, 40, 0.10);
-  border-color: rgba(190, 130, 40, 0.35);
-  color: rgb(80, 50, 0);
-}
-
-.dim-mode .bouncer-update-banner,
-.dark-mode .bouncer-update-banner {
-  color: rgb(231, 233, 234);
-}
-
 /* "Import filter pack" CTA injected into tweets that carry a Bouncer share
    code. Styled to match Twitter's primary "Post" button — solid blue pill,
    white text, bold, sized to content, on its own line. */

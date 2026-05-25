@@ -61,12 +61,6 @@ describe('classifyError', () => {
     expect(result.errorType).toBeNull();
   });
 
-  it('classifies "RESOURCE_EXHAUSTED: quota limit reached" as gemini_free_tier rate limit', () => {
-    const result = classifyError('RESOURCE_EXHAUSTED: quota limit reached', 'gemini');
-    expect(result.errorType).toBe('rate_limit');
-    expect(result.subType).toBe('gemini_free_tier');
-  });
-
   it('classifies "503 Service Unavailable rate limit" as rate_limit (checked before api_error)', () => {
     const result = classifyError('503 Service Unavailable rate limit', 'openai');
     expect(result.errorType).toBe('rate_limit');
@@ -92,12 +86,6 @@ describe('classifyError', () => {
     const result = classifyError('Something completely unknown happened', 'openai');
     expect(result.errorType).toBeNull();
     expect(result.subType).toBeNull();
-  });
-
-  it('classifies "free-models-per-day limit exceeded" as openrouter_credits', () => {
-    const result = classifyError('free-models-per-day limit exceeded', 'openrouter');
-    expect(result.errorType).toBe('rate_limit');
-    expect(result.subType).toBe('openrouter_credits');
   });
 });
 

@@ -76,12 +76,6 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 // ==================== Startup ====================
 
-// Open uninstall survey when the extension is removed (not supported in Safari)
-if (chrome.runtime.setUninstallURL) {
-  chrome.runtime.setUninstallURL("https://forms.gle/41CSXsBcRMnjofVw8")
-    .catch(err => console.error('[Startup] setUninstallURL failed:', err));
-}
-
 // Initialize cache, sync model statuses, and auto-init local model on startup
 // Wrapped in try/catch to prevent unhandled rejections from destabilizing the service worker
 (async () => {
@@ -434,10 +428,6 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
 // Check local model statuses on extension install/update
 chrome.runtime.onInstalled.addListener((details) => {
-  if (details.reason === 'install') {
-    chrome.tabs.create({ url: 'https://x.com' }).catch(err => console.error('[Background] Failed to open x.com on install:', err));
-  }
-
   if (details.reason === 'install' || details.reason === 'update') {
     (async () => {
 

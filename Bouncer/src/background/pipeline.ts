@@ -178,7 +178,7 @@ const latencyWindow: number[] = [];
 // Unified error state
 export let errorState: ErrorState = {
   type: null,           // 'auth' | 'rate_limit' | 'not_found' | 'server_error' | null
-  subType: null,        // rate limit provider: 'openrouter_credits' | 'gemini_free_tier' | 'generic'
+  subType: null,        // rate limit sub-type: 'generic' | null (local-only — no provider sub-types)
   count: 0,             // number of tracked error posts
   apiDisplayName: null   // for auth errors: provider display name
 };

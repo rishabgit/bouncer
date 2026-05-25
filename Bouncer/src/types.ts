@@ -144,7 +144,6 @@ export interface PredefinedModelsMap {
 export interface APIConfig {
   apiName: string;
   modelName: string;
-  apiKey?: string | null;
   apiBase?: string;
   apiKwargs?: Record<string, unknown>;
   modelConfig?: ModelDef;

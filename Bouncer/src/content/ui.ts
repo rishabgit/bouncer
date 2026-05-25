@@ -9,9 +9,8 @@ import {
   FILTER_PACK_SHARE_URL_REGEX,
 } from '../shared/share-encoding';
 import type { ContentUIDeps, FilteredPost, PostContent, LocalModelStatus } from '../types';
-import { getStorage, setStorage, getDescriptions, setDescriptions } from '../shared/storage';
+import { getStorage, getDescriptions, setDescriptions } from '../shared/storage';
 import { PREDEFINED_MODELS } from '../shared/models';
-import { getReleaseNote } from './release-notes';
 
 // Dependencies (set by initUI from index.ts)
 let _deps: ContentUIDeps;
@@ -67,42 +66,6 @@ let modelStatusEl: HTMLElement | null = null;
 let modelStatusDismissed: ModelUiState | null = null; // derived state the user dismissed
 
 // ==================== Update Banner ====================
-
-// Shows a "what's new" banner inside the filter box once per version.
-// Reads release notes from src/shared/release-notes.ts. Dismissal writes
-// `lastSeenVersion` to chrome.storage.local so the banner stays gone.
-async function maybeRenderUpdateBanner(container: HTMLElement): Promise<void> {
-  const slot = container.querySelector<HTMLElement>('.bouncer-update-banner-slot');
-  if (!slot) return;
-
-  const current = chrome.runtime.getManifest().version;
-  const { lastSeenVersion } = await getStorage(['lastSeenVersion']);
-  if (lastSeenVersion === current) return;
-
-  const platform = _deps.IS_IOS ? 'ios' : 'desktop';
-  const note = getReleaseNote(current, platform);
-  if (!note) {
-    // No notes for this version — silently advance so a future version still triggers.
-    await setStorage({ lastSeenVersion: current });
-    return;
-  }
-
-  const bulletsHTML = note.bullets.map(b => `<li>${escapeHtml(b)}</li>`).join('');
-  const html = `
-    <div class="bouncer-update-banner" role="status">
-      <button type="button" class="bouncer-update-banner-close" aria-label="Dismiss">×</button>
-      <div class="bouncer-update-banner-title">${escapeHtml(note.title)}</div>
-      <ul class="bouncer-update-banner-bullets">${bulletsHTML}</ul>
-    </div>
-  `;
-  slot.replaceChildren(parseHTML(html));
-
-  const closeBtn = slot.querySelector<HTMLButtonElement>('.bouncer-update-banner-close');
-  closeBtn?.addEventListener('click', asyncHandler(async () => {
-    await setStorage({ lastSeenVersion: current });
-    document.querySelectorAll('.bouncer-update-banner').forEach(el => el.remove());
-  }));
-}
 
 // ==================== Placeholder animation ====================
 
@@ -193,7 +156,6 @@ function updateSidebarFilterVisibility() {
 function buildFilterContainerHTML(): string {
   return `
     <div class="filter-phrases-container">
-      <div class="bouncer-update-banner-slot"></div>
       <div class="filter-phrases-title-row">
         <span class="filter-phrases-box-name">Bouncer</span>
       </div>
@@ -369,8 +331,6 @@ export function injectFilterPhrasesInput() {
   updateFilteredTabCount();
 
   setupFilterBoxEventHandlers(filterPhrasesContainer);
-  maybeRenderUpdateBanner(filterPhrasesContainer).catch(err =>
-    console.error('[UI] maybeRenderUpdateBanner failed (sidebar):', err));
 
   // Update visibility based on current page
   updateSidebarFilterVisibility();
@@ -545,8 +505,6 @@ export function injectBottomFilterBox() {
   updateFilteredTabCount();
 
   setupFilterBoxEventHandlers(bottomFilterContainer);
-  maybeRenderUpdateBanner(bottomFilterContainer).catch(err =>
-    console.error('[UI] maybeRenderUpdateBanner failed (bottom):', err));
 
   // Toggle expand/collapse when clicking the collapse handle
   const collapseHandle = bottomFilterContainer.querySelector('.filter-collapse-handle')!;
@@ -600,8 +558,6 @@ export function injectMobileFilterBox() {
   updateFilteredTabCount();
 
   setupFilterBoxEventHandlers(mobileFilterContainer);
-  maybeRenderUpdateBanner(mobileFilterContainer).catch(err =>
-    console.error('[UI] maybeRenderUpdateBanner failed (mobile):', err));
 
   // Update visibility based on current page
   updateMobileFilterVisibility();

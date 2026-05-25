@@ -789,50 +789,6 @@ footer.pricing-disclaimer p {
   font-size: 11px;
 }
 
-footer.contact-footer {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid #eff3f4;
-}
-
-footer.contact-footer p {
-  text-align: center;
-  margin: 0;
-  line-height: 1.4;
-  font-size: 11px;
-}
-
-.contact-footer-text {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-}
-
-.contact-icon-link {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  text-decoration: none;
-  opacity: 0.7;
-  transition: opacity 0.15s ease;
-}
-
-.contact-icon-link:hover {
-  opacity: 1;
-}
-
-.contact-icon {
-  width: 16px;
-  height: 16px;
-  display: block;
-}
-
-body.dark-mode .contact-icon,
-body.dim-mode .contact-icon {
-  filter: invert(1);
-}
-
 .secondary-btn {
   width: 100%;
   background: #eff3f4;
@@ -2396,8 +2352,6 @@ body.dim-mode .toggle-switch { color: #f7f9f9; }
 body.dim-mode .toggle-switch-slider { background: #3e4d5d; }
 body.dim-mode .toggle-switch-sub { color: #8b98a5; }
 body.dim-mode .ai-text-threshold-block { border-top-color: #38444d; }
-body.dark-mode footer.contact-footer { border-top-color: rgb(47, 51, 54); }
-body.dim-mode footer.contact-footer { border-top-color: #38444d; }
 body.dim-mode .ai-text-threshold-header { color: #f7f9f9; }
 body.dim-mode .ai-text-threshold-value { color: #8b98a5; }
 

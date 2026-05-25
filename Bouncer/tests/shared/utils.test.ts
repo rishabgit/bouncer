@@ -144,24 +144,6 @@ describe('checkRateLimitError', () => {
     expect(checkRateLimitError('').isRateLimited).toBe(false);
   });
 
-  it('detects OpenRouter credits exhausted', () => {
-    const result = checkRateLimitError('free-models-per-day limit exceeded');
-    expect(result.isRateLimited).toBe(true);
-    expect(result.type).toBe('openrouter_credits');
-  });
-
-  it('detects Gemini free tier via combined patterns', () => {
-    const result = checkRateLimitError('RESOURCE_EXHAUSTED: quota limit reached');
-    expect(result.isRateLimited).toBe(true);
-    expect(result.type).toBe('gemini_free_tier');
-  });
-
-  it('detects Gemini free tier via single pattern', () => {
-    const result = checkRateLimitError('GenerateRequestsPerMinutePerProjectPerModel-FreeTier exceeded');
-    expect(result.isRateLimited).toBe(true);
-    expect(result.type).toBe('gemini_free_tier');
-  });
-
   it('detects generic rate limits', () => {
     const result = checkRateLimitError('Rate limit exceeded');
     expect(result.isRateLimited).toBe(true);

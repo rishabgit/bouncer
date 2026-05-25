@@ -60,26 +60,10 @@ interface RateLimitTypeConfig {
   reasoning: string;
 }
 
-// Provider-specific rate limit configurations
-// Each config has patterns to detect that specific rate limit type and a user-facing message
-export const RATE_LIMIT_TYPE_CONFIG: Record<string, RateLimitTypeConfig> = {
-  openrouter_credits: {
-    patterns: [
-      /free-models-per-day/i,
-      /Add.*credits.*unlock.*free model/i
-    ],
-    reasoning: 'OpenRouter free tier limit reached - add credits or switch provider'
-  },
-  gemini_free_tier: {
-    patterns: [
-      /free_tier/i,
-      /GenerateRequestsPerMinutePerProjectPerModel-FreeTier/i
-    ],
-    // Also match RESOURCE_EXHAUSTED + quota together
-    combinedPatterns: [[/RESOURCE_EXHAUSTED/i, /quota/i]],
-    reasoning: 'Gemini free tier limit reached - upgrade your plan or switch provider'
-  }
-};
+// Provider-specific rate-limit configs. Empty in this local-only fork (no cloud
+// providers) — kept as the seam `checkRateLimitError` and pipeline.ts read from,
+// which now always falls back to the generic patterns below.
+export const RATE_LIMIT_TYPE_CONFIG: Record<string, RateLimitTypeConfig> = {};
 
 // Generic rate limit error patterns (fallback when no specific type matches)
 export const GENERIC_RATE_LIMIT_PATTERNS: RegExp[] = [

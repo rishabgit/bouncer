@@ -108,17 +108,29 @@ export interface ModelDef {
   api?: string;
 }
 
-/** A local model with WebLLM-specific configuration. */
+/** A local model with backend-specific configuration. */
 export interface LocalModelDef extends ModelDef {
   isLocal?: boolean;
-  backend?: 'mlc';
+  backend?: 'webllm' | 'litertlm';
+  /** Shown in the picker as a "Recommended" badge; ordered first. */
+  recommended?: boolean;
   extraBody?: Record<string, unknown>;
   inferenceParams?: Record<string, unknown>;
+  /** WebLLM/MLC config — the model record + chat overrides. */
   webllmConfig?: {
     model?: string;
     model_lib?: string;
     model_type?: number;
     overrides?: Record<string, unknown>;
+  };
+  /** LiteRT-LM config — the `.litertlm` asset + sampler/budget knobs. */
+  litertlmConfig?: {
+    // Absolute URL to the `.litertlm` model asset.
+    modelUrl: string;
+    // Combined prompt + output token budget (mainExecutorSettings.maxNumTokens).
+    maxTokens?: number;
+    // Sampler top-k forwarded to SessionConfig; inferenceParams override per-call.
+    topK?: number;
   };
 }
 
@@ -245,7 +257,7 @@ export type ContentToBackgroundMessage =
   | { type: 'getReasoning'; post: string; imageUrls: string[] }
   | { type: 'getErrorStatus' }
   | { type: 'getAllLocalModelStatuses' }
-  | { type: 'initializeWebLLM'; modelId: string }
+  | { type: 'initializeLocalModel'; modelId: string }
   | { type: 'cancelLocalModelDownload'; modelId: string }
   | { type: 'deleteLocalModel'; modelId: string }
   | { type: 'preemptInference' }

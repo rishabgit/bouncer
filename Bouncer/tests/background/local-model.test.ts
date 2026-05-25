@@ -16,6 +16,16 @@ vi.mock('@mlc-ai/web-llm', () => ({
   },
 }));
 
+// Mock the LiteRT-LM backend so importing local-model.ts here doesn't pull in
+// @litert-lm/core (a browser/wasm module) under the node test env. The
+// orchestrator tests all exercise WebLLM-backed models, so the real LiteRT
+// backend is never constructed.
+vi.mock('../../src/background/backends/litertlm-backend.js', () => ({
+  LitertlmBackend: vi.fn(),
+  isLitertlmCached: vi.fn(async () => false),
+  deleteLitertlmCache: vi.fn(async () => undefined),
+}));
+
 // We need to mock models.js so we can control PREDEFINED_MODELS per test.
 // Use a mutable holder so individual tests can override the values.
 const modelsState: { PREDEFINED_MODELS: { local: Record<string, unknown>[] } } = {
@@ -37,7 +47,8 @@ vi.mock('../../src/shared/prompts.js', () => ({
   buildLocalUserMessage: vi.fn(),
 }));
 
-import { buildModelConfig, localEngine, parseLocalModelResponse } from '../../src/background/local-model.js';
+import { buildModelConfig, localEngine, parseLocalModelResponse, parseTableYesnoResponse } from '../../src/background/local-model.js';
+import { WebllmBackend } from '../../src/background/backends/webllm-backend.js';
 import { InferenceQueue, inferenceQueue } from '../../src/background/inference-queue.js';
 import { CreateMLCEngine, hasModelInCache, deleteModelAllInfoInCache } from '@mlc-ai/web-llm';
 import { isGPUDeviceLostError } from '../../src/shared/utils.js';
@@ -611,7 +622,7 @@ describe('idle timeout', () => {
     (CreateMLCEngine as Mock).mockResolvedValue(mockEngine);
 
     await localEngine.initialize('TestModel-MLC');
-    expect(localEngine.engine).toBe(mockEngine);
+    expect(localEngine.engine).not.toBeNull();
 
     await advanceAndFlush(60000);
 
@@ -640,14 +651,14 @@ describe('idle timeout', () => {
 
     // Advance 50s (not yet at 60s threshold)
     await advanceAndFlush(50000);
-    expect(localEngine.engine).toBe(mockEngine);
+    expect(localEngine.engine).not.toBeNull();
 
     // Reset the timer (simulates an inference request)
     localEngine._resetIdleTimeout();
 
     // Advance another 50s (100s total, but only 50s since reset)
     await advanceAndFlush(50000);
-    expect(localEngine.engine).toBe(mockEngine);
+    expect(localEngine.engine).not.toBeNull();
 
     // Advance 10 more seconds (60s since last reset)
     await advanceAndFlush(10000);
@@ -730,9 +741,9 @@ describe('localEngine.initialize model switch', () => {
       localEngine.initialize('ModelB-MLC'),
     ]);
 
-    // Both should resolve to the same engine — no "Inference queue cleared" error
-    expect(engine1).toBe(newEngine);
-    expect(engine2).toBe(newEngine);
+    // Both should resolve to the same backend — no "Inference queue cleared" error
+    expect(engine1).not.toBeNull();
+    expect(engine1).toBe(engine2);
 
     // Old engine should have been unloaded exactly once
     expect(oldEngine.unload).toHaveBeenCalledTimes(1);
@@ -802,6 +813,59 @@ describe('parseLocalModelResponse', () => {
   });
 });
 
+// ==================== parseTableYesnoResponse ====================
+
+describe('parseTableYesnoResponse', () => {
+  it('returns SHOW for empty/null response', () => {
+    expect(parseTableYesnoResponse('', ['a']).shouldHide).toBe(false);
+    expect(parseTableYesnoResponse(null, ['a']).shouldHide).toBe(false);
+  });
+
+  it('parses a clean verdict row and returns matched categories in order', () => {
+    const r = parseTableYesnoResponse('| yes | no | yes', ['crypto', 'sports', 'politics']);
+    expect(r.shouldHide).toBe(true);
+    expect(r.matches).toEqual(['crypto', 'politics']);
+  });
+
+  it('returns SHOW with no matches when all verdicts are no', () => {
+    const r = parseTableYesnoResponse('| no | no', ['crypto', 'sports']);
+    expect(r.shouldHide).toBe(false);
+    expect(r.matches).toEqual([]);
+  });
+
+  it('is case-insensitive on verdicts', () => {
+    expect(parseTableYesnoResponse('| YES | No', ['crypto', 'sports']).matches).toEqual(['crypto']);
+  });
+
+  it('tolerates a prefix before the first pipe', () => {
+    expect(parseTableYesnoResponse('Here you go: | yes | no', ['crypto', 'sports']).matches).toEqual(['crypto']);
+  });
+
+  it('falls back to SHOW on a row with no pipe', () => {
+    const r = parseTableYesnoResponse('yes no', ['crypto', 'sports']);
+    expect(r.shouldHide).toBe(false);
+    expect(r.reasoning).toMatch(/Malformed verdict row/);
+  });
+
+  it('falls back to SHOW when verdict count != category count', () => {
+    const r = parseTableYesnoResponse('| yes', ['crypto', 'sports']);
+    expect(r.shouldHide).toBe(false);
+    expect(r.reasoning).toMatch(/expected 2 verdicts, got 1/);
+  });
+
+  it('falls back to SHOW on a non yes/no verdict', () => {
+    const r = parseTableYesnoResponse('| maybe | no', ['crypto', 'sports']);
+    expect(r.shouldHide).toBe(false);
+    expect(r.reasoning).toMatch(/Malformed verdict row/);
+  });
+
+  it('strips Gemma chat-template markers before parsing', () => {
+    const r = parseTableYesnoResponse('<start_of_turn>model\n| yes | no <end_of_turn>', ['crypto', 'sports']);
+    expect(r.shouldHide).toBe(true);
+    expect(r.matches).toEqual(['crypto']);
+  });
+});
+
 // ==================== LocalEngine.generate / preempt / ensureLoaded / teardown ====================
 
 describe('LocalEngine generate + preempt + lifecycle', () => {
@@ -824,6 +888,16 @@ describe('LocalEngine generate + preempt + lifecycle', () => {
     };
   }
 
+  // The orchestrator now holds a LocalBackend, not a raw MLCEngine. Wrap the
+  // mock engine in a real WebllmBackend so generate()/interrupt()/unload() hit
+  // the actual extracted code path while still asserting on the mock engine.
+  function loadedBackend(mockEngineInstance: ReturnType<typeof makeMockEngine>): NonNullable<typeof localEngine.engine> {
+    const b = new WebllmBackend();
+    (b as unknown as { engine: unknown; modelDef: LocalModelDef }).engine = mockEngineInstance;
+    (b as unknown as { engine: unknown; modelDef: LocalModelDef }).modelDef = { name: 'TestModel-MLC', display: 'Test' } as LocalModelDef;
+    return b;
+  }
+
   beforeEach(async () => {
     (CreateMLCEngine as Mock).mockReset();
     (hasModelInCache as Mock).mockReset();
@@ -840,7 +914,7 @@ describe('LocalEngine generate + preempt + lifecycle', () => {
     inferenceQueue.reset();
 
     // Set localEngine to a "loaded" state with the mock engine
-    localEngine.engine = mockEngine as unknown as typeof localEngine.engine;
+    localEngine.engine = loadedBackend(mockEngine);
     localEngine.loadedModel = 'TestModel-MLC';
     localEngine._modelConfig = { name: 'TestModel-MLC', display: 'Test' } as LocalModelDef;
 
@@ -1075,7 +1149,7 @@ describe('LocalEngine generate + preempt + lifecycle', () => {
     (hasModelInCache as Mock).mockResolvedValue(false);
 
     await localEngine.ensureLoaded('TestModel-MLC');
-    expect(localEngine.engine).toBe(freshEngine);
+    expect(localEngine.engine).not.toBeNull();
 
     const result = await localEngine.generate(
       [{ role: 'user', content: 'test' }], 40

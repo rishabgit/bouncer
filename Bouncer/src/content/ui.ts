@@ -10,6 +10,7 @@ import {
 } from '../shared/share-encoding';
 import type { ContentUIDeps, FilteredPost, PostContent, LocalModelStatus } from '../types';
 import { getStorage, setStorage, getDescriptions, setDescriptions } from '../shared/storage';
+import { PREDEFINED_MODELS } from '../shared/models';
 import { getReleaseNote } from './release-notes';
 
 // Dependencies (set by initUI from index.ts)
@@ -1475,7 +1476,7 @@ export function updateModelLoadingProgress(statuses: Record<string, LocalModelSt
           textEl.textContent = status.text;
           fillEl.style.width = `${(status.progress || 0) * 100}%`;
         } else {
-          textEl.textContent = status.state === 'initializing' ? 'Initializing...' : 'Downloading...';
+          textEl.textContent = status.state === 'initializing' ? 'Loading… first run can take a minute' : 'Downloading...';
           fillEl.style.width = `${(status.progress || 0) * 100}%`;
         }
       } else {
@@ -1519,6 +1520,11 @@ function deriveModelUiState(
   }
 }
 
+// Display name for a local model id, for user-facing loading copy.
+function localModelDisplay(modelId: string): string {
+  return PREDEFINED_MODELS.local.find(m => m.name === modelId)?.display ?? 'the model';
+}
+
 interface ModelStatusView { variant: 'info' | 'progress' | 'warning'; body: string; dismissible: boolean; }
 
 function modelStatusView(
@@ -1530,10 +1536,17 @@ function modelStatusView(
     case 'needs_setup':
       return { variant: 'info', body: 'Open the Bouncer extension to download a model and start filtering.', dismissible: true };
     case 'loading': {
-      const status = statuses[selectedModel.split(':')[1]];
-      const pct = typeof status?.progress === 'number' ? Math.round(status.progress * 100) : null;
-      const detail = status?.text || (pct !== null ? `${pct}%` : '');
-      return { variant: 'progress', body: `Loading model…${detail ? ' ' + detail : ''}`, dismissible: false };
+      const modelId = selectedModel.split(':')[1];
+      const status = statuses[modelId];
+      const display = localModelDisplay(modelId);
+      // Real byte-download → show progress. Warm-up / shader-compile (no byte
+      // progress) → set the honest "first run can take a minute" expectation,
+      // which is the silent phase users mistake for a hang.
+      if (status?.state === 'downloading' && typeof status.progress === 'number') {
+        const detail = status.text || `${Math.round(status.progress * 100)}%`;
+        return { variant: 'progress', body: `Downloading ${display}… ${detail}`, dismissible: false };
+      }
+      return { variant: 'progress', body: `Loading ${display} — the first run can take up to a minute.`, dismissible: false };
     }
     case 'unsupported':
       return { variant: 'warning', body: "This browser can't run local models — WebGPU isn't available.", dismissible: true };
@@ -1853,10 +1866,15 @@ export function renderFilteredPostsView(container: Element) {
       body.appendChild(mediaContainer);
     }
 
-    // Reasoning
+    // Reasoning — table_yesno (Gemma) posts carry matched categories in
+    // `post.category` and a terse pipe-row in `post.reasoning`; show the clean
+    // "Matched: …" summary instead of running the pipe-row through cleanReasoning.
+    // Prose models (Qwen) have no category and keep their reasoning text.
     const reasoning = document.createElement('div');
     reasoning.className = 'slop-post-reasoning';
-    reasoning.textContent = cleanReasoning(post.reasoning) || 'Filtered';
+    reasoning.textContent = post.category
+      ? `Matched: ${post.category}`
+      : (cleanReasoning(post.reasoning) || 'Filtered');
     body.appendChild(reasoning);
 
     // Actions row
@@ -2126,9 +2144,16 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
     } else {
       const verdict = active.shouldHide ? 'HIDE' : 'KEEP';
       const verdictClass = active.shouldHide ? 'verdict-hide' : 'verdict-keep';
+      // table_yesno (Gemma) returns matched categories in `category` and a terse
+      // pipe-row in `reasoning`. Render the matches as chips rather than running
+      // the pipe-row through cleanReasoning (which splits on "|" and would mangle
+      // it). Prose models (Qwen) have no category and keep the reasoning text.
+      const reasoningBody = active.category
+        ? `<div class="reasoning-match-label">Matched categories</div><div class="reasoning-match-chips">${active.category.split(',').map(c => c.trim()).filter(Boolean).map(c => `<span class="reasoning-match-chip">${escapeHtml(c)}</span>`).join('')}</div>`
+        : `<div class="reasoning-text">${escapeHtml(cleanReasoning(active.reasoning ?? '') ?? '')}</div>`;
       tabBody = `
         <div class="reasoning-tab-verdict ${verdictClass}">${verdict}</div>
-        <div class="reasoning-text">${escapeHtml(cleanReasoning(active.reasoning ?? '') ?? '')}</div>
+        ${reasoningBody}
       `;
     }
 

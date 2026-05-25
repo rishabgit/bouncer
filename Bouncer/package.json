@@ -37,6 +37,7 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
+    "@litert-lm/core": "^0.12.1",
     "@mlc-ai/web-llm": "file:./vendor/web-llm",
     "dompurify": "^3.3.1",
     "html-to-image": "^1.11.13"

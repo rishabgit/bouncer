@@ -62,14 +62,14 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   // Model weights stay in Cache Storage for fast reload when a tab opens again.
   if (activeContentTabs.size === 0 && localEngine.engine) {
     const modelId = localEngine.loadedModel;
-    console.log('[WebLLM] No active tabs remaining, unloading engine for', modelId);
+    console.log('[LocalEngine] No active tabs remaining, unloading engine for', modelId);
     localEngine.drainQueue(async () => {
       await localEngine.reset();
       if (modelId) {
         await localEngine.updateStatus(modelId, { state: 'cached' });
       }
     }).catch(err => {
-      console.error('[WebLLM] Error unloading engine on last tab close:', err);
+      console.error('[LocalEngine] Error unloading engine on last tab close:', err);
     });
   }
 });
@@ -355,9 +355,9 @@ chrome.runtime.onMessage.addListener((message: ContentToBackgroundMessage, sende
     return;
   }
 
-  // --- Fire-and-forget: initializeWebLLM responds synchronously, starts async work ---
-  if (message.type === 'initializeWebLLM') {
-    console.log('[Background] initializeWebLLM received, modelId:', message.modelId, 'hasNativeBridge:', typeof window !== 'undefined' && !!(window as unknown as Record<string, unknown>)?.webkit);
+  // --- Fire-and-forget: initializeLocalModel responds synchronously, starts async work ---
+  if (message.type === 'initializeLocalModel') {
+    console.log('[Background] initializeLocalModel received, modelId:', message.modelId, 'hasNativeBridge:', typeof window !== 'undefined' && !!(window as unknown as Record<string, unknown>)?.webkit);
     const modelId = message.modelId;
     if (!modelId) {
       sendResponse({ success: false, error: 'No model ID provided' });
@@ -365,7 +365,7 @@ chrome.runtime.onMessage.addListener((message: ContentToBackgroundMessage, sende
     }
     // Start initialization but respond immediately - progress is tracked via storage
     localEngine.initialize(modelId).catch(err => {
-      console.error('[WebLLM] Initialization error for', modelId, ':', err);
+      console.error('[LocalEngine] Initialization error for', modelId, ':', err);
     });
     sendResponse({ success: true, started: true, modelId });
     return false; // Synchronous response
@@ -412,7 +412,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
         const cached = await localEngine.checkCached(modelId);
         if (cached) {
           localEngine.initialize(modelId).catch(err => {
-            console.error('[WebLLM] Auto-init on model switch failed:', err);
+            console.error('[LocalEngine] Auto-init on model switch failed:', err);
           });
         }
       }

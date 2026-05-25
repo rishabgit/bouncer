@@ -184,6 +184,33 @@
 .reasoning-tab-verdict.verdict-skipped { background: #2a3138; color: #8899a6; }
 .reasoning-text-skipped { color: #8899a6; font-style: italic; }
 
+/* table_yesno (Gemma) matched-category chips — shown in the reasoning popup
+   instead of the raw pipe-row verdict. Mirrors .slop-category-tag's purple;
+   the popup is always dark-styled, like .reasoning-tab-verdict, so no theme
+   variants are needed. */
+.reasoning-match-label {
+  padding: 10px 12px 4px;
+  font-size: 12px;
+  color: #8899a6;
+}
+.reasoning-match-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 12px 12px;
+}
+.reasoning-match-chip {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  color: #8b5cf6;
+  background: rgba(139, 92, 246, 0.12);
+}
+
 .reasoning-post {
   padding: 10px 12px;
   font-size: 12px;

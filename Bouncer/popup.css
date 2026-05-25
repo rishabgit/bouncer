@@ -247,6 +247,10 @@ section:not(:nth-last-child(2)) {
   transform: rotate(180deg)  translateY(-2px);
 }
 
+.model-onboarding-hint {
+  margin: 4px 0 10px;
+}
+
 .model-dropdown-menu {
   display: none;
   position: absolute;
@@ -346,6 +350,59 @@ section:not(:nth-last-child(2)) {
 .model-dropdown-item-remove:hover,
 .model-dropdown-item-delete:hover {
   color: #f4212e;
+}
+
+/* Two-line model cards: line 1 = name + badges, line 2 = size · capability · state. */
+.model-dropdown-item-main {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.model-dropdown-item-line1 {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.model-dropdown-item-line1 > span {
+  flex-shrink: 0;
+}
+
+.model-dropdown-item-name {
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-dropdown-item-meta {
+  font-size: 11px;
+  color: #536471;
+  margin-top: 3px;
+}
+
+/* Muted engine chip (WebLLM / LiteRT) — quieter than the blue local badge. */
+.model-engine-badge {
+  display: inline-block;
+  background: #eff3f4;
+  color: #536471;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+/* Picker footer: disk usage + switch hint. */
+.model-dropdown-footer {
+  padding: 8px 12px;
+  font-size: 11px;
+  color: #536471;
+  border-top: 1px solid #eff3f4;
+  background: #f7f9f9;
 }
 
 /* Provider item with submenu arrow */
@@ -1337,6 +1394,10 @@ body.dark-mode .free-badge {
   color: #22c55e;
 }
 
+body.dark-mode .model-dropdown-item-meta { color: rgb(113, 118, 123); }
+body.dark-mode .model-engine-badge { background: rgba(255, 255, 255, 0.1); color: rgb(231, 233, 234); }
+body.dark-mode .model-dropdown-footer { color: rgb(113, 118, 123); border-top-color: rgb(47, 51, 54); background: rgba(255, 255, 255, 0.03); }
+
 body.dark-mode .model-dropdown-item-remove,
 body.dark-mode .model-dropdown-item-delete {
   color: rgb(113, 118, 123);
@@ -1575,6 +1636,10 @@ body.dim-mode .free-badge {
   background: rgba(34, 197, 94, 0.15);
   color: #22c55e;
 }
+
+body.dim-mode .model-dropdown-item-meta { color: rgb(139, 152, 165); }
+body.dim-mode .model-engine-badge { background: rgba(255, 255, 255, 0.08); color: rgb(247, 249, 249); }
+body.dim-mode .model-dropdown-footer { color: rgb(139, 152, 165); border-top-color: rgb(56, 68, 77); background: rgba(255, 255, 255, 0.03); }
 
 body.dim-mode .model-dropdown-item-remove,
 body.dim-mode .model-dropdown-item-delete {

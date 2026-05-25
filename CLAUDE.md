@@ -2,7 +2,7 @@
 
 A browser extension that filters unwanted posts from Twitter/X feeds using AI. Users define filter topics (e.g., "crypto", "engagement bait") and the AI classifies and hides matching posts.
 
-**Local-only fork.** This is a modified, local-only fork of [imbue-ai/bouncer](https://github.com/imbue-ai/bouncer) (AGPL-3.0). Every non-local backend has been removed — the direct cloud APIs (OpenAI/Gemini/OpenRouter/Anthropic), the Imbue WebSocket backend + Firebase auth, and AI-text detection. Classification runs **only** on-device via WebLLM/Qwen (WebGPU). Upstream has since migrated local inference to LiteRT-LM; this fork deliberately stays on WebLLM. When editing, do not reintroduce cloud/provider/auth code paths.
+**Local-only fork.** This is a modified, local-only fork of [imbue-ai/bouncer](https://github.com/imbue-ai/bouncer) (AGPL-3.0). Every non-local backend has been removed — the direct cloud APIs (OpenAI/Gemini/OpenRouter/Anthropic), the Imbue WebSocket backend + Firebase auth, and AI-text detection. Classification runs **only** on-device via WebGPU, with **two selectable engines**: WebLLM/Qwen (the default) and LiteRT-LM/Gemma. They sit behind a shared `LocalBackend` seam (`src/background/backends/`) that a single `LocalEngine` orchestrator (`local-model.ts`) delegates to; the popup's model picker is the switch. Chrome runs LiteRT in an offscreen document (its wasm loader can't run in a module service worker); Firefox/Safari host it in-process. When editing, do not reintroduce cloud/provider/auth code paths.
 
 ## Check upstream before pursuing an idea
 
@@ -34,7 +34,7 @@ npm run build        # one-time build
 
 Then load the unpacked extension from the `Bouncer/` folder at `chrome://extensions`.
 
-Dependencies: esbuild, dompurify, vendored web-llm
+Dependencies: esbuild, dompurify, vendored web-llm (`@mlc-ai/web-llm`), `@litert-lm/core`
 
 Pre-commit checks:
 

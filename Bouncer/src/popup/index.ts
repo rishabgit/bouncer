@@ -13,8 +13,8 @@ let webgpuSupported = true;
 // In-app mode detection (native WebView bridge sets chrome._polyfilled)
 const isInAppMode = typeof chrome !== 'undefined' && chrome._polyfilled;
 
-// User-friendly error message mapping for WebLLM errors
-const WEBLLM_ERROR_MESSAGES: Record<string, { display: string; hint: string }> = {
+// User-friendly error message mapping for local model errors
+const LOCAL_MODEL_ERROR_MESSAGES: Record<string, { display: string; hint: string }> = {
   'device lost': {
     display: 'GPU device was lost',
     hint: 'Try closing other tabs or restarting your browser.'
@@ -58,15 +58,21 @@ const WEBLLM_ERROR_MESSAGES: Record<string, { display: string; hint: string }> =
   'inference timeout': {
     display: 'Inference timeout',
     hint: 'The model was too slow. Try again or switch to a smaller model.'
+  },
+  // LiteRT-LM (Gemma) caches the model blob in Cache Storage; a failure here is
+  // usually low disk space rather than a network problem.
+  'failed to cache model': {
+    display: 'Could not save the model',
+    hint: 'Free up disk space and try again.'
   }
 };
 
-// Get user-friendly error message for WebLLM errors
+// Get user-friendly error message for local model errors
 function getUserFriendlyError(errorMessage: string | undefined): { display: string; hint: string } {
   if (!errorMessage) return { display: 'Unknown error', hint: 'Try again or switch models.' };
 
   const lowerError = errorMessage.toLowerCase();
-  for (const [pattern, info] of Object.entries(WEBLLM_ERROR_MESSAGES)) {
+  for (const [pattern, info] of Object.entries(LOCAL_MODEL_ERROR_MESSAGES)) {
     if (lowerError.includes(pattern)) {
       return info;
     }
@@ -336,6 +342,23 @@ function renderModelDropdown(customModels: ModelDef[], selectedModel: string) {
         statusIndicator = '<span class="download-indicator">⬇</span>';
       }
 
+      // Muted engine chip — surfaces the backend without making it the identity.
+      const engineLabel = model.backend === 'litertlm' ? 'LiteRT' : 'WebLLM';
+      const recommendedBadge = model.recommended ? '<span class="free-badge">Recommended</span>' : '';
+
+      // Line 2: size · capability · state. "Active" = selected + on disk,
+      // "Downloaded" = on disk but not selected.
+      const stateWord = isDownloading
+        ? `Downloading${typeof status.progress === 'number' ? ' ' + Math.round(status.progress * 100) + '%' : ''}`
+        : isReady
+          ? (selectedModel === modelKey ? 'Active' : 'Downloaded')
+          : 'Not downloaded';
+      const meta = [
+        model.sizeGB ? `${model.sizeGB} GB` : '',
+        model.supportsImages ? 'Text + images' : 'Text only',
+        stateWord,
+      ].filter(Boolean).join(' · ');
+
       // Only downloaded models get a delete control, and it lives here in the
       // dropdown (not the Local Model section, which only renders for the
       // *selected* model) so any downloaded model — selected or not — can be
@@ -343,8 +366,20 @@ function renderModelDropdown(customModels: ModelDef[], selectedModel: string) {
       const deleteBtn = isReady
         ? '<button class="model-dropdown-item-delete" title="Delete downloaded model">🗑</button>'
         : '';
-      localItem.replaceChildren(parseHTML(`<span class="model-dropdown-item-text">${escapeHtml(model.display)} <span class="local-badge">local</span>${statusIndicator}</span>${deleteBtn}`));
-      localItem.querySelector('.model-dropdown-item-text')!.addEventListener('click', asyncHandler(() => selectModel(modelKey)));
+      localItem.replaceChildren(parseHTML(
+        `<div class="model-dropdown-item-main">` +
+          `<div class="model-dropdown-item-line1">` +
+            `<span class="model-dropdown-item-name">${escapeHtml(model.display)}</span>` +
+            `<span class="local-badge">local</span>` +
+            `<span class="model-engine-badge">${engineLabel}</span>` +
+            recommendedBadge +
+            statusIndicator +
+          `</div>` +
+          `<div class="model-dropdown-item-meta">${escapeHtml(meta)}</div>` +
+        `</div>` +
+        deleteBtn
+      ));
+      localItem.querySelector('.model-dropdown-item-main')!.addEventListener('click', asyncHandler(() => selectModel(modelKey)));
       const delEl = localItem.querySelector<HTMLButtonElement>('.model-dropdown-item-delete');
       if (delEl) delEl.addEventListener('click', (e) => {
         deleteLocalModelWeights(model.name, delEl, e).catch(err => console.error('[Popup] deleteLocalModelWeights failed:', err));
@@ -379,6 +414,21 @@ function renderModelDropdown(customModels: ModelDef[], selectedModel: string) {
       localItem.querySelector('.model-dropdown-item-remove')!.addEventListener('click', (e) => { removeModel(modelKey, e).catch(err => console.error('[Popup] removeModel failed:', err)); });
       menu.appendChild(localItem);
     });
+
+    // Footer: disk usage + (when 2+ are downloaded) the switch-skips-download hint.
+    const downloadedLocal = PREDEFINED_MODELS.local.filter(m => {
+      const s = localModelStatuses[m.name]?.state;
+      return s === 'ready' || s === 'cached';
+    });
+    if (downloadedLocal.length >= 1) {
+      const totalGB = downloadedLocal.reduce((sum, m) => sum + (m.sizeGB || 0), 0);
+      const plural = downloadedLocal.length > 1 ? 's' : '';
+      const switchHint = downloadedLocal.length >= 2 ? ' Switching skips the multi-GB download.' : '';
+      const footer = document.createElement('div');
+      footer.className = 'model-dropdown-footer';
+      footer.textContent = `Using ~${totalGB.toFixed(1)} GB across ${downloadedLocal.length} downloaded model${plural}.${switchHint}`;
+      menu.appendChild(footer);
+    }
   }
 
   // Empty-state placeholder.
@@ -392,7 +442,7 @@ function renderModelDropdown(customModels: ModelDef[], selectedModel: string) {
   }
 }
 
-// ==================== Local Model (WebLLM) ====================
+// ==================== Local Model ====================
 
 // Get current statuses for all local models from background
 async function updateLocalModelStatus() {
@@ -517,21 +567,24 @@ function updateLocalModelSectionUI() {
 
     case 'cached':
       // Model is cached but not loaded - auto-initialize it
-      badge.textContent = 'Loading...';
+      badge.textContent = 'Loading';
       badge.classList.add('downloading');
       downloading.style.display = 'block';
-      progressFill.style.width = '0%';
-      progressText.textContent = 'Loading cached model...';
+      progressFill.style.width = '100%';
+      progressText.textContent = `Loading ${selectedLocalModel.display} — the first run can take up to a minute.`;
       // Trigger auto-initialization (async, don't await)
-      autoInitializeCachedModel(selectedLocalModel.name).catch(err => console.error('[WebLLM] autoInitializeCachedModel failed:', err));
+      autoInitializeCachedModel(selectedLocalModel.name).catch(err => console.error('[LocalModel] autoInitializeCachedModel failed:', err));
       break;
 
     case 'not_downloaded': {
       badge.textContent = 'Not downloaded';
       notDownloaded.style.display = 'block';
       if (downloadHint) {
-        const sizeText = selectedLocalModel.sizeGB ? `(~${selectedLocalModel.sizeGB}GB)` : '';
-        downloadHint.textContent = `Download ${selectedLocalModel.display} ${sizeText} to run inference locally without API calls.`;
+        const sizeText = selectedLocalModel.sizeGB ? ` (~${selectedLocalModel.sizeGB} GB, one-time)` : '';
+        const capability = selectedLocalModel.supportsImages
+          ? 'Filters text and images.'
+          : 'Filters text; image posts are judged on their text only.';
+        downloadHint.textContent = `Download ${selectedLocalModel.display}${sizeText}. ${capability} Runs entirely on your device — no API calls.`;
       }
       const downloadBtn = document.getElementById('downloadLocalModel') as HTMLButtonElement;
       downloadBtn.style.display = 'inline-flex';
@@ -540,7 +593,17 @@ function updateLocalModelSectionUI() {
       break;
     }
 
-    case 'initializing':
+    case 'initializing': {
+      // Warm-up (no byte download) — e.g. loading a cached model / compiling
+      // shaders. Set one honest expectation instead of a stalled-looking 0%.
+      badge.textContent = 'Loading';
+      badge.classList.add('downloading');
+      downloading.style.display = 'block';
+      progressFill.style.width = '100%';
+      progressText.textContent = `Loading ${selectedLocalModel.display} — the first run can take up to a minute.`;
+      break;
+    }
+
     case 'downloading': {
       badge.textContent = 'Downloading...';
       badge.classList.add('downloading');

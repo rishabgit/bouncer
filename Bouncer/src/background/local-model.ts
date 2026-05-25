@@ -188,7 +188,7 @@ export class LocalEngine {
 
   async initialize(modelId: string): Promise<LocalBackend | null> {
     if (!modelId) {
-      console.error('[WebLLM] No model ID provided');
+      console.error('[LocalEngine] No model ID provided');
       return null;
     }
 
@@ -225,7 +225,7 @@ export class LocalEngine {
           try {
             await this.engine.unload();
           } catch (e) {
-            console.error('[WebLLM] Error unloading engine:', e);
+            console.error('[LocalEngine] Error unloading engine:', e);
           }
         }
         this.engine = null;
@@ -254,7 +254,7 @@ export class LocalEngine {
             state: 'downloading',
             progress: progress.progress,
             text: progress.text,
-          }).catch(err => console.error('[WebLLM] Failed to update download status:', err));
+          }).catch(err => console.error('[LocalEngine] Failed to update download status:', err));
         }, abortSignal);
 
         if (abortSignal.aborted) {
@@ -275,7 +275,7 @@ export class LocalEngine {
 
         return this.engine;
       } catch (error) {
-        console.error('[WebLLM] Initialization failed:', error);
+        console.error('[LocalEngine] Initialization failed:', error);
 
         const errorMsg = (error as Error).message;
 
@@ -349,7 +349,7 @@ export class LocalEngine {
       await this.updateStatus(modelId, { state: 'not_downloaded' });
       return { success: true };
     } catch (e) {
-      console.error('[WebLLM] Error deleting model cache for', modelId, ':', e);
+      console.error('[LocalEngine] Error deleting model cache for', modelId, ':', e);
       const cached = await this.checkCached(modelId);
       await this.updateStatus(modelId, { state: cached ? 'cached' : 'not_downloaded' });
       return { success: false, error: (e as Error).message };
@@ -374,7 +374,7 @@ export class LocalEngine {
       try {
         await this.engine.unload();
       } catch (e) {
-        console.error('[WebLLM] Error unloading engine:', e);
+        console.error('[LocalEngine] Error unloading engine:', e);
       }
     }
     this.engine = null;
@@ -423,7 +423,7 @@ export class LocalEngine {
         }
 
         if (isGPUDeviceLostError((error as Error).message)) {
-          console.error('[WebLLM] GPU device lost during inference, resetting engine...');
+          console.error('[LocalEngine] GPU device lost during inference, resetting engine...');
           const modelId = this.loadedModel;
           await this.reset();
           await this.updateStatus(modelId!, {
@@ -554,10 +554,10 @@ export class LocalEngine {
       if (!cached) return;
 
       this.initialize(modelId).catch(err => {
-        console.error('[WebLLM] Auto-init failed:', err);
+        console.error('[LocalEngine] Auto-init failed:', err);
       });
     } catch (e) {
-      console.error('[WebLLM] Error in autoInitSelected:', e);
+      console.error('[LocalEngine] Error in autoInitSelected:', e);
     }
   }
 
@@ -640,7 +640,7 @@ export class LocalEngine {
     try {
       await this.engine.unload();
     } catch (e) {
-      console.error('[WebLLM] Error during idle unload:', e);
+      console.error('[LocalEngine] Error during idle unload:', e);
     }
     this.engine = null;
     this.loadedModel = null;
@@ -662,11 +662,11 @@ export class LocalEngine {
       const onTimeout = async (): Promise<void> => {
         if (completed) return;
         completed = true;
-        console.warn(`[WebLLM] Inference timeout after ${ceiling}ms, interrupting...`);
+        console.warn(`[LocalEngine] Inference timeout after ${ceiling}ms, interrupting...`);
         try {
           await this.engine!.interrupt();
         } catch (e) {
-          console.error('[WebLLM] Failed to interrupt generation:', e);
+          console.error('[LocalEngine] Failed to interrupt generation:', e);
         }
         reject(new Error('Inference timeout - model took too long to respond'));
       };
@@ -736,7 +736,7 @@ export async function callLocalInference(
 
   // If images leave no room for text, drop images and recalculate
   if (useImages && postTextBudget < 1) {
-    console.log('[WebLLM] Images consume too much context, falling back to text-only');
+    console.log('[LocalEngine] Images consume too much context, falling back to text-only');
     useImages = false;
     const textOnlyOverhead = await localEngine.countTokens(buildLocalUserMessage('', bannedCategories, false));
     postTextBudget = contextWindowSize - systemTokens - textOnlyOverhead - maxGenerationTokens;
@@ -775,7 +775,7 @@ export async function callLocalInference(
   } catch (imgError) {
     if ((imgError as Error).message === 'Inference preempted') throw imgError;
     if (useImages) {
-      console.warn('[WebLLM] Image processing failed, retrying with text only:', (imgError as Error).message);
+      console.warn('[LocalEngine] Image processing failed, retrying with text only:', (imgError as Error).message);
       const textOnlyContent = buildLocalUserMessage(postText, bannedCategories, false);
       const textMessages: ChatMessage[] = [
         { role: "system", content: LOCAL_SYSTEM_PROMPT },
@@ -791,7 +791,7 @@ export async function callLocalInference(
 
   const { shouldHide, reasoning } = parseLocalModelResponse(rawResponse);
   if (!rawResponse) {
-    console.warn('[WebLLM] Empty response from model');
+    console.warn('[LocalEngine] Empty response from model');
   }
 
   const result: { shouldHide: boolean; reasoning: string; category?: string | null; rawResponse?: string | null; inferenceTime?: number } =
@@ -852,7 +852,7 @@ async function callTableYesnoInference(
 
   // If images leave no room for text, drop them and recompute.
   if (useImages && postTextBudget < 1) {
-    console.log('[WebLLM] Images consume too much context, falling back to text-only');
+    console.log('[LocalEngine] Images consume too much context, falling back to text-only');
     useImages = false;
     const textOnlyOverhead = await localEngine.countTokens(overheadText(false));
     postTextBudget = contextWindowSize - textOnlyOverhead - maxGenerationTokens;
@@ -874,7 +874,7 @@ async function callTableYesnoInference(
   } catch (imgError) {
     if ((imgError as Error).message === 'Inference preempted') throw imgError;
     if (useImages) {
-      console.warn('[WebLLM] Image processing failed, retrying with text only:', (imgError as Error).message);
+      console.warn('[LocalEngine] Image processing failed, retrying with text only:', (imgError as Error).message);
       rawResponse = await localEngine.generate(buildMessages(postText, false), maxGenerationTokens, { priority, onStart });
     } else {
       throw imgError;
@@ -884,7 +884,7 @@ async function callTableYesnoInference(
   const inferenceTime = ((Date.now() - inferenceStart!) / 1000).toFixed(2);
 
   if (!rawResponse) {
-    console.warn('[WebLLM] Empty response from model');
+    console.warn('[LocalEngine] Empty response from model');
   }
 
   const { shouldHide, reasoning, matches } = parseTableYesnoResponse(rawResponse, bannedCategories);

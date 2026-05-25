@@ -124,6 +124,7 @@ async function main() {
     'background.js',
     'popup.js',
     'content.js',
+    'offscreen.js',
     'adapters/twitter/TwitterAdapter.ts',
     'package.json',
     'package-lock.json',

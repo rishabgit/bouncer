@@ -444,7 +444,7 @@ async function autoInitializeCachedModel(modelId: string) {
 
   console.log('[LocalModel] Auto-initializing cached model:', modelId);
   try {
-    await chrome.runtime.sendMessage({ type: 'initializeWebLLM', modelId });
+    await chrome.runtime.sendMessage({ type: 'initializeLocalModel', modelId });
   } catch (err) {
     console.error('[LocalModel] Failed to auto-initialize cached model:', err);
     autoInitTriggered.delete(modelId);
@@ -593,8 +593,8 @@ function setupLocalModelListeners() {
       downloadBtn.replaceChildren(parseHTML('<span class="download-icon">&#8987;</span> Starting...'));
 
       try {
-        const result: unknown = await chrome.runtime.sendMessage({ type: 'initializeWebLLM', modelId: selectedLocalModel.name });
-        console.log('[Popup] initializeWebLLM response:', result);
+        const result: unknown = await chrome.runtime.sendMessage({ type: 'initializeLocalModel', modelId: selectedLocalModel.name });
+        console.log('[Popup] initializeLocalModel response:', result);
       } catch (err) {
         console.error('[Popup] Failed to start model download:', err);
         downloadBtn.disabled = false;
@@ -615,7 +615,7 @@ function setupLocalModelListeners() {
       retryBtn.textContent = 'Retrying...';
 
       try {
-        await chrome.runtime.sendMessage({ type: 'initializeWebLLM', modelId: selectedLocalModel.name });
+        await chrome.runtime.sendMessage({ type: 'initializeLocalModel', modelId: selectedLocalModel.name });
       } catch (err) {
         console.error('Failed to retry model download:', err);
         retryBtn.disabled = false;

@@ -355,9 +355,9 @@ chrome.runtime.onMessage.addListener((message: ContentToBackgroundMessage, sende
     return;
   }
 
-  // --- Fire-and-forget: initializeWebLLM responds synchronously, starts async work ---
-  if (message.type === 'initializeWebLLM') {
-    console.log('[Background] initializeWebLLM received, modelId:', message.modelId, 'hasNativeBridge:', typeof window !== 'undefined' && !!(window as unknown as Record<string, unknown>)?.webkit);
+  // --- Fire-and-forget: initializeLocalModel responds synchronously, starts async work ---
+  if (message.type === 'initializeLocalModel') {
+    console.log('[Background] initializeLocalModel received, modelId:', message.modelId, 'hasNativeBridge:', typeof window !== 'undefined' && !!(window as unknown as Record<string, unknown>)?.webkit);
     const modelId = message.modelId;
     if (!modelId) {
       sendResponse({ success: false, error: 'No model ID provided' });

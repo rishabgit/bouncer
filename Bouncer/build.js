@@ -65,11 +65,35 @@ function extractWebLLMWasmBlobs() {
   }
 }
 
+// Copy LiteRT-LM's wasm loader + binaries into dist/litertlm-wasm/ so the
+// offscreen document (Chrome) / event page (Firefox) can resolve them via
+// chrome.runtime.getURL(...). The runtime feature-detects relaxed-SIMD and
+// loads either litertlm_wasm_internal or litertlm_wasm_compat_internal; each
+// .js fetches its sibling .wasm, so all four files sit at the same URL prefix.
+// By default the package resolves these from a CDN URL the extension CSP
+// blocks — loadLiteRtLm() points at this local directory instead.
+function copyLitertlmAssets() {
+  const srcDir = path.join(__dirname, 'node_modules/@litert-lm/core/wasm');
+  const dstDir = path.join(__dirname, 'dist/litertlm-wasm');
+  if (!fs.existsSync(srcDir)) {
+    console.warn('@litert-lm/core wasm dir not found — skipping copy');
+    return;
+  }
+  fs.mkdirSync(dstDir, { recursive: true });
+  for (const name of fs.readdirSync(srcDir)) {
+    fs.copyFileSync(path.join(srcDir, name), path.join(dstDir, name));
+  }
+  console.log('Copied LiteRT-LM wasm assets into dist/litertlm-wasm/');
+}
+
 async function build() {
   console.log(`Building local-only (env: ${env}, target: ${target})`);
 
   // 0. Regenerate manifest.json from manifest.base.json + manifest.<target>.json.
   generateManifest(target);
+
+  // Copy LiteRT-LM's wasm loader + binaries into dist/litertlm-wasm/.
+  copyLitertlmAssets();
 
   // 1. Bundle web-llm into dist/webllm.js, then extract the large inline
   //    base64-encoded WASM blobs into separate files so every file stays under
@@ -102,6 +126,25 @@ async function build() {
     plugins: [externalizeWebLLM],
   });
 
+  // 2b. Offscreen document bundle (Chrome): hosts LiteRT-LM's Engine. The SW
+  //     opens this page on demand because the LiteRT-LM wasm loader uses
+  //     script-tag injection (via @litertjs/wasm-utils), unavailable in MV3
+  //     ESM service workers. @litert-lm/core is bundled in here directly; its
+  //     wasm binaries are copied separately into dist/litertlm-wasm/. Do NOT
+  //     apply externalizeWebLLM — the offscreen doc doesn't use web-llm.
+  const offscreenCtx = await esbuild.context({
+    entryPoints: [path.join(__dirname, 'offscreen.js')],
+    outdir: path.join(__dirname, 'dist'),
+    bundle: true,
+    format: 'esm',
+    platform: 'browser',
+    target: 'es2020',
+    minify: false,
+    sourcemap: false,
+    external: ['url'],
+    define,
+  });
+
   // 3. Popup & content: fully self-contained (no external imports).
   const otherCtx = await esbuild.context({
     entryPoints: [
@@ -119,7 +162,7 @@ async function build() {
     define,
   });
 
-  const contexts = [bgCtx, otherCtx];
+  const contexts = [bgCtx, offscreenCtx, otherCtx];
 
   // Type-strip the adapter (unbundled, standalone content script)
   if (hasAdapterTs) {
@@ -141,7 +184,7 @@ async function build() {
     await Promise.all(contexts.map(c => c.rebuild()));
     await Promise.all(contexts.map(c => c.dispose()));
 
-    console.log(`Build complete (env: ${env}): dist/background.js, dist/popup.js, dist/content.js` +
+    console.log(`Build complete (env: ${env}): dist/background.js, dist/offscreen.js, dist/popup.js, dist/content.js` +
       (hasAdapterTs ? ', dist/TwitterAdapter.js' : ''));
   }
 }

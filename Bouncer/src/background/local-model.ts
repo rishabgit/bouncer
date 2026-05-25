@@ -4,11 +4,12 @@
 import type { LocalModelDef, LocalModelStatus, EvaluationPostData, ChatMessage } from '../types';
 import { PREDEFINED_MODELS } from '../shared/models';
 import { isGPUDeviceLostError, isNetworkError, formatLocalInferenceResult } from '../shared/utils';
-import { LOCAL_SYSTEM_PROMPT, buildLocalUserMessage } from '../shared/prompts';
+import { LOCAL_SYSTEM_PROMPT, buildLocalUserMessage, TABLE_YESNO_SYSTEM_PROMPT, buildTableYesnoUserMessage } from '../shared/prompts';
 import { inferenceQueue } from './inference-queue';
 import { getStorage, setStorage } from '../shared/storage';
 import type { LocalBackend } from './backends/types';
 import { WebllmBackend, isWebllmCached, deleteWebllmCache } from './backends/webllm-backend';
+import { LitertlmBackend, isLitertlmCached, deleteLitertlmCache } from './backends/litertlm-backend';
 
 // Re-exported so existing importers (and tests) keep their import path.
 export { buildModelConfig } from './backends/webllm-backend';
@@ -25,20 +26,23 @@ const KEEP_ALIVE_INTERVAL_MS = 5000;
 const DOWNLOAD_KEEP_ALIVE_MS = 20000;  // Firefox suspends event pages after 30 s idle
 const IDLE_TIMEOUT_MS = 60000;
 const INFERENCE_TIMEOUT_MS = 30000;
+// Cold LiteRT-LM inference (first call after load) compiles WebGPU shaders,
+// prefills, and decodes — easily 30–60 s on a 4B model before the first token.
+const LITERTLM_INFERENCE_TIMEOUT_MS = 90000;
 const DOWNLOAD_MAX_RETRIES = 3;
 const DOWNLOAD_RETRY_DELAY_MS = 2000;
 
 // ==================== Pure helpers ====================
 
-// Pick the backend for a model. Only WebLLM exists today; the LiteRT path is
-// wired in here when the second backend lands.
-function selectBackend(_modelDef: LocalModelDef): LocalBackend {
-  return new WebllmBackend();
+// Pick the backend for a model by its declared engine. Models with no backend
+// (custom/user-added) default to WebLLM.
+function selectBackend(modelDef: LocalModelDef): LocalBackend {
+  return modelDef.backend === 'litertlm' ? new LitertlmBackend() : new WebllmBackend();
 }
 
 // Probe whether a model's weights are already on disk, without loading them.
 async function backendIsCached(modelDef: LocalModelDef): Promise<boolean> {
-  return isWebllmCached(modelDef);
+  return modelDef.backend === 'litertlm' ? isLitertlmCached(modelDef) : isWebllmCached(modelDef);
 }
 
 // Parse a local model's freeform response to extract a hide/show decision and reasoning.
@@ -61,6 +65,65 @@ export function parseLocalModelResponse(rawResponse: string | null): { shouldHid
   }
 
   return { shouldHide, reasoning };
+}
+
+// Gemma .litertlm builds sometimes leak chat-template terminators into the
+// generated text. Trim a leading echoed <start_of_turn>... and truncate at the
+// first <end_of_turn> so the parser doesn't see those markers as verdict cells.
+function stripGemmaMarkers(raw: string): string {
+  let s = raw.replace(/^<start_of_turn>\w*\s*/m, '');
+  const stopIdx = s.indexOf('<end_of_turn>');
+  if (stopIdx !== -1) s = s.slice(0, stopIdx);
+  return s.replace(/<(?:eos|bos|pad)>/gi, '').trim();
+}
+
+// Lenient port of bouncer-evals-and-results' table_yesno.parse(). The model is
+// asked for `| yes | no | yes | …` — one verdict per category, in order.
+// Without constrained decoding we handle malformed output gracefully: any
+// deviation falls back to SHOW with the raw response in the reasoning so the
+// user can debug from the popup.
+export function parseTableYesnoResponse(
+  rawResponse: string | null,
+  categories: string[],
+): { shouldHide: boolean; reasoning: string; matches: string[] } {
+  if (!rawResponse) {
+    return { shouldHide: false, reasoning: 'Empty model response — model returned no output', matches: [] };
+  }
+  const raw = stripGemmaMarkers(rawResponse);
+  // Some checkpoints prepend a stray space or prefix; tolerate anything up to
+  // the first `|`. If there is no `|` at all the row is junk.
+  const pipeIdx = raw.indexOf('|');
+  if (pipeIdx === -1) {
+    return { shouldHide: false, reasoning: `Malformed verdict row (no '|'): ${rawResponse}`, matches: [] };
+  }
+  const row = raw.slice(pipeIdx);
+  const parts = row.split('|').map(s => s.trim()).slice(1);
+  if (parts.length > 0 && parts[parts.length - 1] === '') parts.pop();
+
+  if (parts.length !== categories.length) {
+    return {
+      shouldHide: false,
+      reasoning: `Malformed verdict row (expected ${categories.length} verdicts, got ${parts.length}): ${rawResponse}`,
+      matches: [],
+    };
+  }
+  const matches: string[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const v = parts[i].toLowerCase();
+    if (v !== 'yes' && v !== 'no') {
+      return {
+        shouldHide: false,
+        reasoning: `Malformed verdict row (verdict ${i} = ${JSON.stringify(parts[i])}): ${rawResponse}`,
+        matches: [],
+      };
+    }
+    if (v === 'yes') matches.push(categories[i]);
+  }
+  const shouldHide = matches.length > 0;
+  const reasoning = shouldHide
+    ? `${rawResponse} (Matched: ${matches.join(', ')})`
+    : rawResponse;
+  return { shouldHide, reasoning, matches };
 }
 
 // ==================== LocalEngine ====================
@@ -282,7 +345,7 @@ export class LocalEngine {
 
     try {
       const modelDef = PREDEFINED_MODELS.local.find(m => m.name === modelId) ?? ({ name: modelId } as LocalModelDef);
-      await deleteWebllmCache(modelDef);
+      await (modelDef.backend === 'litertlm' ? deleteLitertlmCache(modelDef) : deleteWebllmCache(modelDef));
       await this.updateStatus(modelId, { state: 'not_downloaded' });
       return { success: true };
     } catch (e) {
@@ -590,14 +653,16 @@ export class LocalEngine {
 
   // ---- Private: inference timeout ----
 
-  _callWithTimeout(messages: ChatMessage[], maxTokens: number, params: Record<string, unknown>, timeoutMs: number = INFERENCE_TIMEOUT_MS): Promise<string> {
+  _callWithTimeout(messages: ChatMessage[], maxTokens: number, params: Record<string, unknown>, timeoutMs?: number): Promise<string> {
+    // Cold LiteRT-LM inference needs a longer ceiling than WebLLM's steady state.
+    const ceiling = timeoutMs ?? (this._modelConfig?.backend === 'litertlm' ? LITERTLM_INFERENCE_TIMEOUT_MS : INFERENCE_TIMEOUT_MS);
     return new Promise((resolve, reject) => {
       let completed = false;
 
       const onTimeout = async (): Promise<void> => {
         if (completed) return;
         completed = true;
-        console.warn(`[WebLLM] Inference timeout after ${timeoutMs}ms, interrupting...`);
+        console.warn(`[WebLLM] Inference timeout after ${ceiling}ms, interrupting...`);
         try {
           await this.engine!.interrupt();
         } catch (e) {
@@ -605,7 +670,7 @@ export class LocalEngine {
         }
         reject(new Error('Inference timeout - model took too long to respond'));
       };
-      const timeoutId = setTimeout(() => { void onTimeout(); }, timeoutMs);
+      const timeoutId = setTimeout(() => { void onTimeout(); }, ceiling);
 
       this.engine!.generate(messages, maxTokens, params)
         .then(result => {
@@ -639,8 +704,14 @@ export async function callLocalInference(
   modelConfig: LocalModelDef | null,
   modelId: string,
   { priority = 0, onInferenceStart }: { priority?: number; onInferenceStart?: () => void } = {}
-): Promise<{ shouldHide: boolean; reasoning: string; rawResponse?: string | null; inferenceTime?: number }> {
+): Promise<{ shouldHide: boolean; reasoning: string; category?: string | null; rawResponse?: string | null; inferenceTime?: number }> {
   await localEngine.ensureLoaded(modelId);
+
+  // Per-model prompt style: LiteRT-LM/Gemma uses the terse table_yesno verdict
+  // row; WebLLM/Qwen keeps the reasoning-before-label prose (below, unchanged).
+  if (modelConfig?.backend === 'litertlm') {
+    return callTableYesnoInference(postData, bannedCategories, modelConfig, { priority, onInferenceStart });
+  }
 
   const post = postData;
   const contextWindowSize = (modelConfig?.webllmConfig?.overrides?.context_window_size as number) || 1024;
@@ -723,10 +794,106 @@ export async function callLocalInference(
     console.warn('[WebLLM] Empty response from model');
   }
 
-  const result: { shouldHide: boolean; reasoning: string; rawResponse?: string | null; inferenceTime?: number } =
+  const result: { shouldHide: boolean; reasoning: string; category?: string | null; rawResponse?: string | null; inferenceTime?: number } =
     formatLocalInferenceResult(reasoning, shouldHide);
+  result.category = null;
   result.rawResponse = rawResponse;
   result.inferenceTime = parseFloat(inferenceTime);
 
   return result;
+}
+
+// table_yesno path (LiteRT-LM/Gemma): one pipe-delimited yes/no row per
+// category — far fewer output tokens than a reasoning sentence. Matched
+// categories are surfaced in `category` (comma-joined) so the filtered-posts
+// UI renders one chip per match.
+async function callTableYesnoInference(
+  postData: EvaluationPostData,
+  bannedCategories: string[],
+  modelConfig: LocalModelDef,
+  { priority = 0, onInferenceStart }: { priority?: number; onInferenceStart?: () => void } = {}
+): Promise<{ shouldHide: boolean; reasoning: string; category?: string | null; rawResponse?: string | null; inferenceTime?: number }> {
+  const contextWindowSize = modelConfig.litertlmConfig?.maxTokens ?? 1024;
+  // Output is the verdict row (~3 tokens × N categories). Pad so a long topic
+  // name or extra category never truncates.
+  const maxGenerationTokens = Math.max(20, 6 + 4 * bannedCategories.length);
+  const supportsImages = modelConfig.supportsImages === true;
+  let useImages = !!(supportsImages && postData.imageUrls && postData.imageUrls.length > 0);
+
+  const buildUserContent = (postText: string, includeImages: boolean): ChatMessage['content'] => {
+    const userText = buildTableYesnoUserMessage(postText, bannedCategories, includeImages);
+    if (!includeImages) return userText;
+    return [
+      { type: 'text', text: userText },
+      ...postData.imageUrls.map(url => ({ type: 'image_url' as const, image_url: { url } })),
+    ];
+  };
+  const buildMessages = (postText: string, includeImages: boolean): ChatMessage[] => [
+    { role: 'system', content: TABLE_YESNO_SYSTEM_PROMPT },
+    { role: 'user', content: buildUserContent(postText, includeImages) },
+  ];
+
+  // Estimate overhead from system + user-with-empty-post text. Image entries
+  // don't surface in the joined string; their cost is added separately.
+  const overheadText = (includeImages: boolean): string => buildMessages('', includeImages).map(m =>
+    typeof m.content === 'string'
+      ? m.content
+      : m.content.filter(c => c.type === 'text').map(c => c.text ?? '').join('')
+  ).join('\n');
+  const overheadTokens = await localEngine.countTokens(overheadText(useImages));
+
+  let imageTokens = 0;
+  if (useImages) {
+    const perImageTokens = await localEngine.getImageEmbedSize();
+    imageTokens = perImageTokens * postData.imageUrls.length;
+  }
+
+  let postTextBudget = contextWindowSize - overheadTokens - maxGenerationTokens - imageTokens;
+
+  // If images leave no room for text, drop them and recompute.
+  if (useImages && postTextBudget < 1) {
+    console.log('[WebLLM] Images consume too much context, falling back to text-only');
+    useImages = false;
+    const textOnlyOverhead = await localEngine.countTokens(overheadText(false));
+    postTextBudget = contextWindowSize - textOnlyOverhead - maxGenerationTokens;
+  }
+
+  const postText = postTextBudget > 0
+    ? await localEngine.truncateText(postData.text, postTextBudget)
+    : '';
+
+  let inferenceStart: number;
+  const onStart = (): void => {
+    if (onInferenceStart) onInferenceStart();
+    inferenceStart = Date.now();
+  };
+
+  let rawResponse: string;
+  try {
+    rawResponse = await localEngine.generate(buildMessages(postText, useImages), maxGenerationTokens, { priority, onStart });
+  } catch (imgError) {
+    if ((imgError as Error).message === 'Inference preempted') throw imgError;
+    if (useImages) {
+      console.warn('[WebLLM] Image processing failed, retrying with text only:', (imgError as Error).message);
+      rawResponse = await localEngine.generate(buildMessages(postText, false), maxGenerationTokens, { priority, onStart });
+    } else {
+      throw imgError;
+    }
+  }
+
+  const inferenceTime = ((Date.now() - inferenceStart!) / 1000).toFixed(2);
+
+  if (!rawResponse) {
+    console.warn('[WebLLM] Empty response from model');
+  }
+
+  const { shouldHide, reasoning, matches } = parseTableYesnoResponse(rawResponse, bannedCategories);
+  const formatted = formatLocalInferenceResult(reasoning, shouldHide);
+  return {
+    shouldHide: formatted.shouldHide,
+    reasoning: formatted.reasoning,
+    category: matches.length > 0 ? matches.join(', ') : null,
+    rawResponse,
+    inferenceTime: parseFloat(inferenceTime),
+  };
 }

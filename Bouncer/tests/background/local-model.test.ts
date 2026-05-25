@@ -16,6 +16,16 @@ vi.mock('@mlc-ai/web-llm', () => ({
   },
 }));
 
+// Mock the LiteRT-LM backend so importing local-model.ts here doesn't pull in
+// @litert-lm/core (a browser/wasm module) under the node test env. The
+// orchestrator tests all exercise WebLLM-backed models, so the real LiteRT
+// backend is never constructed.
+vi.mock('../../src/background/backends/litertlm-backend.js', () => ({
+  LitertlmBackend: vi.fn(),
+  isLitertlmCached: vi.fn(async () => false),
+  deleteLitertlmCache: vi.fn(async () => undefined),
+}));
+
 // We need to mock models.js so we can control PREDEFINED_MODELS per test.
 // Use a mutable holder so individual tests can override the values.
 const modelsState: { PREDEFINED_MODELS: { local: Record<string, unknown>[] } } = {
@@ -37,7 +47,7 @@ vi.mock('../../src/shared/prompts.js', () => ({
   buildLocalUserMessage: vi.fn(),
 }));
 
-import { buildModelConfig, localEngine, parseLocalModelResponse } from '../../src/background/local-model.js';
+import { buildModelConfig, localEngine, parseLocalModelResponse, parseTableYesnoResponse } from '../../src/background/local-model.js';
 import { WebllmBackend } from '../../src/background/backends/webllm-backend.js';
 import { InferenceQueue, inferenceQueue } from '../../src/background/inference-queue.js';
 import { CreateMLCEngine, hasModelInCache, deleteModelAllInfoInCache } from '@mlc-ai/web-llm';
@@ -800,6 +810,59 @@ describe('parseLocalModelResponse', () => {
     const result = parseLocalModelResponse('Sports content. Matches sports.');
     expect(result.reasoning).toContain('(Matched: sports)');
     expect(result.reasoning).not.toContain('(Matched: sports.)');
+  });
+});
+
+// ==================== parseTableYesnoResponse ====================
+
+describe('parseTableYesnoResponse', () => {
+  it('returns SHOW for empty/null response', () => {
+    expect(parseTableYesnoResponse('', ['a']).shouldHide).toBe(false);
+    expect(parseTableYesnoResponse(null, ['a']).shouldHide).toBe(false);
+  });
+
+  it('parses a clean verdict row and returns matched categories in order', () => {
+    const r = parseTableYesnoResponse('| yes | no | yes', ['crypto', 'sports', 'politics']);
+    expect(r.shouldHide).toBe(true);
+    expect(r.matches).toEqual(['crypto', 'politics']);
+  });
+
+  it('returns SHOW with no matches when all verdicts are no', () => {
+    const r = parseTableYesnoResponse('| no | no', ['crypto', 'sports']);
+    expect(r.shouldHide).toBe(false);
+    expect(r.matches).toEqual([]);
+  });
+
+  it('is case-insensitive on verdicts', () => {
+    expect(parseTableYesnoResponse('| YES | No', ['crypto', 'sports']).matches).toEqual(['crypto']);
+  });
+
+  it('tolerates a prefix before the first pipe', () => {
+    expect(parseTableYesnoResponse('Here you go: | yes | no', ['crypto', 'sports']).matches).toEqual(['crypto']);
+  });
+
+  it('falls back to SHOW on a row with no pipe', () => {
+    const r = parseTableYesnoResponse('yes no', ['crypto', 'sports']);
+    expect(r.shouldHide).toBe(false);
+    expect(r.reasoning).toMatch(/Malformed verdict row/);
+  });
+
+  it('falls back to SHOW when verdict count != category count', () => {
+    const r = parseTableYesnoResponse('| yes', ['crypto', 'sports']);
+    expect(r.shouldHide).toBe(false);
+    expect(r.reasoning).toMatch(/expected 2 verdicts, got 1/);
+  });
+
+  it('falls back to SHOW on a non yes/no verdict', () => {
+    const r = parseTableYesnoResponse('| maybe | no', ['crypto', 'sports']);
+    expect(r.shouldHide).toBe(false);
+    expect(r.reasoning).toMatch(/Malformed verdict row/);
+  });
+
+  it('strips Gemma chat-template markers before parsing', () => {
+    const r = parseTableYesnoResponse('<start_of_turn>model\n| yes | no <end_of_turn>', ['crypto', 'sports']);
+    expect(r.shouldHide).toBe(true);
+    expect(r.matches).toEqual(['crypto']);
   });
 });
 

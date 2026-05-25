@@ -1853,10 +1853,15 @@ export function renderFilteredPostsView(container: Element) {
       body.appendChild(mediaContainer);
     }
 
-    // Reasoning
+    // Reasoning — table_yesno (Gemma) posts carry matched categories in
+    // `post.category` and a terse pipe-row in `post.reasoning`; show the clean
+    // "Matched: …" summary instead of running the pipe-row through cleanReasoning.
+    // Prose models (Qwen) have no category and keep their reasoning text.
     const reasoning = document.createElement('div');
     reasoning.className = 'slop-post-reasoning';
-    reasoning.textContent = cleanReasoning(post.reasoning) || 'Filtered';
+    reasoning.textContent = post.category
+      ? `Matched: ${post.category}`
+      : (cleanReasoning(post.reasoning) || 'Filtered');
     body.appendChild(reasoning);
 
     // Actions row
@@ -2126,9 +2131,16 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
     } else {
       const verdict = active.shouldHide ? 'HIDE' : 'KEEP';
       const verdictClass = active.shouldHide ? 'verdict-hide' : 'verdict-keep';
+      // table_yesno (Gemma) returns matched categories in `category` and a terse
+      // pipe-row in `reasoning`. Render the matches as chips rather than running
+      // the pipe-row through cleanReasoning (which splits on "|" and would mangle
+      // it). Prose models (Qwen) have no category and keep the reasoning text.
+      const reasoningBody = active.category
+        ? `<div class="reasoning-match-label">Matched categories</div><div class="reasoning-match-chips">${active.category.split(',').map(c => c.trim()).filter(Boolean).map(c => `<span class="reasoning-match-chip">${escapeHtml(c)}</span>`).join('')}</div>`
+        : `<div class="reasoning-text">${escapeHtml(cleanReasoning(active.reasoning ?? '') ?? '')}</div>`;
       tabBody = `
         <div class="reasoning-tab-verdict ${verdictClass}">${verdict}</div>
-        <div class="reasoning-text">${escapeHtml(cleanReasoning(active.reasoning ?? '') ?? '')}</div>
+        ${reasoningBody}
       `;
     }
 

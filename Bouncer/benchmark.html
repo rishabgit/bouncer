@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bouncer — Latency Benchmark (dev)</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      margin: 0; padding: 24px; line-height: 1.45; max-width: 1100px;
+    }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    h3 { margin: 22px 0 2px; }
+    .muted { opacity: 0.65; font-size: 12px; }
+    .caveat { font-size: 12px; opacity: 0.8; margin: 8px 0 16px; padding: 10px 12px;
+      border-left: 3px solid #888; background: rgba(128,128,128,0.08); border-radius: 4px; }
+    .panel { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-end;
+      margin: 16px 0; padding: 14px; border: 1px solid rgba(128,128,128,0.3); border-radius: 8px; }
+    .models { display: flex; flex-direction: column; gap: 6px; min-width: 280px; }
+    .model-row { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+    .field { display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
+    .field input { width: 70px; padding: 4px 6px; }
+    button { padding: 7px 14px; font-size: 14px; border-radius: 6px; cursor: pointer;
+      border: 1px solid rgba(128,128,128,0.4); background: rgba(128,128,128,0.1); }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .actions { display: flex; gap: 8px; align-items: flex-end; }
+    .badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid transparent; }
+    .badge-ok { color: #1a7f37; border-color: #1a7f37; }
+    .badge-warn { color: #9a6700; border-color: #9a6700; }
+    .badge-unknown { opacity: 0.5; }
+    .status { margin: 12px 0; font-size: 13px; min-height: 18px; }
+    .status-ok { color: #1a7f37; } .status-warn { color: #9a6700; } .status-error { color: #cf222e; }
+    #env { font-size: 11px; opacity: 0.7; margin-bottom: 8px; word-break: break-word; }
+    table { border-collapse: collapse; width: 100%; margin: 6px 0 8px; font-size: 12px; }
+    th, td { border: 1px solid rgba(128,128,128,0.25); padding: 4px 8px; text-align: right; white-space: nowrap; }
+    th:first-child, td:first-child { text-align: left; }
+    thead th { background: rgba(128,128,128,0.1); }
+  </style>
+</head>
+<body>
+  <h1>Bouncer — Latency Benchmark <span class="muted">(dev-only)</span></h1>
+  <div class="caveat">
+    Measures <b>per-classification latency</b>, not raw tokens/sec — Qwen decodes ~40 reasoning tokens,
+    Gemma emits a short verdict row. Headline = <code>inferenceTime</code> (generate-only, matches the app).
+    WebLLM/Qwen also reports token counts + TTFT/decode TPS (<code>usage.extra</code>); LiteRT/Gemma reports
+    none, so those columns are blank for it. On Chrome, Gemma's number includes SW↔offscreen IPC.
+    Run with no x.com tab actively filtering. Load times are from cache (download models in the popup first).
+  </div>
+
+  <div id="env">GPU: (captured at run)</div>
+
+  <div class="panel">
+    <div class="models" id="models"></div>
+    <div class="field"><label for="warmup">Warmup (discarded)</label><input id="warmup" type="number" min="0" value="3" /></div>
+    <div class="field"><label for="timed">Timed iterations</label><input id="timed" type="number" min="1" value="20" /></div>
+    <div class="actions">
+      <button id="run">Run benchmark</button>
+      <button id="stop" disabled>Stop</button>
+      <button id="exportJson" disabled>Export JSON</button>
+      <button id="exportCsv" disabled>Export CSV</button>
+    </div>
+  </div>
+
+  <div id="status" class="status"></div>
+  <div id="results"></div>
+
+  <script type="module" src="dist/benchmark.js"></script>
+</body>
+</html>

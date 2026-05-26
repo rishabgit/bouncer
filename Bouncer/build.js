@@ -14,6 +14,9 @@ const target = targetArg ? targetArg.split('=')[1] : 'chrome';
 // are no build-time secrets. NODE_ENV is the only define the vendored deps read.
 const define = {
   'process.env.NODE_ENV': '"production"',
+  // Dev-only flag: gates the latency-benchmark surface so it's stripped from prod
+  // bundles (the `if (__DEV__)` branch in background/index.ts becomes `if(false)`).
+  '__DEV__': String(env === 'dev'),
 };
 
 const adapterTsPath = path.join(__dirname, 'adapters/twitter/TwitterAdapter.ts');
@@ -145,12 +148,17 @@ async function build() {
     define,
   });
 
-  // 3. Popup & content: fully self-contained (no external imports).
+  // 3. Popup & content: fully self-contained (no external imports). In --dev we
+  //    also build the latency-benchmark page (chrome-extension://<id>/benchmark.html);
+  //    it's omitted from prod builds so it can never ship.
+  const otherEntries = [
+    path.join(__dirname, 'popup.js'),
+    path.join(__dirname, 'content.js'),
+  ];
+  if (env === 'dev') otherEntries.push(path.join(__dirname, 'benchmark.js'));
+
   const otherCtx = await esbuild.context({
-    entryPoints: [
-      path.join(__dirname, 'popup.js'),
-      path.join(__dirname, 'content.js')
-    ],
+    entryPoints: otherEntries,
     bundle: true,
     outdir: path.join(__dirname, 'dist'),
     format: 'esm',

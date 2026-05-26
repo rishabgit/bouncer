@@ -3,7 +3,7 @@
 // lifecycle, the inference queue, keep-alive, idle-unload, and preemption.
 
 import { CreateMLCEngine, hasModelInCache, deleteModelAllInfoInCache, prebuiltAppConfig } from "@mlc-ai/web-llm";
-import type { MLCEngine, AppConfig, ChatCompletion, MLCEngineConfig } from "@mlc-ai/web-llm";
+import type { MLCEngine, AppConfig, ChatCompletion, CompletionUsage, MLCEngineConfig } from "@mlc-ai/web-llm";
 import type { LocalModelDef, ChatMessage } from '../../types';
 import { PREDEFINED_MODELS } from '../../shared/models';
 import type { LocalBackend, InitProgress, IsCachedFn } from './types';
@@ -51,6 +51,8 @@ function buildInferenceRequest(modelConfig: LocalModelDef | Record<string, never
 export class WebllmBackend implements LocalBackend {
   private engine: MLCEngine | null = null;
   private modelDef: LocalModelDef | null = null;
+  // Token + timing stats from the most recent completion (dev benchmark only).
+  private lastUsage: CompletionUsage | null = null;
 
   async initialize(modelDef: LocalModelDef, onProgress: (p: InitProgress) => void, abortSignal: AbortSignal): Promise<void> {
     this.modelDef = modelDef;
@@ -85,6 +87,7 @@ export class WebllmBackend implements LocalBackend {
     }
     this.engine = null;
     this.modelDef = null;
+    this.lastUsage = null;
   }
 
   // Run a completion: clear WebLLM's stale interrupt flag, resetChat, call the
@@ -108,8 +111,14 @@ export class WebllmBackend implements LocalBackend {
       request as unknown as Parameters<MLCEngine['chat']['completions']['create']>[0]
     ) as ChatCompletion;
 
+    this.lastUsage = completion.usage ?? null;
+
     return (completion.choices[0]?.message?.content || '')
       .replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  }
+
+  getLastUsage(): CompletionUsage | null {
+    return this.lastUsage;
   }
 
   async interrupt(): Promise<void> {

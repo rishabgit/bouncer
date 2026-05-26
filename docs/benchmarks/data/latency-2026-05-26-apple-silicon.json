@@ -1,0 +1,2518 @@
+{
+  "startedAt": "2026-05-26T07:30:55.707Z",
+  "env": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36",
+    "gpu": "apple / metal-3",
+    "date": "2026-05-26T07:30:55.707Z"
+  },
+  "config": {
+    "warmup": 3,
+    "timed": 20
+  },
+  "models": [
+    {
+      "modelId": "Qwen3_5-4B-q4f16_1-MLC",
+      "display": "Qwen 3.5 4B",
+      "backend": "webllm",
+      "sizeGB": 2.2,
+      "loadMs": 2278.899999999907,
+      "firstInferMs": 1230,
+      "cells": [
+        {
+          "postId": "medium",
+          "postLabel": "Medium",
+          "nCats": 1,
+          "samples": [
+            {
+              "inferenceMs": 1030,
+              "wallMs": 1031.2999999998137,
+              "completionChars": 61,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 13,
+                "timeToFirstTokenS": 0.7432000000001863,
+                "timePerOutputTokenS": 0.021984615384636877,
+                "prefillTokensPerS": 551.6684607103031,
+                "decodeTokensPerS": 45.4863540937274,
+                "e2eLatencyS": 1.03
+              }
+            },
+            {
+              "inferenceMs": 1030,
+              "wallMs": 1033.2000000001863,
+              "completionChars": 61,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 13,
+                "timeToFirstTokenS": 0.744,
+                "timePerOutputTokenS": 0.02208461538458673,
+                "prefillTokensPerS": 551.0752688172043,
+                "decodeTokensPerS": 45.280390108035064,
+                "e2eLatencyS": 1.032
+              }
+            },
+            {
+              "inferenceMs": 1050,
+              "wallMs": 1047.8999999999069,
+              "completionChars": 70,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 14,
+                "timeToFirstTokenS": 0.7443000000002794,
+                "timePerOutputTokenS": 0.021400000000006653,
+                "prefillTokensPerS": 550.8531506111059,
+                "decodeTokensPerS": 46.728971962602294,
+                "e2eLatencyS": 1.046
+              }
+            },
+            {
+              "inferenceMs": 1050,
+              "wallMs": 1053.3000000002794,
+              "completionChars": 66,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 14,
+                "timeToFirstTokenS": 0.7438999999999069,
+                "timePerOutputTokenS": 0.02195714285720273,
+                "prefillTokensPerS": 551.1493480307183,
+                "decodeTokensPerS": 45.54326610267347,
+                "e2eLatencyS": 1.052
+              }
+            },
+            {
+              "inferenceMs": 1030,
+              "wallMs": 1032.3999999999069,
+              "completionChars": 61,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 13,
+                "timeToFirstTokenS": 0.7445999999996274,
+                "timePerOutputTokenS": 0.021969230769166292,
+                "prefillTokensPerS": 550.6312113889405,
+                "decodeTokensPerS": 45.518207283046756,
+                "e2eLatencyS": 1.031
+              }
+            },
+            {
+              "inferenceMs": 1060,
+              "wallMs": 1065.8999999999069,
+              "completionChars": 80,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 15,
+                "timeToFirstTokenS": 0.7456000000000931,
+                "timePerOutputTokenS": 0.021213333333345748,
+                "prefillTokensPerS": 549.8927038625923,
+                "decodeTokensPerS": 47.1401634192056,
+                "e2eLatencyS": 1.065
+              }
+            },
+            {
+              "inferenceMs": 1020,
+              "wallMs": 1025.0999999996275,
+              "completionChars": 61,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 13,
+                "timeToFirstTokenS": 0.7442000000001863,
+                "timePerOutputTokenS": 0.021461538461502647,
+                "prefillTokensPerS": 550.9271701154224,
+                "decodeTokensPerS": 46.594982078930805,
+                "e2eLatencyS": 1.024
+              }
+            },
+            {
+              "inferenceMs": 1040,
+              "wallMs": 1042.6999999997206,
+              "completionChars": 61,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 13,
+                "timeToFirstTokenS": 0.7477000000001862,
+                "timePerOutputTokenS": 0.02250769230773529,
+                "prefillTokensPerS": 548.3482680217974,
+                "decodeTokensPerS": 44.429254955485895,
+                "e2eLatencyS": 1.041
+              }
+            },
+            {
+              "inferenceMs": 1010,
+              "wallMs": 1015.8999999999069,
+              "completionChars": 60,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 12,
+                "timeToFirstTokenS": 0.7517000000001862,
+                "timePerOutputTokenS": 0.021866666666697707,
+                "prefillTokensPerS": 545.4303578553923,
+                "decodeTokensPerS": 45.73170731700825,
+                "e2eLatencyS": 1.015
+              }
+            },
+            {
+              "inferenceMs": 1020,
+              "wallMs": 1025.6000000000931,
+              "completionChars": 61,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 13,
+                "timeToFirstTokenS": 0.7445999999996274,
+                "timePerOutputTokenS": 0.021453846153910626,
+                "prefillTokensPerS": 550.6312113889405,
+                "decodeTokensPerS": 46.61168877719947,
+                "e2eLatencyS": 1.024
+              }
+            },
+            {
+              "inferenceMs": 1070,
+              "wallMs": 1068.2999999998137,
+              "completionChars": 73,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 14,
+                "timeToFirstTokenS": 0.7532000000001863,
+                "timePerOutputTokenS": 0.022378571428591388,
+                "prefillTokensPerS": 544.3441317045919,
+                "decodeTokensPerS": 44.685604851540106,
+                "e2eLatencyS": 1.067
+              }
+            },
+            {
+              "inferenceMs": 1040,
+              "wallMs": 1036.1000000000931,
+              "completionChars": 61,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 13,
+                "timeToFirstTokenS": 0.7503000000002794,
+                "timePerOutputTokenS": 0.021838461538526012,
+                "prefillTokensPerS": 546.4480874314905,
+                "decodeTokensPerS": 45.79077139824452,
+                "e2eLatencyS": 1.035
+              }
+            },
+            {
+              "inferenceMs": 1030,
+              "wallMs": 1034.4000000003725,
+              "completionChars": 61,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 13,
+                "timeToFirstTokenS": 0.746,
+                "timePerOutputTokenS": 0.02203846153846154,
+                "prefillTokensPerS": 549.5978552278821,
+                "decodeTokensPerS": 45.37521815008726,
+                "e2eLatencyS": 1.034
+              }
+            },
+            {
+              "inferenceMs": 1030,
+              "wallMs": 1033.8999999999069,
+              "completionChars": 61,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 13,
+                "timeToFirstTokenS": 0.7451999999997206,
+                "timePerOutputTokenS": 0.022076923076923074,
+                "prefillTokensPerS": 550.187869028655,
+                "decodeTokensPerS": 45.29616724738676,
+                "e2eLatencyS": 1.033
+              }
+            },
+            {
+              "inferenceMs": 1060,
+              "wallMs": 1057.9000000003725,
+              "completionChars": 70,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 14,
+                "timeToFirstTokenS": 0.7546000000000931,
+                "timePerOutputTokenS": 0.021450000000019957,
+                "prefillTokensPerS": 543.3342168035375,
+                "decodeTokensPerS": 46.620046620003244,
+                "e2eLatencyS": 1.056
+              }
+            },
+            {
+              "inferenceMs": 1040,
+              "wallMs": 1039.8999999999069,
+              "completionChars": 61,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 13,
+                "timeToFirstTokenS": 0.7502000000001863,
+                "timePerOutputTokenS": 0.022123076923084087,
+                "prefillTokensPerS": 546.5209277524636,
+                "decodeTokensPerS": 45.201668984686336,
+                "e2eLatencyS": 1.038
+              }
+            },
+            {
+              "inferenceMs": 1020,
+              "wallMs": 1021.6000000000931,
+              "completionChars": 60,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 12,
+                "timeToFirstTokenS": 0.7447999999998137,
+                "timePerOutputTokenS": 0.022891666666720992,
+                "prefillTokensPerS": 550.4833512353686,
+                "decodeTokensPerS": 43.684018929637865,
+                "e2eLatencyS": 1.02
+              }
+            },
+            {
+              "inferenceMs": 1010,
+              "wallMs": 1011.3999999999069,
+              "completionChars": 60,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 12,
+                "timeToFirstTokenS": 0.7451000000000931,
+                "timePerOutputTokenS": 0.022033333333247963,
+                "prefillTokensPerS": 550.261709837537,
+                "decodeTokensPerS": 45.38577912271745,
+                "e2eLatencyS": 1.01
+              }
+            },
+            {
+              "inferenceMs": 1030,
+              "wallMs": 1034.5,
+              "completionChars": 61,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 13,
+                "timeToFirstTokenS": 0.7472000000001863,
+                "timePerOutputTokenS": 0.02189999999997851,
+                "prefillTokensPerS": 548.7152034259874,
+                "decodeTokensPerS": 45.66210045666581,
+                "e2eLatencyS": 1.033
+              }
+            },
+            {
+              "inferenceMs": 1020,
+              "wallMs": 1016.6000000000931,
+              "completionChars": 60,
+              "usage": {
+                "promptTokens": 410,
+                "completionTokens": 12,
+                "timeToFirstTokenS": 0.7443999999999069,
+                "timePerOutputTokenS": 0.022516666666643384,
+                "prefillTokensPerS": 550.779150994158,
+                "decodeTokensPerS": 44.4115470022665,
+                "e2eLatencyS": 1.015
+              }
+            }
+          ]
+        },
+        {
+          "postId": "medium",
+          "postLabel": "Medium",
+          "nCats": 3,
+          "samples": [
+            {
+              "inferenceMs": 1150,
+              "wallMs": 1152.7999999998137,
+              "completionChars": 85,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 18,
+                "timeToFirstTokenS": 0.748,
+                "timePerOutputTokenS": 0.022338888888919932,
+                "prefillTokensPerS": 554.812834224599,
+                "decodeTokensPerS": 44.76498383480474,
+                "e2eLatencyS": 1.152
+              }
+            },
+            {
+              "inferenceMs": 1150,
+              "wallMs": 1152.8999999999069,
+              "completionChars": 91,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 19,
+                "timeToFirstTokenS": 0.7485,
+                "timePerOutputTokenS": 0.021184210526315788,
+                "prefillTokensPerS": 554.442217768871,
+                "decodeTokensPerS": 47.204968944099384,
+                "e2eLatencyS": 1.152
+              }
+            },
+            {
+              "inferenceMs": 1170,
+              "wallMs": 1170.3000000002794,
+              "completionChars": 91,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 19,
+                "timeToFirstTokenS": 0.7495999999996275,
+                "timePerOutputTokenS": 0.022031578947446846,
+                "prefillTokensPerS": 553.6286019212997,
+                "decodeTokensPerS": 45.389393215318606,
+                "e2eLatencyS": 1.169
+              }
+            },
+            {
+              "inferenceMs": 1200,
+              "wallMs": 1199.7000000001863,
+              "completionChars": 108,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 21,
+                "timeToFirstTokenS": 0.7495,
+                "timePerOutputTokenS": 0.02129047619045845,
+                "prefillTokensPerS": 553.7024683122081,
+                "decodeTokensPerS": 46.96935808547863,
+                "e2eLatencyS": 1.198
+              }
+            },
+            {
+              "inferenceMs": 1190,
+              "wallMs": 1191.1000000000931,
+              "completionChars": 95,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 20,
+                "timeToFirstTokenS": 0.7487000000001862,
+                "timePerOutputTokenS": 0.022014999999967404,
+                "prefillTokensPerS": 554.2941097901653,
+                "decodeTokensPerS": 45.4235748354068,
+                "e2eLatencyS": 1.19
+              }
+            },
+            {
+              "inferenceMs": 1220,
+              "wallMs": 1222.8999999999069,
+              "completionChars": 100,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 22,
+                "timeToFirstTokenS": 0.7497999999998137,
+                "timePerOutputTokenS": 0.021404545454520054,
+                "prefillTokensPerS": 553.4809282476701,
+                "decodeTokensPerS": 46.71904863033787,
+                "e2eLatencyS": 1.222
+              }
+            },
+            {
+              "inferenceMs": 1240,
+              "wallMs": 1240.6999999997206,
+              "completionChars": 102,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 22,
+                "timeToFirstTokenS": 0.749,
+                "timePerOutputTokenS": 0.02223181818180125,
+                "prefillTokensPerS": 554.0720961281709,
+                "decodeTokensPerS": 44.980576569243006,
+                "e2eLatencyS": 1.24
+              }
+            },
+            {
+              "inferenceMs": 1180,
+              "wallMs": 1179,
+              "completionChars": 96,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 20,
+                "timeToFirstTokenS": 0.7498999999999069,
+                "timePerOutputTokenS": 0.021325000000023287,
+                "prefillTokensPerS": 553.4071209495287,
+                "decodeTokensPerS": 46.893317702176226,
+                "e2eLatencyS": 1.177
+              }
+            },
+            {
+              "inferenceMs": 1210,
+              "wallMs": 1213.0999999996275,
+              "completionChars": 103,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 21,
+                "timeToFirstTokenS": 0.7495,
+                "timePerOutputTokenS": 0.021980952380934643,
+                "prefillTokensPerS": 553.7024683122081,
+                "decodeTokensPerS": 45.4939341421511,
+                "e2eLatencyS": 1.213
+              }
+            },
+            {
+              "inferenceMs": 1140,
+              "wallMs": 1137.0999999996275,
+              "completionChars": 85,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 18,
+                "timeToFirstTokenS": 0.7501999999997206,
+                "timePerOutputTokenS": 0.02138333333335403,
+                "prefillTokensPerS": 553.1858171156418,
+                "decodeTokensPerS": 46.765393608684285,
+                "e2eLatencyS": 1.136
+              }
+            },
+            {
+              "inferenceMs": 1170,
+              "wallMs": 1169.5,
+              "completionChars": 91,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 19,
+                "timeToFirstTokenS": 0.7485,
+                "timePerOutputTokenS": 0.02203157894742234,
+                "prefillTokensPerS": 554.442217768871,
+                "decodeTokensPerS": 45.38939321536908,
+                "e2eLatencyS": 1.169
+              }
+            },
+            {
+              "inferenceMs": 1180,
+              "wallMs": 1176.8999999999069,
+              "completionChars": 102,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 20,
+                "timeToFirstTokenS": 0.7496000000000931,
+                "timePerOutputTokenS": 0.021205000000004658,
+                "prefillTokensPerS": 553.6286019209558,
+                "decodeTokensPerS": 47.15868898843576,
+                "e2eLatencyS": 1.175
+              }
+            },
+            {
+              "inferenceMs": 1160,
+              "wallMs": 1165.3999999999069,
+              "completionChars": 91,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 19,
+                "timeToFirstTokenS": 0.7493999999999069,
+                "timePerOutputTokenS": 0.021794736842134673,
+                "prefillTokensPerS": 553.7763544169356,
+                "decodeTokensPerS": 45.882637044130306,
+                "e2eLatencyS": 1.164
+              }
+            },
+            {
+              "inferenceMs": 1160,
+              "wallMs": 1156,
+              "completionChars": 91,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 19,
+                "timeToFirstTokenS": 0.7480999999996275,
+                "timePerOutputTokenS": 0.021352631578981682,
+                "prefillTokensPerS": 554.7386713009045,
+                "decodeTokensPerS": 46.83263495185967,
+                "e2eLatencyS": 1.155
+              }
+            },
+            {
+              "inferenceMs": 1190,
+              "wallMs": 1189.7999999998137,
+              "completionChars": 102,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 20,
+                "timeToFirstTokenS": 0.7495999999996275,
+                "timePerOutputTokenS": 0.02189500000001863,
+                "prefillTokensPerS": 553.6286019212997,
+                "decodeTokensPerS": 45.67252797438452,
+                "e2eLatencyS": 1.189
+              }
+            },
+            {
+              "inferenceMs": 1170,
+              "wallMs": 1175,
+              "completionChars": 95,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 20,
+                "timeToFirstTokenS": 0.7491000000000931,
+                "timePerOutputTokenS": 0.021165000000013968,
+                "prefillTokensPerS": 553.9981310905732,
+                "decodeTokensPerS": 47.247814788534846,
+                "e2eLatencyS": 1.173
+              }
+            },
+            {
+              "inferenceMs": 1190,
+              "wallMs": 1185.1999999997206,
+              "completionChars": 95,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 20,
+                "timeToFirstTokenS": 0.7484000000003725,
+                "timePerOutputTokenS": 0.021715000000037257,
+                "prefillTokensPerS": 554.5163014428025,
+                "decodeTokensPerS": 46.05111673950192,
+                "e2eLatencyS": 1.184
+              }
+            },
+            {
+              "inferenceMs": 1160,
+              "wallMs": 1156.2000000001863,
+              "completionChars": 91,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 19,
+                "timeToFirstTokenS": 0.7479000000003725,
+                "timePerOutputTokenS": 0.021373684210531218,
+                "prefillTokensPerS": 554.8870169806034,
+                "decodeTokensPerS": 46.7865057867413,
+                "e2eLatencyS": 1.155
+              }
+            },
+            {
+              "inferenceMs": 1160,
+              "wallMs": 1163.5,
+              "completionChars": 91,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 19,
+                "timeToFirstTokenS": 0.7497000000001862,
+                "timePerOutputTokenS": 0.021642105263216714,
+                "prefillTokensPerS": 553.55475523529,
+                "decodeTokensPerS": 46.206225680808274,
+                "e2eLatencyS": 1.162
+              }
+            },
+            {
+              "inferenceMs": 1150,
+              "wallMs": 1151.8000000002794,
+              "completionChars": 91,
+              "usage": {
+                "promptTokens": 415,
+                "completionTokens": 19,
+                "timeToFirstTokenS": 0.7477000000001862,
+                "timePerOutputTokenS": 0.021147368420993816,
+                "prefillTokensPerS": 555.0354420220632,
+                "decodeTokensPerS": 47.287207566084724,
+                "e2eLatencyS": 1.15
+              }
+            }
+          ]
+        },
+        {
+          "postId": "medium",
+          "postLabel": "Medium",
+          "nCats": 5,
+          "samples": [
+            {
+              "inferenceMs": 1280,
+              "wallMs": 1284.5,
+              "completionChars": 107,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 23,
+                "timeToFirstTokenS": 0.7815,
+                "timePerOutputTokenS": 0.02176956521735891,
+                "prefillTokensPerS": 537.4280230326295,
+                "decodeTokensPerS": 45.935690034020816,
+                "e2eLatencyS": 1.284
+              }
+            },
+            {
+              "inferenceMs": 1270,
+              "wallMs": 1273.7999999998137,
+              "completionChars": 107,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 23,
+                "timeToFirstTokenS": 0.7823999999999068,
+                "timePerOutputTokenS": 0.021213043478277068,
+                "prefillTokensPerS": 536.8098159509842,
+                "decodeTokensPerS": 47.14080754249321,
+                "e2eLatencyS": 1.271
+              }
+            },
+            {
+              "inferenceMs": 1340,
+              "wallMs": 1344.7999999998137,
+              "completionChars": 127,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 26,
+                "timeToFirstTokenS": 0.7815,
+                "timePerOutputTokenS": 0.02156538461535596,
+                "prefillTokensPerS": 537.4280230326295,
+                "decodeTokensPerS": 46.370608168422585,
+                "e2eLatencyS": 1.343
+              }
+            },
+            {
+              "inferenceMs": 1330,
+              "wallMs": 1332.3999999999069,
+              "completionChars": 117,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 25,
+                "timeToFirstTokenS": 0.7816000000000931,
+                "timePerOutputTokenS": 0.021903999999966475,
+                "prefillTokensPerS": 537.3592630500896,
+                "decodeTokensPerS": 45.65376187004796,
+                "e2eLatencyS": 1.331
+              }
+            },
+            {
+              "inferenceMs": 1330,
+              "wallMs": 1334.1000000000931,
+              "completionChars": 129,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 26,
+                "timeToFirstTokenS": 0.7817000000001862,
+                "timePerOutputTokenS": 0.021134615384615387,
+                "prefillTokensPerS": 537.2905206599718,
+                "decodeTokensPerS": 47.3157415832575,
+                "e2eLatencyS": 1.333
+              }
+            },
+            {
+              "inferenceMs": 1290,
+              "wallMs": 1289.8000000002794,
+              "completionChars": 102,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 23,
+                "timeToFirstTokenS": 0.7821000000000932,
+                "timePerOutputTokenS": 0.02194782608692818,
+                "prefillTokensPerS": 537.0157268890806,
+                "decodeTokensPerS": 45.562599049187206,
+                "e2eLatencyS": 1.289
+              }
+            },
+            {
+              "inferenceMs": 1290,
+              "wallMs": 1288.3999999999069,
+              "completionChars": 102,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 23,
+                "timeToFirstTokenS": 0.7816999999997206,
+                "timePerOutputTokenS": 0.021913043478281113,
+                "prefillTokensPerS": 537.2905206602918,
+                "decodeTokensPerS": 45.634920634878476,
+                "e2eLatencyS": 1.288
+              }
+            },
+            {
+              "inferenceMs": 1280,
+              "wallMs": 1278.7000000001863,
+              "completionChars": 102,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 23,
+                "timeToFirstTokenS": 0.7813999999999068,
+                "timePerOutputTokenS": 0.021530434782616795,
+                "prefillTokensPerS": 537.4968006143462,
+                "decodeTokensPerS": 46.44588045232502,
+                "e2eLatencyS": 1.278
+              }
+            },
+            {
+              "inferenceMs": 1280,
+              "wallMs": 1282.5,
+              "completionChars": 102,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 23,
+                "timeToFirstTokenS": 0.7813999999999068,
+                "timePerOutputTokenS": 0.021686956521751278,
+                "prefillTokensPerS": 537.4968006143462,
+                "decodeTokensPerS": 46.110665597408016,
+                "e2eLatencyS": 1.282
+              }
+            },
+            {
+              "inferenceMs": 1270,
+              "wallMs": 1276.2999999998137,
+              "completionChars": 102,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 23,
+                "timeToFirstTokenS": 0.7825,
+                "timePerOutputTokenS": 0.021308695652218452,
+                "prefillTokensPerS": 536.741214057508,
+                "decodeTokensPerS": 46.929198122733986,
+                "e2eLatencyS": 1.274
+              }
+            },
+            {
+              "inferenceMs": 1270,
+              "wallMs": 1274.3000000002794,
+              "completionChars": 102,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 23,
+                "timeToFirstTokenS": 0.7822000000001863,
+                "timePerOutputTokenS": 0.02132173913043074,
+                "prefillTokensPerS": 536.9470723598823,
+                "decodeTokensPerS": 46.90048939641999,
+                "e2eLatencyS": 1.274
+              }
+            },
+            {
+              "inferenceMs": 1280,
+              "wallMs": 1285.1999999997206,
+              "completionChars": 107,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 23,
+                "timeToFirstTokenS": 0.7813999999999068,
+                "timePerOutputTokenS": 0.021795652173925192,
+                "prefillTokensPerS": 537.4968006143462,
+                "decodeTokensPerS": 45.880710153575066,
+                "e2eLatencyS": 1.284
+              }
+            },
+            {
+              "inferenceMs": 1300,
+              "wallMs": 1300.4000000003725,
+              "completionChars": 108,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 24,
+                "timeToFirstTokenS": 0.7817000000001862,
+                "timePerOutputTokenS": 0.021504166666670543,
+                "prefillTokensPerS": 537.2905206599718,
+                "decodeTokensPerS": 46.5026157721288,
+                "e2eLatencyS": 1.299
+              }
+            },
+            {
+              "inferenceMs": 1290,
+              "wallMs": 1293.6999999997206,
+              "completionChars": 108,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 24,
+                "timeToFirstTokenS": 0.7826000000000931,
+                "timePerOutputTokenS": 0.021179166666639507,
+                "prefillTokensPerS": 536.6726296958217,
+                "decodeTokensPerS": 47.2162108991359,
+                "e2eLatencyS": 1.293
+              }
+            },
+            {
+              "inferenceMs": 1340,
+              "wallMs": 1345.6000000000931,
+              "completionChars": 119,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 26,
+                "timeToFirstTokenS": 0.7921000000000932,
+                "timePerOutputTokenS": 0.021126923076933826,
+                "prefillTokensPerS": 530.2360813028034,
+                "decodeTokensPerS": 47.33296923354592,
+                "e2eLatencyS": 1.343
+              }
+            },
+            {
+              "inferenceMs": 1320,
+              "wallMs": 1323,
+              "completionChars": 119,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 25,
+                "timeToFirstTokenS": 0.7809000000003725,
+                "timePerOutputTokenS": 0.021604000000003728,
+                "prefillTokensPerS": 537.840952746574,
+                "decodeTokensPerS": 46.28772449545582,
+                "e2eLatencyS": 1.322
+              }
+            },
+            {
+              "inferenceMs": 1300,
+              "wallMs": 1300.8000000002794,
+              "completionChars": 108,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 24,
+                "timeToFirstTokenS": 0.7823999999999068,
+                "timePerOutputTokenS": 0.021500000000019403,
+                "prefillTokensPerS": 536.8098159509842,
+                "decodeTokensPerS": 46.51162790693477,
+                "e2eLatencyS": 1.3
+              }
+            },
+            {
+              "inferenceMs": 1290,
+              "wallMs": 1295,
+              "completionChars": 108,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 24,
+                "timeToFirstTokenS": 0.7821999999997206,
+                "timePerOutputTokenS": 0.02127916666669383,
+                "prefillTokensPerS": 536.947072360202,
+                "decodeTokensPerS": 46.99432151942307,
+                "e2eLatencyS": 1.294
+              }
+            },
+            {
+              "inferenceMs": 1280,
+              "wallMs": 1282.6000000000931,
+              "completionChars": 102,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 23,
+                "timeToFirstTokenS": 0.7811000000000932,
+                "timePerOutputTokenS": 0.021695652173872555,
+                "prefillTokensPerS": 537.703239021828,
+                "decodeTokensPerS": 46.092184368823496,
+                "e2eLatencyS": 1.281
+              }
+            },
+            {
+              "inferenceMs": 1280,
+              "wallMs": 1282,
+              "completionChars": 107,
+              "usage": {
+                "promptTokens": 420,
+                "completionTokens": 23,
+                "timeToFirstTokenS": 0.7821000000000932,
+                "timePerOutputTokenS": 0.021639130434790706,
+                "prefillTokensPerS": 537.0157268890806,
+                "decodeTokensPerS": 46.21257785813018,
+                "e2eLatencyS": 1.281
+              }
+            }
+          ]
+        },
+        {
+          "postId": "medium",
+          "postLabel": "Medium",
+          "nCats": 10,
+          "samples": [
+            {
+              "inferenceMs": 1030,
+              "wallMs": 1033.6999999997206,
+              "completionChars": 57,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 11,
+                "timeToFirstTokenS": 0.7945,
+                "timePerOutputTokenS": 0.021500000000000002,
+                "prefillTokensPerS": 544.9968533668974,
+                "decodeTokensPerS": 46.51162790697674,
+                "e2eLatencyS": 1.032
+              }
+            },
+            {
+              "inferenceMs": 1180,
+              "wallMs": 1181.9000000003725,
+              "completionChars": 88,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 17,
+                "timeToFirstTokenS": 0.7926000000000931,
+                "timePerOutputTokenS": 0.02274705882354037,
+                "prefillTokensPerS": 546.3033055765192,
+                "decodeTokensPerS": 43.96172743726871,
+                "e2eLatencyS": 1.181
+              }
+            },
+            {
+              "inferenceMs": 1130,
+              "wallMs": 1127.1999999997206,
+              "completionChars": 81,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 15,
+                "timeToFirstTokenS": 0.7938999999999069,
+                "timePerOutputTokenS": 0.022100000000031043,
+                "prefillTokensPerS": 545.4087416551843,
+                "decodeTokensPerS": 45.24886877821698,
+                "e2eLatencyS": 1.126
+              }
+            },
+            {
+              "inferenceMs": 1160,
+              "wallMs": 1157.1999999997206,
+              "completionChars": 84,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 16,
+                "timeToFirstTokenS": 0.7936000000000931,
+                "timePerOutputTokenS": 0.022574999999982543,
+                "prefillTokensPerS": 545.6149193547747,
+                "decodeTokensPerS": 44.296788482869246,
+                "e2eLatencyS": 1.156
+              }
+            },
+            {
+              "inferenceMs": 1180,
+              "wallMs": 1181.5,
+              "completionChars": 83,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 18,
+                "timeToFirstTokenS": 0.7947999999998138,
+                "timePerOutputTokenS": 0.02129999999999483,
+                "prefillTokensPerS": 544.7911424258951,
+                "decodeTokensPerS": 46.94835680752313,
+                "e2eLatencyS": 1.18
+              }
+            },
+            {
+              "inferenceMs": 1130,
+              "wallMs": 1132,
+              "completionChars": 79,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 15,
+                "timeToFirstTokenS": 0.7923999999999068,
+                "timePerOutputTokenS": 0.02252000000001863,
+                "prefillTokensPerS": 546.4411913175807,
+                "decodeTokensPerS": 44.404973356979255,
+                "e2eLatencyS": 1.131
+              }
+            },
+            {
+              "inferenceMs": 1140,
+              "wallMs": 1139.1999999997206,
+              "completionChars": 87,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 16,
+                "timeToFirstTokenS": 0.7941999999997206,
+                "timePerOutputTokenS": 0.021418749999982542,
+                "prefillTokensPerS": 545.202719718147,
+                "decodeTokensPerS": 46.688065363329564,
+                "e2eLatencyS": 1.138
+              }
+            },
+            {
+              "inferenceMs": 1130,
+              "wallMs": 1128.3000000002794,
+              "completionChars": 83,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 15,
+                "timeToFirstTokenS": 0.7939000000003725,
+                "timePerOutputTokenS": 0.022140000000099344,
+                "prefillTokensPerS": 545.4087416548643,
+                "decodeTokensPerS": 45.16711833764738,
+                "e2eLatencyS": 1.127
+              }
+            },
+            {
+              "inferenceMs": 1160,
+              "wallMs": 1164.2000000001863,
+              "completionChars": 88,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 17,
+                "timeToFirstTokenS": 0.7941000000000932,
+                "timePerOutputTokenS": 0.021570588235277684,
+                "prefillTokensPerS": 545.2713764008931,
+                "decodeTokensPerS": 46.35942187077434,
+                "e2eLatencyS": 1.162
+              }
+            },
+            {
+              "inferenceMs": 1150,
+              "wallMs": 1154.2999999998137,
+              "completionChars": 88,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 16,
+                "timeToFirstTokenS": 0.792,
+                "timePerOutputTokenS": 0.022506249999976715,
+                "prefillTokensPerS": 546.7171717171717,
+                "decodeTokensPerS": 44.432102193881015,
+                "e2eLatencyS": 1.153
+              }
+            },
+            {
+              "inferenceMs": 1150,
+              "wallMs": 1146.2000000001863,
+              "completionChars": 83,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 15,
+                "timeToFirstTokenS": 0.795,
+                "timePerOutputTokenS": 0.023273333333308496,
+                "prefillTokensPerS": 544.6540880503144,
+                "decodeTokensPerS": 42.96763105132056,
+                "e2eLatencyS": 1.145
+              }
+            },
+            {
+              "inferenceMs": 1180,
+              "wallMs": 1179.5,
+              "completionChars": 88,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 17,
+                "timeToFirstTokenS": 0.7968999999999069,
+                "timePerOutputTokenS": 0.022394117647069785,
+                "prefillTokensPerS": 543.3555025725318,
+                "decodeTokensPerS": 44.654583661654,
+                "e2eLatencyS": 1.178
+              }
+            },
+            {
+              "inferenceMs": 1170,
+              "wallMs": 1172.5,
+              "completionChars": 84,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 16,
+                "timeToFirstTokenS": 0.8056999999997206,
+                "timePerOutputTokenS": 0.022781250000058213,
+                "prefillTokensPerS": 537.4208762568576,
+                "decodeTokensPerS": 43.89574759933914,
+                "e2eLatencyS": 1.171
+              }
+            },
+            {
+              "inferenceMs": 1150,
+              "wallMs": 1153.8999999999069,
+              "completionChars": 89,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 16,
+                "timeToFirstTokenS": 0.7993999999999069,
+                "timePerOutputTokenS": 0.022012499999982543,
+                "prefillTokensPerS": 541.6562421816993,
+                "decodeTokensPerS": 45.42873367408487,
+                "e2eLatencyS": 1.153
+              }
+            },
+            {
+              "inferenceMs": 1130,
+              "wallMs": 1130.6000000000931,
+              "completionChars": 79,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 15,
+                "timeToFirstTokenS": 0.7949000000003725,
+                "timePerOutputTokenS": 0.022259999999993788,
+                "prefillTokensPerS": 544.7226066169293,
+                "decodeTokensPerS": 44.92362982930274,
+                "e2eLatencyS": 1.13
+              }
+            },
+            {
+              "inferenceMs": 1100,
+              "wallMs": 1101.8999999999069,
+              "completionChars": 76,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 14,
+                "timeToFirstTokenS": 0.7931000000000932,
+                "timePerOutputTokenS": 0.021921428571421923,
+                "prefillTokensPerS": 545.9588954733945,
+                "decodeTokensPerS": 45.61746497231752,
+                "e2eLatencyS": 1.101
+              }
+            },
+            {
+              "inferenceMs": 1160,
+              "wallMs": 1157.1000000000931,
+              "completionChars": 82,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 16,
+                "timeToFirstTokenS": 0.7953000000002795,
+                "timePerOutputTokenS": 0.0224625000001106,
+                "prefillTokensPerS": 544.4486357347515,
+                "decodeTokensPerS": 44.51864218119427,
+                "e2eLatencyS": 1.156
+              }
+            },
+            {
+              "inferenceMs": 1140,
+              "wallMs": 1141.3999999999069,
+              "completionChars": 89,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 16,
+                "timeToFirstTokenS": 0.7931000000000932,
+                "timePerOutputTokenS": 0.021643750000046563,
+                "prefillTokensPerS": 545.9588954733945,
+                "decodeTokensPerS": 46.202714409372156,
+                "e2eLatencyS": 1.14
+              }
+            },
+            {
+              "inferenceMs": 1180,
+              "wallMs": 1175.7999999998137,
+              "completionChars": 86,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 16,
+                "timeToFirstTokenS": 0.7962000000001863,
+                "timePerOutputTokenS": 0.023581250000017467,
+                "prefillTokensPerS": 543.8332077366223,
+                "decodeTokensPerS": 42.4065730187865,
+                "e2eLatencyS": 1.175
+              }
+            },
+            {
+              "inferenceMs": 1160,
+              "wallMs": 1160.1000000000931,
+              "completionChars": 93,
+              "usage": {
+                "promptTokens": 433,
+                "completionTokens": 17,
+                "timeToFirstTokenS": 0.7938999999999069,
+                "timePerOutputTokenS": 0.02140000000004383,
+                "prefillTokensPerS": 545.4087416551843,
+                "decodeTokensPerS": 46.72897196252112,
+                "e2eLatencyS": 1.159
+              }
+            }
+          ]
+        },
+        {
+          "postId": "short",
+          "postLabel": "Short (~tweet)",
+          "nCats": 3,
+          "samples": [
+            {
+              "inferenceMs": 1060,
+              "wallMs": 1056.3999999999069,
+              "completionChars": 99,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 20,
+                "timeToFirstTokenS": 0.6267000000001862,
+                "timePerOutputTokenS": 0.02135499999998138,
+                "prefillTokensPerS": 544.119993617199,
+                "decodeTokensPerS": 46.82744088039672,
+                "e2eLatencyS": 1.056
+              }
+            },
+            {
+              "inferenceMs": 960,
+              "wallMs": 964,
+              "completionChars": 76,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 16,
+                "timeToFirstTokenS": 0.6278000000002794,
+                "timePerOutputTokenS": 0.020800000000017468,
+                "prefillTokensPerS": 543.1666135709593,
+                "decodeTokensPerS": 48.0769230768827,
+                "e2eLatencyS": 0.961
+              }
+            },
+            {
+              "inferenceMs": 1060,
+              "wallMs": 1057.2000000001863,
+              "completionChars": 99,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 20,
+                "timeToFirstTokenS": 0.6271999999997206,
+                "timePerOutputTokenS": 0.02139000000003726,
+                "prefillTokensPerS": 543.6862244900381,
+                "decodeTokensPerS": 46.750818139236,
+                "e2eLatencyS": 1.056
+              }
+            },
+            {
+              "inferenceMs": 1110,
+              "wallMs": 1107.8999999999069,
+              "completionChars": 108,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 23,
+                "timeToFirstTokenS": 0.6263999999999069,
+                "timePerOutputTokenS": 0.020821739130390243,
+                "prefillTokensPerS": 544.3805874841166,
+                "decodeTokensPerS": 48.02672791824848,
+                "e2eLatencyS": 1.107
+              }
+            },
+            {
+              "inferenceMs": 1070,
+              "wallMs": 1069.5,
+              "completionChars": 99,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 20,
+                "timeToFirstTokenS": 0.6368000000002794,
+                "timePerOutputTokenS": 0.02150500000002794,
+                "prefillTokensPerS": 535.4899497485088,
+                "decodeTokensPerS": 46.50081376418046,
+                "e2eLatencyS": 1.068
+              }
+            },
+            {
+              "inferenceMs": 1070,
+              "wallMs": 1066.7999999998137,
+              "completionChars": 99,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 20,
+                "timeToFirstTokenS": 0.6308000000002794,
+                "timePerOutputTokenS": 0.02167499999997672,
+                "prefillTokensPerS": 540.5833861760447,
+                "decodeTokensPerS": 46.13610149947285,
+                "e2eLatencyS": 1.065
+              }
+            },
+            {
+              "inferenceMs": 1040,
+              "wallMs": 1046.5,
+              "completionChars": 99,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 20,
+                "timeToFirstTokenS": 0.628,
+                "timePerOutputTokenS": 0.020789999999944124,
+                "prefillTokensPerS": 542.9936305732484,
+                "decodeTokensPerS": 48.10004810017738,
+                "e2eLatencyS": 1.045
+              }
+            },
+            {
+              "inferenceMs": 1120,
+              "wallMs": 1121.1000000000931,
+              "completionChars": 108,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 23,
+                "timeToFirstTokenS": 0.6292999999998138,
+                "timePerOutputTokenS": 0.021265217391308405,
+                "prefillTokensPerS": 541.8719211824264,
+                "decodeTokensPerS": 47.02514823143654,
+                "e2eLatencyS": 1.12
+              }
+            },
+            {
+              "inferenceMs": 1100,
+              "wallMs": 1100.6000000000931,
+              "completionChars": 109,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 22,
+                "timeToFirstTokenS": 0.6278999999999069,
+                "timePerOutputTokenS": 0.02139090909091333,
+                "prefillTokensPerS": 543.0801082975802,
+                "decodeTokensPerS": 46.74883127920876,
+                "e2eLatencyS": 1.1
+              }
+            },
+            {
+              "inferenceMs": 1040,
+              "wallMs": 1044.6999999997206,
+              "completionChars": 99,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 20,
+                "timeToFirstTokenS": 0.6281000000000931,
+                "timePerOutputTokenS": 0.020739999999967403,
+                "prefillTokensPerS": 542.9071803852084,
+                "decodeTokensPerS": 48.216007714637016,
+                "e2eLatencyS": 1.044
+              }
+            },
+            {
+              "inferenceMs": 1060,
+              "wallMs": 1059.5999999996275,
+              "completionChars": 99,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 20,
+                "timeToFirstTokenS": 0.6276999999997206,
+                "timePerOutputTokenS": 0.021495000000018628,
+                "prefillTokensPerS": 543.2531464077613,
+                "decodeTokensPerS": 46.52244708067613,
+                "e2eLatencyS": 1.059
+              }
+            },
+            {
+              "inferenceMs": 1060,
+              "wallMs": 1057.8999999999069,
+              "completionChars": 99,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 20,
+                "timeToFirstTokenS": 0.6279000000003725,
+                "timePerOutputTokenS": 0.02131500000001398,
+                "prefillTokensPerS": 543.0801082971774,
+                "decodeTokensPerS": 46.91531785124768,
+                "e2eLatencyS": 1.055
+              }
+            },
+            {
+              "inferenceMs": 990,
+              "wallMs": 993,
+              "completionChars": 80,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 17,
+                "timeToFirstTokenS": 0.6291000000000931,
+                "timePerOutputTokenS": 0.021270588235299596,
+                "prefillTokensPerS": 542.0441901127793,
+                "decodeTokensPerS": 47.01327433627108,
+                "e2eLatencyS": 0.992
+              }
+            },
+            {
+              "inferenceMs": 1100,
+              "wallMs": 1101.3000000002794,
+              "completionChars": 105,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 22,
+                "timeToFirstTokenS": 0.6348999999999069,
+                "timePerOutputTokenS": 0.021095454545458782,
+                "prefillTokensPerS": 537.0924555048827,
+                "decodeTokensPerS": 47.403576815332,
+                "e2eLatencyS": 1.101
+              }
+            },
+            {
+              "inferenceMs": 1050,
+              "wallMs": 1055.6999999997206,
+              "completionChars": 99,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 20,
+                "timeToFirstTokenS": 0.6386000000000931,
+                "timePerOutputTokenS": 0.02075999999996275,
+                "prefillTokensPerS": 533.980582524194,
+                "decodeTokensPerS": 48.1695568401635,
+                "e2eLatencyS": 1.055
+              }
+            },
+            {
+              "inferenceMs": 910,
+              "wallMs": 913.5999999996275,
+              "completionChars": 57,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 13,
+                "timeToFirstTokenS": 0.6271000000000931,
+                "timePerOutputTokenS": 0.02187692307691591,
+                "prefillTokensPerS": 543.7729229787105,
+                "decodeTokensPerS": 45.71026722926955,
+                "e2eLatencyS": 0.913
+              }
+            },
+            {
+              "inferenceMs": 1040,
+              "wallMs": 1043.7999999998137,
+              "completionChars": 99,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 20,
+                "timeToFirstTokenS": 0.6266999999997206,
+                "timePerOutputTokenS": 0.02073000000002795,
+                "prefillTokensPerS": 544.1199936176033,
+                "decodeTokensPerS": 48.23926676308017,
+                "e2eLatencyS": 1.043
+              }
+            },
+            {
+              "inferenceMs": 950,
+              "wallMs": 955.8999999999069,
+              "completionChars": 77,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 15,
+                "timeToFirstTokenS": 0.6272000000001863,
+                "timePerOutputTokenS": 0.021753333333320916,
+                "prefillTokensPerS": 543.6862244896345,
+                "decodeTokensPerS": 45.96996628871763,
+                "e2eLatencyS": 0.955
+              }
+            },
+            {
+              "inferenceMs": 1050,
+              "wallMs": 1053.8000000002794,
+              "completionChars": 99,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 20,
+                "timeToFirstTokenS": 0.6265,
+                "timePerOutputTokenS": 0.021250000000023285,
+                "prefillTokensPerS": 544.293695131684,
+                "decodeTokensPerS": 47.058823529360204,
+                "e2eLatencyS": 1.052
+              }
+            },
+            {
+              "inferenceMs": 1040,
+              "wallMs": 1044.1000000000931,
+              "completionChars": 99,
+              "usage": {
+                "promptTokens": 341,
+                "completionTokens": 20,
+                "timeToFirstTokenS": 0.6271999999997206,
+                "timePerOutputTokenS": 0.020765000000013974,
+                "prefillTokensPerS": 543.6862244900381,
+                "decodeTokensPerS": 48.15795810254404,
+                "e2eLatencyS": 1.043
+              }
+            }
+          ]
+        },
+        {
+          "postId": "long",
+          "postLabel": "Long (truncation-bound)",
+          "nCats": 3,
+          "samples": [
+            {
+              "inferenceMs": 2020,
+              "wallMs": 2025.8999999999069,
+              "completionChars": 89,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 18,
+                "timeToFirstTokenS": 1.5651000000000932,
+                "timePerOutputTokenS": 0.02545555555554004,
+                "prefillTokensPerS": 545.6520350137047,
+                "decodeTokensPerS": 39.28415539068305,
+                "e2eLatencyS": 2.024
+              }
+            },
+            {
+              "inferenceMs": 2040,
+              "wallMs": 2045.5,
+              "completionChars": 100,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 19,
+                "timeToFirstTokenS": 1.558,
+                "timePerOutputTokenS": 0.02552105263157405,
+                "prefillTokensPerS": 548.1386392811296,
+                "decodeTokensPerS": 39.183336770475655,
+                "e2eLatencyS": 2.044
+              }
+            },
+            {
+              "inferenceMs": 2050,
+              "wallMs": 2047.2999999998137,
+              "completionChars": 97,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 19,
+                "timeToFirstTokenS": 1.5658999999999068,
+                "timePerOutputTokenS": 0.025205263157914354,
+                "prefillTokensPerS": 545.3732677693664,
+                "decodeTokensPerS": 39.67425349756779,
+                "e2eLatencyS": 2.046
+              }
+            },
+            {
+              "inferenceMs": 2050,
+              "wallMs": 2047.9000000003725,
+              "completionChars": 90,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 18,
+                "timeToFirstTokenS": 1.5808000000002793,
+                "timePerOutputTokenS": 0.025800000000020695,
+                "prefillTokensPerS": 540.2327935221717,
+                "decodeTokensPerS": 38.75968992244953,
+                "e2eLatencyS": 2.046
+              }
+            },
+            {
+              "inferenceMs": 2050,
+              "wallMs": 2047.2999999998137,
+              "completionChars": 101,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 19,
+                "timeToFirstTokenS": 1.5683999999999068,
+                "timePerOutputTokenS": 0.025063157894722143,
+                "prefillTokensPerS": 544.503953073228,
+                "decodeTokensPerS": 39.899202015983086,
+                "e2eLatencyS": 2.046
+              }
+            },
+            {
+              "inferenceMs": 2050,
+              "wallMs": 2049.7000000001863,
+              "completionChars": 92,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 19,
+                "timeToFirstTokenS": 1.556,
+                "timePerOutputTokenS": 0.025826315789508,
+                "prefillTokensPerS": 548.8431876606684,
+                "decodeTokensPerS": 38.72019563883178,
+                "e2eLatencyS": 2.048
+              }
+            },
+            {
+              "inferenceMs": 2009.9999999999998,
+              "wallMs": 2011.1000000000931,
+              "completionChars": 89,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 18,
+                "timeToFirstTokenS": 1.5545,
+                "timePerOutputTokenS": 0.02522777777786056,
+                "prefillTokensPerS": 549.3727886780315,
+                "decodeTokensPerS": 39.638846069017696,
+                "e2eLatencyS": 2.01
+              }
+            },
+            {
+              "inferenceMs": 2040,
+              "wallMs": 2046.3999999999069,
+              "completionChars": 92,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 19,
+                "timeToFirstTokenS": 1.5571999999997206,
+                "timePerOutputTokenS": 0.025621052631618162,
+                "prefillTokensPerS": 548.4202414591274,
+                "decodeTokensPerS": 39.03040262935686,
+                "e2eLatencyS": 2.045
+              }
+            },
+            {
+              "inferenceMs": 2040,
+              "wallMs": 2039.2000000001863,
+              "completionChars": 97,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 19,
+                "timeToFirstTokenS": 1.5571000000000932,
+                "timePerOutputTokenS": 0.02522631578948839,
+                "prefillTokensPerS": 548.4554620769051,
+                "decodeTokensPerS": 39.64114333400568,
+                "e2eLatencyS": 2.038
+              }
+            },
+            {
+              "inferenceMs": 2040,
+              "wallMs": 2045.2000000001863,
+              "completionChars": 100,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 19,
+                "timeToFirstTokenS": 1.5569000000003725,
+                "timePerOutputTokenS": 0.025563157894722143,
+                "prefillTokensPerS": 548.5259168859886,
+                "decodeTokensPerS": 39.11879761171695,
+                "e2eLatencyS": 2.043
+              }
+            },
+            {
+              "inferenceMs": 2009.9999999999998,
+              "wallMs": 2015.5,
+              "completionChars": 89,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 18,
+                "timeToFirstTokenS": 1.5553999999999069,
+                "timePerOutputTokenS": 0.025400000000010345,
+                "prefillTokensPerS": 549.054905490582,
+                "decodeTokensPerS": 39.370078740141444,
+                "e2eLatencyS": 2.014
+              }
+            },
+            {
+              "inferenceMs": 1840,
+              "wallMs": 1843.3000000002794,
+              "completionChars": 56,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 11,
+                "timeToFirstTokenS": 1.5574000000003725,
+                "timePerOutputTokenS": 0.02580909090912478,
+                "prefillTokensPerS": 548.3498137920866,
+                "decodeTokensPerS": 38.746037337039674,
+                "e2eLatencyS": 1.842
+              }
+            },
+            {
+              "inferenceMs": 2009.9999999999998,
+              "wallMs": 2010.8999999999069,
+              "completionChars": 89,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 18,
+                "timeToFirstTokenS": 1.5558999999999068,
+                "timePerOutputTokenS": 0.025144444444449618,
+                "prefillTokensPerS": 548.8784626261656,
+                "decodeTokensPerS": 39.77021652672624,
+                "e2eLatencyS": 2.01
+              }
+            },
+            {
+              "inferenceMs": 2009.9999999999998,
+              "wallMs": 2009.8999999999069,
+              "completionChars": 89,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 18,
+                "timeToFirstTokenS": 1.558600000000093,
+                "timePerOutputTokenS": 0.024922222222253262,
+                "prefillTokensPerS": 547.9276273578525,
+                "decodeTokensPerS": 40.12483281314664,
+                "e2eLatencyS": 2.009
+              }
+            },
+            {
+              "inferenceMs": 2009.9999999999998,
+              "wallMs": 2008.6000000000931,
+              "completionChars": 89,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 18,
+                "timeToFirstTokenS": 1.5568000000002793,
+                "timePerOutputTokenS": 0.024933333333348857,
+                "prefillTokensPerS": 548.5611510790383,
+                "decodeTokensPerS": 40.10695187163278,
+                "e2eLatencyS": 2.007
+              }
+            },
+            {
+              "inferenceMs": 2020,
+              "wallMs": 2023.2000000001863,
+              "completionChars": 90,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 18,
+                "timeToFirstTokenS": 1.5576000000000931,
+                "timePerOutputTokenS": 0.02572222222217049,
+                "prefillTokensPerS": 548.2794042115748,
+                "decodeTokensPerS": 38.876889848890286,
+                "e2eLatencyS": 2.022
+              }
+            },
+            {
+              "inferenceMs": 2009.9999999999998,
+              "wallMs": 2010.6000000000931,
+              "completionChars": 90,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 18,
+                "timeToFirstTokenS": 1.5568000000002793,
+                "timePerOutputTokenS": 0.025072222222186007,
+                "prefillTokensPerS": 548.5611510790383,
+                "decodeTokensPerS": 39.884777310050964,
+                "e2eLatencyS": 2.009
+              }
+            },
+            {
+              "inferenceMs": 2040,
+              "wallMs": 2046.2999999998137,
+              "completionChars": 97,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 19,
+                "timeToFirstTokenS": 1.5577000000001862,
+                "timePerOutputTokenS": 0.0255736842104724,
+                "prefillTokensPerS": 548.2442062013853,
+                "decodeTokensPerS": 39.10269602807174,
+                "e2eLatencyS": 2.045
+              }
+            },
+            {
+              "inferenceMs": 2009.9999999999998,
+              "wallMs": 2010.3999999999069,
+              "completionChars": 89,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 18,
+                "timeToFirstTokenS": 1.5552999999998138,
+                "timePerOutputTokenS": 0.025072222222237747,
+                "prefillTokensPerS": 549.0902076770412,
+                "decodeTokensPerS": 39.884777309968655,
+                "e2eLatencyS": 2.008
+              }
+            },
+            {
+              "inferenceMs": 2040,
+              "wallMs": 2042,
+              "completionChars": 100,
+              "usage": {
+                "promptTokens": 854,
+                "completionTokens": 19,
+                "timeToFirstTokenS": 1.5571999999997206,
+                "timePerOutputTokenS": 0.025368421052582565,
+                "prefillTokensPerS": 548.4202414591274,
+                "decodeTokensPerS": 39.41908713700562,
+                "e2eLatencyS": 2.041
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "modelId": "gemma-4-E4B-it-web",
+      "display": "Gemma 4 E4B (Instruct)",
+      "backend": "litertlm",
+      "sizeGB": 3,
+      "loadMs": 1204.8999999999069,
+      "firstInferMs": 460,
+      "cells": [
+        {
+          "postId": "medium",
+          "postLabel": "Medium",
+          "nCats": 1,
+          "samples": [
+            {
+              "inferenceMs": 410,
+              "wallMs": 413.29999999981374,
+              "completionChars": 6,
+              "usage": null
+            },
+            {
+              "inferenceMs": 410,
+              "wallMs": 415,
+              "completionChars": 6,
+              "usage": null
+            },
+            {
+              "inferenceMs": 410,
+              "wallMs": 413.70000000018626,
+              "completionChars": 6,
+              "usage": null
+            },
+            {
+              "inferenceMs": 410,
+              "wallMs": 413.39999999990687,
+              "completionChars": 6,
+              "usage": null
+            },
+            {
+              "inferenceMs": 410,
+              "wallMs": 412.8000000002794,
+              "completionChars": 6,
+              "usage": null
+            },
+            {
+              "inferenceMs": 410,
+              "wallMs": 413.20000000018626,
+              "completionChars": 6,
+              "usage": null
+            },
+            {
+              "inferenceMs": 410,
+              "wallMs": 412.89999999990687,
+              "completionChars": 6,
+              "usage": null
+            },
+            {
+              "inferenceMs": 410,
+              "wallMs": 412.8000000002794,
+              "completionChars": 6,
+              "usage": null
+            },
+            {
+              "inferenceMs": 410,
+              "wallMs": 413.3000000002794,
+              "completionChars": 6,
+              "usage": null
+            },
+            {
+              "inferenceMs": 410,
+              "wallMs": 413.39999999990687,
+              "completionChars": 6,
+              "usage": null
+            },
+            {
+              "inferenceMs": 410,
+              "wallMs": 414.89999999990687,
+              "completionChars": 6,
+              "usage": null
+            },
+            {
+              "inferenceMs": 420,
+              "wallMs": 416.60000000009313,
+              "completionChars": 6,
+              "usage": null
+            },
+            {
+              "inferenceMs": 410,
+              "wallMs": 410.79999999981374,
+              "completionChars": 6,
+              "usage": null
+            },
+            {
+              "inferenceMs": 410,
+              "wallMs": 414.29999999981374,
+              "completionChars": 6,
+              "usage": null
+            },
+            {
+              "inferenceMs": 410,
+              "wallMs": 412.79999999981374,
+              "completionChars": 6,
+              "usage": null
+            },
+            {
+              "inferenceMs": 410,
+              "wallMs": 412.10000000009313,
+              "completionChars": 6,
+              "usage": null
+            },
+            {
+              "inferenceMs": 410,
+              "wallMs": 411.39999999990687,
+              "completionChars": 6,
+              "usage": null
+            },
+            {
+              "inferenceMs": 410,
+              "wallMs": 412.39999999990687,
+              "completionChars": 6,
+              "usage": null
+            },
+            {
+              "inferenceMs": 410,
+              "wallMs": 413.10000000009313,
+              "completionChars": 6,
+              "usage": null
+            },
+            {
+              "inferenceMs": 410,
+              "wallMs": 412.89999999990687,
+              "completionChars": 6,
+              "usage": null
+            }
+          ]
+        },
+        {
+          "postId": "medium",
+          "postLabel": "Medium",
+          "nCats": 3,
+          "samples": [
+            {
+              "inferenceMs": 460,
+              "wallMs": 462.90000000037253,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 460,
+              "wallMs": 465.79999999981374,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 460,
+              "wallMs": 462.20000000018626,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 460,
+              "wallMs": 463.60000000009313,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 460,
+              "wallMs": 463.5,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 470,
+              "wallMs": 466.29999999981374,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 460,
+              "wallMs": 463.10000000009313,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 460,
+              "wallMs": 462.90000000037253,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 460,
+              "wallMs": 464.6999999997206,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 470,
+              "wallMs": 472.79999999981374,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 470,
+              "wallMs": 473,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 470,
+              "wallMs": 468.60000000009313,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 470,
+              "wallMs": 468.79999999981374,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 460,
+              "wallMs": 462.5,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 470,
+              "wallMs": 468.1999999997206,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 460,
+              "wallMs": 462.20000000018626,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 460,
+              "wallMs": 463.20000000018626,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 460,
+              "wallMs": 462.10000000009313,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 460,
+              "wallMs": 462.60000000009313,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 460,
+              "wallMs": 462.09999999962747,
+              "completionChars": 9,
+              "usage": null
+            }
+          ]
+        },
+        {
+          "postId": "medium",
+          "postLabel": "Medium",
+          "nCats": 5,
+          "samples": [
+            {
+              "inferenceMs": 580,
+              "wallMs": 579.4000000003725,
+              "completionChars": 15,
+              "usage": null
+            },
+            {
+              "inferenceMs": 580,
+              "wallMs": 580,
+              "completionChars": 15,
+              "usage": null
+            },
+            {
+              "inferenceMs": 580,
+              "wallMs": 580.2000000001863,
+              "completionChars": 15,
+              "usage": null
+            },
+            {
+              "inferenceMs": 580,
+              "wallMs": 578.1000000000931,
+              "completionChars": 15,
+              "usage": null
+            },
+            {
+              "inferenceMs": 580,
+              "wallMs": 579.3000000002794,
+              "completionChars": 15,
+              "usage": null
+            },
+            {
+              "inferenceMs": 580,
+              "wallMs": 579,
+              "completionChars": 15,
+              "usage": null
+            },
+            {
+              "inferenceMs": 580,
+              "wallMs": 578.9000000003725,
+              "completionChars": 15,
+              "usage": null
+            },
+            {
+              "inferenceMs": 580,
+              "wallMs": 578.1999999997206,
+              "completionChars": 15,
+              "usage": null
+            },
+            {
+              "inferenceMs": 580,
+              "wallMs": 583.6000000000931,
+              "completionChars": 15,
+              "usage": null
+            },
+            {
+              "inferenceMs": 580,
+              "wallMs": 582.3000000002794,
+              "completionChars": 15,
+              "usage": null
+            },
+            {
+              "inferenceMs": 580,
+              "wallMs": 579.3000000002794,
+              "completionChars": 15,
+              "usage": null
+            },
+            {
+              "inferenceMs": 580,
+              "wallMs": 579.8999999999069,
+              "completionChars": 15,
+              "usage": null
+            },
+            {
+              "inferenceMs": 580,
+              "wallMs": 579.1000000000931,
+              "completionChars": 15,
+              "usage": null
+            },
+            {
+              "inferenceMs": 580,
+              "wallMs": 579.8999999999069,
+              "completionChars": 15,
+              "usage": null
+            },
+            {
+              "inferenceMs": 580,
+              "wallMs": 580.6000000000931,
+              "completionChars": 15,
+              "usage": null
+            },
+            {
+              "inferenceMs": 580,
+              "wallMs": 579.4000000003725,
+              "completionChars": 15,
+              "usage": null
+            },
+            {
+              "inferenceMs": 580,
+              "wallMs": 580.2000000001863,
+              "completionChars": 15,
+              "usage": null
+            },
+            {
+              "inferenceMs": 580,
+              "wallMs": 581.7999999998137,
+              "completionChars": 15,
+              "usage": null
+            },
+            {
+              "inferenceMs": 580,
+              "wallMs": 580.6999999997206,
+              "completionChars": 15,
+              "usage": null
+            },
+            {
+              "inferenceMs": 580,
+              "wallMs": 578.2999999998137,
+              "completionChars": 15,
+              "usage": null
+            }
+          ]
+        },
+        {
+          "postId": "medium",
+          "postLabel": "Medium",
+          "nCats": 10,
+          "samples": [
+            {
+              "inferenceMs": 820,
+              "wallMs": 821.8000000002794,
+              "completionChars": 30,
+              "usage": null
+            },
+            {
+              "inferenceMs": 820,
+              "wallMs": 822,
+              "completionChars": 30,
+              "usage": null
+            },
+            {
+              "inferenceMs": 810,
+              "wallMs": 815.6000000000931,
+              "completionChars": 30,
+              "usage": null
+            },
+            {
+              "inferenceMs": 810,
+              "wallMs": 815.6000000000931,
+              "completionChars": 30,
+              "usage": null
+            },
+            {
+              "inferenceMs": 810,
+              "wallMs": 816,
+              "completionChars": 30,
+              "usage": null
+            },
+            {
+              "inferenceMs": 810,
+              "wallMs": 815.6999999997206,
+              "completionChars": 30,
+              "usage": null
+            },
+            {
+              "inferenceMs": 810,
+              "wallMs": 815,
+              "completionChars": 30,
+              "usage": null
+            },
+            {
+              "inferenceMs": 810,
+              "wallMs": 813.1999999997206,
+              "completionChars": 30,
+              "usage": null
+            },
+            {
+              "inferenceMs": 820,
+              "wallMs": 819.1999999997206,
+              "completionChars": 30,
+              "usage": null
+            },
+            {
+              "inferenceMs": 810,
+              "wallMs": 814.5,
+              "completionChars": 30,
+              "usage": null
+            },
+            {
+              "inferenceMs": 810,
+              "wallMs": 815.8999999999069,
+              "completionChars": 30,
+              "usage": null
+            },
+            {
+              "inferenceMs": 820,
+              "wallMs": 816.7000000001863,
+              "completionChars": 30,
+              "usage": null
+            },
+            {
+              "inferenceMs": 810,
+              "wallMs": 814.3999999999069,
+              "completionChars": 30,
+              "usage": null
+            },
+            {
+              "inferenceMs": 810,
+              "wallMs": 815.0999999996275,
+              "completionChars": 30,
+              "usage": null
+            },
+            {
+              "inferenceMs": 820,
+              "wallMs": 824.7999999998137,
+              "completionChars": 30,
+              "usage": null
+            },
+            {
+              "inferenceMs": 810,
+              "wallMs": 814.6000000000931,
+              "completionChars": 30,
+              "usage": null
+            },
+            {
+              "inferenceMs": 820,
+              "wallMs": 817.3000000002794,
+              "completionChars": 30,
+              "usage": null
+            },
+            {
+              "inferenceMs": 810,
+              "wallMs": 814.1999999997206,
+              "completionChars": 30,
+              "usage": null
+            },
+            {
+              "inferenceMs": 820,
+              "wallMs": 819.0999999996275,
+              "completionChars": 30,
+              "usage": null
+            },
+            {
+              "inferenceMs": 810,
+              "wallMs": 815.1999999997206,
+              "completionChars": 30,
+              "usage": null
+            }
+          ]
+        },
+        {
+          "postId": "short",
+          "postLabel": "Short (~tweet)",
+          "nCats": 3,
+          "samples": [
+            {
+              "inferenceMs": 340,
+              "wallMs": 335.89999999990687,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 330,
+              "wallMs": 335.5,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 330,
+              "wallMs": 335.5,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 340,
+              "wallMs": 335.60000000009313,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 340,
+              "wallMs": 335.60000000009313,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 330,
+              "wallMs": 335,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 340,
+              "wallMs": 335.1999999997206,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 340,
+              "wallMs": 335.6999999997206,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 330,
+              "wallMs": 334.89999999990687,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 340,
+              "wallMs": 335.70000000018626,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 340,
+              "wallMs": 335.3000000002794,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 330,
+              "wallMs": 335.60000000009313,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 330,
+              "wallMs": 335.5,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 340,
+              "wallMs": 336.8000000002794,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 340,
+              "wallMs": 337.20000000018626,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 340,
+              "wallMs": 337.89999999990687,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 340,
+              "wallMs": 335.5,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 340,
+              "wallMs": 337.10000000009313,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 340,
+              "wallMs": 335.5,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 340,
+              "wallMs": 335.39999999990687,
+              "completionChars": 9,
+              "usage": null
+            }
+          ]
+        },
+        {
+          "postId": "long",
+          "postLabel": "Long (truncation-bound)",
+          "nCats": 3,
+          "samples": [
+            {
+              "inferenceMs": 770,
+              "wallMs": 767.5,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 770,
+              "wallMs": 770,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 770,
+              "wallMs": 769.1000000000931,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 770,
+              "wallMs": 770.3000000002794,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 770,
+              "wallMs": 771.6000000000931,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 770,
+              "wallMs": 773.5,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 780,
+              "wallMs": 781.9000000003725,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 780,
+              "wallMs": 777.6000000000931,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 780,
+              "wallMs": 778.8000000002794,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 780,
+              "wallMs": 779.2000000001863,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 780,
+              "wallMs": 780.1000000000931,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 780,
+              "wallMs": 781.5,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 780,
+              "wallMs": 781.3000000002794,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 780,
+              "wallMs": 784.1000000000931,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 790,
+              "wallMs": 789.6000000000931,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 790,
+              "wallMs": 786.2000000001863,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 780,
+              "wallMs": 784.6000000000931,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 780,
+              "wallMs": 784.3000000002794,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 780,
+              "wallMs": 784.7999999998137,
+              "completionChars": 9,
+              "usage": null
+            },
+            {
+              "inferenceMs": 790,
+              "wallMs": 785.3999999999069,
+              "completionChars": 9,
+              "usage": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

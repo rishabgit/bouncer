@@ -14,6 +14,7 @@ import {
   handleSettingsChange, handleFilterPackChange, handlePageLoad, suggestAnnoyingReasons,
   replayDetectorStates,
 } from './pipeline';
+import { handleBenchmark } from './benchmark';
 
 // ==================== Tab tracking ====================
 
@@ -317,6 +318,12 @@ async function handleMessage(
       const result = await localEngine.deleteModelCache(modelId);
       return { ...result, modelId };
     }
+
+    case 'benchmark':
+      // Dev-only. The page that drives this isn't built in prod, and
+      // handleBenchmark itself returns an error unless __DEV__ (so a same-origin
+      // caller can't trigger inference in a production build either).
+      return handleBenchmark(message);
 
     default:
       return { error: `Unknown message type: ${(message as { type: string }).type}` };

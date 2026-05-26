@@ -5,6 +5,7 @@
 // across backends.
 
 import type { LocalModelDef, ChatMessage } from '../../types';
+import type { CompletionUsage } from '@mlc-ai/web-llm';
 
 export interface InitProgress {
   progress: number;   // 0..1
@@ -42,6 +43,11 @@ export interface LocalBackend {
 
   // 0 if the backend does not support images for the loaded model.
   getImageEmbedSize(): Promise<number>;
+
+  // Token + timing stats for the most recent generate() call. WebLLM populates
+  // this from the completion's `usage`; optional because LiteRT-LM exposes none.
+  // Used only by the dev-only latency benchmark.
+  getLastUsage?(): CompletionUsage | null;
 }
 
 // Backend-level static cache check — answered without an initialized engine.

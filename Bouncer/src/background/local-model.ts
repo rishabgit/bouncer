@@ -8,6 +8,7 @@ import { LOCAL_SYSTEM_PROMPT, buildLocalUserMessage, TABLE_YESNO_SYSTEM_PROMPT, 
 import { inferenceQueue } from './inference-queue';
 import { getStorage, setStorage } from '../shared/storage';
 import type { LocalBackend } from './backends/types';
+import type { CompletionUsage } from '@mlc-ai/web-llm';
 import { WebllmBackend, isWebllmCached, deleteWebllmCache } from './backends/webllm-backend';
 import { LitertlmBackend, isLitertlmCached, deleteLitertlmCache } from './backends/litertlm-backend';
 
@@ -173,6 +174,11 @@ export class LocalEngine {
   isInitializing(): boolean { return this._initializingModel !== null; }
   isModelLoaded(modelId: string): boolean { return this.engine !== null && this.loadedModel === modelId; }
   isInitializingModel(modelId: string): boolean { return this._initializingModel === modelId; }
+
+  // Dev benchmark only: token + timing stats from the loaded backend's last
+  // completion. WebLLM returns its `usage`; LiteRT-LM has no such method, so the
+  // optional-chained call yields null.
+  getLastUsage(): CompletionUsage | null { return this.engine?.getLastUsage?.() ?? null; }
 
   // ---- Lifecycle ----
 

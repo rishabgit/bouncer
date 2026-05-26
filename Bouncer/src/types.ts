@@ -260,7 +260,9 @@ export type ContentToBackgroundMessage =
   | { type: 'cancelLocalModelDownload'; modelId: string }
   | { type: 'deleteLocalModel'; modelId: string }
   | { type: 'preemptInference' }
-  | { type: 'overrideCacheEntry'; post: string; imageUrls: string[]; shouldHide: boolean; reasoning?: string };
+  | { type: 'overrideCacheEntry'; post: string; imageUrls: string[]; shouldHide: boolean; reasoning?: string }
+  // Dev-only latency benchmark (gated by __DEV__ in the background dispatch).
+  | { type: 'benchmark'; op: 'load' | 'infer' | 'unload'; modelId?: string; post?: { text: string; imageUrls: string[] }; categories?: string[] };
 
 export type BackgroundToContentMessage =
   | { type: 'ping' }

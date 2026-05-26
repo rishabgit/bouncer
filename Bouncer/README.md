@@ -14,6 +14,8 @@ npm run watch:dev      # dev watch mode
 
 Then load the unpacked extension from this folder at `chrome://extensions` (with Developer mode enabled).
 
+> `npm run build:dev` also builds a **dev-only** latency benchmark page (`benchmark.html`, omitted from production builds) for comparing the local engines. See [docs/benchmarks/latency.md](../docs/benchmarks/latency.md).
+
 ## Scripts
 
 | Command | Description |

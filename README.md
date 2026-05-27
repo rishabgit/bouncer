@@ -29,6 +29,8 @@ All models run locally in the browser (requires a WebGPU-capable browser):
 
 Models are downloaded once and cached in the browser's Cache Storage. Delete a downloaded model anytime from the model dropdown in the popup.
 
+> The default Qwen 3.5 and Gemma weights are served from self-hosted, revision-pinned **Apache-2.0 mirrors** so the fork keeps working regardless of upstream availability — see [model sources & licenses](docs/models.md).
+
 ## Quick Start
 
 Build from source and load the unpacked extension:

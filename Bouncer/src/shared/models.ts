@@ -19,8 +19,9 @@ export const PREDEFINED_MODELS: PredefinedModelsMap = {
           context_window_size: 1024,
           prefill_chunk_size: 1024,
         },
-        model_lib: "https://raw.githubusercontent.com/imbue-ai/binary-mlc-llm-libs/main/Qwen3.5-4B-q4f16_1-ctx1k_cs1k-webgpu-2.wasm",
-        model: "https://huggingface.co/imbue/Qwen3.5-4B-q4f16_1-MLC-2"
+        // Revision-pinned, self-hosted Apache-2.0 mirror of imbue's weights + MLC WebGPU lib (provenance + licenses: docs/models.md).
+        model_lib: "https://huggingface.co/rishabhf/bouncer-qwen3.5-4b-mlc/resolve/3a23198afc863d3caf482ac24b9bd376df24f97f/Qwen3.5-4B-q4f16_1-ctx1k_cs1k-webgpu-2.wasm",
+        model: "https://huggingface.co/rishabhf/bouncer-qwen3.5-4b-mlc/resolve/3a23198afc863d3caf482ac24b9bd376df24f97f/"
       }
     },
     {
@@ -67,7 +68,8 @@ export const PREDEFINED_MODELS: PredefinedModelsMap = {
       sizeGB: 3.0,
       inferenceParams: { temperature: 0.0 },
       litertlmConfig: {
-        modelUrl: "https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm/resolve/main/gemma-4-E4B-it-web.litertlm",
+        // Revision-pinned, self-hosted Apache-2.0 mirror of the litert-community .litertlm (provenance + licenses: docs/models.md).
+        modelUrl: "https://huggingface.co/rishabhf/bouncer-gemma-4-e4b-litert/resolve/41a40dee03ce6185fb76bd96294f74561bf87f89/gemma-4-E4B-it-web.litertlm",
         maxTokens: 1024,
         topK: 40,
       }

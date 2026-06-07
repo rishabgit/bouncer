@@ -44,7 +44,11 @@ vi.mock('../../src/shared/utils.js', () => ({
 }));
 vi.mock('../../src/shared/prompts.js', () => ({
   LOCAL_SYSTEM_PROMPT: 'mock system prompt',
+  TABLE_YESNO_SYSTEM_PROMPT: 'mock table prompt',
   buildLocalUserMessage: vi.fn(),
+  buildTableYesnoUserMessage: vi.fn(),
+  localSystemPrompt: vi.fn(() => 'mock system prompt'),
+  tableYesnoSystemPrompt: vi.fn(() => 'mock table prompt'),
 }));
 
 import { buildModelConfig, localEngine, parseLocalModelResponse, parseTableYesnoResponse } from '../../src/background/local-model.js';

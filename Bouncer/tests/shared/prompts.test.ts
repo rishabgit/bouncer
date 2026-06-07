@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { buildLocalUserMessage } from '../../src/shared/prompts.js';
+import {
+  LOCAL_INTENT_SYSTEM_PROMPT,
+  LOCAL_SYSTEM_PROMPT,
+  TABLE_YESNO_INTENT_SYSTEM_PROMPT,
+  TABLE_YESNO_SYSTEM_PROMPT,
+  buildLocalUserMessage,
+  buildTableYesnoUserMessage,
+  localSystemPrompt,
+  tableYesnoSystemPrompt,
+} from '../../src/shared/prompts.js';
 
 // ==================== buildLocalUserMessage ====================
 
@@ -22,5 +31,29 @@ describe('buildLocalUserMessage', () => {
   it('does not mention images when hasImages is false', () => {
     const msg = buildLocalUserMessage('Look at this', ['sports'], false);
     expect(msg).not.toContain('images');
+  });
+});
+
+describe('prompt variants', () => {
+  it('keeps baseline prompt helpers on the shipped prompts', () => {
+    expect(localSystemPrompt()).toBe(LOCAL_SYSTEM_PROMPT);
+    expect(localSystemPrompt('baseline')).toBe(LOCAL_SYSTEM_PROMPT);
+    expect(tableYesnoSystemPrompt()).toBe(TABLE_YESNO_SYSTEM_PROMPT);
+    expect(tableYesnoSystemPrompt('baseline')).toBe(TABLE_YESNO_SYSTEM_PROMPT);
+  });
+
+  it('selects intent-aware prompts when requested', () => {
+    expect(localSystemPrompt('intent')).toBe(LOCAL_INTENT_SYSTEM_PROMPT);
+    expect(tableYesnoSystemPrompt('intent')).toBe(TABLE_YESNO_INTENT_SYSTEM_PROMPT);
+    expect(LOCAL_INTENT_SYSTEM_PROMPT).toContain('sincere frustration');
+    expect(TABLE_YESNO_INTENT_SYSTEM_PROMPT).toContain('outrage farming');
+  });
+
+  it('adds an intent note to the table_yesno user prompt only for intent mode', () => {
+    const baseline = buildTableYesnoUserMessage('post text', ['rage bait'], false);
+    const intent = buildTableYesnoUserMessage('post text', ['rage bait'], false, 'intent');
+
+    expect(baseline).not.toContain('distinguish outrage amplification');
+    expect(intent).toContain('distinguish outrage amplification');
   });
 });

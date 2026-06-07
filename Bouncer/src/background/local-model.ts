@@ -4,7 +4,13 @@
 import type { LocalModelDef, LocalModelStatus, EvaluationPostData, ChatMessage } from '../types';
 import { PREDEFINED_MODELS } from '../shared/models';
 import { isGPUDeviceLostError, isNetworkError, formatLocalInferenceResult } from '../shared/utils';
-import { LOCAL_SYSTEM_PROMPT, buildLocalUserMessage, TABLE_YESNO_SYSTEM_PROMPT, buildTableYesnoUserMessage } from '../shared/prompts';
+import {
+  buildLocalUserMessage,
+  buildTableYesnoUserMessage,
+  localSystemPrompt,
+  tableYesnoSystemPrompt,
+  type LocalPromptMode,
+} from '../shared/prompts';
 import { inferenceQueue } from './inference-queue';
 import { getStorage, setStorage } from '../shared/storage';
 import type { LocalBackend } from './backends/types';
@@ -709,14 +715,18 @@ export async function callLocalInference(
   bannedCategories: string[],
   modelConfig: LocalModelDef | null,
   modelId: string,
-  { priority = 0, onInferenceStart }: { priority?: number; onInferenceStart?: () => void } = {}
+  { priority = 0, onInferenceStart, promptMode = 'baseline' }: {
+    priority?: number;
+    onInferenceStart?: () => void;
+    promptMode?: LocalPromptMode;
+  } = {}
 ): Promise<{ shouldHide: boolean; reasoning: string; category?: string | null; rawResponse?: string | null; inferenceTime?: number }> {
   await localEngine.ensureLoaded(modelId);
 
   // Per-model prompt style: LiteRT-LM/Gemma uses the terse table_yesno verdict
   // row; WebLLM/Qwen keeps the reasoning-before-label prose (below, unchanged).
   if (modelConfig?.backend === 'litertlm') {
-    return callTableYesnoInference(postData, bannedCategories, modelConfig, { priority, onInferenceStart });
+    return callTableYesnoInference(postData, bannedCategories, modelConfig, { priority, onInferenceStart, promptMode });
   }
 
   const post = postData;
@@ -726,9 +736,10 @@ export async function callLocalInference(
   let useImages = supportsImages && post.imageUrls && post.imageUrls.length > 0;
 
   // Calculate token budget and truncate post text to fit within context window
+  const systemPrompt = localSystemPrompt(promptMode);
   const overheadPrompt = buildLocalUserMessage('', bannedCategories, useImages);
   const [systemTokens, overheadTokens] = await Promise.all([
-    localEngine.countTokens(LOCAL_SYSTEM_PROMPT),
+    localEngine.countTokens(systemPrompt),
     localEngine.countTokens(overheadPrompt),
   ]);
 
@@ -765,7 +776,7 @@ export async function callLocalInference(
   }
 
   const messages: ChatMessage[] = [
-    { role: "system", content: LOCAL_SYSTEM_PROMPT },
+    { role: "system", content: systemPrompt },
     { role: "user", content: userContent }
   ];
 
@@ -784,7 +795,7 @@ export async function callLocalInference(
       console.warn('[LocalEngine] Image processing failed, retrying with text only:', (imgError as Error).message);
       const textOnlyContent = buildLocalUserMessage(postText, bannedCategories, false);
       const textMessages: ChatMessage[] = [
-        { role: "system", content: LOCAL_SYSTEM_PROMPT },
+        { role: "system", content: systemPrompt },
         { role: "user", content: textOnlyContent }
       ];
       rawResponse = await localEngine.generate(textMessages, 40, { priority, onStart });
@@ -817,7 +828,11 @@ async function callTableYesnoInference(
   postData: EvaluationPostData,
   bannedCategories: string[],
   modelConfig: LocalModelDef,
-  { priority = 0, onInferenceStart }: { priority?: number; onInferenceStart?: () => void } = {}
+  { priority = 0, onInferenceStart, promptMode = 'baseline' }: {
+    priority?: number;
+    onInferenceStart?: () => void;
+    promptMode?: LocalPromptMode;
+  } = {}
 ): Promise<{ shouldHide: boolean; reasoning: string; category?: string | null; rawResponse?: string | null; inferenceTime?: number }> {
   const contextWindowSize = modelConfig.litertlmConfig?.maxTokens ?? 1024;
   // Output is the verdict row (~3 tokens × N categories). Pad so a long topic
@@ -825,9 +840,10 @@ async function callTableYesnoInference(
   const maxGenerationTokens = Math.max(20, 6 + 4 * bannedCategories.length);
   const supportsImages = modelConfig.supportsImages === true;
   let useImages = !!(supportsImages && postData.imageUrls && postData.imageUrls.length > 0);
+  const systemPrompt = tableYesnoSystemPrompt(promptMode);
 
   const buildUserContent = (postText: string, includeImages: boolean): ChatMessage['content'] => {
-    const userText = buildTableYesnoUserMessage(postText, bannedCategories, includeImages);
+    const userText = buildTableYesnoUserMessage(postText, bannedCategories, includeImages, promptMode);
     if (!includeImages) return userText;
     return [
       { type: 'text', text: userText },
@@ -835,7 +851,7 @@ async function callTableYesnoInference(
     ];
   };
   const buildMessages = (postText: string, includeImages: boolean): ChatMessage[] => [
-    { role: 'system', content: TABLE_YESNO_SYSTEM_PROMPT },
+    { role: 'system', content: systemPrompt },
     { role: 'user', content: buildUserContent(postText, includeImages) },
   ];
 

@@ -6,7 +6,7 @@
 import { localEngine, callLocalInference } from './local-model';
 import { PREDEFINED_MODELS } from '../shared/models';
 import type {
-  BenchmarkOp, BenchmarkPost, BenchmarkUsage,
+  BenchmarkOp, BenchmarkPost, BenchmarkPromptMode, BenchmarkUsage,
   BenchmarkInferResult, BenchmarkLoadResult,
 } from '../shared/benchmark-types';
 
@@ -15,6 +15,7 @@ export interface BenchmarkRequest {
   modelId?: string;
   post?: BenchmarkPost;
   categories?: string[];
+  promptMode?: BenchmarkPromptMode;
 }
 
 // WebLLM/Qwen surfaces token + timing stats via reply.usage; LiteRT/Gemma
@@ -67,6 +68,7 @@ export async function handleBenchmark(req: BenchmarkRequest): Promise<unknown> {
         req.categories,
         cfg,
         modelId,
+        { promptMode: req.promptMode },
       );
       const wallMs = performance.now() - t0;
       return {
@@ -74,6 +76,7 @@ export async function handleBenchmark(req: BenchmarkRequest): Promise<unknown> {
         wallMs,
         shouldHide: result.shouldHide,
         reasoning: result.reasoning,
+        rawResponse: result.rawResponse ?? null,
         completionChars: (result.rawResponse ?? '').length,
         usage: mapUsage(),
       } satisfies BenchmarkInferResult;

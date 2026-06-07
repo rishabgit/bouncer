@@ -69,4 +69,4 @@ Classification runs on-device, so per-post latency depends on your GPU and the e
 
 ¹ Medium post, 3 filters. Gemma is **~2.5× faster** — it emits a terse verdict, while Qwen writes visible reasoning. (Faster isn't necessarily more accurate; this measures speed only.)
 
-See the **[latency benchmark →](docs/benchmarks/latency.md)** for the full methodology, per-model tables, scaling behaviour, and how to reproduce it on your own machine.
+See the **[latency benchmark →](docs/benchmarks/latency.md)** for speed methodology and the **[accuracy eval →](docs/benchmarks/accuracy.md)** for the rage-bait boundary corpus, metrics, and manual tuning loop.

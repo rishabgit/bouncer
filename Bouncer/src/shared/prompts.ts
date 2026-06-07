@@ -1,5 +1,7 @@
 // System prompts and message builders for local model calls
 
+export type LocalPromptMode = 'baseline' | 'intent';
+
 // System prompt for local models processing one post at a time
 export const LOCAL_SYSTEM_PROMPT = `You filter posts. Write 10-15 words identifying what the post is about, then state if it matches a filter category.
 
@@ -22,6 +24,22 @@ Assess whether the topic of the post relates to any of the topics in the filter 
 Your reasoning must be AT MOST 15 words, and MUST end with a statement of "Matches <topic>" or "No match".
 
 Be precise in your judgment; only match posts that clearly and directly relate to the filter categories.`;
+
+// Dev-only eval variant prompt. Production callers use LOCAL_SYSTEM_PROMPT; the
+// benchmark page can opt into this to compare whether intent/register framing
+// helps distinguish outrage farming from ordinary frustration.
+export const LOCAL_INTENT_SYSTEM_PROMPT = `You filter posts. Write 10-15 words identifying what the post is doing, then state if it matches a filter category.
+
+For filters like "rage bait" or "outrage farming", match only posts engineered to provoke anger or amplify a pile-on: repost/share/quote/tag requests, ratio calls, "make this loud" framing, "wake up" outrage escalation, or language that pushes readers to attack or shame a target.
+
+Do NOT match sincere frustration, fair criticism, personal hardship, civic participation, ordinary sarcasm, or calm pessimism unless the post is also trying to farm outrage.
+
+You will be provided with a post (<post>) and a list of filter categories (<filter_categories>).
+Your reasoning must be AT MOST 15 words, and MUST end with a statement of "Matches <topic>" or "No match".`;
+
+export function localSystemPrompt(mode: LocalPromptMode = 'baseline'): string {
+  return mode === 'intent' ? LOCAL_INTENT_SYSTEM_PROMPT : LOCAL_SYSTEM_PROMPT;
+}
 
 // Build user message for local models — single post with filter categories
 export function buildLocalUserMessage(postText: string, bannedCategories: string[], hasImages: boolean): string {
@@ -47,10 +65,33 @@ Output exactly one row of pipe-delimited verdicts, one per category, in the orde
 Format example for 3 categories: | no | yes | no
 `;
 
+export const TABLE_YESNO_INTENT_SYSTEM_PROMPT = `You will see a social media post and a list of candidate categories. For each category, decide whether the post matches that category.
+
+For categories like "rage bait" or "outrage farming", answer yes only when the post is engineered to provoke anger or amplify a pile-on: repost/share/quote/tag requests, ratio calls, "make this loud" framing, "wake up" outrage escalation, or language that pushes readers to attack or shame a target.
+
+Answer no for sincere frustration, fair criticism, personal hardship, civic participation, ordinary sarcasm, or calm pessimism unless the post is also trying to farm outrage.
+
+Output exactly one row of pipe-delimited verdicts, one per category, in the order they were given. Each verdict is \`yes\` or \`no\`. Output nothing else.
+
+Format example for 3 categories: | no | yes | no
+`;
+
+export function tableYesnoSystemPrompt(mode: LocalPromptMode = 'baseline'): string {
+  return mode === 'intent' ? TABLE_YESNO_INTENT_SYSTEM_PROMPT : TABLE_YESNO_SYSTEM_PROMPT;
+}
+
 // Build the user message for the table_yesno path — the post plus the ordered
 // category list the model emits one verdict per.
-export function buildTableYesnoUserMessage(postText: string, categories: string[], hasImages: boolean): string {
+export function buildTableYesnoUserMessage(
+  postText: string,
+  categories: string[],
+  hasImages: boolean,
+  mode: LocalPromptMode = 'baseline',
+): string {
   const mediaDesc = hasImages ? ' (includes images)' : '';
   const categoryList = categories.join(', ');
-  return `Post${mediaDesc}: ${postText}\n\nCategories (in order): ${categoryList}\n\nOutput the verdict row:`;
+  const intentNote = mode === 'intent'
+    ? '\n\nIf the category is rage bait or outrage farming, distinguish outrage amplification from sincere frustration or criticism.'
+    : '';
+  return `Post${mediaDesc}: ${postText}\n\nCategories (in order): ${categoryList}${intentNote}\n\nOutput the verdict row:`;
 }

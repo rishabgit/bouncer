@@ -2,7 +2,7 @@
 
 Bouncer classifies every post on-device, so per-post latency is what you *feel* while scrolling. This compares the two local engines — **WebLLM/Qwen 3.5** (the default) and **LiteRT-LM/Gemma** — on identical inputs.
 
-> **This measures speed, not quality.** Qwen costs more because it writes visible reasoning before its verdict; Gemma emits a terse yes/no row. Whether one classifies *better* is a separate question this benchmark does not answer.
+> **This measures speed, not quality.** Qwen costs more because it writes visible reasoning before its verdict; Gemma emits a terse yes/no row. Use the [accuracy eval](accuracy.md) for the rage-bait boundary and prompt/filter tuning loop.
 
 ## TL;DR
 

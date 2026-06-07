@@ -2,6 +2,8 @@
 // and its background worker (src/background/benchmark.ts). These are types only
 // — importing this module pulls no runtime code into either bundle.
 
+import type { LocalPromptMode } from './prompts';
+
 // One bounded operation per message. The PAGE owns the run loop: an MV3 service
 // worker must not be asked to hold a response open for a whole multi-minute run
 // (the codebase already treats long model-init as fire-and-forget for this
@@ -13,6 +15,8 @@ export interface BenchmarkPost {
   text: string;
   imageUrls: string[];
 }
+
+export type BenchmarkPromptMode = LocalPromptMode;
 
 // Per-classification throughput/latency breakdown. WebLLM/Qwen fills this from
 // `reply.usage` + `usage.extra`; LiteRT/Gemma exposes nothing, so it stays null.
@@ -32,6 +36,7 @@ export interface BenchmarkInferResult {
   wallMs: number;          // full callLocalInference() wall time (performance.now), incl. prompt prep
   shouldHide: boolean;
   reasoning: string;
+  rawResponse: string | null;
   completionChars: number;
   usage: BenchmarkUsage | null;
 }

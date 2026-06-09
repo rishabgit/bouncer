@@ -521,24 +521,30 @@ export async function clearEvaluationCache(): Promise<void> {
 
 // Prioritize pending posts by their distance to viewport center
 // Requests current positions from content scripts and sorts the queue
-async function prioritizeByViewportDistance(queue: PendingEvaluation[]): Promise<void> {
+export async function prioritizeByViewportDistance(queue: PendingEvaluation[]): Promise<void> {
   if (queue.length === 0) return;
 
-  // Group pending posts by tabId, using postUrl for position lookups
-  const postsByTab = new Map<number | undefined, string[]>();
+  // Group pending posts by tab. Normal tweets are located by postUrl; ads and
+  // other no-permalink posts fall back to evaluationId so they can still be
+  // prioritized by visible viewport distance.
+  const postsByTab = new Map<number | undefined, { postUrls: string[]; evaluationIds: string[] }>();
   queue.forEach(item => {
-    if (!item.postUrl) return; // Skip items without postUrl
     if (!postsByTab.has(item.tabId)) {
-      postsByTab.set(item.tabId, []);
+      postsByTab.set(item.tabId, { postUrls: [], evaluationIds: [] });
     }
-    postsByTab.get(item.tabId)!.push(item.postUrl);
+    const entry = postsByTab.get(item.tabId)!;
+    if (item.postUrl) {
+      entry.postUrls.push(item.postUrl);
+    } else {
+      entry.evaluationIds.push(item.evaluationId);
+    }
   });
 
   // Request positions from each tab
   const positionPromises: Promise<{ tabId: number | undefined; positions: Record<string, number> }>[] = [];
-  for (const [tabId, postUrls] of postsByTab) {
+  for (const [tabId, { postUrls, evaluationIds }] of postsByTab) {
     positionPromises.push(
-      chrome.tabs.sendMessage(tabId!, { type: 'getPositions', postUrls })
+      chrome.tabs.sendMessage(tabId!, { type: 'getPositions', postUrls, evaluationIds })
         .then((response: { positions?: Record<string, number> } | undefined) => ({ tabId, positions: response?.positions || {} }))
         .catch(() => {
           return { tabId, positions: {} as Record<string, number> };
@@ -548,18 +554,18 @@ async function prioritizeByViewportDistance(queue: PendingEvaluation[]): Promise
 
   const results = await Promise.all(positionPromises);
 
-  // Build distance map: postUrl -> distance to viewport center
+  // Build distance map: postUrl or evaluationId -> distance to viewport center
   const distanceMap = new Map<string, number>();
   for (const { positions } of results) {
-    for (const [postUrl, distance] of Object.entries(positions)) {
-      distanceMap.set(postUrl, distance);
+    for (const [key, distance] of Object.entries(positions)) {
+      distanceMap.set(key, distance);
     }
   }
 
   // Sort by distance (closest first), posts not found in DOM go to end
   queue.sort((a, b) => {
-    const distA = distanceMap.get(a.postUrl!) ?? Infinity;
-    const distB = distanceMap.get(b.postUrl!) ?? Infinity;
+    const distA = distanceMap.get(a.postUrl ?? a.evaluationId) ?? Infinity;
+    const distB = distanceMap.get(b.postUrl ?? b.evaluationId) ?? Infinity;
     return distA - distB;
   });
 

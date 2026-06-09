@@ -1756,10 +1756,21 @@ export function renderFilteredPostsView(container: Element) {
     top.appendChild(meta);
 
     if (post.category) {
-      const tag = document.createElement('span');
-      tag.className = 'slop-category-tag';
-      tag.textContent = post.category.toUpperCase();
-      top.appendChild(tag);
+      const names = post.category.split(',').map(s => s.trim()).filter(Boolean);
+      if (names.length > 0) {
+        const tagGroup = document.createElement('div');
+        tagGroup.style.display = 'flex';
+        tagGroup.style.gap = '5px';
+        tagGroup.style.marginLeft = '8px';
+        for (const name of names) {
+          const tag = document.createElement('span');
+          tag.className = 'slop-category-tag';
+          tag.style.marginLeft = '0';
+          tag.textContent = name.toUpperCase();
+          tagGroup.appendChild(tag);
+        }
+        top.appendChild(tagGroup);
+      }
     }
     body.appendChild(top);
 

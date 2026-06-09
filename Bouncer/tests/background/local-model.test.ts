@@ -820,15 +820,39 @@ describe('parseLocalModelResponse', () => {
 // ==================== parseTableYesnoResponse ====================
 
 describe('parseTableYesnoResponse', () => {
+  const cats = ['crypto', 'sports', 'politics'];
+
   it('returns SHOW for empty/null response', () => {
-    expect(parseTableYesnoResponse('', ['a']).shouldHide).toBe(false);
-    expect(parseTableYesnoResponse(null, ['a']).shouldHide).toBe(false);
+    expect(parseTableYesnoResponse('', ['a'])).toMatchObject({
+      shouldHide: false,
+      matches: [],
+    });
+    expect(parseTableYesnoResponse(null, ['a'])).toMatchObject({
+      shouldHide: false,
+      matches: [],
+    });
   });
 
-  it('parses a clean verdict row and returns matched categories in order', () => {
-    const r = parseTableYesnoResponse('| yes | no | yes', ['crypto', 'sports', 'politics']);
+  it('parses a canonical prompt-shaped row and returns matched categories in order', () => {
+    const r = parseTableYesnoResponse('| yes | no | yes', cats);
     expect(r.shouldHide).toBe(true);
     expect(r.matches).toEqual(['crypto', 'politics']);
+  });
+
+  it('parses a bare row without a leading pipe', () => {
+    const r = parseTableYesnoResponse('no|yes|yes', cats);
+    expect(r.shouldHide).toBe(true);
+    expect(r.matches).toEqual(['sports', 'politics']);
+  });
+
+  it('tolerates a trailing pipe', () => {
+    const r = parseTableYesnoResponse('| no | yes | yes |', cats);
+    expect(r.matches).toEqual(['sports', 'politics']);
+  });
+
+  it('tolerates whitespace around verdicts', () => {
+    const r = parseTableYesnoResponse('  no | yes | no  ', cats);
+    expect(r.matches).toEqual(['sports']);
   });
 
   it('returns SHOW with no matches when all verdicts are no', () => {
@@ -841,18 +865,19 @@ describe('parseTableYesnoResponse', () => {
     expect(parseTableYesnoResponse('| YES | No', ['crypto', 'sports']).matches).toEqual(['crypto']);
   });
 
-  it('tolerates a prefix before the first pipe', () => {
-    expect(parseTableYesnoResponse('Here you go: | yes | no', ['crypto', 'sports']).matches).toEqual(['crypto']);
-  });
-
-  it('falls back to SHOW on a row with no pipe', () => {
-    const r = parseTableYesnoResponse('yes no', ['crypto', 'sports']);
-    expect(r.shouldHide).toBe(false);
-    expect(r.reasoning).toMatch(/Malformed verdict row/);
+  it('tolerates a non-verdict preamble before the row', () => {
+    expect(parseTableYesnoResponse('Here you go: | yes | no', ['crypto', 'sports']).matches)
+      .toEqual(['crypto']);
   });
 
   it('falls back to SHOW when verdict count != category count', () => {
     const r = parseTableYesnoResponse('| yes', ['crypto', 'sports']);
+    expect(r.shouldHide).toBe(false);
+    expect(r.reasoning).toMatch(/expected 2 verdicts, got 1/);
+  });
+
+  it('falls back to SHOW when a bare row count is malformed', () => {
+    const r = parseTableYesnoResponse('yes no', ['crypto', 'sports']);
     expect(r.shouldHide).toBe(false);
     expect(r.reasoning).toMatch(/expected 2 verdicts, got 1/);
   });
@@ -867,6 +892,12 @@ describe('parseTableYesnoResponse', () => {
     const r = parseTableYesnoResponse('<start_of_turn>model\n| yes | no <end_of_turn>', ['crypto', 'sports']);
     expect(r.shouldHide).toBe(true);
     expect(r.matches).toEqual(['crypto']);
+  });
+
+  it('handles a single-category bare verdict', () => {
+    const r = parseTableYesnoResponse('yes', ['only']);
+    expect(r.shouldHide).toBe(true);
+    expect(r.matches).toEqual(['only']);
   });
 });
 

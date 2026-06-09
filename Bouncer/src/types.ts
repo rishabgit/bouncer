@@ -270,7 +270,7 @@ export type BackgroundToContentMessage =
   | { type: 'errorStatusUpdate'; errorType: string | null; subType: string | null; count: number; apiDisplayName: string | null; selectedModel: string; hasAlternativeApis: boolean }
   | { type: 'reEvaluateErrors' }
   | { type: 'queueStatusUpdate'; pendingCount: number; isLocalModel: boolean; modelInitializing: boolean }
-  | { type: 'getPositions'; postUrls: string[] }
+  | { type: 'getPositions'; postUrls: string[]; evaluationIds?: string[] }
   | { type: 'processingPost'; postUrl: string }
   | { type: 'annoyingProgress'; verified: number; total: number }
   | { type: 'evaluationStarted'; evaluationId: string; detectorNames: string[] }

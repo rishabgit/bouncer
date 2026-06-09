@@ -791,20 +791,30 @@ import { formatPostForEvaluation } from '../shared/utils';
         const positions: Record<string, number> = {};
         const viewportCenter = window.innerHeight / 2;
         const postUrlsSet = new Set<string>(message.postUrls || []);
+        const evaluationIds = message.evaluationIds || [];
+
+        const distanceFor = (article: HTMLElement): number => {
+          const rect = article.getBoundingClientRect();
+          const postCenter = rect.top + rect.height / 2;
+          return Math.abs(postCenter - viewportCenter);
+        };
 
         const allPosts = findPosts();
         allPosts.forEach(article => {
           const content = extractPostContent(article);
           if (!content.postUrl) return;
 
-          const rect = article.getBoundingClientRect();
-          const postCenter = rect.top + rect.height / 2;
-          const distance = Math.abs(postCenter - viewportCenter);
-
           if (postUrlsSet.has(content.postUrl)) {
-            positions[content.postUrl] = distance;
+            positions[content.postUrl] = distanceFor(article);
           }
         });
+
+        for (const id of evaluationIds) {
+          const article = articleForEvaluation(id);
+          if (article?.isConnected) {
+            positions[id] = distanceFor(article);
+          }
+        }
 
         sendResponse({ positions });
         break;

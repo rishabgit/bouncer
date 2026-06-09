@@ -30,7 +30,10 @@ declare global {
 // ==================== Constants ====================
 
 const KEEP_ALIVE_INTERVAL_MS = 5000;
-const DOWNLOAD_KEEP_ALIVE_MS = 20000;  // Firefox suspends event pages after 30 s idle
+// Chrome MV3 and Firefox event pages can suspend during long local-model
+// downloads unless an extension API is touched more frequently than their
+// ~30s idle ceilings. Keep this comfortably below that boundary.
+const DOWNLOAD_KEEP_ALIVE_MS = 5000;
 const IDLE_TIMEOUT_MS = 60000;
 const INFERENCE_TIMEOUT_MS = 30000;
 // Cold LiteRT-LM inference (first call after load) compiles WebGPU shaders,
@@ -97,15 +100,25 @@ export function parseTableYesnoResponse(
     return { shouldHide: false, reasoning: 'Empty model response — model returned no output', matches: [] };
   }
   const raw = stripGemmaMarkers(rawResponse);
-  // Some checkpoints prepend a stray space or prefix; tolerate anything up to
-  // the first `|`. If there is no `|` at all the row is junk.
-  const pipeIdx = raw.indexOf('|');
-  if (pipeIdx === -1) {
-    return { shouldHide: false, reasoning: `Malformed verdict row (no '|'): ${rawResponse}`, matches: [] };
+  // Split on `|`, trim each cell, drop leading/trailing empty cells. This
+  // tolerates the prompt's canonical row (`| no | yes | no`), a bare row
+  // without a leading pipe (`no|yes|no`), and a trailing pipe.
+  let parts = raw.split('|').map(s => s.trim());
+  while (parts.length > 0 && parts[0] === '') parts.shift();
+  while (parts.length > 0 && parts[parts.length - 1] === '') parts.pop();
+
+  // Some checkpoints prepend words before the row. If the row has extra cells
+  // and the leading overflow is not a verdict, treat that overflow as preamble.
+  const isVerdict = (s: string): boolean => {
+    const v = s.toLowerCase();
+    return v === 'yes' || v === 'no';
+  };
+  if (parts.length > categories.length && !isVerdict(parts[0])) {
+    const overflow = parts.length - categories.length;
+    if (parts.slice(0, overflow).every(p => !isVerdict(p))) {
+      parts = parts.slice(overflow);
+    }
   }
-  const row = raw.slice(pipeIdx);
-  const parts = row.split('|').map(s => s.trim()).slice(1);
-  if (parts.length > 0 && parts[parts.length - 1] === '') parts.pop();
 
   if (parts.length !== categories.length) {
     return {
@@ -600,8 +613,9 @@ export class LocalEngine {
   _startKeepAlive(): void {
     if (this._keepAliveInterval) return;
     this._keepAliveInterval = setInterval(() => {
-      // Keep-alive: accessing this.engine prevents service worker from idling
-      void this.engine;
+      // Chrome MV3 only resets the service-worker idle timer on extension API
+      // calls; touching local state is not enough.
+      void chrome.storage.local.get('_keepAlive');
     }, KEEP_ALIVE_INTERVAL_MS);
   }
 

@@ -33,7 +33,15 @@ vi.mock('../../src/background/providers.js', () => ({
   callImbueAPI: vi.fn(),
 }));
 
-import { classifyError, enqueuePost, isKeyPending, clearTabQueue, setActiveTab, scheduleBatch } from '../../src/background/pipeline.js';
+import {
+  classifyError,
+  enqueuePost,
+  isKeyPending,
+  clearTabQueue,
+  setActiveTab,
+  scheduleBatch,
+  prioritizeByViewportDistance,
+} from '../../src/background/pipeline.js';
 import { localEngine, callLocalInference } from '../../src/background/local-model.js';
 import type { PendingEvaluation } from '../../src/types.js';
 
@@ -42,7 +50,9 @@ const mockCallLocalInference = vi.mocked(callLocalInference);
 /** Create a PendingEvaluation with sensible defaults. */
 function makePendingItem(overrides: Partial<PendingEvaluation> & { post: string; cacheKey: string; resolve: PendingEvaluation['resolve'] }): PendingEvaluation {
   return {
+    evaluationId: 'eval-default',
     imageUrls: [],
+    rawText: overrides.post,
     tabId: undefined,
     postUrl: null,
     siteId: 'twitter',
@@ -186,6 +196,57 @@ describe('setActiveTab', () => {
   it('calls localEngine.clearQueue even when setting to null', () => {
     setActiveTab(null);
     expect(localEngine.clearQueue).toHaveBeenCalled();
+  });
+});
+
+describe('prioritizeByViewportDistance', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('sorts by postUrl when available and evaluationId when postUrl is missing', async () => {
+    const queue = [
+      makePendingItem({
+        evaluationId: 'eval-far',
+        post: 'far post',
+        cacheKey: 'far',
+        postUrl: 'https://x.com/user/status/far',
+        tabId: 7,
+        resolve: vi.fn(),
+      }),
+      makePendingItem({
+        evaluationId: 'eval-near-no-url',
+        post: 'near ad',
+        cacheKey: 'near-no-url',
+        postUrl: null,
+        tabId: 7,
+        resolve: vi.fn(),
+      }),
+      makePendingItem({
+        evaluationId: 'eval-mid',
+        post: 'mid post',
+        cacheKey: 'mid',
+        postUrl: 'https://x.com/user/status/mid',
+        tabId: 7,
+        resolve: vi.fn(),
+      }),
+    ];
+    (globalThis.chrome.tabs.sendMessage as Mock).mockResolvedValue({
+      positions: {
+        'https://x.com/user/status/far': 300,
+        'eval-near-no-url': 5,
+        'https://x.com/user/status/mid': 20,
+      },
+    });
+
+    await prioritizeByViewportDistance(queue);
+
+    expect(globalThis.chrome.tabs.sendMessage).toHaveBeenCalledWith(7, {
+      type: 'getPositions',
+      postUrls: ['https://x.com/user/status/far', 'https://x.com/user/status/mid'],
+      evaluationIds: ['eval-near-no-url'],
+    });
+    expect(queue.map(item => item.cacheKey)).toEqual(['near-no-url', 'mid', 'far']);
   });
 });
 

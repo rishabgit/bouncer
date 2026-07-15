@@ -6,20 +6,29 @@ import { PREDEFINED_MODELS } from '../shared/models';
 import { isGPUDeviceLostError, isNetworkError, formatLocalInferenceResult } from '../shared/utils';
 import {
   buildLocalUserMessage,
+  buildSingleYesnoUserMessage,
   buildTableYesnoUserMessage,
   localSystemPrompt,
+  tableYesnoSingleSystemPrompt,
   tableYesnoSystemPrompt,
   type LocalPromptMode,
 } from '../shared/prompts';
+import { parseTableYesnoResponse } from '../shared/table-yesno';
 import { inferenceQueue } from './inference-queue';
 import { getStorage, setStorage } from '../shared/storage';
 import type { LocalBackend } from './backends/types';
 import type { CompletionUsage } from '@mlc-ai/web-llm';
 import { WebllmBackend, isWebllmCached, deleteWebllmCache } from './backends/webllm-backend';
-import { LitertlmBackend, isLitertlmCached, deleteLitertlmCache } from './backends/litertlm-backend';
+import {
+  LitertlmBackend,
+  isLitertlmCached,
+  deleteLitertlmCache,
+  forceCloseLitertlmOffscreen,
+} from './backends/litertlm-backend';
 
 // Re-exported so existing importers (and tests) keep their import path.
 export { buildModelConfig } from './backends/webllm-backend';
+export { parseTableYesnoResponse } from '../shared/table-yesno';
 
 declare global {
   interface Navigator {
@@ -41,6 +50,7 @@ const INFERENCE_TIMEOUT_MS = 30000;
 const LITERTLM_INFERENCE_TIMEOUT_MS = 90000;
 const DOWNLOAD_MAX_RETRIES = 3;
 const DOWNLOAD_RETRY_DELAY_MS = 2000;
+const CANCEL_SETTLE_TIMEOUT_MS = 3000;
 
 // ==================== Pure helpers ====================
 
@@ -77,75 +87,6 @@ export function parseLocalModelResponse(rawResponse: string | null): { shouldHid
   return { shouldHide, reasoning };
 }
 
-// Gemma .litertlm builds sometimes leak chat-template terminators into the
-// generated text. Trim a leading echoed <start_of_turn>... and truncate at the
-// first <end_of_turn> so the parser doesn't see those markers as verdict cells.
-function stripGemmaMarkers(raw: string): string {
-  let s = raw.replace(/^<start_of_turn>\w*\s*/m, '');
-  const stopIdx = s.indexOf('<end_of_turn>');
-  if (stopIdx !== -1) s = s.slice(0, stopIdx);
-  return s.replace(/<(?:eos|bos|pad)>/gi, '').trim();
-}
-
-// Lenient port of bouncer-evals-and-results' table_yesno.parse(). The model is
-// asked for `| yes | no | yes | …` — one verdict per category, in order.
-// Without constrained decoding we handle malformed output gracefully: any
-// deviation falls back to SHOW with the raw response in the reasoning so the
-// user can debug from the popup.
-export function parseTableYesnoResponse(
-  rawResponse: string | null,
-  categories: string[],
-): { shouldHide: boolean; reasoning: string; matches: string[] } {
-  if (!rawResponse) {
-    return { shouldHide: false, reasoning: 'Empty model response — model returned no output', matches: [] };
-  }
-  const raw = stripGemmaMarkers(rawResponse);
-  // Split on `|`, trim each cell, drop leading/trailing empty cells. This
-  // tolerates the prompt's canonical row (`| no | yes | no`), a bare row
-  // without a leading pipe (`no|yes|no`), and a trailing pipe.
-  let parts = raw.split('|').map(s => s.trim());
-  while (parts.length > 0 && parts[0] === '') parts.shift();
-  while (parts.length > 0 && parts[parts.length - 1] === '') parts.pop();
-
-  // Some checkpoints prepend words before the row. If the row has extra cells
-  // and the leading overflow is not a verdict, treat that overflow as preamble.
-  const isVerdict = (s: string): boolean => {
-    const v = s.toLowerCase();
-    return v === 'yes' || v === 'no';
-  };
-  if (parts.length > categories.length && !isVerdict(parts[0])) {
-    const overflow = parts.length - categories.length;
-    if (parts.slice(0, overflow).every(p => !isVerdict(p))) {
-      parts = parts.slice(overflow);
-    }
-  }
-
-  if (parts.length !== categories.length) {
-    return {
-      shouldHide: false,
-      reasoning: `Malformed verdict row (expected ${categories.length} verdicts, got ${parts.length}): ${rawResponse}`,
-      matches: [],
-    };
-  }
-  const matches: string[] = [];
-  for (let i = 0; i < parts.length; i++) {
-    const v = parts[i].toLowerCase();
-    if (v !== 'yes' && v !== 'no') {
-      return {
-        shouldHide: false,
-        reasoning: `Malformed verdict row (verdict ${i} = ${JSON.stringify(parts[i])}): ${rawResponse}`,
-        matches: [],
-      };
-    }
-    if (v === 'yes') matches.push(categories[i]);
-  }
-  const shouldHide = matches.length > 0;
-  const reasoning = shouldHide
-    ? `${rawResponse} (Matched: ${matches.join(', ')})`
-    : rawResponse;
-  return { shouldHide, reasoning, matches };
-}
-
 // ==================== LocalEngine ====================
 
 export class LocalEngine {
@@ -160,6 +101,12 @@ export class LocalEngine {
   _initPromise: Promise<LocalBackend | null> | null;
   _initPromiseResolve: ((backend: LocalBackend | null) => void) | null;
   _initAbortController: AbortController | null;
+  _initGeneration: number;
+  _activeInitGeneration: number | null;
+  _initSettledGeneration: number | null;
+  _initSettledPromise: Promise<void> | null;
+  _initSettledResolve: (() => void) | null;
+  _statusWriteChain: Promise<void>;
 
   // Keep-alive and idle timeout
   _keepAliveInterval: ReturnType<typeof setInterval> | null;
@@ -179,6 +126,12 @@ export class LocalEngine {
     this._initPromise = null;
     this._initPromiseResolve = null;
     this._initAbortController = null;
+    this._initGeneration = 0;
+    this._activeInitGeneration = null;
+    this._initSettledGeneration = null;
+    this._initSettledPromise = null;
+    this._initSettledResolve = null;
+    this._statusWriteChain = Promise.resolve();
 
     this._keepAliveInterval = null;
     this._downloadKeepAliveInterval = null;
@@ -221,6 +174,17 @@ export class LocalEngine {
       return this._initPromise;
     }
 
+    // Only one backend may initialize at a time. If a different model was
+    // requested, supersede the old operation but let its own context settle
+    // before starting this one. Re-check in a loop because several model
+    // switches can arrive while the first operation is winding down.
+    while (this._initSettledPromise) {
+      const previousInit = this._initSettledPromise;
+      this._initAbortController?.abort();
+      await previousInit;
+      if (this.isInitializingModel(modelId)) return this._initPromise;
+    }
+
     if (this.isModelLoaded(modelId)) {
       return this.engine;
     }
@@ -238,101 +202,142 @@ export class LocalEngine {
 
     // Start tracking initialization BEFORE any async work so concurrent callers
     // see isInitializingModel() and wait on _initPromise.
-    void this._startInit(modelId);
+    const initGeneration = this._startInit(modelId);
     const abortSignal = this._initAbortController!.signal;
     this._startDownloadKeepAlive();
 
-    // If a different model is loaded, unload it first to free GPU memory.
-    // Drain the inference queue so any in-flight task finishes before we dispose the engine.
-    if (this.engine && this.loadedModel !== modelId) {
-      await this.drainQueue(async () => {
-        if (this.engine) {
-          try {
-            await this.engine.unload();
-          } catch (e) {
-            console.error('[LocalEngine] Error unloading engine:', e);
+    try {
+      // If a different model is loaded, unload it first to free GPU memory.
+      // Drain the inference queue so any in-flight task finishes before we dispose the engine.
+      if (this.engine && this.loadedModel !== modelId) {
+        await this.drainQueue(async () => {
+          if (this.engine) {
+            try {
+              await this.engine.unload();
+            } catch (e) {
+              console.error('[LocalEngine] Error unloading engine:', e);
+            }
           }
-        }
-        this.engine = null;
-        this.loadedModel = null;
-        this._modelConfig = null;
-        this._stopKeepAlive();
-      });
-    }
-
-    const backend = selectBackend(backendModelDef);
-
-    // Retry loop for network errors
-    let retryCount = 0;
-    while (true) {
-      if (abortSignal.aborted) {
-        this._completeInit(null);
-        return null;
+          this.engine = null;
+          this.loadedModel = null;
+          this._modelConfig = null;
+          this._stopKeepAlive();
+        });
       }
 
-      try {
-        await this.updateStatus(modelId, { state: 'initializing', progress: 0, text: retryCount > 0 ? `Retrying (${retryCount}/${DOWNLOAD_MAX_RETRIES})...` : 'Starting...' });
+      const backend = selectBackend(backendModelDef);
 
-        await backend.initialize(backendModelDef, (progress) => {
-          if (abortSignal.aborted) return;
-          this.updateStatus(modelId, {
-            state: 'downloading',
-            progress: progress.progress,
-            text: progress.text,
-          }).catch(err => console.error('[LocalEngine] Failed to update download status:', err));
-        }, abortSignal);
-
+      // Retry loop for network errors
+      let retryCount = 0;
+      while (true) {
         if (abortSignal.aborted) {
-          try { await backend.unload(); } catch { /* ignore */ }
-          this._completeInit(null);
+          this._completeInit(null, initGeneration);
           return null;
         }
 
-        this.engine = backend;
-        this.loadedModel = modelId;
-        this._modelConfig = modelDef;
+        try {
+          await this.updateStatus(modelId, { state: 'initializing', progress: 0, text: retryCount > 0 ? `Retrying (${retryCount}/${DOWNLOAD_MAX_RETRIES})...` : 'Starting...' });
 
-        await this.updateStatus(modelId, { state: 'ready' });
+          let lastProgressWrite = 0;
+          await backend.initialize(backendModelDef, (progress) => {
+            if (abortSignal.aborted) return;
+            const now = Date.now();
+            if (progress.progress < 1 && now - lastProgressWrite < 250) return;
+            lastProgressWrite = now;
+            this.updateStatus(modelId, {
+              // Once bytes reach 100%, the remaining work is cache/GPU startup;
+              // do not leave the UI claiming a completed download is in flight.
+              state: progress.progress >= 1 ? 'initializing' : 'downloading',
+              progress: progress.progress,
+              text: progress.text,
+            }).catch(err => console.error('[LocalEngine] Failed to update download status:', err));
+          }, abortSignal);
 
-        this._startKeepAlive();
-        this._resetIdleTimeout();
-        this._completeInit(this.engine);
-
-        return this.engine;
-      } catch (error) {
-        console.error('[LocalEngine] Initialization failed:', error);
-
-        const errorMsg = (error as Error).message;
-
-        if (isNetworkError(errorMsg) && retryCount < DOWNLOAD_MAX_RETRIES) {
-          retryCount++;
-          const delay = DOWNLOAD_RETRY_DELAY_MS * Math.pow(2, retryCount - 1);
-
-          await this.updateStatus(modelId, {
-            state: 'downloading',
-            progress: 0,
-            text: `Retrying download (${retryCount}/${DOWNLOAD_MAX_RETRIES})...`
-          });
-
-          await new Promise(resolve => setTimeout(resolve, delay));
           if (abortSignal.aborted) {
-            this._completeInit(null);
+            // A force-closed LiteRT host may already have been replaced. Its
+            // proxy unload is host-global, so never let a stale generation tear
+            // down the replacement document. WebLLM unload targets only this
+            // backend instance and is always safe cleanup.
+            if (backendModelDef.backend !== 'litertlm'
+                || backend.unloadAfterSuperseded
+                || this._activeInitGeneration === initGeneration) {
+              try { await backend.unload(); } catch { /* ignore */ }
+            }
+            this._completeInit(null, initGeneration);
             return null;
           }
-          continue;
-        }
 
-        let errorMessage = errorMsg;
-        if (isGPUDeviceLostError(errorMsg)) {
-          errorMessage = 'GPU memory exhausted. Try a smaller model or close other GPU-intensive tabs.';
-        } else if (isNetworkError(errorMsg)) {
-          errorMessage = 'Download failed after multiple retries. Check your internet connection.';
-        }
+          this.engine = backend;
+          this.loadedModel = modelId;
+          this._modelConfig = modelDef;
 
-        await this.updateStatus(modelId, { state: 'error', error: errorMessage });
-        await this.reset();
-        return null;
+          await this.updateStatus(modelId, { state: 'ready' });
+
+          // Cancellation can arrive while the serialized storage write above
+          // is pending. Do not let that stale operation restart timers or
+          // publish an engine after cancel/replacement has won.
+          if (abortSignal.aborted || this._activeInitGeneration !== initGeneration) {
+            if (this.engine === backend) {
+              this.engine = null;
+              this.loadedModel = null;
+              this._modelConfig = null;
+            }
+            if (backendModelDef.backend !== 'litertlm'
+                || backend.unloadAfterSuperseded
+                || this._activeInitGeneration === initGeneration) {
+              try { await backend.unload(); } catch { /* ignore */ }
+            }
+            this._completeInit(null, initGeneration);
+            return null;
+          }
+
+          this._startKeepAlive();
+          this._resetIdleTimeout();
+          this._completeInit(this.engine, initGeneration);
+
+          return this.engine;
+        } catch (error) {
+          const errorMsg = (error as Error).message;
+
+          if (abortSignal.aborted || errorMsg === 'aborted') {
+            this._completeInit(null, initGeneration);
+            return null;
+          }
+
+          console.error('[LocalEngine] Initialization failed:', error);
+
+          if (isNetworkError(errorMsg) && retryCount < DOWNLOAD_MAX_RETRIES) {
+            retryCount++;
+            const delay = DOWNLOAD_RETRY_DELAY_MS * Math.pow(2, retryCount - 1);
+
+            await this.updateStatus(modelId, {
+              state: 'downloading',
+              progress: 0,
+              text: `Retrying download (${retryCount}/${DOWNLOAD_MAX_RETRIES})...`
+            });
+
+            await new Promise(resolve => setTimeout(resolve, delay));
+            if (abortSignal.aborted) {
+              this._completeInit(null, initGeneration);
+              return null;
+            }
+            continue;
+          }
+
+          let errorMessage = errorMsg;
+          if (isGPUDeviceLostError(errorMsg)) {
+            errorMessage = 'GPU memory exhausted. Try a smaller model or close other GPU-intensive tabs.';
+          } else if (isNetworkError(errorMsg)) {
+            errorMessage = 'Download failed after multiple retries. Check your internet connection.';
+          }
+
+          await this.updateStatus(modelId, { state: 'error', error: errorMessage });
+          await this.reset();
+          return null;
+        }
       }
+    } finally {
+      this._settleInitOperation(initGeneration);
     }
   }
 
@@ -340,8 +345,37 @@ export class LocalEngine {
     if (!this.isInitializingModel(modelId)) {
       return false;
     }
+    const inFlight = this._initPromise;
     if (this._initAbortController) {
       this._initAbortController.abort();
+    }
+
+    // LiteRT owns an offscreen init request that can still emit progress after
+    // abort. Give it a bounded window to settle before the terminal status is
+    // written. WebLLM's callback checks the same signal synchronously and its
+    // engine factory is not abortable, so waiting there would only add delay.
+    const modelDef = PREDEFINED_MODELS.local.find(model => model.name === modelId);
+    if (inFlight && modelDef?.backend === 'litertlm') {
+      let settled = false;
+      let settleTimeout: ReturnType<typeof setTimeout> | null = null;
+      try {
+        await Promise.race([
+          inFlight.then(() => { settled = true; }),
+          new Promise(resolve => {
+            settleTimeout = setTimeout(resolve, CANCEL_SETTLE_TIMEOUT_MS);
+          }),
+        ]);
+      } finally {
+        if (settleTimeout !== null) clearTimeout(settleTimeout);
+      }
+      if (!settled) {
+        const hostWasClosed = await forceCloseLitertlmOffscreen();
+        // Closing Chrome's offscreen document terminates the physical engine
+        // factory, so a replacement may safely start. Firefox/Safari run the
+        // factory in-page; if it cannot be force-closed, keep the physical
+        // settlement barrier until that factory actually returns.
+        if (hostWasClosed) this._settleInitOperation(this._activeInitGeneration);
+      }
     }
 
     await this.reset();
@@ -360,10 +394,11 @@ export class LocalEngine {
     if (!modelId) return { success: false, error: 'No model ID provided' };
 
     if (this.isInitializingModel(modelId)) {
-      if (this._initAbortController) {
-        this._initAbortController.abort();
-      }
-      await this.reset();
+      await this.cancelDownload(modelId);
+      // WebLLM's engine factory cannot be externally interrupted. Wait for
+      // the physical worker before deleting, otherwise its late cache writes
+      // can resurrect a model immediately after a successful deletion.
+      await this._initSettledPromise;
     } else if (this.isModelLoaded(modelId)) {
       await this.reset();
     }
@@ -393,6 +428,7 @@ export class LocalEngine {
   }
 
   async reset(): Promise<void> {
+    this._initAbortController?.abort();
     this._stopIdleTimeout();
     this._stopKeepAlive();
     if (this.engine) {
@@ -410,6 +446,11 @@ export class LocalEngine {
     this._preempted = false;
     this._interruptSettledPromise = null;
     this._completeInit(null);
+    // reset() is the logical teardown boundary. Do not resolve the separate
+    // physical-init barrier here: WebLLM and direct LiteRT engine factories
+    // cannot always be interrupted, and a replacement must not allocate a
+    // second GPU engine until the old factory actually returns. A Chrome
+    // offscreen force-close explicitly settles that barrier in cancelDownload.
   }
 
   // ---- Inference ----
@@ -497,10 +538,14 @@ export class LocalEngine {
   // ---- Status helpers ----
 
   async updateStatus(modelId: string, status: LocalModelStatus): Promise<void> {
-    const data = await getStorage(['localModelStatuses']);
-    const statuses: Record<string, LocalModelStatus> = { ...(data.localModelStatuses ?? {}) };
-    statuses[modelId] = status;
-    await setStorage({ localModelStatuses: statuses });
+    const write = this._statusWriteChain.catch(() => undefined).then(async () => {
+      const data = await getStorage(['localModelStatuses']);
+      const statuses: Record<string, LocalModelStatus> = { ...(data.localModelStatuses ?? {}) };
+      statuses[modelId] = status;
+      await setStorage({ localModelStatuses: statuses });
+    });
+    this._statusWriteChain = write.catch(() => undefined);
+    return write;
   }
 
   async checkCached(modelId: string): Promise<boolean> {
@@ -588,24 +633,43 @@ export class LocalEngine {
 
   // ---- Private: initialization tracking ----
 
-  _startInit(modelId: string): Promise<LocalBackend | null> {
+  _startInit(modelId: string): number {
+    const generation = ++this._initGeneration;
+    this._activeInitGeneration = generation;
+    this._initSettledGeneration = generation;
+    this._initSettledPromise = new Promise<void>(resolve => {
+      this._initSettledResolve = resolve;
+    });
     this._initializingModel = modelId;
     this._initAbortController = new AbortController();
     this._initPromise = new Promise<LocalBackend | null>(resolve => {
       this._initPromiseResolve = resolve;
     });
-    return this._initPromise;
+    return generation;
   }
 
-  _completeInit(backend: LocalBackend | null): void {
+  _completeInit(backend: LocalBackend | null, generation = this._activeInitGeneration): void {
+    // A canceled, unabortable backend may finish after a replacement init has
+    // started. Only the operation that owns the current generation may clear
+    // its promise/controller; stale completions are local cleanup only.
+    if (generation === null || generation !== this._activeInitGeneration) return;
     this._initializingModel = null;
     this._initAbortController = null;
+    this._activeInitGeneration = null;
     this._stopDownloadKeepAlive();
     if (this._initPromiseResolve) {
       this._initPromiseResolve(backend);
       this._initPromiseResolve = null;
     }
     this._initPromise = null;
+  }
+
+  _settleInitOperation(generation: number | null): void {
+    if (generation === null || generation !== this._initSettledGeneration) return;
+    this._initSettledResolve?.();
+    this._initSettledResolve = null;
+    this._initSettledPromise = null;
+    this._initSettledGeneration = null;
   }
 
   // ---- Private: keep-alive ----
@@ -849,15 +913,20 @@ async function callTableYesnoInference(
   } = {}
 ): Promise<{ shouldHide: boolean; reasoning: string; category?: string | null; rawResponse?: string | null; inferenceTime?: number }> {
   const contextWindowSize = modelConfig.litertlmConfig?.maxTokens ?? 1024;
-  // Output is the verdict row (~3 tokens × N categories). Pad so a long topic
-  // name or extra category never truncates.
-  const maxGenerationTokens = Math.max(20, 6 + 4 * bannedCategories.length);
+  // Leave room for Gemma's occasional markdown/newline drift; the runtime now
+  // enforces this budget through sessionConfig.maxOutputTokens.
+  const maxGenerationTokens = Math.max(64, 6 + 4 * bannedCategories.length);
   const supportsImages = modelConfig.supportsImages === true;
   let useImages = !!(supportsImages && postData.imageUrls && postData.imageUrls.length > 0);
-  const systemPrompt = tableYesnoSystemPrompt(promptMode);
+  const isSingleCategory = bannedCategories.length === 1;
+  const systemPrompt = isSingleCategory
+    ? tableYesnoSingleSystemPrompt(promptMode)
+    : tableYesnoSystemPrompt(promptMode);
 
   const buildUserContent = (postText: string, includeImages: boolean): ChatMessage['content'] => {
-    const userText = buildTableYesnoUserMessage(postText, bannedCategories, includeImages, promptMode);
+    const userText = isSingleCategory
+      ? buildSingleYesnoUserMessage(postText, bannedCategories[0], includeImages, promptMode)
+      : buildTableYesnoUserMessage(postText, bannedCategories, includeImages, promptMode);
     if (!includeImages) return userText;
     return [
       { type: 'text', text: userText },

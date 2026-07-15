@@ -1,10 +1,9 @@
 // Shared model definitions for Bouncer
 // Used by both background and popup (via esbuild bundling)
 
-import type { PredefinedModelsMap } from '../types';
+import type { LocalModelDef, PredefinedModelsMap } from '../types';
 
-export const PREDEFINED_MODELS: PredefinedModelsMap = {
-  local: [
+const localModels: LocalModelDef[] = [
     {
       name: "Qwen3_5-4B-q4f16_1-MLC",
       display: "Qwen 3.5 4B",
@@ -74,7 +73,31 @@ export const PREDEFINED_MODELS: PredefinedModelsMap = {
         topK: 40,
       }
     }
-  ]
+];
+
+// Evaluation-only candidate from upstream PR #64. It is deliberately absent
+// from production builds until a same-build E2B-vs-E4B accuracy/latency run
+// clears the documented adoption gate. The source revision is pinned so a dev
+// benchmark cannot silently change underneath an exported result.
+if (typeof __DEV__ !== 'undefined' && __DEV__) {
+  localModels.push({
+    name: 'gemma-4-E2B-it-web',
+    display: 'Gemma 4 E2B (Eval candidate)',
+    isLocal: true,
+    backend: 'litertlm',
+    supportsImages: false,
+    sizeGB: 2.008,
+    inferenceParams: { temperature: 0.0 },
+    litertlmConfig: {
+      modelUrl: 'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/9262660a1676eed6d0c477ab1a86344430854664/gemma-4-E2B-it-web.litertlm',
+      maxTokens: 1024,
+      topK: 40,
+    },
+  });
+}
+
+export const PREDEFINED_MODELS: PredefinedModelsMap = {
+  local: localModels,
 };
 
 // Default model: empty string, representing "no model configured" — the popup

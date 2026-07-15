@@ -64,7 +64,15 @@ window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
           el.style.transition = 'opacity 0.3s ease';
           el.style.opacity = '0';
           setTimeout(() => {
-            el.style.display = 'none';
+            // Reply filtering may have been disabled while the fade was in
+            // flight. Restoration removes our marker; a stale timer must not
+            // hide the cell again afterward.
+            if (el.dataset.filteredByExtension === 'true') {
+              el.style.display = 'none';
+            } else {
+              el.style.opacity = '';
+              el.style.transition = '';
+            }
             fadingOut.delete(el);
           }, 300);
         }
@@ -240,20 +248,17 @@ window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
       return false;
     }
 
-    const tabBar = document.querySelector('[role="tablist"]');
+    // Scope the signal to the primary timeline navigation. X also renders
+    // selected tablists in composers and media pickers; a document-wide match
+    // can mistake those controls for the active Home feed.
+    const primaryColumn = document.querySelector(this.selectors.primaryColumn);
+    const tabBar = primaryColumn?.querySelector('nav[role="navigation"] [role="tablist"]');
     if (!tabBar) return false;
 
-    const tabs = tabBar.querySelectorAll('[role="tab"]');
-    for (const tab of tabs) {
-      const tabText = tab.textContent?.toLowerCase() || '';
-      if (tabText.includes('for you') || tabText.includes('following')) {
-        if (tab.getAttribute('aria-selected') === 'true') {
-          return true;
-        }
-      }
-    }
-
-    return false;
+    // X localizes tab labels. On /home, the selected timeline tab is the
+    // locale-independent signal; matching English labels silently disables
+    // Bouncer for non-English users.
+    return tabBar.querySelector('[role="tab"][aria-selected="true"]') !== null;
   }
 
   isPermalinkView() {
@@ -267,11 +272,17 @@ window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
     const conversationTimeline = document.querySelector('div[aria-label="Timeline: Conversation"]');
     if (conversationTimeline) {
       const firstArticle = conversationTimeline.querySelector(this.selectors.post);
-      if (firstArticle === article) {
-        return true;
-      }
+      return firstArticle === article;
     }
-    return false;
+
+    // X localizes the conversation timeline's aria-label. Fall back to the
+    // status id: the main post either has no self-link on the detail view or
+    // links to the page's status id; replies link to their own status ids.
+    const pageStatusId = window.location.pathname.match(/\/status\/(\d+)/)?.[1];
+    if (!pageStatusId) return false;
+    const postUrl = this.getPostUrl(article);
+    if (!postUrl) return true;
+    return postUrl.match(/\/status\/(\d+)/)?.[1] === pageStatusId;
   }
 
   getPostUrl(article: HTMLElement) {

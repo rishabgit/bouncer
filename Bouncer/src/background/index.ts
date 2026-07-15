@@ -3,8 +3,12 @@
 import { PREDEFINED_MODELS } from '../shared/models';
 import { generateCacheKey } from '../shared/utils';
 import { getStorage, setStorage } from '../shared/storage';
-import type { ContentToBackgroundMessage, LocalModelStatus } from '../types';
+import type { ContentToBackgroundMessage, LocalModelStatus, PendingLocalModelSelection } from '../types';
 import { localEngine } from './local-model';
+import {
+  pendingLocalModelSelectionManager,
+  supersededPendingSelection,
+} from './pending-model-selection';
 import {
   initPipeline, loadCache, saveCache,
   setActiveTab, enqueuePost, isKeyPending, clearTabQueue,
@@ -85,6 +89,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     // Wire up pipeline with shared state
     initPipeline(activeContentTabs);
     await localEngine.syncAllStatuses();
+    await pendingLocalModelSelectionManager.reconcile();
     await localEngine.autoInitSelected();
 
     // Proactively detect active Bouncer tabs after service worker restart.
@@ -272,7 +277,7 @@ async function handleMessage(
     }
 
     case 'getAllLocalModelStatuses': {
-      const data = await getStorage(['localModelStatuses']);
+      const data = await getStorage(['localModelStatuses', 'pendingLocalModelSelection']);
       const statuses: Record<string, { state: string; reason?: string }> = (data.localModelStatuses || {});
 
       // Check WebGPU support
@@ -282,7 +287,11 @@ async function handleMessage(
       for (const model of PREDEFINED_MODELS.local) {
         const currentStatus = statuses[model.name];
         // Skip cache check only if actively downloading/initializing
-        const isLoading = currentStatus?.state === 'downloading' || currentStatus?.state === 'initializing';
+        const isPendingError = currentStatus?.state === 'error'
+          && data.pendingLocalModelSelection?.modelId === model.name;
+        const isLoading = currentStatus?.state === 'downloading'
+          || currentStatus?.state === 'initializing'
+          || isPendingError;
 
         if (!isLoading) {
           if (!webgpuSupported) {
@@ -301,12 +310,17 @@ async function handleMessage(
       return { statuses, webgpuSupported };
     }
 
+    case 'selectLocalModel':
+      return pendingLocalModelSelectionManager.select(message.modelId);
+
     case 'cancelLocalModelDownload': {
       const modelId = message.modelId;
       if (!modelId) {
         return { success: false, error: 'No model ID provided' };
       }
-      const cancelled = await localEngine.cancelDownload(modelId);
+      const pendingCancelled = await pendingLocalModelSelectionManager.cancel(modelId);
+      const initializationCancelled = await localEngine.cancelDownload(modelId);
+      const cancelled = pendingCancelled || initializationCancelled;
       return { success: true, cancelled, modelId };
     }
 
@@ -315,6 +329,7 @@ async function handleMessage(
       if (!modelId) {
         return { success: false, error: 'No model ID provided' };
       }
+      await pendingLocalModelSelectionManager.cancel(modelId);
       const result = await localEngine.deleteModelCache(modelId);
       return { ...result, modelId };
     }
@@ -357,6 +372,20 @@ chrome.runtime.onMessage.addListener((message: ContentToBackgroundMessage, sende
   }
 
   // --- Fire-and-forget: initializeLocalModel responds synchronously, starts async work ---
+  if (message.type === 'downloadPendingLocalModel') {
+    const modelId = message.modelId;
+    if (!modelId) {
+      sendResponse({ success: false, error: 'No model ID provided' });
+      return false;
+    }
+    pendingLocalModelSelectionManager.start(modelId).catch(err => {
+      console.error('[LocalModel] Pending model download error for', modelId, ':', err);
+    });
+    sendResponse({ success: true, started: true, modelId });
+    return false;
+  }
+
+  // --- Fire-and-forget: initializeLocalModel responds synchronously, starts async work ---
   if (message.type === 'initializeLocalModel') {
     console.log('[Background] initializeLocalModel received, modelId:', message.modelId, 'hasNativeBridge:', typeof window !== 'undefined' && !!(window as unknown as Record<string, unknown>)?.webkit);
     const modelId = message.modelId;
@@ -390,12 +419,35 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   (async () => {
     if (areaName !== 'local') return;
 
+    if (changes.pendingLocalModelSelection) {
+      const clearedPending = supersededPendingSelection(
+        changes.pendingLocalModelSelection.oldValue as PendingLocalModelSelection | null | undefined,
+        changes.pendingLocalModelSelection.newValue as PendingLocalModelSelection | null | undefined,
+        changes.selectedModel?.newValue as string | undefined,
+      );
+      if (clearedPending) {
+        await pendingLocalModelSelectionManager.cancelClearedSelection(clearedPending);
+      }
+    }
+
     if (changes.selectedModel) {
       // If switching away from local model, unload the engine to free GPU memory
       const oldModel = changes.selectedModel.oldValue as string | undefined;
       const newModel = changes.selectedModel.newValue as string | undefined;
       const wasLocal = oldModel?.startsWith('local:');
       const isLocal = newModel?.startsWith('local:');
+
+      // A direct/legacy selection change supersedes any staged choice. The
+      // cache-complete promotion writes selectedModel and clears pending in the
+      // same operation, so it does not enter this branch with a live pending
+      // record.
+      if (!changes.pendingLocalModelSelection) {
+        const pendingData = await getStorage(['pendingLocalModelSelection']);
+        const pending = pendingData.pendingLocalModelSelection;
+        if (pending && pending.modelKey !== newModel) {
+          await pendingLocalModelSelectionManager.cancel(pending.modelId);
+        }
+      }
 
       if (wasLocal && !isLocal && localEngine.engine) {
         const unloadedModelId = oldModel!.split(':')[1];
@@ -463,6 +515,7 @@ chrome.runtime.onInstalled.addListener((details) => {
 // Note: onSuspend is not available in Safari service workers
 if (chrome.runtime.onSuspend) {
   chrome.runtime.onSuspend.addListener(() => {
+    pendingLocalModelSelectionManager.teardown();
     localEngine.teardown();
   });
 }

@@ -3,10 +3,14 @@ import {
   LOCAL_INTENT_SYSTEM_PROMPT,
   LOCAL_SYSTEM_PROMPT,
   TABLE_YESNO_INTENT_SYSTEM_PROMPT,
+  TABLE_YESNO_SINGLE_INTENT_SYSTEM_PROMPT,
+  TABLE_YESNO_SINGLE_SYSTEM_PROMPT,
   TABLE_YESNO_SYSTEM_PROMPT,
   buildLocalUserMessage,
+  buildSingleYesnoUserMessage,
   buildTableYesnoUserMessage,
   localSystemPrompt,
+  tableYesnoSingleSystemPrompt,
   tableYesnoSystemPrompt,
 } from '../../src/shared/prompts.js';
 
@@ -55,5 +59,18 @@ describe('prompt variants', () => {
 
     expect(baseline).not.toContain('distinguish outrage amplification');
     expect(intent).toContain('distinguish outrage amplification');
+  });
+
+  it('states the exact multi-category verdict count', () => {
+    const prompt = buildTableYesnoUserMessage('post text', ['a', 'b', 'c'], false);
+    expect(prompt).toContain('exactly 3 verdicts');
+  });
+
+  it('uses a plain yes/no prompt for one category', () => {
+    expect(tableYesnoSingleSystemPrompt()).toBe(TABLE_YESNO_SINGLE_SYSTEM_PROMPT);
+    expect(tableYesnoSingleSystemPrompt('intent')).toBe(TABLE_YESNO_SINGLE_INTENT_SYSTEM_PROMPT);
+    expect(buildSingleYesnoUserMessage('post text', 'rage bait', false))
+      .toContain('Answer with one word, yes or no');
+    expect(TABLE_YESNO_SINGLE_SYSTEM_PROMPT).not.toContain('|');
   });
 });

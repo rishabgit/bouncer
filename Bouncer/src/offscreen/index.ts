@@ -12,49 +12,61 @@ import type { LocalModelDef, ChatMessage } from '../types';
 
 interface InitProgressUpdate {
   channel: 'litertlm-progress';
-  id: number;
+  id: string;
   progress: number;
   text: string;
 }
 
-interface BaseRequest { id: number; target: 'litertlm-offscreen' }
+interface BaseRequest { id: string; target: 'litertlm-offscreen' }
 interface InitRequest extends BaseRequest { method: 'init'; modelDef: LocalModelDef }
 interface GenerateRequest extends BaseRequest { method: 'generate'; messages: ChatMessage[]; maxTokens: number; params: Record<string, unknown> }
 interface InterruptRequest extends BaseRequest { method: 'interrupt' }
 interface UnloadRequest extends BaseRequest { method: 'unload' }
 interface CountRequest extends BaseRequest { method: 'countTokens'; text: string }
 interface TruncateRequest extends BaseRequest { method: 'truncateText'; text: string; maxTokens: number }
-interface CancelInitRequest extends BaseRequest { method: 'cancelInit' }
+interface CancelInitRequest extends BaseRequest { method: 'cancelInit'; initRequestId: string }
 
 type Request =
   | InitRequest | GenerateRequest | InterruptRequest | UnloadRequest
   | CountRequest | TruncateRequest | CancelInitRequest;
 
 const runtime = new LitertlmRuntime();
-// Track the in-flight initialize() so cancelInit can abort its download.
-let initAbort: AbortController | null = null;
+// LiteRT Engine.create is not abortable once cache-to-GPU loading begins. Keep
+// init requests serialized so a canceled operation that finishes late cannot
+// overwrite/delete a newer runtime engine. Controllers are keyed by request id
+// so canceling a queued request never aborts the currently active one.
+const initControllers = new Map<string, AbortController>();
+let initTail: Promise<void> = Promise.resolve();
 
 async function handle(req: Request): Promise<unknown> {
   switch (req.method) {
     case 'init': {
-      initAbort = new AbortController();
-      try {
-        await runtime.initialize(req.modelDef, (p) => {
-          const msg: InitProgressUpdate = {
-            channel: 'litertlm-progress',
-            id: req.id,
-            progress: p.progress,
-            text: p.text,
-          };
-          chrome.runtime.sendMessage(msg).catch(() => { /* SW might be napping */ });
-        }, initAbort.signal);
-        return { ok: true };
-      } finally {
-        initAbort = null;
-      }
+      const controller = new AbortController();
+      initControllers.set(req.id, controller);
+      const run = initTail.catch(() => undefined).then(async () => {
+        try {
+          if (controller.signal.aborted) throw new Error('aborted');
+          await runtime.initialize(req.modelDef, (p) => {
+            const msg: InitProgressUpdate = {
+              channel: 'litertlm-progress',
+              id: req.id,
+              progress: p.progress,
+              text: p.text,
+            };
+            chrome.runtime.sendMessage(msg).catch(() => { /* SW might be napping */ });
+          }, controller.signal);
+        } finally {
+          if (initControllers.get(req.id) === controller) {
+            initControllers.delete(req.id);
+          }
+        }
+      });
+      initTail = run.catch(() => undefined);
+      await run;
+      return { ok: true };
     }
     case 'cancelInit': {
-      initAbort?.abort();
+      initControllers.get(req.initRequestId)?.abort();
       return { ok: true };
     }
     case 'generate':

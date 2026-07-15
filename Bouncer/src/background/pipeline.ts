@@ -6,6 +6,7 @@ import {
   RATE_LIMIT_TYPE_CONFIG, API_ERROR_TYPE_CONFIG,
 } from '../shared/utils';
 import { PREDEFINED_MODELS, DEFAULT_MODEL } from '../shared/models';
+import { parseTableYesnoResponse } from '../shared/table-yesno';
 import { runDetectors, type Detector, type DetectorResult } from './detectors';
 import { callLocalInference, localEngine } from './local-model';
 import { getStorage, setStorage, removeStorage, getDescriptions } from '../shared/storage';
@@ -933,12 +934,42 @@ async function validateFilterPhrase(postText: string, imageUrls: string[], phras
 
 // Generate candidate filter phrases using the local model.
 // Local WebLLM models don't support image inputs — use text only.
+export function parseCandidatePhrases(rawText: string, count: number): string[] {
+  const unwrap = (input: string): string => {
+    let value = input.trim();
+    const wrappers: Array<[string, string]> = [
+      ['**', '**'], ['__', '__'], ['`', '`'], ['“', '”'], ['"', '"'], ['*', '*'], ['_', '_'],
+    ];
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const [start, end] of wrappers) {
+        if (value.length > start.length + end.length && value.startsWith(start) && value.endsWith(end)) {
+          value = value.slice(start.length, -end.length).trim();
+          changed = true;
+          break;
+        }
+      }
+    }
+    return value;
+  };
+
+  return rawText.split('\n')
+    .map(line => line
+      .replace(/^\d+[.)-]\s*/, '')
+      .replace(/^[-*•]\s+/, ''))
+    .map(unwrap)
+    .filter(line => line.length > 0 && line.length <= 40 && !line.startsWith('<'))
+    .slice(0, count)
+    .map(line => line.toLowerCase());
+}
+
 async function generateCandidatePhrases(postText: string, _imageUrls: string[], count: number, rejectPhrases: string[], settings: Settings): Promise<string[]> {
   const rejected = rejectPhrases.length > 0
     ? ` Do NOT suggest any of these: ${rejectPhrases.join(', ')}.`
     : '';
 
-  const simpleSystemPrompt = `Given a social media post, suggest exactly ${count} broad content category labels (1-3 words each) that someone might want to filter out because the post is annoying, obnoxious, or unpleasant. Each label must be a general topic or content type such that if another model were asked "does this post relate to [label]?", it would say yes. Focus on what makes the post grating or unwelcome. At least one of the ${count} labels MUST describe a negative emotional tone or off-putting quality of the post.${rejected} Output ONLY the ${count} category labels, one per line, nothing else.`;
+  const simpleSystemPrompt = `Given a social media post, suggest exactly ${count} filter phrases (1-3 words each) that someone might add to hide posts like this one because it is annoying, obnoxious, or unpleasant. Each phrase must still work as a category: if another model were asked "does this post relate to [phrase]?", it would say yes. Favor phrases that name what is irritating about the post — its negative tone, behavior, or tactic — and make them as specific as possible. At most one phrase may be a plain topic (like "crypto" or "politics"); every other phrase must carry a clearly negative connotation. Only use an example if it genuinely fits the post.${rejected} Output ONLY the ${count} phrases, one per line, nothing else.`;
 
   const modelName = settings.selectedModel.split(':')[1];
   await localEngine.ensureLoaded(modelName);
@@ -946,11 +977,31 @@ async function generateCandidatePhrases(postText: string, _imageUrls: string[], 
     { role: 'system', content: simpleSystemPrompt },
     { role: 'user', content: postText }
   ], 150, { priority: 1, temperature: 0.7 });
-  const result = rawText.split('\n')
-    .map(l => l.replace(/^\d+[.)-]\s*/, '').trim())
-    .filter(l => l && l.length <= 40 && !l.startsWith('<'))
-    .slice(0, count);
-  return result.map(item => item.toLowerCase());
+  return parseCandidatePhrases(rawText, count);
+}
+
+// Gemma can validate every generated phrase with one table_yesno prefill.
+// A malformed verdict falls back to one phrase at a time; operational errors
+// propagate so a broken GPU/session does not fan out into nine doomed calls.
+async function validatePhrasesBatchedLitert(
+  postText: string,
+  imageUrls: string[],
+  phrases: string[],
+  settings: Settings,
+): Promise<string[] | null> {
+  const modelName = settings.selectedModel.split(':')[1];
+  const modelConfig = PREDEFINED_MODELS.local?.find(model => model.name === modelName);
+  if (modelConfig?.backend !== 'litertlm') return null;
+
+  const result = await callLocalInference(
+    { text: postText, imageUrls: imageUrls || [] },
+    phrases,
+    modelConfig,
+    modelName,
+    { priority: 1 },
+  );
+  const parsed = parseTableYesnoResponse(result.rawResponse ?? null, phrases);
+  return parsed.malformed ? null : parsed.matches;
 }
 
 // Generate 9 candidate filter phrases up front, then return the first 3 that validate
@@ -964,12 +1015,30 @@ export async function suggestAnnoyingReasons(postText: string, imageUrls: string
   let validatedCount = 0;
 
   function sendProgress(): void {
-    if (tabId) {
+    if (tabId !== undefined) {
       void sendToTab(tabId, {
         type: 'annoyingProgress',
         verified: validatedCount,
         total: 3
       });
+    }
+  }
+
+  if (uniqueCandidates.length > 1) {
+    const batchedMatches = await validatePhrasesBatchedLitert(
+      postText,
+      imageUrls,
+      uniqueCandidates,
+      settings,
+    );
+    if (batchedMatches !== null) {
+      const matched = new Set(batchedMatches);
+      const accepted = uniqueCandidates.filter(phrase => matched.has(phrase)).slice(0, 3);
+      for (let index = 0; index < accepted.length; index++) {
+        validatedCount++;
+        sendProgress();
+      }
+      return accepted;
     }
   }
 

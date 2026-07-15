@@ -41,6 +41,8 @@ import {
   setActiveTab,
   scheduleBatch,
   prioritizeByViewportDistance,
+  parseCandidatePhrases,
+  suggestAnnoyingReasons,
 } from '../../src/background/pipeline.js';
 import { localEngine, callLocalInference } from '../../src/background/local-model.js';
 import type { PendingEvaluation } from '../../src/types.js';
@@ -328,5 +330,78 @@ describe('processBatch re-queue on inference queue cleared', () => {
     // New item should be untouched in the new queue
     expect(newResolve).not.toHaveBeenCalled();
     expect(isKeyPending(TAB_ID, 'new_key')).toBe(true);
+  });
+});
+
+describe('suggestAnnoyingReasons', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (globalThis.chrome.storage.local.get as Mock).mockResolvedValue({
+      selectedModel: 'local:gemma-4-E4B-it-web',
+      descriptions_twitter: [],
+    });
+    vi.mocked(localEngine.ensureLoaded).mockResolvedValue(undefined);
+  });
+
+  it('cleans markdown and validates Gemma candidates in one batched call', async () => {
+    vi.mocked(localEngine.generate).mockResolvedValue(
+      '1. **rage bait**\n- `smug dunking`\n• "crypto"\n4) _hostile tone_',
+    );
+    mockCallLocalInference.mockResolvedValue({
+      shouldHide: true,
+      reasoning: 'matched',
+      rawResponse: '| yes | no | yes | no',
+    });
+
+    const result = await suggestAnnoyingReasons('post', [], 'twitter', 7);
+
+    expect(result).toEqual(['rage bait', 'crypto']);
+    expect(mockCallLocalInference).toHaveBeenCalledTimes(1);
+    expect(mockCallLocalInference.mock.calls[0][1]).toEqual([
+      'rage bait', 'smug dunking', 'crypto', 'hostile tone',
+    ]);
+    expect(globalThis.chrome.tabs.sendMessage).toHaveBeenCalledTimes(2);
+  });
+
+  it('only removes surrounding formatting from candidate phrases', () => {
+    expect(parseCandidatePhrases('1. **don\'t engage**\n- `web_3 outrage`\n• “smug dunking”', 9))
+      .toEqual(["don't engage", 'web_3 outrage', 'smug dunking']);
+  });
+
+  it('keeps Qwen validation on the per-phrase reasoning path', async () => {
+    (globalThis.chrome.storage.local.get as Mock).mockResolvedValue({
+      selectedModel: 'local:Qwen3_5-4B-q4f16_1-MLC',
+      descriptions_twitter: [],
+    });
+    vi.mocked(localEngine.generate).mockResolvedValue('rage bait\nsmug dunking\ncrypto');
+    mockCallLocalInference.mockResolvedValue({ shouldHide: true, reasoning: 'matched' });
+
+    const result = await suggestAnnoyingReasons('post', [], 'twitter');
+
+    expect(result).toEqual(['rage bait', 'smug dunking', 'crypto']);
+    expect(mockCallLocalInference).toHaveBeenCalledTimes(3);
+    expect(mockCallLocalInference.mock.calls.every(call => call[1].length === 1)).toBe(true);
+  });
+
+  it('falls back to per-phrase validation when the batched Gemma row is malformed', async () => {
+    vi.mocked(localEngine.generate).mockResolvedValue('rage bait\nsmug dunking\ncrypto');
+    mockCallLocalInference
+      .mockResolvedValueOnce({ shouldHide: false, reasoning: 'bad', rawResponse: '| yes | no' })
+      .mockResolvedValue({ shouldHide: true, reasoning: 'matched', rawResponse: 'yes' });
+
+    const result = await suggestAnnoyingReasons('post', [], 'twitter');
+
+    expect(result).toEqual(['rage bait', 'smug dunking', 'crypto']);
+    expect(mockCallLocalInference).toHaveBeenCalledTimes(4);
+    expect(mockCallLocalInference.mock.calls[0][1]).toHaveLength(3);
+    expect(mockCallLocalInference.mock.calls.slice(1).every(call => call[1].length === 1)).toBe(true);
+  });
+
+  it('propagates a batched LiteRT runtime error without spawning per-phrase calls', async () => {
+    vi.mocked(localEngine.generate).mockResolvedValue('rage bait\nsmug dunking\ncrypto');
+    mockCallLocalInference.mockRejectedValueOnce(new Error('GPU device lost'));
+
+    await expect(suggestAnnoyingReasons('post', [], 'twitter')).rejects.toThrow('GPU device lost');
+    expect(mockCallLocalInference).toHaveBeenCalledTimes(1);
   });
 });

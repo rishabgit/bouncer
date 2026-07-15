@@ -1,7 +1,7 @@
 /**
  * @vitest-environment happy-dom
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { loadTwitterFixture } from '../fixtures/twitter-dom';
 import { formatPostForEvaluation } from '../../src/shared/utils';
 import type { PlatformAdapter } from '../../src/types';
@@ -59,6 +59,39 @@ describe('finding tweets', () => {
     expect(articles).toHaveLength(5);
   });
 
+});
+
+describe('filtered post scroll restoration', () => {
+  it('does not let a stale fade timer hide a restored cell', () => {
+    vi.useFakeTimers();
+    try {
+      document.body.innerHTML = '';
+      new TwitterAdapter();
+      const cell = document.createElement('div');
+      cell.dataset.filteredByExtension = 'true';
+      cell.getBoundingClientRect = () => ({
+        top: 120, bottom: 220, left: 0, right: 100, width: 100, height: 100,
+        x: 0, y: 120, toJSON: () => ({}),
+      });
+      document.body.appendChild(cell);
+
+      window.dispatchEvent(new Event('scroll'));
+      expect(cell.style.opacity).toBe('0');
+
+      // Mirrors restoreFilteredContainer without coupling the standalone
+      // adapter bundle to the content module.
+      delete cell.dataset.filteredByExtension;
+      cell.style.display = '';
+      cell.style.opacity = '';
+      cell.style.transition = '';
+      vi.advanceTimersByTime(300);
+
+      expect(cell.style.display).toBe('');
+      expect(cell.style.opacity).toBe('');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 // ==================== extractPostContent ====================
@@ -179,6 +212,10 @@ describe('shouldProcessCurrentPage', () => {
   }
 
   function addTabList(tabs: Array<{ text: string; selected: boolean }>) {
+    const primaryColumn = document.createElement('main');
+    primaryColumn.dataset.testid = 'primaryColumn';
+    const nav = document.createElement('nav');
+    nav.setAttribute('role', 'navigation');
     const tabBar = document.createElement('div');
     tabBar.setAttribute('role', 'tablist');
     for (const { text, selected } of tabs) {
@@ -188,7 +225,9 @@ describe('shouldProcessCurrentPage', () => {
       tab.setAttribute('aria-selected', selected ? 'true' : 'false');
       tabBar.appendChild(tab);
     }
-    document.body.appendChild(tabBar);
+    nav.appendChild(tabBar);
+    primaryColumn.appendChild(nav);
+    document.body.appendChild(primaryColumn);
     return tabBar;
   }
 
@@ -207,13 +246,34 @@ describe('shouldProcessCurrentPage', () => {
     expect(adapter.shouldProcessCurrentPage()).toBe(true);
   });
 
-  it('returns false on /home with no matching tab selected', () => {
+  it('returns true on /home with a localized timeline tab selected', () => {
     setPath('/home');
     addTabList([
-      { text: 'For you', selected: false },
-      { text: 'Following', selected: false },
-      { text: 'Lists', selected: true },
+      { text: 'おすすめ', selected: true },
+      { text: 'フォロー中', selected: false },
     ]);
+    expect(adapter.shouldProcessCurrentPage()).toBe(true);
+  });
+
+  it('returns false on /home when no tab is selected', () => {
+    setPath('/home');
+    addTabList([
+      { text: 'おすすめ', selected: false },
+      { text: 'フォロー中', selected: false },
+    ]);
+    expect(adapter.shouldProcessCurrentPage()).toBe(false);
+  });
+
+  it('ignores a selected tab in an unrelated control outside the timeline navigation', () => {
+    setPath('/home');
+    const primaryColumn = document.createElement('main');
+    primaryColumn.dataset.testid = 'primaryColumn';
+    const unrelatedTabList = document.createElement('div');
+    unrelatedTabList.setAttribute('role', 'tablist');
+    unrelatedTabList.innerHTML = '<div role="tab" aria-selected="true">Media</div>';
+    primaryColumn.appendChild(unrelatedTabList);
+    document.body.appendChild(primaryColumn);
+
     expect(adapter.shouldProcessCurrentPage()).toBe(false);
   });
 
@@ -349,12 +409,17 @@ describe('isMainPost', () => {
     expect(adapter.isMainPost(articles[0])).toBe(false);
   });
 
-  it('returns false on a status page with no conversation timeline', () => {
+  it('uses the permalink status id when the localized timeline has no English aria-label', () => {
     setPath('/user/status/12345');
-    const article = document.createElement('article');
-    article.setAttribute('data-testid', 'tweet');
-    document.body.appendChild(article);
-    expect(adapter.isMainPost(article)).toBe(false);
+    const main = document.createElement('article');
+    main.setAttribute('data-testid', 'tweet');
+    const reply = document.createElement('article');
+    reply.setAttribute('data-testid', 'tweet');
+    reply.innerHTML = '<a href="https://x.com/other/status/67890"><time>now</time></a>';
+    document.body.append(main, reply);
+
+    expect(adapter.isMainPost(main)).toBe(true);
+    expect(adapter.isMainPost(reply)).toBe(false);
   });
 });
 

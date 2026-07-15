@@ -7,8 +7,8 @@
 
 import type { LocalModelDef, ChatMessage } from '../../types';
 import type { LocalBackend, InitProgress } from './types';
-import { LitertlmProxy } from './litertlm-proxy';
-import { LitertlmRuntime } from '../../offscreen/litertlm-runtime';
+import { LitertlmProxy, forceCloseLitertlmOffscreen } from './litertlm-proxy';
+import { LitertlmRuntime, prefetchLitertlmModel } from '../../offscreen/litertlm-runtime';
 
 interface Impl {
   initialize(d: LocalModelDef, p: (x: InitProgress) => void, s: AbortSignal): Promise<void>;
@@ -25,11 +25,14 @@ function hasDocument(): boolean {
 
 export class LitertlmBackend implements LocalBackend {
   private impl: Impl;
+  readonly unloadAfterSuperseded: boolean;
 
   constructor() {
     // Direct mode in any window/event-page context; proxy through the
     // offscreen document inside Chrome's ESM service worker.
-    this.impl = hasDocument() ? new LitertlmRuntime() : new LitertlmProxy();
+    const directRuntime = hasDocument();
+    this.impl = directRuntime ? new LitertlmRuntime() : new LitertlmProxy();
+    this.unloadAfterSuperseded = directRuntime;
   }
 
   initialize(modelDef: LocalModelDef, onProgress: (p: InitProgress) => void, abortSignal: AbortSignal): Promise<void> {
@@ -77,3 +80,5 @@ export async function isLitertlmCached(modelDef: LocalModelDef): Promise<boolean
 export async function deleteLitertlmCache(modelDef: LocalModelDef): Promise<void> {
   return LitertlmRuntime.deleteCache(modelDef);
 }
+
+export { forceCloseLitertlmOffscreen, prefetchLitertlmModel };

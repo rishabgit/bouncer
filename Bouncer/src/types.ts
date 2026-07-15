@@ -174,6 +174,15 @@ export interface LocalModelStatus {
   reason?: string;
 }
 
+/** A local model the user chose but which has not replaced the active model yet.
+ *  The active `selectedModel` remains authoritative for filtering until the
+ *  cache-only download identified by `operationId` completes. */
+export interface PendingLocalModelSelection {
+  modelId: string;
+  modelKey: string;
+  operationId: string;
+}
+
 // ==================== Platform Adapter ====================
 
 export interface PlatformSelectors {
@@ -256,6 +265,8 @@ export type ContentToBackgroundMessage =
   | { type: 'getReasoning'; post: string; imageUrls: string[] }
   | { type: 'getErrorStatus' }
   | { type: 'getAllLocalModelStatuses' }
+  | { type: 'selectLocalModel'; modelId: string }
+  | { type: 'downloadPendingLocalModel'; modelId: string }
   | { type: 'initializeLocalModel'; modelId: string }
   | { type: 'cancelLocalModelDownload'; modelId: string }
   | { type: 'deleteLocalModel'; modelId: string }
@@ -331,6 +342,7 @@ export type DescriptionKey = `descriptions_${SiteId}`;
 export type StorageSchema = SettingsBase & {
   localModelsEnabled: boolean;
   localModelStatuses: Record<string, LocalModelStatus>;
+  pendingLocalModelSelection: PendingLocalModelSelection | null;
   evaluationCache: Record<string, EvaluationResult>;
   stats: { filtered: number; evaluated: number; totalCost: number };
   lastSeenVersion: string;

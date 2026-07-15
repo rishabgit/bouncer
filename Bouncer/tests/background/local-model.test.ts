@@ -24,6 +24,7 @@ vi.mock('../../src/background/backends/litertlm-backend.js', () => ({
   LitertlmBackend: vi.fn(),
   isLitertlmCached: vi.fn(async () => false),
   deleteLitertlmCache: vi.fn(async () => undefined),
+  forceCloseLitertlmOffscreen: vi.fn(async () => false),
 }));
 
 // We need to mock models.js so we can control PREDEFINED_MODELS per test.
@@ -45,19 +46,27 @@ vi.mock('../../src/shared/utils.js', () => ({
 vi.mock('../../src/shared/prompts.js', () => ({
   LOCAL_SYSTEM_PROMPT: 'mock system prompt',
   TABLE_YESNO_SYSTEM_PROMPT: 'mock table prompt',
+  TABLE_YESNO_SINGLE_SYSTEM_PROMPT: 'mock single prompt',
   buildLocalUserMessage: vi.fn(),
+  buildSingleYesnoUserMessage: vi.fn(),
   buildTableYesnoUserMessage: vi.fn(),
   localSystemPrompt: vi.fn(() => 'mock system prompt'),
+  tableYesnoSingleSystemPrompt: vi.fn(() => 'mock single prompt'),
   tableYesnoSystemPrompt: vi.fn(() => 'mock table prompt'),
 }));
 
 import { buildModelConfig, localEngine, parseLocalModelResponse, parseTableYesnoResponse } from '../../src/background/local-model.js';
 import { WebllmBackend } from '../../src/background/backends/webllm-backend.js';
+import {
+  LitertlmBackend,
+  forceCloseLitertlmOffscreen,
+} from '../../src/background/backends/litertlm-backend.js';
 import { InferenceQueue, inferenceQueue } from '../../src/background/inference-queue.js';
 import { CreateMLCEngine, hasModelInCache, deleteModelAllInfoInCache } from '@mlc-ai/web-llm';
-import { isGPUDeviceLostError } from '../../src/shared/utils.js';
+import { isGPUDeviceLostError, isNetworkError } from '../../src/shared/utils.js';
 import type { Mock } from 'vitest';
 import type { LocalModelDef } from '../../src/types.js';
+import type { LocalBackend } from '../../src/background/backends/types.js';
 
 // ==================== InferenceQueue ====================
 
@@ -316,9 +325,14 @@ describe('localEngine.cancelDownload', () => {
     // Reset mocks and state
     (CreateMLCEngine as Mock).mockReset();
     (hasModelInCache as Mock).mockReset();
+    (isNetworkError as Mock).mockReturnValue(false);
     modelsState.PREDEFINED_MODELS = { local: [{ name: 'TestModel-MLC', display: 'Test' }] };
 
     await localEngine.reset();
+    // Individual cancellation tests intentionally use never-settling mocked
+    // factories. Detach a prior test's synthetic worker; production workers
+    // keep this barrier until the real factory returns.
+    localEngine._settleInitOperation(localEngine._initSettledGeneration);
 
     // Mock chrome.storage
     storageData = {};
@@ -450,6 +464,200 @@ describe('localEngine.cancelDownload', () => {
     // Engine should have been unloaded since it completed after abort
     expect(mockEngine.unload).toHaveBeenCalled();
   });
+
+  it('waits for a canceled physical init before starting a newer init', async () => {
+    modelsState.PREDEFINED_MODELS = {
+      local: [
+        { name: 'Model-A', display: 'A' },
+        { name: 'Model-B', display: 'B' },
+      ],
+    };
+    (hasModelInCache as Mock).mockResolvedValue(false);
+
+    let resolveA!: (value: unknown) => void;
+    let resolveB!: (value: unknown) => void;
+    const engineA = { unload: vi.fn().mockResolvedValue(undefined) };
+    const engineB = { unload: vi.fn().mockResolvedValue(undefined) };
+    (CreateMLCEngine as Mock)
+      .mockImplementationOnce(() => new Promise(resolve => { resolveA = resolve; }))
+      .mockImplementationOnce(() => new Promise(resolve => { resolveB = resolve; }));
+
+    const initA = localEngine.initialize('Model-A');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await localEngine.cancelDownload('Model-A');
+
+    const initB = localEngine.initialize('Model-B');
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    // Cancel resolves A's logical waiters immediately, but CreateMLCEngine is
+    // not externally abortable. B must wait for that physical factory rather
+    // than allocating a concurrent GPU engine.
+    expect(CreateMLCEngine).toHaveBeenCalledTimes(1);
+    expect(localEngine.isInitializingModel('Model-B')).toBe(false);
+
+    resolveA(engineA);
+    await initA;
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(CreateMLCEngine).toHaveBeenCalledTimes(2);
+    expect(localEngine.isInitializingModel('Model-B')).toBe(true);
+
+    resolveB(engineB);
+    await initB;
+    expect(localEngine.isModelLoaded('Model-B')).toBe(true);
+  });
+
+  it('keeps the physical barrier and unloads a late direct LiteRT engine', async () => {
+    modelsState.PREDEFINED_MODELS = {
+      local: [
+        { name: 'Gemma-A', display: 'A', backend: 'litertlm' },
+        { name: 'Gemma-B', display: 'B', backend: 'litertlm' },
+      ],
+    };
+
+    let resolveA!: () => void;
+    let resolveB!: () => void;
+    const backendA = {
+      unloadAfterSuperseded: true,
+      initialize: vi.fn(() => new Promise<void>(resolve => { resolveA = resolve; })),
+      unload: vi.fn().mockResolvedValue(undefined),
+    } as unknown as LocalBackend;
+    const backendB = {
+      unloadAfterSuperseded: true,
+      initialize: vi.fn(() => new Promise<void>(resolve => { resolveB = resolve; })),
+      unload: vi.fn().mockResolvedValue(undefined),
+    } as unknown as LocalBackend;
+    (LitertlmBackend as Mock).mockReset()
+      .mockImplementationOnce(function () { return backendA; })
+      .mockImplementationOnce(function () { return backendB; });
+    (forceCloseLitertlmOffscreen as Mock).mockResolvedValue(false);
+
+    vi.useFakeTimers();
+    try {
+      const initA = localEngine.initialize('Gemma-A');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(LitertlmBackend).toHaveBeenCalledTimes(1);
+
+      const cancelA = localEngine.cancelDownload('Gemma-A');
+      await vi.advanceTimersByTimeAsync(3000);
+      await cancelA;
+
+      const initB = localEngine.initialize('Gemma-B');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(LitertlmBackend).toHaveBeenCalledTimes(1);
+
+      resolveA();
+      await initA;
+      await vi.advanceTimersByTimeAsync(0);
+      expect(backendA.unload).toHaveBeenCalledTimes(1);
+      expect(LitertlmBackend).toHaveBeenCalledTimes(2);
+
+      resolveB();
+      await expect(initB).resolves.toBe(backendB);
+      expect(localEngine.isModelLoaded('Gemma-B')).toBe(true);
+      await localEngine.reset();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('allows replacement only after a Chrome LiteRT host is confirmed closed', async () => {
+    modelsState.PREDEFINED_MODELS = {
+      local: [
+        { name: 'Gemma-A', display: 'A', backend: 'litertlm' },
+        { name: 'Gemma-B', display: 'B', backend: 'litertlm' },
+      ],
+    };
+
+    let resolveA!: () => void;
+    let resolveB!: () => void;
+    const backendA = {
+      unloadAfterSuperseded: false,
+      initialize: vi.fn(() => new Promise<void>(resolve => { resolveA = resolve; })),
+      unload: vi.fn().mockResolvedValue(undefined),
+    } as unknown as LocalBackend;
+    const backendB = {
+      unloadAfterSuperseded: false,
+      initialize: vi.fn(() => new Promise<void>(resolve => { resolveB = resolve; })),
+      unload: vi.fn().mockResolvedValue(undefined),
+    } as unknown as LocalBackend;
+    (LitertlmBackend as Mock).mockReset()
+      .mockImplementationOnce(function () { return backendA; })
+      .mockImplementationOnce(function () { return backendB; });
+    (forceCloseLitertlmOffscreen as Mock).mockResolvedValue(true);
+
+    vi.useFakeTimers();
+    try {
+      const initA = localEngine.initialize('Gemma-A');
+      await vi.advanceTimersByTimeAsync(0);
+      const cancelA = localEngine.cancelDownload('Gemma-A');
+      await vi.advanceTimersByTimeAsync(3000);
+      await cancelA;
+
+      const initB = localEngine.initialize('Gemma-B');
+      await vi.advanceTimersByTimeAsync(0);
+      expect(forceCloseLitertlmOffscreen).toHaveBeenCalled();
+      expect(LitertlmBackend).toHaveBeenCalledTimes(2);
+
+      resolveB();
+      await expect(initB).resolves.toBe(backendB);
+      resolveA();
+      await expect(initA).resolves.toBeNull();
+      expect(backendA.unload).not.toHaveBeenCalled();
+      expect(localEngine.isModelLoaded('Gemma-B')).toBe(true);
+      await localEngine.reset();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does not retry a network-looking failure after cancellation', async () => {
+    (hasModelInCache as Mock).mockResolvedValue(false);
+    (isNetworkError as Mock).mockReturnValue(true);
+
+    let rejectCreate!: (error: Error) => void;
+    (CreateMLCEngine as Mock).mockImplementation(() => new Promise((_, reject) => {
+      rejectCreate = reject;
+    }));
+
+    const init = localEngine.initialize('TestModel-MLC');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    await localEngine.cancelDownload('TestModel-MLC');
+    rejectCreate(new Error('network connection failed'));
+
+    await expect(init).resolves.toBeNull();
+    expect(CreateMLCEngine).toHaveBeenCalledTimes(1);
+  });
+
+  it('serializes status writes so a later terminal state wins', async () => {
+    const writes: Array<Record<string, unknown>> = [];
+    let releaseFirst!: () => void;
+    let setCalls = 0;
+    (globalThis.chrome.storage.local.set as Mock).mockImplementation(async (data: Record<string, unknown>) => {
+      setCalls++;
+      if (setCalls === 1) {
+        await new Promise<void>(resolve => { releaseFirst = resolve; });
+      }
+      Object.assign(storageData, data);
+      writes.push(data);
+    });
+
+    const progressWrite = localEngine.updateStatus('TestModel-MLC', {
+      state: 'downloading', progress: 0.8,
+    });
+    const terminalWrite = localEngine.updateStatus('TestModel-MLC', {
+      state: 'not_downloaded',
+    });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(writes).toHaveLength(0);
+
+    releaseFirst();
+    await Promise.all([progressWrite, terminalWrite]);
+
+    const statuses = storageData.localModelStatuses as Record<string, Record<string, unknown>>;
+    expect(statuses['TestModel-MLC'].state).toBe('not_downloaded');
+    expect(writes).toHaveLength(2);
+  });
 });
 
 // ==================== localEngine.deleteModelCache ====================
@@ -518,17 +726,32 @@ describe('localEngine.deleteModelCache', () => {
   it('aborts an in-progress download before deleting', async () => {
     (hasModelInCache as Mock).mockResolvedValue(false);
     (deleteModelAllInfoInCache as Mock).mockResolvedValue(undefined);
-    (CreateMLCEngine as Mock).mockImplementation(() => new Promise(() => {}));
+    const lateEngine = { unload: vi.fn().mockResolvedValue(undefined) };
+    let resolveCreate!: (value: unknown) => void;
+    (CreateMLCEngine as Mock).mockImplementation(() => new Promise(resolve => {
+      resolveCreate = resolve;
+    }));
 
     localEngine.initialize('TestModel-MLC');
     await new Promise(r => setTimeout(r, 10));
     expect(localEngine.isInitializingModel('TestModel-MLC')).toBe(true);
 
-    const result = await localEngine.deleteModelCache('TestModel-MLC');
+    let deletionSettled = false;
+    const deletion = localEngine.deleteModelCache('TestModel-MLC').then(result => {
+      deletionSettled = true;
+      return result;
+    });
+    await Promise.resolve();
+    expect(deletionSettled).toBe(false);
+    expect(deleteModelAllInfoInCache).not.toHaveBeenCalled();
+
+    resolveCreate(lateEngine);
+    const result = await deletion;
 
     expect(result.success).toBe(true);
     expect(localEngine.isInitializing()).toBe(false);
     expect(localEngine.engine).toBeNull();
+    expect(lateEngine.unload).toHaveBeenCalledTimes(1);
     expect(deleteModelAllInfoInCache as Mock).toHaveBeenCalled();
   });
 
@@ -752,6 +975,36 @@ describe('localEngine.initialize model switch', () => {
     // Old engine should have been unloaded exactly once
     expect(oldEngine.unload).toHaveBeenCalledTimes(1);
   });
+
+  it('settles coalesced A waiters before starting a replacement B init', async () => {
+    let resolveA!: (value: unknown) => void;
+    let resolveB!: (value: unknown) => void;
+    const engineA = { unload: vi.fn().mockResolvedValue(undefined) };
+    const engineB = { unload: vi.fn().mockResolvedValue(undefined) };
+    (CreateMLCEngine as Mock)
+      .mockImplementationOnce(() => new Promise(resolve => { resolveA = resolve; }))
+      .mockImplementationOnce(() => new Promise(resolve => { resolveB = resolve; }));
+
+    const initA = localEngine.initialize('ModelA-MLC');
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const waiterA = localEngine.initialize('ModelA-MLC');
+    const initB = localEngine.initialize('ModelB-MLC');
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    // B cannot create a second GPU engine while A's unabortable factory is
+    // still winding down.
+    expect(CreateMLCEngine).toHaveBeenCalledTimes(1);
+
+    resolveA(engineA);
+    await expect(Promise.all([initA, waiterA])).resolves.toEqual([null, null]);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(CreateMLCEngine).toHaveBeenCalledTimes(2);
+
+    resolveB(engineB);
+    await expect(initB).resolves.not.toBeNull();
+    expect(engineA.unload).toHaveBeenCalledTimes(1);
+    expect(localEngine.isModelLoaded('ModelB-MLC')).toBe(true);
+  });
 });
 
 // ==================== parseLocalModelResponse ====================
@@ -826,10 +1079,12 @@ describe('parseTableYesnoResponse', () => {
     expect(parseTableYesnoResponse('', ['a'])).toMatchObject({
       shouldHide: false,
       matches: [],
+      malformed: true,
     });
     expect(parseTableYesnoResponse(null, ['a'])).toMatchObject({
       shouldHide: false,
       matches: [],
+      malformed: true,
     });
   });
 
@@ -859,6 +1114,7 @@ describe('parseTableYesnoResponse', () => {
     const r = parseTableYesnoResponse('| no | no', ['crypto', 'sports']);
     expect(r.shouldHide).toBe(false);
     expect(r.matches).toEqual([]);
+    expect(r.malformed).toBe(false);
   });
 
   it('is case-insensitive on verdicts', () => {
@@ -874,12 +1130,14 @@ describe('parseTableYesnoResponse', () => {
     const r = parseTableYesnoResponse('| yes', ['crypto', 'sports']);
     expect(r.shouldHide).toBe(false);
     expect(r.reasoning).toMatch(/expected 2 verdicts, got 1/);
+    expect(r.malformed).toBe(true);
   });
 
   it('falls back to SHOW when a bare row count is malformed', () => {
     const r = parseTableYesnoResponse('yes no', ['crypto', 'sports']);
     expect(r.shouldHide).toBe(false);
-    expect(r.reasoning).toMatch(/expected 2 verdicts, got 1/);
+    expect(r.reasoning).toMatch(/Malformed verdict row/);
+    expect(r.malformed).toBe(true);
   });
 
   it('falls back to SHOW on a non yes/no verdict', () => {
@@ -898,6 +1156,35 @@ describe('parseTableYesnoResponse', () => {
     const r = parseTableYesnoResponse('yes', ['only']);
     expect(r.shouldHide).toBe(true);
     expect(r.matches).toEqual(['only']);
+    expect(r.malformed).toBe(false);
+  });
+
+  it('parses newline-per-verdict output and additional turn markers', () => {
+    const r = parseTableYesnoResponse('<|turn>model\nno\nyes\nno<turn|>', cats);
+    expect(r.matches).toEqual(['sports']);
+    expect(r.malformed).toBe(false);
+  });
+
+  it('accepts punctuation but rejects explanations for one bare verdict', () => {
+    expect(parseTableYesnoResponse('Yes,', ['only']).matches).toEqual(['only']);
+    expect(parseTableYesnoResponse('no.', ['only']).malformed).toBe(false);
+    expect(parseTableYesnoResponse('Yes, but actually no after reconsidering', ['only']).malformed).toBe(true);
+    expect(parseTableYesnoResponse('no because this does match', ['only']).malformed).toBe(true);
+  });
+
+  it('rejects contradictory newline verdicts for one category', () => {
+    const result = parseTableYesnoResponse('yes\nno', ['only']);
+    expect(result.shouldHide).toBe(false);
+    expect(result.malformed).toBe(true);
+    expect(result.reasoning).toMatch(/expected 1 verdicts, got 2/);
+  });
+
+  it('rejects extra verdicts instead of truncating them', () => {
+    const r = parseTableYesnoResponse('| yes | no', ['only']);
+    expect(r.shouldHide).toBe(false);
+    expect(r.matches).toEqual([]);
+    expect(r.malformed).toBe(true);
+    expect(r.reasoning).toMatch(/expected 1 verdicts, got 2/);
   });
 });
 

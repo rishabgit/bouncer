@@ -8,16 +8,25 @@ import type { InitProgress } from './types';
 
 const OFFSCREEN_URL = 'offscreen.html';
 
-let nextRequestId = 1;
+// The offscreen page can outlive an MV3 service worker. Include a per-worker
+// nonce so a restarted worker cannot reuse an id that an older offscreen init
+// still owns.
+const requestSession = globalThis.crypto?.randomUUID?.()
+  ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+let nextRequestNumber = 1;
+
+function nextRequestId(): string {
+  return `${requestSession}:${nextRequestNumber++}`;
+}
 
 // Listeners keyed by request id receive streaming progress events sent from
 // the offscreen runtime during init().
-const progressListeners = new Map<number, (p: InitProgress) => void>();
+const progressListeners = new Map<string, (p: InitProgress) => void>();
 
 chrome.runtime.onMessage.addListener((message: unknown) => {
-  const m = message as { channel?: string; id?: number; progress?: number; text?: string };
+  const m = message as { channel?: string; id?: string; progress?: number; text?: string };
   if (m?.channel !== 'litertlm-progress') return false;
-  if (typeof m.id !== 'number') return false;
+  if (typeof m.id !== 'string') return false;
   const cb = progressListeners.get(m.id);
   if (cb && typeof m.progress === 'number') {
     cb({ progress: m.progress, text: m.text ?? '' });
@@ -50,7 +59,7 @@ interface OffscreenResponse<T = unknown> { ok: boolean; value?: T; error?: strin
 
 async function send<T>(payload: Record<string, unknown>): Promise<T> {
   await ensureOffscreen();
-  const id = nextRequestId++;
+  const id = nextRequestId();
   const resp = await chrome.runtime.sendMessage<unknown, OffscreenResponse<T>>({
     target: 'litertlm-offscreen',
     id,
@@ -63,9 +72,11 @@ async function send<T>(payload: Record<string, unknown>): Promise<T> {
 async function sendWithProgress<T>(
   payload: Record<string, unknown>,
   onProgress: (p: InitProgress) => void,
+  onRequestId?: (id: string) => void,
 ): Promise<T> {
   await ensureOffscreen();
-  const id = nextRequestId++;
+  const id = nextRequestId();
+  onRequestId?.(id);
   progressListeners.set(id, onProgress);
   try {
     const resp = await chrome.runtime.sendMessage<unknown, OffscreenResponse<T>>({
@@ -86,13 +97,24 @@ export class LitertlmProxy {
     onProgress: (p: InitProgress) => void,
     abortSignal: AbortSignal,
   ): Promise<void> {
+    if (abortSignal.aborted) throw new Error('aborted');
+    let initRequestId: string | null = null;
     const onAbort = (): void => {
       // Best-effort cancellation; the offscreen runtime aborts its download.
-      send({ method: 'cancelInit' }).catch(() => { /* may already be done */ });
+      if (initRequestId !== null) {
+        send({ method: 'cancelInit', initRequestId }).catch(() => { /* may already be done */ });
+      }
     };
     abortSignal.addEventListener('abort', onAbort, { once: true });
     try {
-      await sendWithProgress<void>({ method: 'init', modelDef }, onProgress);
+      await sendWithProgress<void>(
+        { method: 'init', modelDef },
+        onProgress,
+        id => {
+          initRequestId = id;
+          if (abortSignal.aborted) onAbort();
+        },
+      );
     } finally {
       abortSignal.removeEventListener('abort', onAbort);
     }
@@ -130,5 +152,19 @@ export class LitertlmProxy {
 
   async truncateText(text: string, maxTokens: number): Promise<string> {
     return send<string>({ method: 'truncateText', text, maxTokens });
+  }
+}
+
+// Engine.create cannot be interrupted once LiteRT begins cache-to-GPU setup.
+// Closing the offscreen page is the only bounded way to release a stuck init
+// so a user retry can create a fresh host instead of queueing behind it.
+export async function forceCloseLitertlmOffscreen(): Promise<boolean> {
+  if (!chrome.offscreen?.closeDocument) return false;
+  try {
+    await chrome.offscreen.closeDocument();
+    return true;
+  } catch {
+    // No offscreen document, or a direct Firefox/Safari event-page runtime.
+    return false;
   }
 }

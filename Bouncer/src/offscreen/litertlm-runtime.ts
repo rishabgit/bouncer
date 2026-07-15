@@ -46,7 +46,7 @@ function getWasmBaseUrl(): string {
 // Stream a remote model into the Cache Storage while reporting progress.
 // Returns a fresh Response for the now-cached entry so the caller can pull
 // the body without re-downloading.
-async function fetchAndCacheModel(
+export async function fetchAndCacheModel(
   url: string,
   onProgress: (p: InitProgress) => void,
   abortSignal: AbortSignal,
@@ -54,7 +54,9 @@ async function fetchAndCacheModel(
   const cache = await caches.open(LITERTLM_CACHE_KEY);
   const cached = await cache.match(url);
   if (cached) {
-    onProgress({ progress: 1, text: 'cached' });
+    // A cache hit is initialization, not a network download. Emitting 100%
+    // here leaves the in-feed UI stuck on "Downloading" while weights stream
+    // from Cache Storage into the GPU.
     return cached;
   }
 
@@ -97,7 +99,7 @@ async function fetchAndCacheModel(
   void (async (): Promise<void> => {
     const reader = counter.getReader();
     while (!(await reader.read()).done) { /* drained for progress */ }
-  })();
+  })().catch(() => { /* abort/error is reported by cache.put/fetch path */ });
 
   const responseForCache = new Response(forCache, { headers: upstream.headers });
   await cache.put(url, responseForCache);
@@ -105,6 +107,19 @@ async function fetchAndCacheModel(
   if (!cachedAfter) throw new Error('Failed to cache model after download');
   onProgress({ progress: 1, text: '' });
   return cachedAfter;
+}
+
+/** Cache-only LiteRT download used by staged model switching. This deliberately
+ *  stops before wasm/model initialization so the currently active GPU backend
+ *  can continue filtering while the multi-GB blob arrives. */
+export async function prefetchLitertlmModel(
+  modelDef: LocalModelDef,
+  onProgress: (p: InitProgress) => void,
+  abortSignal: AbortSignal,
+): Promise<void> {
+  const modelUrl = modelDef.litertlmConfig?.modelUrl;
+  if (!modelUrl) throw new Error(`Model ${modelDef.name} is missing litertlmConfig`);
+  await fetchAndCacheModel(modelUrl, onProgress, abortSignal);
 }
 
 // `loadLiteRtLm` throws if called twice. Track our own load promise so the
@@ -146,7 +161,8 @@ export class LitertlmRuntime {
     const cfg = modelDef.litertlmConfig;
     if (!cfg) throw new Error(`Model ${modelDef.name} is missing litertlmConfig`);
 
-    onProgress({ progress: 0, text: '' });
+    // Only the real network path emits progress. Wasm startup, cache hits, and
+    // cache-to-GPU loading remain in the caller's `initializing` state.
     await ensureWasmLoaded();
     if (abortSignal.aborted) throw new Error('aborted');
 
@@ -169,7 +185,6 @@ export class LitertlmRuntime {
       throw new Error('aborted');
     }
     this.modelDef = modelDef;
-    onProgress({ progress: 1, text: '' });
   }
 
   async unload(): Promise<void> {
@@ -217,36 +232,24 @@ export class LitertlmRuntime {
     return { prefaceMessages, userText };
   }
 
-  generate(messages: ChatMessage[], _maxTokens: number, params: Record<string, unknown>): Promise<string> {
+  generate(messages: ChatMessage[], maxTokens: number, _params: Record<string, unknown>): Promise<string> {
     if (!this.engine) throw new Error('Engine not loaded');
     return this.enqueue(async () => {
       if (!this.engine) throw new Error('Engine not loaded');
 
       const { prefaceMessages, userText } = this.splitMessages(messages);
-      const cfg = this.modelDef?.litertlmConfig;
-      const defaultParams = this.modelDef?.inferenceParams ?? {};
-      const temperature = typeof params.temperature === 'number'
-        ? params.temperature
-        : typeof defaultParams.temperature === 'number'
-          ? defaultParams.temperature
-          : 0.0;
-
-      // GREEDY when temperature is 0 (deterministic classification);
-      // otherwise TOP_K with the configured k. Bouncer's table_yesno
-      // classifier wants deterministic verdicts so temperature=0 is the
-      // common path. Greedy means top-1, so k MUST be 1 — the GPU backend
-      // defaults max_top_k to 1 and rejects larger values otherwise.
-      const isGreedy = temperature === 0;
-      const samplerType = isGreedy ? SamplerType.GREEDY : SamplerType.TOP_K;
-      const k = isGreedy ? 1 : (cfg?.topK ?? 40);
-
+      // The web GPU backend defaults max_top_k to 1. Creating a TOP_K(40)
+      // session is rejected and can poison the engine's context handler, so
+      // clamp every LiteRT call to deterministic top-1 until Engine.create can
+      // be given a complete, supported GPU configuration with a larger cap.
       const conversationConfig: ConversationConfig = {
         preface: { messages: prefaceMessages },
         sessionConfig: {
+          ...(maxTokens > 0 ? { maxOutputTokens: maxTokens } : {}),
           samplerParams: {
-            type: samplerType,
-            k,
-            temperature,
+            type: SamplerType.GREEDY,
+            k: 1,
+            temperature: 0,
             seed: 0,
           },
         },

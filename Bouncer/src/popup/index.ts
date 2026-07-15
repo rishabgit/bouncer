@@ -1,6 +1,6 @@
 // Bouncer - Popup Script (local-only)
 
-import type { ModelDef, LocalModelStatus } from '../types';
+import type { ModelDef, LocalModelStatus, PendingLocalModelSelection } from '../types';
 import { PREDEFINED_MODELS, DEFAULT_MODEL } from '../shared/models';
 import { escapeHtml, parseHTML } from '../shared/utils';
 import { getStorage, setStorage } from '../shared/storage';
@@ -9,6 +9,7 @@ import { asyncHandler } from '../shared/async';
 // Track local model statuses (per-model)
 let localModelStatuses: Record<string, LocalModelStatus> = {};
 let webgpuSupported = true;
+let pendingLocalModelSelection: PendingLocalModelSelection | null = null;
 
 // In-app mode detection (native WebView bridge sets chrome._polyfilled)
 const isInAppMode = typeof chrome !== 'undefined' && chrome._polyfilled;
@@ -143,6 +144,18 @@ function setupStorageListener() {
       updateLocalModelSectionUI();
       refreshModelDropdownWithLocal().catch(err => console.error('[Popup] refreshModelDropdownWithLocal failed:', err));
     }
+    if (changes.pendingLocalModelSelection) {
+      pendingLocalModelSelection = (changes.pendingLocalModelSelection.newValue as PendingLocalModelSelection | null) || null;
+      updateLocalModelSectionVisibility();
+      updateLocalModelSectionUI();
+      refreshModelDropdownWithLocal().catch(err => console.error('[Popup] pending selection refresh failed:', err));
+    }
+    if (changes.selectedModel) {
+      dropdownState.selectedModel = (changes.selectedModel.newValue as string) || DEFAULT_MODEL;
+      updateLocalModelSectionVisibility();
+      updateLocalModelSectionUI();
+      refreshModelDropdownWithLocal().catch(err => console.error('[Popup] selected model refresh failed:', err));
+    }
     if (changes.filterReplies) {
       const checked = changes.filterReplies.newValue !== false;
       const el = document.getElementById('enableFilterReplies') as HTMLInputElement | null;
@@ -152,7 +165,8 @@ function setupStorageListener() {
 }
 
 async function loadSettings() {
-  const data = await getStorage(['selectedModel', 'customModels', 'filterReplies']);
+  const data = await getStorage(['selectedModel', 'customModels', 'filterReplies', 'pendingLocalModelSelection']);
+  pendingLocalModelSelection = data.pendingLocalModelSelection || null;
 
   // "Filter replies in conversations" toggle (defaults to true so existing
   // installs keep filtering replies). The content script reads the same
@@ -228,12 +242,21 @@ function closeDropdown() {
 }
 
 async function selectModel(modelKey: string) {
-  dropdownState.selectedModel = modelKey;
-  await setStorage({ selectedModel: modelKey });
-  renderModelDropdown(dropdownState.customModels, modelKey);
+  if (modelKey.startsWith('local:')) {
+    const modelId = modelKey.slice('local:'.length);
+    const result: PendingSelectionResult = await chrome.runtime.sendMessage({ type: 'selectLocalModel', modelId });
+    if (!result?.success) throw new Error(result?.error || 'Failed to select local model');
+    if ('pending' in result) pendingLocalModelSelection = result.pending || null;
+    const data = await getStorage(['selectedModel', 'pendingLocalModelSelection']);
+    dropdownState.selectedModel = data.selectedModel || DEFAULT_MODEL;
+    pendingLocalModelSelection = data.pendingLocalModelSelection || null;
+  } else {
+    pendingLocalModelSelection = null;
+    dropdownState.selectedModel = modelKey;
+    await setStorage({ selectedModel: modelKey, pendingLocalModelSelection: null });
+  }
+  renderModelDropdown(dropdownState.customModels, dropdownState.selectedModel);
   closeDropdown();
-  // Clear cache since model changed
-  await chrome.runtime.sendMessage({ type: 'clearCache' });
 
   // Clear auto-init tracking when switching models to allow re-initialization
   autoInitTriggered.clear();
@@ -243,10 +266,20 @@ async function selectModel(modelKey: string) {
   updateLocalModelSectionUI();
 }
 
+interface PendingSelectionResult {
+  success?: boolean;
+  error?: string;
+  pending?: PendingLocalModelSelection | null;
+}
+
+function displayedModelKey(): string {
+  return pendingLocalModelSelection?.modelKey || dropdownState.selectedModel;
+}
+
 // Show/hide the local model section based on whether a local model is selected
 function updateLocalModelSectionVisibility() {
   const localModelSection = document.getElementById('localModelSection')!;
-  const isLocalModelSelected = dropdownState.selectedModel?.startsWith('local:');
+  const isLocalModelSelected = displayedModelKey()?.startsWith('local:');
   localModelSection.style.display = isLocalModelSelected ? 'block' : 'none';
 }
 
@@ -256,6 +289,11 @@ async function removeModel(modelKey: string, e: Event) {
   // Parse the model key to find the model to remove
   const [api, ...nameParts] = modelKey.split(':');
   const name = nameParts.join(':');
+
+  if (pendingLocalModelSelection?.modelKey === modelKey) {
+    await chrome.runtime.sendMessage({ type: 'cancelLocalModelDownload', modelId: name });
+    pendingLocalModelSelection = null;
+  }
 
   const newModels = dropdownState.customModels.filter(
     m => !(m.api === api && m.name === name)
@@ -305,14 +343,15 @@ function renderModelDropdown(customModels: ModelDef[], selectedModel: string) {
   // Update state
   dropdownState.customModels = customModels;
   dropdownState.selectedModel = selectedModel;
+  const displayedModel = displayedModelKey();
 
   // Update selected display text
   const selectedText = document.querySelector('.model-dropdown-text')!;
-  if (!selectedModel) {
+  if (!displayedModel) {
     selectedText.textContent = 'Select a model';
   } else {
     // Parse model key (format: local:modelName)
-    const [api, ...nameParts] = selectedModel.split(':');
+    const [api, ...nameParts] = displayedModel.split(':');
     const modelName = nameParts.join(':');
     const predefinedModel = (PREDEFINED_MODELS[api] || []).find(m => m.name === modelName);
     selectedText.textContent = predefinedModel ? predefinedModel.display : modelName;
@@ -332,7 +371,7 @@ function renderModelDropdown(customModels: ModelDef[], selectedModel: string) {
       const isDownloading = status.state === 'downloading' || status.state === 'initializing';
 
       const localItem = document.createElement('div');
-      localItem.className = 'model-dropdown-item' + (selectedModel === modelKey ? ' selected' : '');
+      localItem.className = 'model-dropdown-item' + (displayedModel === modelKey ? ' selected' : '');
 
       // Show different indicators based on status
       let statusIndicator = '';
@@ -348,11 +387,14 @@ function renderModelDropdown(customModels: ModelDef[], selectedModel: string) {
 
       // Line 2: size · capability · state. "Active" = selected + on disk,
       // "Downloaded" = on disk but not selected.
+      const isPending = pendingLocalModelSelection?.modelKey === modelKey;
       const stateWord = isDownloading
         ? `Downloading${typeof status.progress === 'number' ? ' ' + Math.round(status.progress * 100) + '%' : ''}`
+        : status.state === 'error' && isPending
+          ? 'Download failed'
         : isReady
           ? (selectedModel === modelKey ? 'Active' : 'Downloaded')
-          : 'Not downloaded';
+          : isPending ? 'Selected to download' : 'Not downloaded';
       const meta = [
         model.sizeGB ? `${model.sizeGB} GB` : '',
         model.supportsImages ? 'Text + images' : 'Text only',
@@ -396,7 +438,7 @@ function renderModelDropdown(customModels: ModelDef[], selectedModel: string) {
       const isDownloading = status.state === 'downloading' || status.state === 'initializing';
 
       const localItem = document.createElement('div');
-      localItem.className = 'model-dropdown-item' + (selectedModel === modelKey ? ' selected' : '');
+      localItem.className = 'model-dropdown-item' + (displayedModel === modelKey ? ' selected' : '');
 
       // Show different indicators based on status
       let statusIndicator = '';
@@ -467,10 +509,11 @@ async function updateLocalModelStatus() {
 
 // Get the currently selected local model (if any)
 function getSelectedLocalModel(): ModelDef | null {
-  if (!dropdownState.selectedModel || !dropdownState.selectedModel.startsWith('local:')) {
+  const modelKey = displayedModelKey();
+  if (!modelKey || !modelKey.startsWith('local:')) {
     return null;
   }
-  const modelName = dropdownState.selectedModel.split(':')[1];
+  const modelName = modelKey.split(':')[1];
   // First check predefined models
   const predefinedModel = PREDEFINED_MODELS.local.find(m => m.name === modelName);
   if (predefinedModel) {
@@ -566,14 +609,20 @@ function updateLocalModelSectionUI() {
       break;
 
     case 'cached':
-      // Model is cached but not loaded - auto-initialize it
-      badge.textContent = 'Loading';
+      // A pending target is promoted by the background only after its cache is
+      // complete. Never initialize it directly here: that would unload the
+      // active model before selectedModel changes.
+      badge.textContent = pendingLocalModelSelection?.modelId === selectedLocalModel.name ? 'Switching' : 'Loading';
       badge.classList.add('downloading');
       downloading.style.display = 'block';
       progressFill.style.width = '100%';
-      progressText.textContent = `Loading ${selectedLocalModel.display} — the first run can take up to a minute.`;
-      // Trigger auto-initialization (async, don't await)
-      autoInitializeCachedModel(selectedLocalModel.name).catch(err => console.error('[LocalModel] autoInitializeCachedModel failed:', err));
+      progressText.textContent = pendingLocalModelSelection?.modelId === selectedLocalModel.name
+        ? `Switching to ${selectedLocalModel.display}...`
+        : `Loading ${selectedLocalModel.display} — the first run can take up to a minute.`;
+      if (pendingLocalModelSelection?.modelId !== selectedLocalModel.name) {
+        // Trigger auto-initialization (async, don't await)
+        autoInitializeCachedModel(selectedLocalModel.name).catch(err => console.error('[LocalModel] autoInitializeCachedModel failed:', err));
+      }
       break;
 
     case 'not_downloaded': {
@@ -656,8 +705,11 @@ function setupLocalModelListeners() {
       downloadBtn.replaceChildren(parseHTML('<span class="download-icon">&#8987;</span> Starting...'));
 
       try {
-        const result: unknown = await chrome.runtime.sendMessage({ type: 'initializeLocalModel', modelId: selectedLocalModel.name });
-        console.log('[Popup] initializeLocalModel response:', result);
+        const type = pendingLocalModelSelection?.modelId === selectedLocalModel.name
+          ? 'downloadPendingLocalModel'
+          : 'initializeLocalModel';
+        const result: unknown = await chrome.runtime.sendMessage({ type, modelId: selectedLocalModel.name });
+        console.log('[Popup] local model download response:', result);
       } catch (err) {
         console.error('[Popup] Failed to start model download:', err);
         downloadBtn.disabled = false;
@@ -678,7 +730,10 @@ function setupLocalModelListeners() {
       retryBtn.textContent = 'Retrying...';
 
       try {
-        await chrome.runtime.sendMessage({ type: 'initializeLocalModel', modelId: selectedLocalModel.name });
+        const type = pendingLocalModelSelection?.modelId === selectedLocalModel.name
+          ? 'downloadPendingLocalModel'
+          : 'initializeLocalModel';
+        await chrome.runtime.sendMessage({ type, modelId: selectedLocalModel.name });
       } catch (err) {
         console.error('Failed to retry model download:', err);
         retryBtn.disabled = false;
@@ -706,6 +761,7 @@ function setupLocalModelListeners() {
 
 // Refresh model dropdown with current local model statuses
 async function refreshModelDropdownWithLocal() {
-  const data = await getStorage(['customModels', 'selectedModel']);
+  const data = await getStorage(['customModels', 'selectedModel', 'pendingLocalModelSelection']);
+  pendingLocalModelSelection = data.pendingLocalModelSelection || null;
   renderModelDropdown(data.customModels || [], data.selectedModel || DEFAULT_MODEL);
 }

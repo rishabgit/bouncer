@@ -11,6 +11,12 @@ import {
 import type { ContentUIDeps, FilteredPost, PostContent, LocalModelStatus } from '../types';
 import { getStorage, getDescriptions, setDescriptions } from '../shared/storage';
 import { PREDEFINED_MODELS } from '../shared/models';
+import {
+  tooltipContentMaxHeight,
+  tooltipHorizontalPosition,
+  tooltipVerticalPosition,
+} from './geometry';
+import { isRendered } from './dom-state';
 
 // Dependencies (set by initUI from index.ts)
 let _deps: ContentUIDeps;
@@ -56,6 +62,15 @@ let activePopupArticle: HTMLElement | null = null;
 // when a late-arriving detectorResponse triggers a refresh.
 let activePopupTab: string | null = null;
 const annoyingReasonsCache: WeakMap<HTMLElement, Promise<{ reasons: string[]; hadImages?: boolean }>> = new WeakMap();
+const annoyingTooltipCleanup = new WeakMap<HTMLElement, () => void>();
+
+function removeAnnoyingTooltip(tooltip: Element): void {
+  if (tooltip instanceof HTMLElement) {
+    annoyingTooltipCleanup.get(tooltip)?.();
+    annoyingTooltipCleanup.delete(tooltip);
+  }
+  tooltip.remove();
+}
 
 // Track previous count for animation
 let previousFilteredCount = 0;
@@ -966,7 +981,7 @@ function pickVisibleBouncerLayout(): HTMLElement | null {
     '.filter-phrases-sidebar, .filter-phrases-bottom, .filter-phrases-mobile',
   );
   for (const layout of layouts) {
-    if (layout.offsetParent !== null) return layout;
+    if (isRendered(layout)) return layout;
   }
   return null;
 }
@@ -1571,47 +1586,104 @@ export function updateModelStatusIndicator(
   requestAnimationFrame(() => el.classList.add('visible'));
 }
 
+interface ModelLoadingStorageSnapshot {
+  localModelStatuses?: Record<string, LocalModelStatus>;
+  selectedModel?: string;
+}
+
+interface ModelLoadingCoordinator {
+  handleChanges: (changes: Record<string, chrome.storage.StorageChange>) => void;
+  finishInitialLoad: (snapshot: ModelLoadingStorageSnapshot) => void;
+}
+
+/**
+ * Reconcile the initial async storage read with changes that can arrive before
+ * it resolves. Keeping this coordinator pure makes the ordering contract
+ * directly testable without a live extension storage area.
+ */
+export function createModelLoadingCoordinator(
+  render: (statuses: Record<string, LocalModelStatus>, selectedModel: string) => void,
+  processExistingPosts: () => void,
+): ModelLoadingCoordinator {
+  let selectedModel = '';
+  let currentStatuses: Record<string, LocalModelStatus> = {};
+  let initialLoadFinished = false;
+  const queuedChanges: Array<Record<string, chrome.storage.StorageChange>> = [];
+
+  const selectedModelId = (): string | null => (
+    selectedModel.startsWith('local:') ? selectedModel.slice('local:'.length) : null
+  );
+
+  const applyChanges = (
+    changes: Record<string, chrome.storage.StorageChange>,
+    shouldRender: boolean,
+  ) => {
+    // Apply selection first when storage reports both keys in one batch, so a
+    // ready transition is attributed to the newly selected model.
+    if (changes.selectedModel) {
+      selectedModel = (changes.selectedModel.newValue as string) || '';
+    }
+    if (changes.localModelStatuses) {
+      currentStatuses = (changes.localModelStatuses.newValue || {}) as Record<string, LocalModelStatus>;
+    }
+
+    const modelId = selectedModelId();
+    if (modelId && changes.localModelStatuses) {
+      const statusesBeforeChange = (changes.localModelStatuses.oldValue || {}) as Record<string, LocalModelStatus>;
+      const becameReadyWhileSelected = statusesBeforeChange[modelId]?.state !== 'ready'
+        && currentStatuses[modelId]?.state === 'ready';
+      if (becameReadyWhileSelected) {
+        processExistingPosts();
+      }
+    }
+
+    if (shouldRender) render(currentStatuses, selectedModel);
+  };
+
+  return {
+    handleChanges(changes) {
+      if (!initialLoadFinished) {
+        queuedChanges.push(changes);
+        return;
+      }
+      applyChanges(changes, true);
+    },
+    finishInitialLoad(snapshot) {
+      if (initialLoadFinished) return;
+      currentStatuses = snapshot.localModelStatuses || {};
+      selectedModel = snapshot.selectedModel || '';
+      for (const changes of queuedChanges) applyChanges(changes, false);
+      queuedChanges.length = 0;
+      initialLoadFinished = true;
+      render(currentStatuses, selectedModel);
+    },
+  };
+}
+
 export function initModelLoadingListener() {
-  // Get initial state
-  getStorage(['localModelStatuses', 'selectedModel']).then((data) => {
-    const statuses = (data.localModelStatuses || {});
-    const selectedModel = data.selectedModel || '';
-    updateModelLoadingProgress(statuses, selectedModel);
-    updateModelStatusIndicator(statuses, selectedModel);
-  }).catch(err => console.error('[UI] Failed to load model statuses:', err));
+  const coordinator = createModelLoadingCoordinator(
+    (statuses, selectedModel) => {
+      updateModelLoadingProgress(statuses, selectedModel);
+      updateModelStatusIndicator(statuses, selectedModel);
+    },
+    () => _deps.processExistingPosts(),
+  );
 
-  // Listen for changes
+  // Register before the initial read so no storage transition can fall into
+  // the gap. The coordinator buffers events until that snapshot resolves.
   chrome.storage.onChanged.addListener((changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
-    if (areaName === 'local' && changes.localModelStatuses) {
-      getStorage(['selectedModel']).then((data) => {
-        const newStatuses = (changes.localModelStatuses.newValue || {}) as Record<string, LocalModelStatus>;
-        const oldStatuses = (changes.localModelStatuses.oldValue || {}) as Record<string, LocalModelStatus>;
-        const selectedModel = data.selectedModel || '';
-
-        updateModelLoadingProgress(newStatuses, selectedModel);
-        updateModelStatusIndicator(newStatuses, selectedModel);
-
-        // Check if selected local model just became ready - trigger re-evaluation
-        if (selectedModel?.startsWith('local:')) {
-          const modelId = selectedModel.split(':')[1];
-          const oldState = oldStatuses[modelId]?.state;
-          const newState = newStatuses[modelId]?.state;
-
-          if (newState === 'ready' && oldState && oldState !== 'ready') {
-            _deps.processExistingPosts();
-          }
-        }
-      }).catch(err => console.error('[UI] Failed to get selected model:', err));
-    }
-    if (areaName === 'local' && changes.selectedModel) {
-      getStorage(['localModelStatuses']).then((data) => {
-        const statuses = (data.localModelStatuses || {});
-        const selectedModel = changes.selectedModel.newValue as string;
-        updateModelLoadingProgress(statuses, selectedModel);
-        updateModelStatusIndicator(statuses, selectedModel);
-      }).catch(err => console.error('[UI] Failed to get model statuses:', err));
-    }
+    if (areaName !== 'local') return;
+    coordinator.handleChanges(changes);
   });
+
+  getStorage(['localModelStatuses', 'selectedModel'])
+    .then((data) => coordinator.finishInitialLoad(data))
+    .catch(err => {
+      console.error('[UI] Failed to load model statuses:', err);
+      // Still replay any buffered storage events; otherwise one read failure
+      // would leave the listener permanently inert for the life of the tab.
+      coordinator.finishInitialLoad({});
+    });
 }
 
 // ==================== Filtered Tab / Modal ====================
@@ -2517,13 +2589,13 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
 
     // If tooltip already open on this button, close it
     if (btnTooltip && btnTooltip.isConnected) {
-      btnTooltip.remove();
+      removeAnnoyingTooltip(btnTooltip);
       btnTooltip = null;
       return;
     }
 
     // Close any other open tooltips
-    document.querySelectorAll('.ff-annoying-tooltip').forEach(t => t.remove());
+    document.querySelectorAll('.ff-annoying-tooltip').forEach(removeAnnoyingTooltip);
 
     const content = _deps.extractPostContent(article);
 
@@ -2531,43 +2603,91 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
     // any overflow:hidden ancestors in Twitter's DOM
     const tooltip = document.createElement('div');
     tooltip.className = 'ff-annoying-tooltip';
+    const tooltipContent = document.createElement('div');
+    tooltipContent.className = 'ff-annoying-tooltip-content';
+    tooltip.appendChild(tooltipContent);
     document.body.appendChild(tooltip);
     btnTooltip = tooltip;
 
-    // Position the tooltip above the button
+    // Keep the tooltip inside both viewport axes. A ResizeObserver reruns this
+    // when async content replaces the spinner and changes its dimensions.
     const positionTooltip = () => {
+      if (!tooltip.isConnected || !btn.isConnected) return;
       const btnRect = btn.getBoundingClientRect();
+      const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+      const viewportHeight = document.documentElement.clientHeight || window.innerHeight;
+      tooltipContent.style.maxHeight = `${tooltipContentMaxHeight(viewportHeight)}px`;
+      const horizontal = tooltipHorizontalPosition(
+        btnRect,
+        tooltip.offsetWidth,
+        viewportWidth,
+      );
+      const vertical = tooltipVerticalPosition(
+        btnRect,
+        tooltip.offsetHeight,
+        viewportHeight,
+      );
       tooltip.style.position = 'fixed';
-      tooltip.style.right = `${document.documentElement.clientWidth - btnRect.right}px`;
-      // Place above the button; if clipped, place below
-      tooltip.style.bottom = '';
-      tooltip.style.top = '';
-      const tentativeTop = btnRect.top - tooltip.offsetHeight - 8;
-      if (tentativeTop < 0) {
-        tooltip.style.top = `${btnRect.bottom + 8}px`;
-        tooltip.classList.add('ff-annoying-tooltip--flipped');
+      tooltip.style.left = '';
+      tooltip.style.right = '';
+      tooltip.classList.remove('ff-annoying-tooltip--align-left', 'ff-annoying-tooltip--align-center');
+      tooltip.style.removeProperty('--ff-notch-x');
+      if (horizontal.alignment === 'right') {
+        tooltip.style.right = `${horizontal.right}px`;
       } else {
-        tooltip.style.bottom = `${window.innerHeight - btnRect.top + 8}px`;
-        tooltip.classList.remove('ff-annoying-tooltip--flipped');
+        tooltip.style.left = `${horizontal.left}px`;
+        tooltip.classList.add(`ff-annoying-tooltip--align-${horizontal.alignment}`);
+        if (horizontal.notchX !== undefined) {
+          tooltip.style.setProperty('--ff-notch-x', `${horizontal.notchX}px`);
+        }
       }
+      tooltip.style.bottom = '';
+      tooltip.style.top = `${vertical.top}px`;
+      tooltip.classList.toggle('ff-annoying-tooltip--flipped', vertical.flipped);
     };
-    requestAnimationFrame(positionTooltip);
 
-    // Reposition on scroll; dismiss if button leaves viewport
-    const onScroll = () => {
-      if (!tooltip.isConnected) {
-        window.removeEventListener('scroll', onScroll, true);
+    let positionFrame: number | null = null;
+    const schedulePosition = () => {
+      if (positionFrame !== null) return;
+      positionFrame = requestAnimationFrame(() => {
+        positionFrame = null;
+        positionTooltip();
+      });
+    };
+    const removeTooltip = () => {
+      removeAnnoyingTooltip(tooltip);
+      if (btnTooltip === tooltip) btnTooltip = null;
+    };
+
+    // Reposition on scroll/resize; dismiss if X recycles the button or it
+    // leaves the viewport.
+    const onViewportChange = () => {
+      if (!tooltip.isConnected || !btn.isConnected) {
+        removeTooltip();
         return;
       }
       const btnRect = btn.getBoundingClientRect();
-      if (btnRect.bottom < 0 || btnRect.top > window.innerHeight) {
-        tooltip.remove();
-        window.removeEventListener('scroll', onScroll, true);
+      const viewportHeight = document.documentElement.clientHeight || window.innerHeight;
+      if (btnRect.bottom < 0 || btnRect.top > viewportHeight) {
+        removeTooltip();
         return;
       }
-      positionTooltip();
+      schedulePosition();
     };
-    window.addEventListener('scroll', onScroll, true);
+    const resizeObserver = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(schedulePosition);
+    resizeObserver?.observe(tooltip);
+    window.addEventListener('scroll', onViewportChange, true);
+    window.addEventListener('resize', onViewportChange);
+    annoyingTooltipCleanup.set(tooltip, () => {
+      window.removeEventListener('scroll', onViewportChange, true);
+      window.removeEventListener('resize', onViewportChange);
+      resizeObserver?.disconnect();
+      if (positionFrame !== null) cancelAnimationFrame(positionFrame);
+      positionFrame = null;
+    });
+    schedulePosition();
 
     // Use prefetched result if available, otherwise fire a new request
     let cachedPromise = annoyingReasonsCache.get(article);
@@ -2592,7 +2712,7 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
 
     if (!alreadyDone) {
       // Still loading — show spinner while we wait
-      tooltip.replaceChildren(parseHTML(`<div class="ff-annoying-spinner"><div class="ff-spinner-dot"></div><div class="ff-spinner-dot"></div><div class="ff-spinner-dot"></div></div><span class="ff-annoying-thinking">Diagnosing annoyances</span><div class="ff-progress-bar"><div class="ff-progress-track"><div class="ff-progress-fill" data-stage="0"></div></div></div><a href="#" class="ff-missed-link">This should already be filtered</a>`));
+      tooltipContent.replaceChildren(parseHTML(`<div class="ff-annoying-spinner"><div class="ff-spinner-dot"></div><div class="ff-spinner-dot"></div><div class="ff-spinner-dot"></div></div><span class="ff-annoying-thinking">Diagnosing annoyances</span><div class="ff-progress-bar"><div class="ff-progress-track"><div class="ff-progress-fill" data-stage="0"></div></div></div><a href="#" class="ff-missed-link">This should already be filtered</a>`));
 
       const progressListener = (message: { type: string; verified: number }) => {
         if (message.type === 'annoyingProgress') {
@@ -2622,7 +2742,7 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
           reasoning: reasoning?.reasoning || '',
           decision: 'false_negative'
         }).catch(err => console.error('[Bouncer] Missed feedback error:', err));
-        tooltip.remove();
+        removeTooltip();
         storeFilteredPost(article, content, 'User reported: should have been filtered');
         article.style.transition = 'opacity 0.3s ease';
         article.style.opacity = '0';
@@ -2640,7 +2760,7 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
       } catch (err) {
         console.error('[Bouncer] Why annoying error:', err);
         cleanupProgress();
-        tooltip.replaceChildren(parseHTML('<span class="ff-annoying-empty">Error - try again</span>'));
+        tooltipContent.replaceChildren(parseHTML('<span class="ff-annoying-empty">Error - try again</span>'));
         annoyingReasonsCache.delete(article);
         return;
       }
@@ -2648,13 +2768,13 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
     }
 
     // Render results
-    tooltip.replaceChildren();
+    tooltipContent.replaceChildren();
     if (response && response.reasons?.length) {
       const resp = response;
       const label = document.createElement('span');
       label.className = 'ff-annoying-label';
       label.textContent = 'Block this due to:';
-      tooltip.appendChild(label);
+      tooltipContent.appendChild(label);
       resp.reasons.forEach(r => {
         const chip = document.createElement('button');
         chip.className = 'ff-annoying-chip';
@@ -2668,10 +2788,10 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
         chip.addEventListener('click', (ce) => {
           ce.stopPropagation();
           // Remove tooltip before the filter triggers re-evaluation and captures the post
-          tooltip.remove();
+          removeTooltip();
           addFilterPhrase(r).catch(err => console.error('[UI] addFilterPhrase failed:', err));
         });
-        tooltip.appendChild(chip);
+        tooltipContent.appendChild(chip);
       });
 
       // "Something else" custom input
@@ -2690,7 +2810,7 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
       const submitCustomInput = () => {
         const value = customInput.value.trim();
         if (!value) return;
-        tooltip.remove();
+        removeTooltip();
         addFilterPhrase(value).catch(err => console.error('[UI] addFilterPhrase failed:', err));
         // Forcibly remove this post regardless of AI evaluation
         const reasoning = `User blocked: ${value}`;
@@ -2724,9 +2844,9 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
 
       customWrapper.appendChild(customInput);
       customWrapper.appendChild(sendBtn);
-      tooltip.appendChild(customWrapper);
+      tooltipContent.appendChild(customWrapper);
     } else {
-      tooltip.replaceChildren(parseHTML('<span class="ff-annoying-empty">No suggestions</span>'));
+      tooltipContent.replaceChildren(parseHTML('<span class="ff-annoying-empty">No suggestions</span>'));
     }
       // "Should have been filtered" link
       const missedLink = document.createElement('a');
@@ -2745,7 +2865,7 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
           reasoning: reasoning?.reasoning || '',
           decision: 'false_negative'
         }).catch(err => console.error('[Bouncer] Missed feedback error:', err));
-        tooltip.remove();
+        removeTooltip();
         storeFilteredPost(article, content, 'User reported: should have been filtered');
         article.style.transition = 'opacity 0.3s ease';
         article.style.opacity = '0';
@@ -2758,10 +2878,10 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
           reasoning: 'User reported: should have been filtered'
         }).catch(err => console.error('[Bouncer] Override cache error:', err));
       });
-      tooltip.appendChild(missedLink);
+      tooltipContent.appendChild(missedLink);
 
     // Reposition after content change (height may differ from spinner)
-    requestAnimationFrame(positionTooltip);
+    schedulePosition();
     })().catch(err => console.error('[UI] annoying reasons tooltip failed:', err));
   });
 
@@ -2786,7 +2906,7 @@ export function setupAnnoyingTooltipCloser() {
     let removedAny = false;
     tooltips.forEach((t) => {
       if (!t.contains(target)) {
-        t.remove();
+        removeAnnoyingTooltip(t);
         removedAny = true;
       }
     });

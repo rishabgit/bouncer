@@ -4,6 +4,8 @@
 import type { PlatformAdapter, PostContent, PipelineResponse, BackgroundToContentMessage, DescriptionKey } from '../types';
 import { getStorage, removeStorage, getDescriptions, setDescriptions } from '../shared/storage';
 import { FILTER_PACK_CODE_PREFIX } from '../shared/share-encoding';
+import { postViewportPriority } from './geometry';
+import { restoreFilteredContainer, scheduleFilteredHide } from './dom-state';
 
 // iOS support was removed from this local-only fork (WKWebView has no WebGPU),
 // so these are desktop no-ops that keep the shared UI module's shape stable.
@@ -175,6 +177,21 @@ import { formatPostForEvaluation } from '../shared/utils';
     }
   }
 
+  function replyFilteringIsDisabled(article: HTMLElement): boolean {
+    return !filterReplies && adapter.isPermalinkView() && !adapter.isMainPost(article);
+  }
+
+  function restoreReplyPost(article: HTMLElement): boolean {
+    const restored = restoreFilteredContainer(adapter.getPostContainer(article), article);
+    if (article.hasAttribute('data-ff-pending')) {
+      // Also cancel the pending-dim timer owned by the UI module. A reply can
+      // be mid-evaluation (not yet hidden) when the setting changes.
+      markPostVerified(article);
+    }
+    if (restored) processedPosts.delete(article);
+    return restored;
+  }
+
   // Re-evaluate a single post
   async function reEvaluateSinglePost(article: HTMLElement) {
     // Use store data for cache clearing (same source as evaluatePost)
@@ -272,6 +289,14 @@ import { formatPostForEvaluation } from '../shared/utils';
         currentlyProcessingPostUrl = null;
       }
 
+      // The setting may have changed while inference was in flight. Do not let
+      // a late response fade or hide a reply after the user has opted out.
+      if (replyFilteringIsDisabled(article)) {
+        restoreReplyPost(article);
+        processedPosts.delete(article);
+        return;
+      }
+
       if (response == null) {
         // Skip - post stays as-is (pending). Covers: disabled, no_rules,
         // page_reload, and Safari's MV3 quirk of resolving sendMessage with
@@ -356,7 +381,7 @@ import { formatPostForEvaluation } from '../shared/utils';
         } else if (wasVerified) {
           article.style.transition = 'opacity 0.3s ease';
           article.style.opacity = '0';
-          setTimeout(() => hidePost(article), 300);
+          scheduleFilteredHide(article, () => hidePost(article));
         } else if (response.cached) {
           // Instant hide for cache hits (post was already evaluated in a prior scroll)
           hidePost(article);
@@ -364,7 +389,7 @@ import { formatPostForEvaluation } from '../shared/utils';
           // Animated fade-out for fresh evaluations
           article.style.transition = 'opacity 0.3s ease';
           article.style.opacity = '0';
-          setTimeout(() => hidePost(article), 300);
+          scheduleFilteredHide(article, () => hidePost(article));
         }
       } else {
         if (content.postUrl) {
@@ -393,7 +418,12 @@ import { formatPostForEvaluation } from '../shared/utils';
     // "Filter replies/comments" toggle: on a permalink page everything
     // below the main post is a reply. The main-timeline filter is
     // unaffected because adapter.isPermalinkView() is false there.
-    if (!filterReplies && adapter.isPermalinkView()) return;
+    if (replyFilteringIsDisabled(article)) {
+      // X can resurface cached conversation DOM after the toggle-off sweep.
+      // Restore any reply that still carries Bouncer's hidden-container state.
+      restoreReplyPost(article);
+      return;
+    }
 
     if (processedPosts.has(article)) return;
     if (article.dataset.filteredByExtension) return;
@@ -438,7 +468,9 @@ import { formatPostForEvaluation } from '../shared/utils';
       // before the timer fires. If the evaluation resolves before the timer
       // fires, the post never goes through the pending UI; true cache misses
       // still show pending after the short delay.
-      const pendingTimer = setTimeout(() => markPostPending(article), 120);
+      const pendingTimer = setTimeout(() => {
+        if (!replyFilteringIsDisabled(article)) markPostPending(article);
+      }, 120);
       evaluatePost(article)
         .catch(err => console.error('[Bouncer] evaluatePost failed:', err))
         .finally(() => clearTimeout(pendingTimer));
@@ -635,11 +667,9 @@ import { formatPostForEvaluation } from '../shared/utils';
           // page so the user sees the replies they wanted without a
           // reload. We deliberately only touch replies on this page —
           // home-timeline filtering is unaffected by this setting.
-          document.querySelectorAll<HTMLElement>('[data-filtered-by-extension="true"]').forEach(cell => {
-            const article = cell.querySelector<HTMLElement>(adapter.selectors.post);
-            if (!article || adapter.isMainPost(article)) return;
-            cell.style.display = '';
-            delete cell.dataset.filteredByExtension;
+          findPosts().forEach(article => {
+            if (adapter.isMainPost(article)) return;
+            restoreReplyPost(article);
             processedPosts.delete(article);
           });
         }
@@ -789,14 +819,11 @@ import { formatPostForEvaluation } from '../shared/utils';
       }
       case 'getPositions': {
         const positions: Record<string, number> = {};
-        const viewportCenter = window.innerHeight / 2;
         const postUrlsSet = new Set<string>(message.postUrls || []);
         const evaluationIds = message.evaluationIds || [];
 
         const distanceFor = (article: HTMLElement): number => {
-          const rect = article.getBoundingClientRect();
-          const postCenter = rect.top + rect.height / 2;
-          return Math.abs(postCenter - viewportCenter);
+          return postViewportPriority(article.getBoundingClientRect(), window.innerHeight);
         };
 
         const allPosts = findPosts();

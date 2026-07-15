@@ -13,6 +13,12 @@ export interface InitProgress {
 }
 
 export interface LocalBackend {
+  // True when this backend owns an isolated runtime and can safely unload a
+  // late engine after its initialization was superseded. Chrome LiteRT uses a
+  // shared offscreen host, so its proxy leaves this false; WebLLM is handled as
+  // instance-local by the orchestrator.
+  unloadAfterSuperseded?: boolean;
+
   // Load weights, tokenizer, and the GPU context. Resolves once the backend is
   // ready to accept generate() calls. Should honor abortSignal during downloads.
   initialize(

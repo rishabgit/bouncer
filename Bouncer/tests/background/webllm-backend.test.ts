@@ -5,6 +5,7 @@ vi.mock('@mlc-ai/web-llm', () => ({
   CreateMLCEngine: vi.fn(),
   hasModelInCache: vi.fn(),
   deleteModelAllInfoInCache: vi.fn(),
+  verifyIntegrity: vi.fn().mockResolvedValue(undefined),
   prebuiltAppConfig: {
     model_list: [
       {
@@ -24,7 +25,7 @@ vi.mock('../../src/shared/models.js', () => ({
   get PREDEFINED_MODELS() { return modelsState.PREDEFINED_MODELS; },
 }));
 
-import { WebllmBackend, isWebllmCached, deleteWebllmCache } from '../../src/background/backends/webllm-backend.js';
+import { WebllmBackend, isWebllmCached, deleteWebllmCache, prefetchWebllmModel } from '../../src/background/backends/webllm-backend.js';
 import { CreateMLCEngine, hasModelInCache, deleteModelAllInfoInCache } from '@mlc-ai/web-llm';
 import type { Mock } from 'vitest';
 import type { LocalModelDef } from '../../src/types.js';
@@ -279,5 +280,74 @@ describe('deleteWebllmCache', () => {
     } finally {
       (globalThis as unknown as { caches?: unknown }).caches = prevCaches;
     }
+  });
+});
+
+// ==================== cache-only prefetch ====================
+
+describe('prefetchWebllmModel', () => {
+  it('fills WebLLM Cache API scopes without creating a GPU engine', async () => {
+    vi.clearAllMocks();
+    const modelBase = 'https://models.test/Test-MLC/resolve/rev/';
+    const modelDef = {
+      name: 'Test-MLC',
+      display: 'Test',
+      backend: 'webllm',
+      webllmConfig: {
+        model: modelBase,
+        model_lib: 'https://models.test/test.wasm',
+      },
+    } as LocalModelDef;
+    modelsState.PREDEFINED_MODELS = { local: [modelDef as unknown as Record<string, unknown>] };
+
+    const buckets = new Map<string, Map<string, Response>>();
+    globalThis.caches = {
+      open: vi.fn(async (scope: string) => {
+        const entries = buckets.get(scope) ?? new Map<string, Response>();
+        buckets.set(scope, entries);
+        return {
+          match: vi.fn(async (input: RequestInfo) => entries.get(typeof input === 'string' ? input : input.url)?.clone()),
+          put: vi.fn(async (input: RequestInfo, response: Response) => {
+            entries.set(typeof input === 'string' ? input : input.url, response.clone());
+          }),
+        };
+      }),
+    } as unknown as CacheStorage;
+
+    const responses = new Map<string, BodyInit>([
+      [`${modelBase}mlc-chat-config.json`, JSON.stringify({ tokenizer_files: ['tokenizer.json'] })],
+      ['https://models.test/test.wasm', new Uint8Array([1, 2])],
+      [`${modelBase}tokenizer.json`, new Uint8Array([3, 4])],
+      [`${modelBase}tensor-cache.json`, JSON.stringify({
+        records: [
+          { dataPath: 'params-0.bin', nbytes: 3 },
+          { dataPath: 'params-1.bin', nbytes: 2 },
+        ],
+      })],
+      [`${modelBase}params-0.bin`, new Uint8Array([1, 2, 3])],
+      [`${modelBase}params-1.bin`, new Uint8Array([4, 5])],
+    ]);
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      const body = responses.get(url);
+      return body === undefined ? new Response('missing', { status: 404 }) : new Response(body, { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const progress = vi.fn();
+
+    await prefetchWebllmModel(modelDef, progress, new AbortController().signal);
+
+    expect(CreateMLCEngine).not.toHaveBeenCalled();
+    expect(buckets.get('webllm/config')?.has(`${modelBase}mlc-chat-config.json`)).toBe(true);
+    expect(buckets.get('webllm/wasm')?.has('https://models.test/test.wasm')).toBe(true);
+    expect(buckets.get('webllm/model')?.has(`${modelBase}tokenizer.json`)).toBe(true);
+    expect(buckets.get('webllm/model')?.has(`${modelBase}tensor-cache.json`)).toBe(true);
+    expect(buckets.get('webllm/model')?.has(`${modelBase}params-0.bin`)).toBe(true);
+    expect(progress).toHaveBeenLastCalledWith(expect.objectContaining({ progress: 1 }));
+
+    fetchMock.mockClear();
+    await prefetchWebllmModel(modelDef, vi.fn(), new AbortController().signal);
+    expect(fetchMock).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
   });
 });

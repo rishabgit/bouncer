@@ -2,8 +2,8 @@
 // engine-agnostic LocalBackend seam; the orchestrator (local-model.ts) owns
 // lifecycle, the inference queue, keep-alive, idle-unload, and preemption.
 
-import { CreateMLCEngine, hasModelInCache, deleteModelAllInfoInCache, prebuiltAppConfig } from "@mlc-ai/web-llm";
-import type { MLCEngine, AppConfig, ChatCompletion, CompletionUsage, MLCEngineConfig } from "@mlc-ai/web-llm";
+import { CreateMLCEngine, hasModelInCache, deleteModelAllInfoInCache, prebuiltAppConfig, verifyIntegrity } from "@mlc-ai/web-llm";
+import type { MLCEngine, AppConfig, ChatCompletion, CompletionUsage, MLCEngineConfig, ModelRecord } from "@mlc-ai/web-llm";
 import type { LocalModelDef, ChatMessage } from '../../types';
 import { PREDEFINED_MODELS } from '../../shared/models';
 import type { LocalBackend, InitProgress, IsCachedFn } from './types';
@@ -46,6 +46,176 @@ function buildInferenceRequest(modelConfig: LocalModelDef | Record<string, never
     ...requestOpts,
     ...((modelConfig as LocalModelDef).extraBody && { extra_body: (modelConfig as LocalModelDef).extraBody }),
   };
+}
+
+interface CachedFetch {
+  response: Response;
+  fromCache: boolean;
+}
+
+// Cache one artifact using the exact scopes and URL keys used by WebLLM's
+// default Cache API backend. Counting the second tee branch gives the pending
+// switch UI honest byte progress without instantiating a WebGPU engine.
+async function fetchIntoWebllmCache(
+  scope: 'webllm/config' | 'webllm/wasm' | 'webllm/model',
+  url: string,
+  abortSignal: AbortSignal,
+  onChunk?: (bytes: number) => void,
+): Promise<CachedFetch> {
+  const cache = await caches.open(scope);
+  const cached = await cache.match(url);
+  if (cached) return { response: cached, fromCache: true };
+
+  const upstream = await fetch(url, { signal: abortSignal });
+  if (!upstream.ok) {
+    throw new Error(`Failed to fetch ${url}: ${upstream.status} ${upstream.statusText}`);
+  }
+
+  if (!upstream.body) {
+    await cache.put(url, upstream.clone());
+  } else {
+    const [forCache, forCount] = upstream.body.tee();
+    const countPromise = (async (): Promise<void> => {
+      const reader = forCount.getReader();
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) return;
+        onChunk?.(value.byteLength);
+      }
+    })();
+    const cachedResponse = new Response(forCache, {
+      headers: upstream.headers,
+      status: upstream.status,
+      statusText: upstream.statusText,
+    });
+    await Promise.all([cache.put(url, cachedResponse), countPromise]);
+  }
+
+  const stored = await cache.match(url);
+  if (!stored) throw new Error(`Failed to cache ${url}`);
+  return { response: stored, fromCache: false };
+}
+
+function cleanWebllmModelUrl(modelUrl: string): string {
+  const extensionBase = typeof chrome !== 'undefined' && chrome.runtime?.getURL
+    ? chrome.runtime.getURL('')
+    : (globalThis.location?.href ?? 'https://extension.invalid/');
+  let resolved = new URL(modelUrl, extensionBase).href;
+  resolved += resolved.endsWith('/') ? '' : '/';
+  if (!resolved.match(/.+\/resolve\/.+\//)) resolved += 'resolve/main/';
+  return new URL(resolved).href;
+}
+
+function resolveWebllmRecord(modelId: string): { record: ModelRecord; appConfig: AppConfig } {
+  const { appConfig } = buildModelConfig(modelId);
+  const effectiveConfig = appConfig ?? prebuiltAppConfig;
+  if (effectiveConfig.cacheBackend && effectiveConfig.cacheBackend !== 'cache') {
+    throw new Error(`Cache-only prefetch requires WebLLM's Cache API backend, got ${effectiveConfig.cacheBackend}`);
+  }
+  const record = effectiveConfig.model_list.find(item => item.model_id === modelId);
+  if (!record) throw new Error(`Unknown WebLLM model: ${modelId}`);
+  return { record, appConfig: effectiveConfig };
+}
+
+interface TensorCacheRecord {
+  dataPath: string;
+  nbytes: number;
+}
+
+/** Download every artifact CreateMLCEngine needs into WebLLM's Cache API
+ *  buckets without creating a GPU device or unloading the active model. */
+export async function prefetchWebllmModel(
+  modelDef: LocalModelDef,
+  onProgress: (progress: InitProgress) => void,
+  abortSignal: AbortSignal,
+): Promise<void> {
+  const { record } = resolveWebllmRecord(modelDef.name);
+  const modelUrl = cleanWebllmModelUrl(record.model);
+  const configUrl = new URL('mlc-chat-config.json', modelUrl).href;
+
+  const configFetch = await fetchIntoWebllmCache('webllm/config', configUrl, abortSignal);
+  const configBuffer = await configFetch.response.clone().arrayBuffer();
+  if (record.integrity?.config) {
+    await verifyIntegrity(configBuffer, record.integrity.config, configUrl, record.integrity.onFailure);
+  }
+  const config = JSON.parse(new TextDecoder().decode(configBuffer)) as { tokenizer_files?: string[] };
+
+  const extensionBase = typeof chrome !== 'undefined' && chrome.runtime?.getURL
+    ? chrome.runtime.getURL('')
+    : modelUrl;
+  const wasmUrl = new URL(record.model_lib, extensionBase).href;
+  const wasmFetch = await fetchIntoWebllmCache('webllm/wasm', wasmUrl, abortSignal);
+  if (record.integrity?.model_lib) {
+    await verifyIntegrity(
+      await wasmFetch.response.clone().arrayBuffer(),
+      record.integrity.model_lib,
+      wasmUrl,
+      record.integrity.onFailure,
+    );
+  }
+
+  const tokenizerFile = config.tokenizer_files?.includes('tokenizer.json')
+    ? 'tokenizer.json'
+    : config.tokenizer_files?.includes('tokenizer.model')
+      ? 'tokenizer.model'
+      : null;
+  if (!tokenizerFile) throw new Error(`Unsupported tokenizer files for ${modelDef.name}`);
+  const tokenizerUrl = new URL(tokenizerFile, modelUrl).href;
+  const tokenizerFetch = await fetchIntoWebllmCache('webllm/model', tokenizerUrl, abortSignal);
+  const tokenizerIntegrity = record.integrity?.tokenizer?.[tokenizerFile];
+  if (tokenizerIntegrity) {
+    await verifyIntegrity(
+      await tokenizerFetch.response.clone().arrayBuffer(),
+      tokenizerIntegrity,
+      tokenizerUrl,
+      record.integrity?.onFailure,
+    );
+  }
+
+  const manifestUrl = new URL('tensor-cache.json', modelUrl).href;
+  const manifestFetch = await fetchIntoWebllmCache('webllm/model', manifestUrl, abortSignal);
+  const manifest = await manifestFetch.response.clone().json() as { records?: TensorCacheRecord[] };
+  if (!Array.isArray(manifest.records)) throw new Error(`Invalid tensor cache manifest for ${modelDef.name}`);
+
+  const records = manifest.records;
+  const totalBytes = records.reduce((sum, item) => sum + Math.max(0, item.nbytes || 0), 0);
+  let completedBytes = 0;
+  let completedShards = 0;
+  let nextIndex = 0;
+  const report = (): void => {
+    const progress = totalBytes > 0 ? Math.min(1, completedBytes / totalBytes) : 1;
+    onProgress({
+      progress,
+      text: `Downloading model cache [${completedShards} / ${records.length}]`,
+    });
+  };
+  report();
+
+  const worker = async (): Promise<void> => {
+    for (;;) {
+      const index = nextIndex++;
+      if (index >= records.length) return;
+      const shard = records[index];
+      const expectedBytes = Math.max(0, shard.nbytes || 0);
+      let receivedBytes = 0;
+      const shardUrl = new URL(shard.dataPath, modelUrl).href;
+      const result = await fetchIntoWebllmCache('webllm/model', shardUrl, abortSignal, bytes => {
+        receivedBytes += bytes;
+        completedBytes += bytes;
+        report();
+      });
+      if (result.fromCache) {
+        completedBytes += expectedBytes;
+      } else if (receivedBytes < expectedBytes) {
+        completedBytes += expectedBytes - receivedBytes;
+      }
+      completedShards++;
+      report();
+    }
+  };
+
+  await Promise.all(Array.from({ length: Math.min(4, Math.max(1, records.length)) }, () => worker()));
+  onProgress({ progress: 1, text: `Downloaded model cache [${records.length} / ${records.length}]` });
 }
 
 export class WebllmBackend implements LocalBackend {

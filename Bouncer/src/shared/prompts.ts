@@ -57,7 +57,7 @@ export function buildLocalUserMessage(postText: string, bannedCategories: string
 // `yes`/`no` verdicts — one per category, in the order given. Far fewer output
 // tokens than a reasoning sentence, which dominates wall-clock for a 4B model
 // decoding on consumer WebGPU. Used by the LiteRT-LM/Gemma path; callers parse
-// leniently (no constrained decoding) and fall back to SHOW on a malformed row.
+// known formatting shapes with strict arity and fall back to SHOW on malformed output.
 export const TABLE_YESNO_SYSTEM_PROMPT = `You will see a social media post and a list of candidate categories. For each category, decide whether the post matches that category.
 
 Output exactly one row of pipe-delimited verdicts, one per category, in the order they were given. Each verdict is \`yes\` or \`no\`. Output nothing else.
@@ -80,6 +80,33 @@ export function tableYesnoSystemPrompt(mode: LocalPromptMode = 'baseline'): stri
   return mode === 'intent' ? TABLE_YESNO_INTENT_SYSTEM_PROMPT : TABLE_YESNO_SYSTEM_PROMPT;
 }
 
+export const TABLE_YESNO_SINGLE_SYSTEM_PROMPT = `You will see a social media post and one candidate category. Decide whether the post matches the category.
+
+Answer with a single word: yes or no. Output nothing else — no pipes, no table, no second verdict, and no explanation.`;
+
+export const TABLE_YESNO_SINGLE_INTENT_SYSTEM_PROMPT = `You will see a social media post and one candidate category. Decide whether the post matches the category.
+
+For a category like "rage bait" or "outrage farming", answer yes only when the post is engineered to provoke anger or amplify a pile-on. Answer no for sincere frustration, fair criticism, personal hardship, civic participation, ordinary sarcasm, or calm pessimism unless the post is also trying to farm outrage.
+
+Answer with a single word: yes or no. Output nothing else — no pipes, no table, no second verdict, and no explanation.`;
+
+export function tableYesnoSingleSystemPrompt(mode: LocalPromptMode = 'baseline'): string {
+  return mode === 'intent' ? TABLE_YESNO_SINGLE_INTENT_SYSTEM_PROMPT : TABLE_YESNO_SINGLE_SYSTEM_PROMPT;
+}
+
+export function buildSingleYesnoUserMessage(
+  postText: string,
+  category: string,
+  hasImages: boolean,
+  mode: LocalPromptMode = 'baseline',
+): string {
+  const mediaDesc = hasImages ? ' (includes images)' : '';
+  const intentNote = mode === 'intent'
+    ? '\n\nFor rage bait or outrage farming, distinguish outrage amplification from sincere frustration or criticism.'
+    : '';
+  return `Post${mediaDesc}: ${postText}\n\nCategory: ${category}${intentNote}\n\nDoes the post match the category? Answer with one word, yes or no:`;
+}
+
 // Build the user message for the table_yesno path — the post plus the ordered
 // category list the model emits one verdict per.
 export function buildTableYesnoUserMessage(
@@ -93,5 +120,6 @@ export function buildTableYesnoUserMessage(
   const intentNote = mode === 'intent'
     ? '\n\nIf the category is rage bait or outrage farming, distinguish outrage amplification from sincere frustration or criticism.'
     : '';
-  return `Post${mediaDesc}: ${postText}\n\nCategories (in order): ${categoryList}${intentNote}\n\nOutput the verdict row:`;
+  const count = categories.length;
+  return `Post${mediaDesc}: ${postText}\n\nCategories (in order): ${categoryList}${intentNote}\n\nOutput the verdict row (exactly ${count} verdict${count === 1 ? '' : 's'}, one per category):`;
 }

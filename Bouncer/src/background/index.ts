@@ -1,29 +1,89 @@
 // Background script entry point: message handler, storage listener, startup, tab tracking
 
-import { PREDEFINED_MODELS } from '../shared/models';
+import { DEFAULT_MODEL, PREDEFINED_MODELS, PRIMARY_LOCAL_MODEL_ID } from '../shared/models';
 import { generateCacheKey } from '../shared/utils';
 import { getStorage, setStorage } from '../shared/storage';
-import type { ContentToBackgroundMessage, LocalModelStatus, PendingLocalModelSelection } from '../types';
-import { localEngine } from './local-model';
-import {
-  pendingLocalModelSelectionManager,
-  supersededPendingSelection,
-} from './pending-model-selection';
+import type { ContentToBackgroundMessage, LocalModelStatus } from '../types';
+import { localEngine, MODEL_MAINTENANCE_ERROR } from './local-model';
+import { forceCloseLitertlmOffscreen } from './backends/litertlm-backend';
+import { migrateToGemmaOnlyModel } from './model-migration';
 import {
   initPipeline, loadCache, saveCache,
   setActiveTab, enqueuePost, isKeyPending, clearTabQueue,
-  scheduleBatch, broadcastQueueStatus, getSettings,
+  scheduleBatch, getSettings,
   errorState,
   evaluationCache, clearEvaluationCache,
   handleSettingsChange, handleFilterPackChange, handlePageLoad, suggestAnnoyingReasons,
   replayDetectorStates,
+  runModelMaintenance,
+  triggerErrorRetry,
+  requiresLocalInference,
 } from './pipeline';
 import { handleBenchmark } from './benchmark';
+import {
+  scheduleNavigationUnload,
+  TAB_NAVIGATION_UNLOAD_GRACE_MS,
+} from './tab-unload-grace';
 
 // ==================== Tab tracking ====================
 
 // Set of tab IDs with active content scripts (for broadcasting)
 const activeContentTabs = new Set<number>();
+let tabLifecycleGeneration = 0;
+const LAST_TAB_UNLOAD_RETRY_MS = 250;
+
+function registerContentTab(tabId: number): void {
+  if (activeContentTabs.has(tabId)) return;
+  activeContentTabs.add(tabId);
+  tabLifecycleGeneration++;
+}
+
+function unregisterContentTab(tabId: number): boolean {
+  if (!activeContentTabs.delete(tabId)) return false;
+  tabLifecycleGeneration++;
+  return true;
+}
+
+// Closing the last X tab requests a serialized engine unload. The lifecycle
+// generation makes that request conditional: if another content script
+// registers before the maintenance callback owns the inference queue, the
+// callback leaves the engine available for that tab. A concurrent popup/idle
+// maintenance is allowed to finish first and then this condition is retried.
+function unloadModelIfStillNoContentTabs(expectedGeneration: number): void {
+  if (expectedGeneration !== tabLifecycleGeneration
+      || activeContentTabs.size > 0
+      || !localEngine.engine) return;
+
+  if (localEngine.isMaintaining()) {
+    setTimeout(
+      () => unloadModelIfStillNoContentTabs(expectedGeneration),
+      LAST_TAB_UNLOAD_RETRY_MS,
+    );
+    return;
+  }
+
+  void localEngine.runMaintenance(async () => {
+    if (expectedGeneration !== tabLifecycleGeneration
+        || activeContentTabs.size > 0
+        || !localEngine.engine) return;
+
+    const modelId = localEngine.loadedModel;
+    console.log('[LocalEngine] No active tabs remaining, unloading engine for', modelId);
+    await localEngine.reset();
+    if (modelId) {
+      await localEngine.updateStatus(modelId, { state: 'cached' });
+    }
+  }).catch(err => {
+    if ((err as Error).message === MODEL_MAINTENANCE_ERROR) {
+      setTimeout(
+        () => unloadModelIfStillNoContentTabs(expectedGeneration),
+        LAST_TAB_UNLOAD_RETRY_MS,
+      );
+      return;
+    }
+    console.error('[LocalEngine] Error unloading engine on last tab close:', err);
+  });
+}
 
 // Active tab tracking for per-tab queue processing
 let activeTabId: number | null = null;
@@ -54,9 +114,8 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
   }).catch(() => { /* ignore */ });
 });
 
-// Clean up tab tracking when tabs are closed
-chrome.tabs.onRemoved.addListener((tabId) => {
-  activeContentTabs.delete(tabId);
+function detachContentTab(tabId: number, navigationGraceMs = 0): void {
+  const wasContentTab = unregisterContentTab(tabId);
   clearTabQueue(tabId);
   if (activeTabId === tabId) {
     activeTabId = null;
@@ -65,32 +124,51 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
   // When no tabs remain, immediately unload the local model to free GPU memory.
   // Model weights stay in Cache Storage for fast reload when a tab opens again.
-  if (activeContentTabs.size === 0 && localEngine.engine) {
-    const modelId = localEngine.loadedModel;
-    console.log('[LocalEngine] No active tabs remaining, unloading engine for', modelId);
-    localEngine.drainQueue(async () => {
-      await localEngine.reset();
-      if (modelId) {
-        await localEngine.updateStatus(modelId, { state: 'cached' });
-      }
-    }).catch(err => {
-      console.error('[LocalEngine] Error unloading engine on last tab close:', err);
-    });
+  if (wasContentTab && activeContentTabs.size === 0 && localEngine.engine) {
+    const expectedGeneration = tabLifecycleGeneration;
+    if (navigationGraceMs > 0) {
+      scheduleNavigationUnload(
+        expectedGeneration,
+        generation => generation === tabLifecycleGeneration && activeContentTabs.size === 0,
+        unloadModelIfStillNoContentTabs,
+        navigationGraceMs,
+      );
+    } else {
+      unloadModelIfStillNoContentTabs(expectedGeneration);
+    }
+  }
+}
+
+// Clean up tab tracking when tabs are closed.
+chrome.tabs.onRemoved.addListener((tabId) => {
+  detachContentTab(tabId);
+});
+
+// Chrome reuses a tab id when an X tab navigates away or reloads. Detach at
+// loading so stale posts cannot keep the queue/model alive. Give only this
+// navigation path a short grace period: an X reload's document_idle pageLoad
+// advances the lifecycle generation and keeps the loaded model, while a real
+// navigation away still unloads after the grace. Closed tabs unload immediately.
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status === 'loading' && activeContentTabs.has(tabId)) {
+    detachContentTab(tabId, TAB_NAVIGATION_UNLOAD_GRACE_MS);
   }
 });
 
 // ==================== Startup ====================
 
-// Initialize cache, sync model statuses, and auto-init local model on startup
-// Wrapped in try/catch to prevent unhandled rejections from destabilizing the service worker
-(async () => {
+async function initializeBackground(): Promise<void> {
   try {
+    // An MV3 offscreen document can outlive its service worker. Close it on
+    // every worker start so the new LocalEngine never allocates a second GPU
+    // engine beside an orphan it cannot reattach to.
+    await forceCloseLitertlmOffscreen();
+    // Normalize model storage and purge retired caches before reading settings
+    // or evaluation results. The cache cleanup phase is retryable/non-fatal.
+    await migrateToGemmaOnlyModel();
     await loadCache();
-    // Wire up pipeline with shared state
     initPipeline(activeContentTabs);
     await localEngine.syncAllStatuses();
-    await pendingLocalModelSelectionManager.reconcile();
-    await localEngine.autoInitSelected();
 
     // Proactively detect active Bouncer tabs after service worker restart.
     // Without this, activeTabId stays null until a content script sends a message,
@@ -100,7 +178,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
       for (const tab of tabs) {
         try {
           await chrome.tabs.sendMessage(tab.id!, { type: 'ping' });
-          activeContentTabs.add(tab.id!);
+          registerContentTab(tab.id!);
         } catch {
           // Content script not loaded or not responding — skip
         }
@@ -115,9 +193,15 @@ chrome.tabs.onRemoved.addListener((tabId) => {
       // Tab detection can fail non-fatally (e.g. no Twitter tabs open)
     }
   } catch (e) {
-    console.error('[Background] Startup initialization error (non-fatal):', e);
+    console.error('[Background] Startup initialization error:', e);
+    throw e;
   }
-})().catch(err => console.error('[Background] Startup error:', err));
+}
+
+// Every async message and install/update task waits on this barrier so no work
+// can observe a retired selected model or stale cross-model evaluation cache.
+const startupReady = initializeBackground();
+startupReady.catch(err => console.error('[Background] Startup error:', err));
 
 // ==================== Message handler ====================
 
@@ -128,42 +212,51 @@ async function handleMessage(
   sender: chrome.runtime.MessageSender,
   _sendResponse: (response?: unknown) => void
 ): Promise<unknown> {
+  await startupReady;
   const tabId = sender.tab?.id;
 
   switch (message.type) {
     case 'evaluatePost': {
-      console.log('[Bouncer][diag] evaluatePost received: tabId=', tabId, 'activeTabId=', activeTabId, 'sender.tab=', !!sender.tab);
-      // Ensure tab is registered (re-registers after service worker restart)
-      if (tabId) activeContentTabs.add(tabId);
-
+      // Register before the maintenance check: opening a fresh X tab must
+      // invalidate a last-tab-close unload that is waiting for the queue.
+      if (tabId !== undefined) registerContentTab(tabId);
+      if (localEngine.isMaintaining()) {
+        return {
+          retry: true as const,
+          reasoning: 'Local model maintenance in progress.',
+          retryAfterMs: 250,
+        };
+      }
       // Posts flow through processBatch so the popup gets a consistent filter-tab
       // dispatch even when no phrases are configured (the detector marks itself
       // skipped with a reason).
       const settings = await getSettings(message.siteId);
+      const needsInference = requiresLocalInference(settings);
 
       // No usable local model — none selected, or this browser has no WebGPU.
       // Return retry (not an error) so the content script leaves the post alone,
       // drops it from processedPosts, and re-evaluates once a model is ready. The
       // in-feed model-status indicator tells the user how to set one up.
-      const isLocalModel = settings.selectedModel?.startsWith('local:');
-      if (!isLocalModel || !navigator.gpu) {
-        return { retry: true as const, reasoning: !navigator.gpu ? 'WebGPU not supported' : 'No model selected' };
-      }
+      if (needsInference) {
+        const isLocalModel = settings.selectedModel?.startsWith('local:');
+        if (!isLocalModel || !navigator.gpu) {
+          return { retry: true as const, reasoning: !navigator.gpu ? 'WebGPU not supported' : 'No model selected' };
+        }
 
-      // A model is selected. If it isn't downloaded yet (not loaded, not
-      // initializing, not cached), ask the content script to retry later.
-      const modelId = settings.selectedModel.split(':')[1];
-      const notDownloaded = !localEngine.isModelLoaded(modelId) && !localEngine.isInitializing();
-      if (notDownloaded) {
-        const cached = await localEngine.checkCached(modelId);
-        if (!cached) {
-          return { retry: true as const, reasoning: 'Local model not downloaded yet.' };
+        // A model is selected. If it isn't downloaded yet (not loaded, not
+        // initializing, not cached), ask the content script to retry later.
+        const modelId = settings.selectedModel.split(':')[1];
+        const notDownloaded = !localEngine.isModelLoaded(modelId) && !localEngine.isInitializing();
+        if (notDownloaded) {
+          const cached = await localEngine.checkCached(modelId);
+          if (!cached) {
+            return { retry: true as const, reasoning: 'Local model not downloaded yet.' };
+          }
         }
       }
 
       await loadCache();
-      const imageUrls = message.imageUrls || [];
-      const cacheKey = generateCacheKey(message.post, imageUrls);
+      const cacheKey = generateCacheKey(message.post);
 
       // Check main cache
       if (evaluationCache.has(cacheKey)) {
@@ -175,7 +268,7 @@ async function handleMessage(
       // Check if already in queue - add another resolver for this item
       if (tabId !== undefined && isKeyPending(tabId, cacheKey)) {
         return new Promise(resolve => {
-          const item = { evaluationId: message.evaluationId, post: message.post, rawText: message.rawText, imageUrls, resolve, cacheKey, tabId, postUrl: message.postUrl, siteId: message.siteId };
+          const item = { evaluationId: message.evaluationId, post: message.post, resolve, cacheKey, tabId, postUrl: message.postUrl, siteId: message.siteId };
           enqueuePost(tabId, item);
         });
       }
@@ -183,31 +276,29 @@ async function handleMessage(
       // Queue for batch processing
       // processBatch will prioritize posts closest to viewport center for local models
       const resultPromise = new Promise(resolve => {
-        const item = { evaluationId: message.evaluationId, post: message.post, rawText: message.rawText, imageUrls, resolve, cacheKey, tabId, postUrl: message.postUrl, siteId: message.siteId };
+        const item = { evaluationId: message.evaluationId, post: message.post, resolve, cacheKey, tabId, postUrl: message.postUrl, siteId: message.siteId };
         enqueuePost(tabId!, item);
       });
-      console.log('[Bouncer][diag] evaluatePost enqueued for tab', tabId);
 
       // On first evaluatePost when activeTabId is unknown, detect if this tab is active
       if (activeTabId === null) {
         chrome.tabs.query({ active: true, lastFocusedWindow: true }).then((tabs) => {
-          console.log('[Bouncer][diag] tabs.query(active,lastFocused) returned', tabs.length, 'tab(s); first.id=', tabs[0]?.id, 'msg.tabId=', tabId);
           const tab = tabs[0];
           if (tab && tab.id === tabId) updateActiveTab(tabId);
-        }).catch((err) => { console.log('[Bouncer][diag] tabs.query failed:', err); });
+        }).catch(() => { /* active-tab confirmation is best effort */ });
       }
 
-      console.log('[Bouncer][diag] calling scheduleBatch; activeTabId=', activeTabId);
       scheduleBatch();
-      broadcastQueueStatus().catch(err => console.error('[Background] broadcastQueueStatus error:', err));
       return resultPromise;
     }
 
     case 'suggestAnnoyingReasons': {
+      if (localEngine.isMaintaining()) {
+        return { reasons: [], retry: true, error: 'Local model maintenance in progress.' };
+      }
       try {
-        const imageUrls = message.imageUrls || [];
-        const reasons = await suggestAnnoyingReasons(message.post, imageUrls, message.siteId || 'twitter', sender.tab?.id);
-        return { reasons, hadImages: imageUrls.length > 0 };
+        const reasons = await suggestAnnoyingReasons(message.post, message.siteId || 'twitter', sender.tab?.id);
+        return { reasons };
       } catch (err) {
         console.error('[Bouncer] suggestAnnoyingReasons error:', err);
         return { reasons: [], error: (err as Error).message };
@@ -221,7 +312,7 @@ async function handleMessage(
 
     case 'clearSinglePost': {
       await loadCache();
-      const cacheKey = generateCacheKey(message.post, message.imageUrls || []);
+      const cacheKey = generateCacheKey(message.post);
       if (evaluationCache.has(cacheKey)) {
         evaluationCache.delete(cacheKey);
         await saveCache();
@@ -231,7 +322,7 @@ async function handleMessage(
 
     case 'overrideCacheEntry': {
       await loadCache();
-      const cacheKey = generateCacheKey(message.post, message.imageUrls || []);
+      const cacheKey = generateCacheKey(message.post);
       evaluationCache.set(cacheKey, {
         shouldHide: message.shouldHide,
         reasoning: message.reasoning || 'User override',
@@ -247,7 +338,7 @@ async function handleMessage(
 
     case 'getReasoning': {
       await loadCache();
-      const cacheKey = generateCacheKey(message.post, message.imageUrls || []);
+      const cacheKey = generateCacheKey(message.post);
       if (evaluationCache.has(cacheKey)) {
         const cached = evaluationCache.get(cacheKey)!;
         return {
@@ -265,20 +356,15 @@ async function handleMessage(
     }
 
     case 'getErrorStatus': {
-      const settings = await getSettings();
       return {
         errorType: errorState.type,
-        subType: errorState.subType,
         count: errorState.count,
-        apiDisplayName: errorState.apiDisplayName,
-        selectedModel: settings.selectedModel,
-        hasAlternativeApis: false
       };
     }
 
     case 'getAllLocalModelStatuses': {
-      const data = await getStorage(['localModelStatuses', 'pendingLocalModelSelection']);
-      const statuses: Record<string, { state: string; reason?: string }> = (data.localModelStatuses || {});
+      const data = await getStorage(['localModelStatuses']);
+      const statuses: Record<string, LocalModelStatus> = { ...(data.localModelStatuses || {}) };
 
       // Check WebGPU support
       const webgpuSupported = !!navigator.gpu;
@@ -286,14 +372,12 @@ async function handleMessage(
       // Always check cache status for models not currently in a loading state
       for (const model of PREDEFINED_MODELS.local) {
         const currentStatus = statuses[model.name];
-        // Skip cache check only if actively downloading/initializing
-        const isPendingError = currentStatus?.state === 'error'
-          && data.pendingLocalModelSelection?.modelId === model.name;
+        // Preserve live loading/error state. Startup reconciliation turns a
+        // stale state into cached/not_downloaded once per worker lifetime.
         const isLoading = currentStatus?.state === 'downloading'
-          || currentStatus?.state === 'initializing'
-          || isPendingError;
+          || currentStatus?.state === 'initializing';
 
-        if (!isLoading) {
+        if (!isLoading && currentStatus?.state !== 'error') {
           if (!webgpuSupported) {
             statuses[model.name] = { state: 'unsupported', reason: 'WebGPU not supported' };
           } else if (localEngine.isModelLoaded(model.name)) {
@@ -310,28 +394,37 @@ async function handleMessage(
       return { statuses, webgpuSupported };
     }
 
-    case 'selectLocalModel':
-      return pendingLocalModelSelectionManager.select(message.modelId);
-
     case 'cancelLocalModelDownload': {
-      const modelId = message.modelId;
-      if (!modelId) {
-        return { success: false, error: 'No model ID provided' };
-      }
-      const pendingCancelled = await pendingLocalModelSelectionManager.cancel(modelId);
-      const initializationCancelled = await localEngine.cancelDownload(modelId);
-      const cancelled = pendingCancelled || initializationCancelled;
-      return { success: true, cancelled, modelId };
+      const cancelled = await runModelMaintenance(
+        () => localEngine.cancelDownload(PRIMARY_LOCAL_MODEL_ID),
+      );
+      return { success: true, cancelled, modelId: PRIMARY_LOCAL_MODEL_ID };
     }
 
     case 'deleteLocalModel': {
-      const modelId = message.modelId;
-      if (!modelId) {
-        return { success: false, error: 'No model ID provided' };
+      const result = await runModelMaintenance(
+        () => localEngine.deleteModelCache(PRIMARY_LOCAL_MODEL_ID),
+      );
+      return { ...result, modelId: PRIMARY_LOCAL_MODEL_ID };
+    }
+
+    case 'initializeLocalModel': {
+      if (localEngine.isMaintaining()) {
+        return { success: false, error: 'Local model maintenance in progress.' };
       }
-      await pendingLocalModelSelectionManager.cancel(modelId);
-      const result = await localEngine.deleteModelCache(modelId);
-      return { ...result, modelId };
+      localEngine.initialize(PRIMARY_LOCAL_MODEL_ID)
+        .then(async backend => {
+          if (!backend) return;
+          // A terminal model error is persisted across MV3 worker restarts, but
+          // the per-worker error counter is not. Always release content-side
+          // error markers after an explicit successful Retry, even when this
+          // fresh worker has no errors in its in-memory counter.
+          await triggerErrorRetry(true, true);
+        })
+        .catch(err => {
+          console.error('[LocalEngine] Initialization error:', err);
+        });
+      return { success: true, started: true, modelId: PRIMARY_LOCAL_MODEL_ID };
     }
 
     case 'benchmark':
@@ -353,15 +446,13 @@ chrome.runtime.onMessage.addListener((message: ContentToBackgroundMessage, sende
   // --- Sync-only: pageLoad does not need async, just side effects ---
   if (message.type === 'pageLoad') {
     if (!tabId) return;
-
-    // Track this tab as having an active content script
-    activeContentTabs.add(tabId);
-    handlePageLoad(tabId);
-
-    // Detect active tab (handles service worker restart where onActivated doesn't re-fire)
-    chrome.tabs.query({ active: true, lastFocusedWindow: true }).then(([tab]) => {
+    startupReady.then(() => {
+      registerContentTab(tabId);
+      handlePageLoad(tabId);
+      return chrome.tabs.query({ active: true, lastFocusedWindow: true });
+    }).then(([tab]) => {
       if (tab && tab.id === tabId) updateActiveTab(tabId);
-    }).catch(() => {});
+    }).catch(err => console.error('[Background] pageLoad startup failed:', err));
     return;
   }
 
@@ -371,42 +462,29 @@ chrome.runtime.onMessage.addListener((message: ContentToBackgroundMessage, sende
     return;
   }
 
-  // --- Fire-and-forget: initializeLocalModel responds synchronously, starts async work ---
-  if (message.type === 'downloadPendingLocalModel') {
-    const modelId = message.modelId;
-    if (!modelId) {
-      sendResponse({ success: false, error: 'No model ID provided' });
-      return false;
-    }
-    pendingLocalModelSelectionManager.start(modelId).catch(err => {
-      console.error('[LocalModel] Pending model download error for', modelId, ':', err);
-    });
-    sendResponse({ success: true, started: true, modelId });
-    return false;
-  }
-
-  // --- Fire-and-forget: initializeLocalModel responds synchronously, starts async work ---
-  if (message.type === 'initializeLocalModel') {
-    console.log('[Background] initializeLocalModel received, modelId:', message.modelId, 'hasNativeBridge:', typeof window !== 'undefined' && !!(window as unknown as Record<string, unknown>)?.webkit);
-    const modelId = message.modelId;
-    if (!modelId) {
-      sendResponse({ success: false, error: 'No model ID provided' });
-      return false;
-    }
-    // Start initialization but respond immediately - progress is tracked via storage
-    localEngine.initialize(modelId).catch(err => {
-      console.error('[LocalEngine] Initialization error for', modelId, ':', err);
-    });
-    sendResponse({ success: true, started: true, modelId });
-    return false; // Synchronous response
-  }
-
   // --- All other message types: async with centralized error handling ---
   handleMessage(message, sender, sendResponse)
     .then(response => sendResponse(response))
     .catch(err => {
       console.error(`[Background] Error handling message type '${message.type}':`, err);
-      sendResponse({ error: (err as Error).message });
+      const error = (err as Error).message;
+      if (message.type === 'evaluatePost') {
+        sendResponse({
+          retry: true,
+          reasoning: error || 'The local model is temporarily unavailable.',
+          retryAfterMs: 1000,
+        });
+      } else if (message.type === 'suggestAnnoyingReasons') {
+        sendResponse({ reasons: [], error });
+      } else if (message.type === 'getAllLocalModelStatuses') {
+        sendResponse({ error, statuses: null, webgpuSupported: !!navigator.gpu });
+      } else if (message.type === 'initializeLocalModel'
+          || message.type === 'cancelLocalModelDownload'
+          || message.type === 'deleteLocalModel') {
+        sendResponse({ success: false, error });
+      } else {
+        sendResponse({ error });
+      }
     });
 
   return true; // Keep channel open for async response
@@ -418,67 +496,42 @@ chrome.runtime.onMessage.addListener((message: ContentToBackgroundMessage, sende
 chrome.storage.onChanged.addListener((changes, areaName) => {
   (async () => {
     if (areaName !== 'local') return;
+    await startupReady;
 
-    if (changes.pendingLocalModelSelection) {
-      const clearedPending = supersededPendingSelection(
-        changes.pendingLocalModelSelection.oldValue as PendingLocalModelSelection | null | undefined,
-        changes.pendingLocalModelSelection.newValue as PendingLocalModelSelection | null | undefined,
-        changes.selectedModel?.newValue as string | undefined,
-      );
-      if (clearedPending) {
-        await pendingLocalModelSelectionManager.cancelClearedSelection(clearedPending);
+    // The schema-normalization write already clears the cross-model cache and
+    // retired state atomically. Ignore its synthetic storage event.
+    if (changes.gemmaOnlySchemaVersion) return;
+
+    let normalizedRetiredModel = false;
+    if (changes.selectedModel) {
+      const newModel = changes.selectedModel.newValue as string | undefined;
+      if (newModel !== DEFAULT_MODEL) {
+        await setStorage({ selectedModel: DEFAULT_MODEL });
+        normalizedRetiredModel = true;
       }
     }
 
-    if (changes.selectedModel) {
-      // If switching away from local model, unload the engine to free GPU memory
-      const oldModel = changes.selectedModel.oldValue as string | undefined;
-      const newModel = changes.selectedModel.newValue as string | undefined;
-      const wasLocal = oldModel?.startsWith('local:');
-      const isLocal = newModel?.startsWith('local:');
-
-      // A direct/legacy selection change supersedes any staged choice. The
-      // cache-complete promotion writes selectedModel and clears pending in the
-      // same operation, so it does not enter this branch with a live pending
-      // record.
-      if (!changes.pendingLocalModelSelection) {
-        const pendingData = await getStorage(['pendingLocalModelSelection']);
-        const pending = pendingData.pendingLocalModelSelection;
-        if (pending && pending.modelKey !== newModel) {
-          await pendingLocalModelSelectionManager.cancel(pending.modelId);
-        }
-      }
-
-      if (wasLocal && !isLocal && localEngine.engine) {
-        const unloadedModelId = oldModel!.split(':')[1];
-        // Drain inference queue so any in-flight task finishes before disposal
-        await localEngine.drainQueue(async () => {
-          await localEngine.reset();
-        });
-        // Update status so popup shows 'cached' instead of stale 'ready'
-        await localEngine.updateStatus(unloadedModelId, { state: 'cached' });
-      }
-
-      // If switching to a local model, auto-initialize if cached
-      if (isLocal) {
-        const modelId = newModel!.split(':')[1];
-        const cached = await localEngine.checkCached(modelId);
-        if (cached) {
-          localEngine.initialize(modelId).catch(err => {
-            console.error('[LocalEngine] Auto-init on model switch failed:', err);
-          });
-        }
-      }
-
-      // Model change: flush pipeline state and wipe cache — classifications from a different model are no longer valid.
+    // Disabling Bouncer is also a verdict boundary: a batch that captured
+    // enabled=true must not hide a post after the switch has been turned off.
+    if (changes.selectedModel || changes.enabled) {
       await handleSettingsChange(changes);
+    }
+    if (normalizedRetiredModel) return;
+
+    if (changes.localModelStatuses && errorState.count > 0) {
+      const before = (changes.localModelStatuses.oldValue || {}) as Record<string, LocalModelStatus>;
+      const after = (changes.localModelStatuses.newValue || {}) as Record<string, LocalModelStatus>;
+      if (before[PRIMARY_LOCAL_MODEL_ID]?.state !== 'ready'
+          && after[PRIMARY_LOCAL_MODEL_ID]?.state === 'ready') {
+        await triggerErrorRetry();
+      }
     }
 
     const filtersChanged = Object.keys(changes).some(
       key => key.startsWith('descriptions_')
     );
     if (filtersChanged) {
-      handleFilterPackChange();
+      await handleFilterPackChange();
     }
   })().catch(err => console.error('[Background] Storage change handler error:', err));
 });
@@ -489,12 +542,20 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install' || details.reason === 'update') {
     (async () => {
-
+      await startupReady;
       const statuses: Record<string, LocalModelStatus> = {};
       const webgpuSupported = !!navigator.gpu;
+      const stored = await getStorage(['localModelStatuses']);
+      const existingStatuses = stored.localModelStatuses ?? {};
 
       for (const model of PREDEFINED_MODELS.local) {
-        if (!webgpuSupported) {
+        const existingStatus = existingStatuses[model.name];
+        // A terminal runtime error is a durable explicit-Retry fence. Extension
+        // updates must not relabel it as merely cached and allow a later MV3
+        // worker restart to silently reload the same failing model.
+        if (existingStatus?.state === 'error') {
+          statuses[model.name] = existingStatus;
+        } else if (!webgpuSupported) {
           statuses[model.name] = { state: 'unsupported', reason: 'WebGPU not supported' };
         } else {
           const cached = await localEngine.checkCached(model.name);
@@ -508,14 +569,13 @@ chrome.runtime.onInstalled.addListener((details) => {
   }
 });
 
-// Clean up references before service worker terminates.
-// Don't call engine.unload() — it's async and can't complete before Chrome kills
-// the worker. GPU memory is freed automatically when Chrome's GPU process tears
-// down the Dawn Wire IPC channel for the terminated worker.
+// Clean up synchronous worker-owned bookkeeping before service worker
+// termination. LiteRT-LM runs in an offscreen document, so this cannot promise
+// an async engine unload; the next worker startup explicitly closes any orphan
+// offscreen document before constructing a new engine.
 // Note: onSuspend is not available in Safari service workers
 if (chrome.runtime.onSuspend) {
   chrome.runtime.onSuspend.addListener(() => {
-    pendingLocalModelSelectionManager.teardown();
     localEngine.teardown();
   });
 }

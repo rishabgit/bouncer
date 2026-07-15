@@ -8,12 +8,12 @@
 import type { LocalModelDef, ChatMessage } from '../../types';
 import type { LocalBackend, InitProgress } from './types';
 import { LitertlmProxy, forceCloseLitertlmOffscreen } from './litertlm-proxy';
-import { LitertlmRuntime, prefetchLitertlmModel } from '../../offscreen/litertlm-runtime';
+import { LitertlmRuntime } from '../../offscreen/litertlm-runtime';
 
 interface Impl {
   initialize(d: LocalModelDef, p: (x: InitProgress) => void, s: AbortSignal): Promise<void>;
   unload(): Promise<void>;
-  generate(m: ChatMessage[], n: number, params: Record<string, unknown>): Promise<string>;
+  generate(m: ChatMessage[], n: number): Promise<string>;
   interrupt(): void | Promise<void>;
   countTokens(t: string): number | Promise<number>;
   truncateText(t: string, n: number): string | Promise<string>;
@@ -43,8 +43,8 @@ export class LitertlmBackend implements LocalBackend {
     return this.impl.unload();
   }
 
-  generate(messages: ChatMessage[], maxTokens: number, params: Record<string, unknown>): Promise<string> {
-    return this.impl.generate(messages, maxTokens, params);
+  generate(messages: ChatMessage[], maxTokens: number): Promise<string> {
+    return this.impl.generate(messages, maxTokens);
   }
 
   async interrupt(): Promise<void> {
@@ -59,12 +59,6 @@ export class LitertlmBackend implements LocalBackend {
     return this.impl.truncateText(text, maxTokens);
   }
 
-  // eslint-disable-next-line @typescript-eslint/require-await
-  async getImageEmbedSize(): Promise<number> {
-    // Text-only for v1. Multimodal will need a separate code path that
-    // forwards images across the offscreen message channel.
-    return 0;
-  }
 }
 
 // Static cache probe used by LocalEngine to query state without loading the
@@ -74,11 +68,10 @@ export async function isLitertlmCached(modelDef: LocalModelDef): Promise<boolean
   return LitertlmRuntime.isCached(modelDef);
 }
 
-// Delete the cached `.litertlm` blob. Symmetric with deleteWebllmCache so the
-// orchestrator's deleteModelCache can dispatch by backend. Cache Storage is
+// Delete the cached `.litertlm` blob. Cache Storage is
 // shared between the SW and the offscreen doc, so this works from either.
 export async function deleteLitertlmCache(modelDef: LocalModelDef): Promise<void> {
   return LitertlmRuntime.deleteCache(modelDef);
 }
 
-export { forceCloseLitertlmOffscreen, prefetchLitertlmModel };
+export { forceCloseLitertlmOffscreen };

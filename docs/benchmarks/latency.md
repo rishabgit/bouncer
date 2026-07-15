@@ -1,12 +1,26 @@
-# Latency benchmark — Qwen 3.5 vs Gemma
+# Historical latency benchmark — Qwen 3.5 vs Gemma E4B
 
-Bouncer classifies every post on-device, so per-post latency is what you *feel* while scrolling. This compares the two local engines — **WebLLM/Qwen 3.5** (the default) and **LiteRT-LM/Gemma** — on identical inputs.
+This page preserves the 2026-05-26 comparison of the then-shipped local
+engines: **WebLLM/Qwen 3.5** and **LiteRT-LM/Gemma E4B**. Both have since been
+removed from the product catalog. Bouncer now ships Gemma 4 E2B through
+LiteRT-LM as its sole production model; see the
+[current E2B decision](e2b-evaluation.md).
 
-> **This measures speed, not quality.** Qwen costs more because it writes visible reasoning before its verdict; Gemma emits a terse yes/no row. Use the [accuracy eval](accuracy.md) for the rage-bait boundary and prompt/filter tuning loop.
+> **This historical run measures speed, not quality.** Qwen cost more partly
+> because it wrote visible reasoning before its verdict; E4B emitted a terse
+> yes/no row. Use the [historical accuracy eval](accuracy.md) for that model
+> matrix and the E2B decision for current evidence.
 
-## TL;DR
+## Historical TL;DR
 
-On Apple Silicon, **Gemma is ~2.5× faster per classification** at typical filter counts — e.g. a medium post against 3 filters: **460 ms (Gemma) vs 1170 ms (Qwen)**. The gap is widest with few filters or long posts, and narrows as you add more filters.
+On Apple Silicon, **Gemma E4B was ~2.5× faster per classification** at typical
+filter counts — e.g. a medium post against 3 filters: **460 ms (E4B) vs 1,170
+ms (Qwen)**. The gap was widest with few filters or long posts and narrowed as
+filters were added.
+
+The later counterbalanced run found production E2B faster again: about 213–229
+ms for the medium × 3 cell versus 536–537 ms for E4B, while its artifact was
+32.35% smaller.
 
 | Test cell (post × filters) | Gemma | Qwen 3.5 | Qwen ÷ Gemma |
 |---|--:|--:|--:|
@@ -19,13 +33,13 @@ On Apple Silicon, **Gemma is ~2.5× faster per classification** at typical filte
 
 *Warm median `inferenceTime` (generate-only). Lower is better.*
 
-## What's measured
+## What was measured
 
-- **Headline = `inferenceTime`** — the generate-only span the app already records and reports as `latencyUpdate`, so these numbers are directly comparable to live behaviour.
-- **Cold-load**, **first-inference**, and **warm steady-state** are reported separately (the first two are one-off costs).
-- The engines expose different instrumentation, so the comparison uses the common denominator (wall-clock) as the headline and layers extra detail where available:
-  - **Qwen (WebLLM)** reports a full breakdown via `usage.extra`: prompt/completion tokens, time-to-first-token (≈ prefill), decode tokens/sec.
-  - **Gemma (LiteRT)** exposes no per-call stats, so those columns are blank for it.
+- **Headline = `inferenceTime`** — the generate-only span recorded by the app's inference wrapper, making these numbers comparable to live generation behavior at the time.
+- **Cold-load**, **first-inference**, and **warm steady-state** were reported separately (the first two were one-off costs).
+- The engines exposed different instrumentation, so the comparison used wall-clock time as the common denominator and added detail where available:
+  - **Qwen (WebLLM)** reported prompt/completion tokens, time-to-first-token (approximately prefill), and decode tokens/second through `usage.extra`.
+  - **Gemma E4B (LiteRT)** exposed no per-call stats, so those columns were blank.
 
 ## Environment
 
@@ -35,15 +49,17 @@ On Apple Silicon, **Gemma is ~2.5× faster per classification** at typical filte
 | Browser | Chrome 146, macOS |
 | Date | 2026-05-26 |
 
-Numbers are hardware-specific — decode throughput on an integrated GPU will look very different. [Reproduce on your own machine](#reproduce) for numbers that mean anything for *you*.
+These numbers describe this historical machine/browser run and should not be
+generalized. The current tree cannot rerun the exact retired matrix; see
+[Reproduction status](#reproduction-status).
 
 ## Method
 
-- **3 warmup runs discarded**, then **20 timed iterations** per cell; the median is the headline.
-- Two sweeps share a midpoint (medium post, 3 filters):
+- **3 warmup runs were discarded**, followed by **20 timed iterations** per cell; the median was the headline.
+- Two sweeps shared a midpoint (medium post, 3 filters):
   - **filter-count** — medium post against 1 / 3 / 5 / 10 filters
   - **post length** — short / long post against 3 filters
-- Inference is driven directly (bypassing the evaluation cache and the per-tab batch queue) so each run is a real, un-cached classification. Text-only throughout.
+- Inference was driven directly, bypassing the evaluation cache and per-tab batch queue, so every sample was a real uncached classification. The run was text-only.
 
 ## Results
 
@@ -71,29 +87,28 @@ Numbers are hardware-specific — decode throughput on an integrated GPU will lo
 
 ## Findings
 
-- **The 2.5× gap is the reasoning output.** Qwen's latency reconstructs almost exactly as `TTFT + completion_tokens ÷ decode_rate` — e.g. Long × 3: 1559 ms + 18 tok ÷ 39 tok/s ≈ 2020 ms vs 2030 ms measured. Gemma skips the prose entirely (a 1–3 token verdict), so it has almost nothing to decode.
+- **Reasoning output materially contributed to the 2.5× gap.** Qwen's latency reconstructs almost exactly as `TTFT + completion_tokens ÷ decode_rate` — e.g. Long × 3: 1559 ms + 18 tok ÷ 39 tok/s ≈ 2020 ms vs 2030 ms measured. E4B skipped the prose entirely (a 1–3 token verdict), so it had almost nothing to decode. Because the run changed both model and engine, it cannot attribute every remaining millisecond to one cause.
 - **Gemma's lead shrinks as filters grow.** Its output scales with filter count (6 → 30 chars across ×1 → ×10, i.e. one verdict per category), while Qwen's reasoning length stays roughly flat. So the advantage goes 2.5× (×1) → 1.4× (×10).
 - **Long posts punish Qwen.** Prefill (TTFT) jumps to 1559 ms on the truncation-bound post — over half the total — versus Gemma's 780 ms.
 - **Gemma is deterministic, Qwen jitters.** Gemma runs greedy (σ ≈ 0–6 ms); Qwen samples at temperature 0.7 (σ up to 53 ms, and non-monotonic output length).
-- **No cold-start cliff on Apple Silicon.** First-inference ≈ warm (Qwen 1230 vs 1170 ms; Gemma 460 vs 460 ms) — the shader compile is absorbed into cold-load, not the first token. (On integrated GPUs the first call can be far slower.)
+- **This run had no cold-start cliff.** First-inference ≈ warm (Qwen 1230 vs 1170 ms; E4B 460 vs 460 ms). That was not a general Apple Silicon guarantee: a preliminary E2B pass later observed a multi-second first-use outlier before browser shader caches were warm.
 - **Prompt-prep overhead is negligible** — full-call wall time tracks `inferenceTime` within ~3 ms, confirming tokenize/truncate isn't a factor.
 
-## Reproduce
+## Reproduction status
 
-The benchmark ships as a **dev-only** page (it is not built into production):
+The current production tree intentionally no longer contains WebLLM/Qwen, so
+it cannot reproduce this exact historical engine/model matrix. The raw exports
+below are the source of truth for the 2026-05-26 result.
 
-```bash
-cd Bouncer
-npm run build:dev          # builds dist/benchmark.js (omitted from prod/Firefox builds)
-```
-
-1. Load `Bouncer/` unpacked at `chrome://extensions` (Developer mode on).
-2. Download the models you want to compare from the extension popup.
-3. Open `chrome-extension://<your-extension-id>/benchmark.html`.
-4. Run with **no x.com tab actively filtering** (it would contend for the same engine).
-5. **Export JSON / CSV** when it finishes.
+Use the localhost procedure in
+[`e2b-evaluation.md`](e2b-evaluation.md#reproduce-the-comparison) for the current
+counterbalanced E2B/E4B comparison. The current dev-only extension
+`benchmark.html` separately measures E2B through the actual MV3
+service-worker/offscreen path.
 
 ## Raw data
 
 - [`data/latency-2026-05-26-apple-silicon.csv`](data/latency-2026-05-26-apple-silicon.csv) — per-cell summary
 - [`data/latency-2026-05-26-apple-silicon.json`](data/latency-2026-05-26-apple-silicon.json) — full per-sample timings + token stats
+- [`data/e2b-e4b-2026-07-15-e2b-first.json`](data/e2b-e4b-2026-07-15-e2b-first.json) — final-parser E2B-first samples
+- [`data/e2b-e4b-2026-07-15-e4b-first.json`](data/e2b-e4b-2026-07-15-e4b-first.json) — final-parser E4B-first samples

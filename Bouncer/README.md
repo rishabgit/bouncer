@@ -1,68 +1,120 @@
-# Bouncer — Desktop Extension
+# Bouncer — desktop extension
 
-The main codebase for the Bouncer browser extension (Chrome MV3, Firefox, Safari desktop). This is a **local-only fork** — classification runs entirely on-device via WebLLM; all cloud/remote backends have been removed.
+The extension code for the personal, local-only Twitter/X fork. Production
+classification runs entirely on-device through LiteRT-LM/WebGPU with one model:
+Gemma 4 E2B. Cloud inference, hosted auth, WebLLM/Qwen, vision inference,
+custom models, and the product model picker are intentionally absent.
+
+Chrome MV3 on the target M5 Pro MacBook Pro is the actively tested path. The
+Firefox and Safari desktop build targets remain available, but they are not part
+of the current model-performance evidence.
 
 ## Build
 
 ```bash
 npm install
-npm run build          # one-time build
-npm run watch          # dev mode with file watching
-npm run build:dev      # dev build (no minification)
-npm run watch:dev      # dev watch mode
+npm run build          # production Chrome build
+npm run watch          # production-mode file watching
+npm run build:dev      # development build, including benchmark pages
+npm run watch:dev      # development-mode file watching
 ```
 
-Then load the unpacked extension from this folder at `chrome://extensions` (with Developer mode enabled).
+Load this `Bouncer/` folder unpacked at `chrome://extensions` with Developer
+mode enabled. Open the popup and download the roughly 2 GB model once.
 
-> `npm run build:dev` also builds a **dev-only** benchmark/eval page (`benchmark.html`, omitted from production builds) for comparing latency and the rage-bait accuracy boundary. See [latency](../docs/benchmarks/latency.md) and [accuracy](../docs/benchmarks/accuracy.md) docs.
+`npm run build:dev` creates bundles for two checked-in development surfaces.
+Production builds omit those bundles; release archives omit both the pages and
+their bundles:
+
+- `benchmark.html` exercises the extension's actual MV3 background/offscreen path with the sole production model.
+- `gemma-comparison.html` directly compares E2B with the retired E4B comparator from a normal localhost page. E4B exists only in this harness; it is not a second product model.
+
+For the localhost comparison:
+
+```bash
+npm run build:dev
+python3 -m http.server 8123 --bind 127.0.0.1
+```
+
+Then open `http://127.0.0.1:8123/gemma-comparison.html`. Run both
+`?order=e2b-first` and `?order=e4b-first` when comparing models so model order
+does not masquerade as a performance difference. See the
+[E2B decision record](../docs/benchmarks/e2b-evaluation.md) for methodology and
+limitations.
 
 ## Scripts
 
 | Command | Description |
-|---------|-------------|
-| `npm run build` | Production build via esbuild |
-| `npm run watch` | Rebuild on file changes |
-| `npm run test` | Run unit tests (vitest) |
-| `npm run lint` | ESLint + TypeScript type checking |
-| `npm run lint:fix` | Auto-fix lint issues |
-| `npm run typecheck` | TypeScript only |
-| `npm run cut-chrome` | Prepare Chrome Web Store build |
+|---|---|
+| `npm run build` | Production Chrome build via esbuild |
+| `npm run build:dev` | Development build with benchmark bundles |
+| `npm run build:firefox` | Firefox desktop build |
+| `npm run build:safari` | Safari desktop build |
+| `npm run watch` | Rebuild on source changes |
+| `npm run test` | Run unit tests with Vitest |
+| `npm run lint` | Run ESLint and TypeScript checks |
+| `npm run lint:fix` | Apply safe ESLint fixes |
+| `npm run typecheck` | Run TypeScript without emitting |
+| `npm run cut-chrome` | Prepare a Chrome release archive |
 
-## Source Layout
+## Source layout
 
-```
+```text
 src/
   background/
-    index.ts             # Service worker entry: message routing, tab tracking
-    pipeline.ts          # Post evaluation queue, batching, caching, error state
-    local-model.ts       # WebLLM engine lifecycle, inference, preemption
-    inference-queue.ts   # Serial priority queue for local model tasks
-    detectors.ts         # Detector orchestration (runs the local classifier)
-  content/
-    index.ts             # MutationObserver, post detection, queue submission
-    ui.ts                # Sidebar, modals, alerts, theming, filter management
+    index.ts                         # MV3 service worker and message routing
+    pipeline.ts                      # Evaluation queue, batching, result cache, suggestions
+    local-model.ts                   # LocalEngine lifecycle, inference, cancellation
+    inference-queue.ts               # Serial priority queue for local model work
+    model-migration.ts               # One-time cleanup of retired model state/caches
+    backends/
+      types.ts                       # LocalBackend lifecycle seam
+      litertlm-backend.ts            # Sole backend implementation
+      litertlm-proxy.ts              # Chrome service-worker ↔ offscreen bridge
+  offscreen/
+    litertlm-runtime.ts              # LiteRT engine hosted by Chrome offscreen page
+  popup/
+    index.ts                         # Single-model download/load/delete UI
   shared/
-    models.ts            # Local model definitions
-    prompts.ts           # System prompt + message builder for the local model
-    storage.ts           # Typed chrome.storage wrappers
-    utils.ts             # Cache keys, response parsing, formatting
-    alerts.ts            # Alert configuration
+    models.ts                        # Sole production E2B definition
+    benchmark-models.ts              # Dev-only E4B comparator definition
+    prompts.ts                       # Gemma classifier prompts
+    table-yesno-request.ts           # Shared request and output-budget builder
+    table-yesno.ts                   # Strict verdict parser
+    suggestions.ts                   # “Bounce this tweet” prompt/parser
+    storage.ts                       # Typed chrome.storage helpers
+  content/
+    index.ts                         # MutationObserver and post submission
+    ui.ts                            # Injected X UI, theming, filters, review surfaces
 
-adapters/
-  twitter/
-    TwitterAdapter.ts    # DOM selectors, post extraction, theme detection
-    twitter.css          # Twitter-specific style overrides
+adapters/twitter/
+  TwitterAdapter.ts                  # X DOM extraction and selectors
+  twitter.css                        # X-specific styles
 
-popup.html / popup.js / popup.css   # Extension settings UI
-content.css                          # Content script styles
-fiber-extractor.js                   # Main-world script for React fiber access
-manifest.json                        # Chrome MV3 manifest
+popup.html / popup.css               # Settings and model lifecycle UI
+offscreen.html                        # Chrome LiteRT host document
+benchmark.html                        # Dev-only MV3 benchmark page
+gemma-comparison.html                 # Dev-only localhost E2B/E4B runner
+manifest.base.json                    # Shared manifest source
+manifest.chrome.json                  # Chrome overlay
 ```
 
-## Dependencies
+## Runtime shape
 
-- **[@mlc-ai/web-llm](https://github.com/mlc-ai/web-llm)** — in-browser model inference via WebGPU (vendored)
+`LocalEngine` retains a backend interface because lifecycle boundaries still
+matter: loading, cancellation, queueing, unload, status serialization, and
+Chrome offscreen teardown remain separate from LiteRT's implementation details.
+That seam does **not** imply multiple production engines. LiteRT-LM is the only
+implementation and Gemma 4 E2B is the only production model.
+
+The model is text-only. Image and video URLs may still be retained for the
+filtered-post review UI, but their bytes are not passed to inference.
+
+## Main dependencies
+
+- **[@litert-lm/core](https://www.npmjs.com/package/@litert-lm/core)** — local Gemma inference through WebGPU
 - **[DOMPurify](https://github.com/cure53/DOMPurify)** — HTML sanitization
-- **[esbuild](https://esbuild.github.io/)** — bundler
-- **[vitest](https://vitest.dev/)** — test runner
-- **[TypeScript](https://www.typescriptlang.org/)** — type checking (no emit, esbuild handles transpilation)
+- **[html-to-image](https://github.com/bubkoo/html-to-image)** — UI export support
+- **[esbuild](https://esbuild.github.io/)** — bundling
+- **[Vitest](https://vitest.dev/)** — tests
+- **[TypeScript](https://www.typescriptlang.org/)** — static checking

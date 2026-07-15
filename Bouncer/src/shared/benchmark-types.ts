@@ -13,12 +13,11 @@ export type BenchmarkOp = 'load' | 'infer' | 'unload';
 // The post payload for an `infer` op (mirrors EvaluationPostData; text-only here).
 export interface BenchmarkPost {
   text: string;
-  imageUrls: string[];
 }
 
 export type BenchmarkPromptMode = LocalPromptMode;
 
-// Per-classification throughput/latency breakdown. WebLLM/Qwen fills this from
+// Optional per-classification throughput/latency breakdown. Some engines can fill this from
 // `reply.usage` + `usage.extra`; LiteRT/Gemma exposes nothing, so it stays null.
 export interface BenchmarkUsage {
   promptTokens: number;
@@ -32,7 +31,7 @@ export interface BenchmarkUsage {
 
 // Result of one `infer` op.
 export interface BenchmarkInferResult {
-  inferenceTime: number;   // generate-only SECONDS (result.inferenceTime; matches the app's latencyUpdate)
+  inferenceTime: number;   // generate-only SECONDS (result.inferenceTime)
   wallMs: number;          // full callLocalInference() wall time (performance.now), incl. prompt prep
   shouldHide: boolean;
   reasoning: string;

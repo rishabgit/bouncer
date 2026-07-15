@@ -1,767 +1,443 @@
-// Bouncer - Popup Script (local-only)
+// Bouncer popup: one on-device Gemma model and its lifecycle.
 
-import type { ModelDef, LocalModelStatus, PendingLocalModelSelection } from '../types';
-import { PREDEFINED_MODELS, DEFAULT_MODEL } from '../shared/models';
-import { escapeHtml, parseHTML } from '../shared/utils';
+import type { LocalModelStatus } from '../types';
+import { PRIMARY_LOCAL_MODEL, PRIMARY_LOCAL_MODEL_ID } from '../shared/models';
 import { getStorage, setStorage } from '../shared/storage';
-import { asyncHandler } from '../shared/async';
 
-// Track local model statuses (per-model)
-let localModelStatuses: Record<string, LocalModelStatus> = {};
-let webgpuSupported = true;
-let pendingLocalModelSelection: PendingLocalModelSelection | null = null;
+type ModelStatuses = Record<string, LocalModelStatus>;
+type BusyAction = 'start' | 'cancel' | 'delete' | null;
 
-// In-app mode detection (native WebView bridge sets chrome._polyfilled)
-const isInAppMode = typeof chrome !== 'undefined' && chrome._polyfilled;
-
-// User-friendly error message mapping for local model errors
-const LOCAL_MODEL_ERROR_MESSAGES: Record<string, { display: string; hint: string }> = {
-  'device lost': {
-    display: 'GPU device was lost',
-    hint: 'Try closing other tabs or restarting your browser.'
-  },
-  'device destroyed': {
-    display: 'GPU device error',
-    hint: 'Try closing other GPU-intensive tabs or restart browser.'
-  },
-  'out of memory': {
-    display: 'Not enough GPU memory',
-    hint: 'Close other GPU-intensive applications or use a smaller model.'
-  },
-  'oom': {
-    display: 'GPU memory exhausted',
-    hint: 'Close other tabs or use a smaller model.'
-  },
-  'gpu memory': {
-    display: 'GPU memory issue',
-    hint: 'Try a smaller model or close other GPU-intensive tabs.'
-  },
-  'webgpu not': {
-    display: 'WebGPU not supported',
-    hint: 'Your browser or device does not support local AI models.'
-  },
-  'network': {
-    display: 'Network error',
-    hint: 'Check your internet connection and try again.'
-  },
-  'download failed': {
-    display: 'Download failed',
-    hint: 'Check your internet connection and try again.'
-  },
-  'fetch': {
-    display: 'Download failed',
-    hint: 'Check your internet connection and try again.'
-  },
-  'timeout': {
-    display: 'Model response timeout',
-    hint: 'The model took too long to respond. Try again or use a smaller model.'
-  },
-  'inference timeout': {
-    display: 'Inference timeout',
-    hint: 'The model was too slow. Try again or switch to a smaller model.'
-  },
-  // LiteRT-LM (Gemma) caches the model blob in Cache Storage; a failure here is
-  // usually low disk space rather than a network problem.
-  'failed to cache model': {
-    display: 'Could not save the model',
-    hint: 'Free up disk space and try again.'
-  }
-};
-
-// Get user-friendly error message for local model errors
-function getUserFriendlyError(errorMessage: string | undefined): { display: string; hint: string } {
-  if (!errorMessage) return { display: 'Unknown error', hint: 'Try again or switch models.' };
-
-  const lowerError = errorMessage.toLowerCase();
-  for (const [pattern, info] of Object.entries(LOCAL_MODEL_ERROR_MESSAGES)) {
-    if (lowerError.includes(pattern)) {
-      return info;
-    }
-  }
-  // If already user-friendly (from background), use as-is
-  if (errorMessage.includes('Try ') || errorMessage.includes('Close ') || errorMessage.includes('Check ')) {
-    return { display: errorMessage, hint: '' };
-  }
-  return { display: errorMessage, hint: 'Try again or switch to a different model.' };
-}
-
-document.addEventListener('DOMContentLoaded', () => { init().catch(err => console.error('[Popup] Init failed:', err)); });
-
-export async function init() {
-  console.log('[Popup] init() called');
-  try {
-    const isModal = window.self !== window.top;
-
-    // Detect if we're in an iframe (modal mode)
-    if (isModal) {
-      document.body.classList.add('modal-mode');
-
-      // Set up close buttons to message parent
-      for (const btn of document.querySelectorAll('.modal-close-btn')) {
-        btn.addEventListener('click', () => {
-          window.parent.postMessage({ type: 'closeSettingsModal' }, '*');
-        });
-      }
-
-      // Listen for theme message from parent
-      window.addEventListener('message', (event) => {
-        const data = event.data as { type?: string; theme?: string } | null;
-        if (data && data.type === 'setTheme') {
-          const theme = data.theme;
-          document.body.classList.remove('light-mode', 'dim-mode', 'dark-mode');
-          document.body.classList.add(`${theme}-mode`);
-        }
-      });
-
-      // Report content height changes to parent so iframe can resize dynamically
-      const sendSize = () => {
-        const height = document.body.scrollHeight + 2;
-        window.parent.postMessage({ type: 'settingsResize', height }, '*');
-      };
-      const resizeObserver = new ResizeObserver(sendSize);
-      resizeObserver.observe(document.body);
-      sendSize();
-    }
-
-    await loadSettings();
-    setupEventListeners();
-
-    // Initialize local model UI
-    await updateLocalModelStatus();
-    setupLocalModelListeners();
-    setupStorageListener();
-    console.log('[Popup] init() completed successfully');
-  } catch (e) {
-    console.error('[Popup] init() ERROR:', e, (e as Error).stack);
-  }
-}
-
-function setupStorageListener() {
-  chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName !== 'local') return;
-    if (changes.localModelStatuses) {
-      localModelStatuses = (changes.localModelStatuses.newValue as Record<string, LocalModelStatus>) || {};
-      updateLocalModelSectionUI();
-      refreshModelDropdownWithLocal().catch(err => console.error('[Popup] refreshModelDropdownWithLocal failed:', err));
-    }
-    if (changes.pendingLocalModelSelection) {
-      pendingLocalModelSelection = (changes.pendingLocalModelSelection.newValue as PendingLocalModelSelection | null) || null;
-      updateLocalModelSectionVisibility();
-      updateLocalModelSectionUI();
-      refreshModelDropdownWithLocal().catch(err => console.error('[Popup] pending selection refresh failed:', err));
-    }
-    if (changes.selectedModel) {
-      dropdownState.selectedModel = (changes.selectedModel.newValue as string) || DEFAULT_MODEL;
-      updateLocalModelSectionVisibility();
-      updateLocalModelSectionUI();
-      refreshModelDropdownWithLocal().catch(err => console.error('[Popup] selected model refresh failed:', err));
-    }
-    if (changes.filterReplies) {
-      const checked = changes.filterReplies.newValue !== false;
-      const el = document.getElementById('enableFilterReplies') as HTMLInputElement | null;
-      if (el && el.checked !== checked) el.checked = checked;
-    }
-  });
-}
-
-async function loadSettings() {
-  const data = await getStorage(['selectedModel', 'customModels', 'filterReplies', 'pendingLocalModelSelection']);
-  pendingLocalModelSelection = data.pendingLocalModelSelection || null;
-
-  // "Filter replies in conversations" toggle (defaults to true so existing
-  // installs keep filtering replies). The content script reads the same
-  // key and skips reply evaluation on permalink pages when this is off.
-  const filterRepliesEl = document.getElementById('enableFilterReplies') as HTMLInputElement | null;
-  if (filterRepliesEl) filterRepliesEl.checked = data.filterReplies !== false;
-
-  // Model selection
-  renderModelDropdown(data.customModels || [], data.selectedModel || DEFAULT_MODEL);
-
-  // Update local model section visibility
-  updateLocalModelSectionVisibility();
-}
-
-function setupEventListeners() {
-  // Model dropdown
-  setupModelDropdown();
-
-  document.getElementById('enableFilterReplies')?.addEventListener('change', (e) => { (async () => {
-    const checked = (e.target as HTMLInputElement).checked;
-    await setStorage({ filterReplies: checked });
-  })().catch(err => console.error('[Popup] enableFilterReplies change failed:', err)); });
-}
-
-// ==================== Model Dropdown ====================
-
-interface DropdownState {
-  isOpen: boolean;
-  customModels: ModelDef[];
-  selectedModel: string;
-}
-
-const dropdownState: DropdownState = {
-  isOpen: false,
-  customModels: [],
-  selectedModel: DEFAULT_MODEL,
-};
-
-function setupModelDropdown() {
-  const dropdown = document.getElementById('modelDropdown')!;
-  const selected = document.getElementById('modelDropdownSelected')!;
-
-  // Toggle dropdown on click
-  selected.addEventListener('click', (e) => {
-    e.stopPropagation();
-    toggleDropdown();
-  });
-
-  // Close dropdown when clicking outside
-  document.addEventListener('click', (e) => {
-    if (!dropdown.contains(e.target as Node)) {
-      closeDropdown();
-    }
-  });
-}
-
-function toggleDropdown() {
-  if (dropdownState.isOpen) {
-    closeDropdown();
-  } else {
-    openDropdown();
-  }
-}
-
-function openDropdown() {
-  dropdownState.isOpen = true;
-  document.getElementById('modelDropdown')!.classList.add('open');
-}
-
-function closeDropdown() {
-  dropdownState.isOpen = false;
-  document.getElementById('modelDropdown')!.classList.remove('open');
-}
-
-async function selectModel(modelKey: string) {
-  if (modelKey.startsWith('local:')) {
-    const modelId = modelKey.slice('local:'.length);
-    const result: PendingSelectionResult = await chrome.runtime.sendMessage({ type: 'selectLocalModel', modelId });
-    if (!result?.success) throw new Error(result?.error || 'Failed to select local model');
-    if ('pending' in result) pendingLocalModelSelection = result.pending || null;
-    const data = await getStorage(['selectedModel', 'pendingLocalModelSelection']);
-    dropdownState.selectedModel = data.selectedModel || DEFAULT_MODEL;
-    pendingLocalModelSelection = data.pendingLocalModelSelection || null;
-  } else {
-    pendingLocalModelSelection = null;
-    dropdownState.selectedModel = modelKey;
-    await setStorage({ selectedModel: modelKey, pendingLocalModelSelection: null });
-  }
-  renderModelDropdown(dropdownState.customModels, dropdownState.selectedModel);
-  closeDropdown();
-
-  // Clear auto-init tracking when switching models to allow re-initialization
-  autoInitTriggered.clear();
-
-  // Update local model section visibility and UI when selection changes
-  updateLocalModelSectionVisibility();
-  updateLocalModelSectionUI();
-}
-
-interface PendingSelectionResult {
+interface ModelActionResponse {
   success?: boolean;
   error?: string;
-  pending?: PendingLocalModelSelection | null;
 }
 
-function displayedModelKey(): string {
-  return pendingLocalModelSelection?.modelKey || dropdownState.selectedModel;
-}
+/**
+ * Rejects an async snapshot if a newer event arrived while it was in flight.
+ * The popup installs the event listener before starting its initial reads, so a
+ * storage event can never be replaced by an older get-status response.
+ */
+export class SnapshotRevision {
+  private revision = 0;
 
-// Show/hide the local model section based on whether a local model is selected
-function updateLocalModelSectionVisibility() {
-  const localModelSection = document.getElementById('localModelSection')!;
-  const isLocalModelSelected = displayedModelKey()?.startsWith('local:');
-  localModelSection.style.display = isLocalModelSelected ? 'block' : 'none';
-}
-
-async function removeModel(modelKey: string, e: Event) {
-  e.stopPropagation();
-
-  // Parse the model key to find the model to remove
-  const [api, ...nameParts] = modelKey.split(':');
-  const name = nameParts.join(':');
-
-  if (pendingLocalModelSelection?.modelKey === modelKey) {
-    await chrome.runtime.sendMessage({ type: 'cancelLocalModelDownload', modelId: name });
-    pendingLocalModelSelection = null;
+  beginSnapshot(): number {
+    return this.revision;
   }
 
-  const newModels = dropdownState.customModels.filter(
-    m => !(m.api === api && m.name === name)
-  );
-  dropdownState.customModels = newModels;
-
-  // If we're removing the currently selected model, switch to default
-  if (dropdownState.selectedModel === modelKey) {
-    dropdownState.selectedModel = DEFAULT_MODEL;
-    await setStorage({ customModels: newModels, selectedModel: DEFAULT_MODEL });
-    // Clear cache since model changed
-    await chrome.runtime.sendMessage({ type: 'clearCache' });
-  } else {
-    await setStorage({ customModels: newModels });
+  markEvent(): void {
+    this.revision += 1;
   }
 
-  renderModelDropdown(newModels, dropdownState.selectedModel);
-}
-
-// Local (WebLLM) model weights live in browser Cache Storage, not in
-// customModels, so removeModel() can't delete them. This sends the background
-// a one-shot delete (no confirm — matches the custom-model "×" button). The
-// in-flight Set + disabled button just debounce double-clicks.
-const deletingModels = new Set<string>();
-
-async function deleteLocalModelWeights(modelName: string, btn: HTMLButtonElement, e: Event) {
-  e.stopPropagation();
-  if (deletingModels.has(modelName)) return;
-  deletingModels.add(modelName);
-  btn.disabled = true;
-  try {
-    const res: { success?: boolean; error?: string } =
-      await chrome.runtime.sendMessage({ type: 'deleteLocalModel', modelId: modelName });
-    if (!res?.success) console.error('[Popup] deleteLocalModel failed:', res?.error);
-  } catch (err) {
-    console.error('[Popup] deleteLocalModel error:', err);
-  } finally {
-    deletingModels.delete(modelName);
-    // Authoritatively re-fetch cache status; updateLocalModelStatus() also
-    // re-renders the dropdown, so the deleted model's bin disappears and its
-    // ⬇ indicator returns without waiting on the storage-change listener.
-    await updateLocalModelStatus();
+  isCurrent(snapshotRevision: number): boolean {
+    return snapshotRevision === this.revision;
   }
 }
 
-function renderModelDropdown(customModels: ModelDef[], selectedModel: string) {
-  // Update state
-  dropdownState.customModels = customModels;
-  dropdownState.selectedModel = selectedModel;
-  const displayedModel = displayedModelKey();
+const statusRevision = new SnapshotRevision();
+const filterRepliesRevision = new SnapshotRevision();
 
-  // Update selected display text
-  const selectedText = document.querySelector('.model-dropdown-text')!;
-  if (!displayedModel) {
-    selectedText.textContent = 'Select a model';
-  } else {
-    // Parse model key (format: local:modelName)
-    const [api, ...nameParts] = displayedModel.split(':');
-    const modelName = nameParts.join(':');
-    const predefinedModel = (PREDEFINED_MODELS[api] || []).find(m => m.name === modelName);
-    selectedText.textContent = predefinedModel ? predefinedModel.display : modelName;
-  }
+let localModelStatuses: ModelStatuses = {};
+let webgpuSupported = true;
+let statusChecking = true;
+let busyAction: BusyAction = null;
+let actionError: string | null = null;
+let initialized = false;
 
-  // Build menu items
-  const menu = document.getElementById('modelDropdownMenu')!;
-  menu.replaceChildren();
+// The native WebView bridge supplies its own GPU capability path.
+const isInAppMode = typeof chrome !== 'undefined'
+  && Boolean((chrome as unknown as { _polyfilled?: boolean })._polyfilled);
 
-  // Local models (only show if WebGPU is supported)
-  if ((webgpuSupported || isInAppMode) && PREDEFINED_MODELS.local) {
-    // Add predefined local models
-    PREDEFINED_MODELS.local.forEach(model => {
-      const modelKey = `local:${model.name}`;
-      const status = localModelStatuses[model.name] || { state: 'not_downloaded' };
-      const isReady = status.state === 'ready' || status.state === 'cached'; // cached models are available for auto-load
-      const isDownloading = status.state === 'downloading' || status.state === 'initializing';
+const LOCAL_MODEL_ERROR_MESSAGES: Array<[string, { display: string; hint: string }]> = [
+  ['device lost', {
+    display: 'GPU device was lost.',
+    hint: 'Close other GPU-intensive tabs or restart the browser, then retry.',
+  }],
+  ['device destroyed', {
+    display: 'The GPU became unavailable.',
+    hint: 'Close other GPU-intensive tabs or restart the browser, then retry.',
+  }],
+  ['out of memory', {
+    display: 'There is not enough GPU memory.',
+    hint: 'Close other GPU-intensive tabs or applications, then retry.',
+  }],
+  ['oom', {
+    display: 'GPU memory was exhausted.',
+    hint: 'Close other GPU-intensive tabs or applications, then retry.',
+  }],
+  ['webgpu not', {
+    display: 'WebGPU is unavailable.',
+    hint: 'Enable WebGPU in a supported browser and try again.',
+  }],
+  ['failed to cache model', {
+    display: 'The model could not be saved.',
+    hint: 'Free about 2 GB of disk space and retry.',
+  }],
+  ['network', {
+    display: 'The model download failed.',
+    hint: 'Check the internet connection and retry.',
+  }],
+  ['download failed', {
+    display: 'The model download failed.',
+    hint: 'Check the internet connection and retry.',
+  }],
+  ['fetch', {
+    display: 'The model download failed.',
+    hint: 'Check the internet connection and retry.',
+  }],
+  ['timeout', {
+    display: 'The model took too long to respond.',
+    hint: 'Close other GPU-intensive tabs and retry.',
+  }],
+];
 
-      const localItem = document.createElement('div');
-      localItem.className = 'model-dropdown-item' + (displayedModel === modelKey ? ' selected' : '');
+if (typeof document !== 'undefined') {
+  document.addEventListener('DOMContentLoaded', () => {
+    init().catch(err => console.error('[Popup] Initialization failed:', err));
+  });
+}
 
-      // Show different indicators based on status
-      let statusIndicator = '';
-      if (isDownloading) {
-        statusIndicator = '<span class="download-indicator">⏳</span>';
-      } else if (!isReady) {
-        statusIndicator = '<span class="download-indicator">⬇</span>';
-      }
+export async function init(): Promise<void> {
+  if (initialized) return;
+  initialized = true;
 
-      // Muted engine chip — surfaces the backend without making it the identity.
-      const engineLabel = model.backend === 'litertlm' ? 'LiteRT' : 'WebLLM';
-      const recommendedBadge = model.recommended ? '<span class="free-badge">Recommended</span>' : '';
+  setupModalMode();
 
-      // Line 2: size · capability · state. "Active" = selected + on disk,
-      // "Downloaded" = on disk but not selected.
-      const isPending = pendingLocalModelSelection?.modelKey === modelKey;
-      const stateWord = isDownloading
-        ? `Downloading${typeof status.progress === 'number' ? ' ' + Math.round(status.progress * 100) + '%' : ''}`
-        : status.state === 'error' && isPending
-          ? 'Download failed'
-        : isReady
-          ? (selectedModel === modelKey ? 'Active' : 'Downloaded')
-          : isPending ? 'Selected to download' : 'Not downloaded';
-      const meta = [
-        model.sizeGB ? `${model.sizeGB} GB` : '',
-        model.supportsImages ? 'Text + images' : 'Text only',
-        stateWord,
-      ].filter(Boolean).join(' · ');
+  // These listeners must be active before either asynchronous snapshot starts.
+  setupStorageListener();
+  setupControlListeners();
 
-      // Only downloaded models get a delete control, and it lives here in the
-      // dropdown (not the Local Model section, which only renders for the
-      // *selected* model) so any downloaded model — selected or not — can be
-      // removed.
-      const deleteBtn = isReady
-        ? '<button class="model-dropdown-item-delete" title="Delete downloaded model">🗑</button>'
-        : '';
-      localItem.replaceChildren(parseHTML(
-        `<div class="model-dropdown-item-main">` +
-          `<div class="model-dropdown-item-line1">` +
-            `<span class="model-dropdown-item-name">${escapeHtml(model.display)}</span>` +
-            `<span class="local-badge">local</span>` +
-            `<span class="model-engine-badge">${engineLabel}</span>` +
-            recommendedBadge +
-          `</div>` +
-          `<div class="model-dropdown-item-meta">${escapeHtml(meta)}</div>` +
-        `</div>` +
-        statusIndicator +
-        deleteBtn
-      ));
-      localItem.querySelector('.model-dropdown-item-main')!.addEventListener('click', asyncHandler(() => selectModel(modelKey)));
-      const delEl = localItem.querySelector<HTMLButtonElement>('.model-dropdown-item-delete');
-      if (delEl) delEl.addEventListener('click', (e) => {
-        deleteLocalModelWeights(model.name, delEl, e).catch(err => console.error('[Popup] deleteLocalModelWeights failed:', err));
-      });
-      menu.appendChild(localItem);
+  await Promise.all([
+    loadFilterReplies(),
+    refreshLocalModelStatus(),
+  ]);
+}
+
+function setupModalMode(): void {
+  if (window.self === window.top) return;
+
+  document.body.classList.add('modal-mode');
+  for (const button of document.querySelectorAll<HTMLButtonElement>('.modal-close-btn')) {
+    button.addEventListener('click', () => {
+      window.parent.postMessage({ type: 'closeSettingsModal' }, '*');
     });
+  }
 
-    // Add custom local models (user-added WebLLM models)
-    const customLocalModels = customModels.filter(m => m.api === 'local');
-    customLocalModels.forEach(model => {
-      const modelKey = `local:${model.name}`;
-      const status = localModelStatuses[model.name] || { state: 'not_downloaded' };
-      const isReady = status.state === 'ready' || status.state === 'cached'; // cached models are available for auto-load
-      const isDownloading = status.state === 'downloading' || status.state === 'initializing';
+  window.addEventListener('message', event => {
+    const data = event.data as { type?: string; theme?: string } | null;
+    if (data?.type !== 'setTheme' || !['light', 'dim', 'dark'].includes(data.theme || '')) return;
+    document.body.classList.remove('light-mode', 'dim-mode', 'dark-mode');
+    document.body.classList.add(`${data.theme}-mode`);
+  });
 
-      const localItem = document.createElement('div');
-      localItem.className = 'model-dropdown-item' + (displayedModel === modelKey ? ' selected' : '');
+  const sendSize = () => {
+    window.parent.postMessage({ type: 'settingsResize', height: document.body.scrollHeight + 2 }, '*');
+  };
+  if (typeof ResizeObserver !== 'undefined') {
+    const resizeObserver = new ResizeObserver(sendSize);
+    resizeObserver.observe(document.body);
+  }
+  sendSize();
+}
 
-      // Show different indicators based on status
-      let statusIndicator = '';
-      if (isDownloading) {
-        statusIndicator = '<span class="download-indicator">⏳</span>';
-      } else if (!isReady) {
-        statusIndicator = '<span class="download-indicator">⬇</span>';
-      }
+function setupStorageListener(): void {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName !== 'local') return;
 
-      localItem.replaceChildren(parseHTML(`
-        <span class="model-dropdown-item-text">${escapeHtml(model.name)} <span class="local-badge">local</span>${statusIndicator}</span>
-        <button class="model-dropdown-item-remove" title="Remove model">&times;</button>
-      `));
-      localItem.querySelector('.model-dropdown-item-text')!.addEventListener('click', asyncHandler(() => selectModel(modelKey)));
-      localItem.querySelector('.model-dropdown-item-remove')!.addEventListener('click', (e) => { removeModel(modelKey, e).catch(err => console.error('[Popup] removeModel failed:', err)); });
-      menu.appendChild(localItem);
-    });
-
-    // Footer: disk usage + (when 2+ are downloaded) the switch-skips-download hint.
-    const downloadedLocal = PREDEFINED_MODELS.local.filter(m => {
-      const s = localModelStatuses[m.name]?.state;
-      return s === 'ready' || s === 'cached';
-    });
-    if (downloadedLocal.length >= 1) {
-      const totalGB = downloadedLocal.reduce((sum, m) => sum + (m.sizeGB || 0), 0);
-      const plural = downloadedLocal.length > 1 ? 's' : '';
-      const switchHint = downloadedLocal.length >= 2 ? ' Switching skips the multi-GB download.' : '';
-      const footer = document.createElement('div');
-      footer.className = 'model-dropdown-footer';
-      footer.textContent = `Using ~${totalGB.toFixed(1)} GB across ${downloadedLocal.length} downloaded model${plural}.${switchHint}`;
-      menu.appendChild(footer);
+    if (changes.localModelStatuses) {
+      statusRevision.markEvent();
+      localModelStatuses = (changes.localModelStatuses.newValue as ModelStatuses | undefined) || {};
+      statusChecking = false;
+      renderLocalModel();
     }
-  }
 
-  // Empty-state placeholder.
-  if (menu.childElementCount === 0) {
-    const empty = document.createElement('div');
-    empty.className = 'model-dropdown-empty';
-    empty.textContent = webgpuSupported
-      ? 'No local models available'
-      : 'WebGPU not supported — local models unavailable';
-    menu.appendChild(empty);
-  }
+    if (changes.filterReplies) {
+      filterRepliesRevision.markEvent();
+      const checkbox = byId<HTMLInputElement>('enableFilterReplies');
+      checkbox.checked = changes.filterReplies.newValue !== false;
+    }
+  });
 }
 
-// ==================== Local Model ====================
+async function loadFilterReplies(): Promise<void> {
+  const snapshot = filterRepliesRevision.beginSnapshot();
+  const data = await getStorage(['filterReplies']);
+  if (!filterRepliesRevision.isCurrent(snapshot)) return;
+  byId<HTMLInputElement>('enableFilterReplies').checked = data.filterReplies !== false;
+}
 
-// Get current statuses for all local models from background
-async function updateLocalModelStatus() {
+async function refreshLocalModelStatus(): Promise<void> {
+  const snapshot = statusRevision.beginSnapshot();
   try {
-    const response: { statuses?: Record<string, LocalModelStatus>; webgpuSupported?: boolean } = await chrome.runtime.sendMessage({ type: 'getAllLocalModelStatuses' });
+    const response: {
+      statuses?: ModelStatuses;
+      webgpuSupported?: boolean;
+      error?: string;
+    } = await chrome.runtime.sendMessage({ type: 'getAllLocalModelStatuses' });
+    if (!statusRevision.isCurrent(snapshot)) return;
+    if (response?.error) throw new Error(response.error);
+
     localModelStatuses = response?.statuses || {};
     webgpuSupported = response?.webgpuSupported !== false;
+    statusChecking = false;
   } catch (err) {
-    console.debug('Failed to get local model statuses:', err);
-    localModelStatuses = {};
-    webgpuSupported = true; // Assume supported, will be corrected if not
+    if (!statusRevision.isCurrent(snapshot)) return;
+    statusChecking = false;
+    const message = `Could not check the local model: ${errorText(err)}`;
+    localModelStatuses = {
+      ...localModelStatuses,
+      [PRIMARY_LOCAL_MODEL_ID]: { state: 'error', error: message },
+    };
   }
-
-  // Always update UI, even on error
-  updateLocalModelSectionUI();
-  // The first dropdown render (loadSettings → renderModelDropdown) runs before
-  // these real cache statuses arrive, so it shows every local model as
-  // not_downloaded (no delete control / wrong download indicator). Re-render
-  // now that localModelStatuses is populated.
-  await refreshModelDropdownWithLocal();
+  renderLocalModel();
 }
 
-// Get the currently selected local model (if any)
-function getSelectedLocalModel(): ModelDef | null {
-  const modelKey = displayedModelKey();
-  if (!modelKey || !modelKey.startsWith('local:')) {
-    return null;
+function setupControlListeners(): void {
+  byId<HTMLInputElement>('enableFilterReplies').addEventListener('change', event => {
+    const checkbox = event.currentTarget as HTMLInputElement;
+    const requested = checkbox.checked;
+    setStorage({ filterReplies: requested }).catch(err => {
+      checkbox.checked = !requested;
+      console.error('[Popup] Failed to save filter-replies setting:', err);
+    });
+  });
+
+  byId<HTMLButtonElement>('downloadLocalModel').addEventListener('click', () => {
+    startModel('download').catch(err => console.error('[Popup] Download action failed:', err));
+  });
+  byId<HTMLButtonElement>('retryLocalModel').addEventListener('click', () => {
+    startModel('retry').catch(err => console.error('[Popup] Retry action failed:', err));
+  });
+  byId<HTMLButtonElement>('cancelLocalModelDownload').addEventListener('click', () => {
+    cancelModelDownload().catch(err => console.error('[Popup] Cancel action failed:', err));
+  });
+  for (const id of ['deleteLocalModel', 'deleteLocalModelAfterError']) {
+    byId<HTMLButtonElement>(id).addEventListener('click', () => {
+      deleteModel().catch(err => console.error('[Popup] Delete action failed:', err));
+    });
   }
-  const modelName = modelKey.split(':')[1];
-  // First check predefined models
-  const predefinedModel = PREDEFINED_MODELS.local.find(m => m.name === modelName);
-  if (predefinedModel) {
-    return predefinedModel;
-  }
-  // Then check custom local models
-  const customModel = dropdownState.customModels.find(m => m.api === 'local' && m.name === modelName);
-  return customModel || null;
 }
 
-// Track which models we've already triggered auto-initialization for to prevent duplicate calls
-const autoInitTriggered = new Set<string>();
+async function startModel(action: 'download' | 'retry'): Promise<void> {
+  if (busyAction) return;
+  actionError = null;
+  busyAction = 'start';
+  renderLocalModel();
+  const snapshot = statusRevision.beginSnapshot();
 
-// Auto-initialize a cached model (called when 'cached' state is detected)
-async function autoInitializeCachedModel(modelId: string) {
-  // Prevent duplicate initialization triggers
-  if (autoInitTriggered.has(modelId)) {
-    return;
-  }
-  autoInitTriggered.add(modelId);
-
-  console.log('[LocalModel] Auto-initializing cached model:', modelId);
   try {
-    await chrome.runtime.sendMessage({ type: 'initializeLocalModel', modelId });
+    const response = await sendModelAction('initializeLocalModel');
+    assertSuccessful(response, `Could not ${action} Gemma`);
+
+    // The background acknowledges before its first storage write. Show a
+    // short honest starting state, but never replace a newer storage event.
+    if (statusRevision.isCurrent(snapshot)) {
+      localModelStatuses = {
+        ...localModelStatuses,
+        [PRIMARY_LOCAL_MODEL_ID]: { state: 'initializing', text: 'Starting Gemma…' },
+      };
+    }
   } catch (err) {
-    console.error('[LocalModel] Failed to auto-initialize cached model:', err);
-    autoInitTriggered.delete(modelId);
+    actionError = `${action === 'download' ? 'Download' : 'Retry'} failed: ${errorText(err)}`;
+    await refreshLocalModelStatus();
+  } finally {
+    busyAction = null;
+    renderLocalModel();
   }
 }
 
-// Update the local model section UI based on selected model and its status
-function updateLocalModelSectionUI() {
-  const badge = document.getElementById('localModelStatusBadge')!;
-  const unsupported = document.getElementById('localModelUnsupported')!;
-  const notDownloaded = document.getElementById('localModelNotDownloaded')!;
-  const downloading = document.getElementById('localModelDownloading')!;
-  const ready = document.getElementById('localModelReady')!;
-  const errorDiv = document.getElementById('localModelError')!;
-  const progressFill = document.getElementById('localProgressFill')!;
-  const progressText = document.getElementById('localProgressText')!;
-  const errorText = document.getElementById('localModelErrorText')!;
-  const downloadHint = document.getElementById('localModelDownloadHint');
-  const readyHint = document.getElementById('localModelReadyHint');
-  const noImageWarning = document.getElementById('localModelNoImageWarning');
+async function cancelModelDownload(): Promise<void> {
+  if (busyAction) return;
+  actionError = null;
+  busyAction = 'cancel';
+  renderLocalModel();
 
-  // Hide all states first
-  unsupported.style.display = 'none';
-  notDownloaded.style.display = 'none';
-  downloading.style.display = 'none';
-  ready.style.display = 'none';
-  errorDiv.style.display = 'none';
-  if (noImageWarning) noImageWarning.style.display = 'none';
+  try {
+    const response = await sendModelAction('cancelLocalModelDownload');
+    assertSuccessful(response, 'Could not cancel the model download');
+  } catch (err) {
+    actionError = `Cancel failed: ${errorText(err)}`;
+  } finally {
+    await refreshLocalModelStatus();
+    busyAction = null;
+    renderLocalModel();
+  }
+}
 
-  // Reset badge classes
-  badge.classList.remove('connected', 'downloading', 'ready', 'error', 'auth-error');
+async function deleteModel(): Promise<void> {
+  if (busyAction) return;
 
-  // Check if a local model is selected
-  const selectedLocalModel = getSelectedLocalModel();
+  const sizeGB = Math.round(PRIMARY_LOCAL_MODEL.sizeGB || 2);
+  const confirmed = window.confirm(
+    `Delete Gemma 4 E2B from this browser? Downloading it again will use about ${sizeGB} GB of data and disk space.`
+  );
+  if (!confirmed) return;
 
-  if (!webgpuSupported && !isInAppMode) {
-    // WebGPU not supported (and not in native bridge mode) - show unsupported message
-    badge.textContent = 'Unsupported';
-    badge.classList.add('error');
-    unsupported.style.display = 'block';
+  actionError = null;
+  busyAction = 'delete';
+  renderLocalModel();
+
+  try {
+    const response = await sendModelAction('deleteLocalModel');
+    assertSuccessful(response, 'Could not delete the model');
+  } catch (err) {
+    // Keep this message across the authoritative status refresh below.
+    actionError = `Delete failed: ${errorText(err)}`;
+  } finally {
+    // Do not re-enable controls until the background has authoritatively
+    // reported what remains in Cache Storage.
+    await refreshLocalModelStatus();
+    busyAction = null;
+    renderLocalModel();
+  }
+}
+
+async function sendModelAction(type: 'initializeLocalModel' | 'cancelLocalModelDownload' | 'deleteLocalModel'):
+Promise<ModelActionResponse> {
+  return chrome.runtime.sendMessage({ type });
+}
+
+function assertSuccessful(response: ModelActionResponse | undefined, fallback: string): void {
+  if (response?.success === true) return;
+  throw new Error(response?.error || fallback);
+}
+
+function renderLocalModel(): void {
+  const panels = document.querySelectorAll<HTMLElement>('.model-state');
+  for (const panel of panels) panel.hidden = true;
+
+  const progressFill = byId<HTMLElement>('localProgressFill');
+  progressFill.classList.remove('indeterminate');
+  progressFill.style.width = '0%';
+  setControlsDisabled(Boolean(busyAction));
+  renderActionError();
+
+  if (busyAction === 'delete') {
+    setBadge('Deleting…', 'downloading');
+    showPanel('localModelReady');
+    byId<HTMLElement>('localModelReadyHint').textContent = 'Removing the downloaded model and checking browser storage…';
     return;
   }
 
-  if (!selectedLocalModel) {
-    // No local model selected - show hint to select one
-    badge.textContent = 'Select a model';
-    notDownloaded.style.display = 'block';
-    if (downloadHint) {
-      downloadHint.textContent = 'Select a local model from the dropdown above to use local inference.';
+  if (statusChecking) {
+    setBadge('Checking…');
+    showPanel('localModelChecking');
+    return;
+  }
+
+  const status = localModelStatuses[PRIMARY_LOCAL_MODEL_ID] || { state: 'not_downloaded' };
+  if ((!webgpuSupported && !isInAppMode) || status.state === 'unsupported') {
+    setBadge('Unsupported', 'error');
+    showPanel('localModelUnsupported');
+    return;
+  }
+
+  switch (status.state) {
+    case 'not_downloaded':
+      setBadge('Not downloaded');
+      showPanel('localModelNotDownloaded');
+      break;
+
+    case 'downloading': {
+      setBadge('Downloading…', 'downloading');
+      showPanel('localModelDownloading');
+      const progress = typeof status.progress === 'number'
+        ? Math.min(1, Math.max(0, status.progress))
+        : null;
+      if (progress === null) {
+        progressFill.classList.add('indeterminate');
+      } else {
+        progressFill.style.width = `${(progress * 100).toFixed(1)}%`;
+      }
+      byId<HTMLElement>('localProgressText').textContent = status.text
+        || (progress === null ? 'Downloading Gemma…' : `${(progress * 100).toFixed(1)}%`);
+      break;
     }
-    document.getElementById('downloadLocalModel')!.style.display = 'none';
-    return;
-  }
 
-  // Check if the model supports images and show warning if not
-  if (noImageWarning && !selectedLocalModel.supportsImages) {
-    noImageWarning.style.display = 'block';
-  }
-
-  // Get status for the selected model
-  const status = localModelStatuses[selectedLocalModel.name] || { state: 'not_downloaded' };
-  const state = status.state || 'not_downloaded';
-
-  switch (state) {
-    case 'unsupported':
-      badge.textContent = 'Unsupported';
-      badge.classList.add('error');
-      unsupported.style.display = 'block';
+    case 'initializing':
+      setBadge('Loading…', 'downloading');
+      showPanel('localModelDownloading');
+      progressFill.classList.add('indeterminate');
+      byId<HTMLElement>('localProgressText').textContent = status.text
+        || 'Preparing Gemma for local inference…';
       break;
 
     case 'cached':
-      // A pending target is promoted by the background only after its cache is
-      // complete. Never initialize it directly here: that would unload the
-      // active model before selectedModel changes.
-      badge.textContent = pendingLocalModelSelection?.modelId === selectedLocalModel.name ? 'Switching' : 'Loading';
-      badge.classList.add('downloading');
-      downloading.style.display = 'block';
-      progressFill.style.width = '100%';
-      progressText.textContent = pendingLocalModelSelection?.modelId === selectedLocalModel.name
-        ? `Switching to ${selectedLocalModel.display}...`
-        : `Loading ${selectedLocalModel.display} — the first run can take up to a minute.`;
-      if (pendingLocalModelSelection?.modelId !== selectedLocalModel.name) {
-        // Trigger auto-initialization (async, don't await)
-        autoInitializeCachedModel(selectedLocalModel.name).catch(err => console.error('[LocalModel] autoInitializeCachedModel failed:', err));
-      }
+      setBadge('Downloaded', 'ready');
+      showPanel('localModelReady');
+      byId<HTMLElement>('localModelReadyHint').textContent = 'Downloaded; loads automatically when first needed.';
       break;
-
-    case 'not_downloaded': {
-      badge.textContent = 'Not downloaded';
-      notDownloaded.style.display = 'block';
-      if (downloadHint) {
-        const sizeText = selectedLocalModel.sizeGB ? ` (~${selectedLocalModel.sizeGB} GB, one-time)` : '';
-        const capability = selectedLocalModel.supportsImages
-          ? 'Filters text and images.'
-          : 'Filters text; image posts are judged on their text only.';
-        downloadHint.textContent = `Download ${selectedLocalModel.display}${sizeText}. ${capability} Runs entirely on your device — no API calls.`;
-      }
-      const downloadBtn = document.getElementById('downloadLocalModel') as HTMLButtonElement;
-      downloadBtn.style.display = 'inline-flex';
-      downloadBtn.disabled = false;
-      downloadBtn.replaceChildren(parseHTML('<span class="download-icon">&#8595;</span> Download Model'));
-      break;
-    }
-
-    case 'initializing': {
-      // Warm-up (no byte download) — e.g. loading a cached model / compiling
-      // shaders. Set one honest expectation instead of a stalled-looking 0%.
-      badge.textContent = 'Loading';
-      badge.classList.add('downloading');
-      downloading.style.display = 'block';
-      progressFill.style.width = '100%';
-      progressText.textContent = `Loading ${selectedLocalModel.display} — the first run can take up to a minute.`;
-      break;
-    }
-
-    case 'downloading': {
-      badge.textContent = 'Downloading...';
-      badge.classList.add('downloading');
-      downloading.style.display = 'block';
-      const progress = status.progress || 0;
-      progressFill.style.width = `${(progress * 100).toFixed(1)}%`;
-      progressText.textContent = status.text || `${(progress * 100).toFixed(1)}%`;
-      break;
-    }
 
     case 'ready':
-      badge.textContent = 'Ready';
-      badge.classList.add('ready');
-      ready.style.display = 'block';
-      if (readyHint) {
-        readyHint.textContent = `${selectedLocalModel.display} is ready for local inference.`;
-      }
+      setBadge('Ready', 'ready');
+      showPanel('localModelReady');
+      byId<HTMLElement>('localModelReadyHint').textContent = 'Loaded and ready to filter posts locally.';
       break;
 
     case 'error': {
-      badge.textContent = 'Error';
-      badge.classList.add('error');
-      errorDiv.style.display = 'block';
-      const friendlyError = getUserFriendlyError(status.error);
-      const hintText = friendlyError.hint ? ` ${friendlyError.hint}` : '';
-      errorText.textContent = (friendlyError.display || 'An error occurred') + hintText;
+      setBadge('Error', 'error');
+      showPanel('localModelError');
+      const friendly = friendlyModelError(status.error || status.reason);
+      byId<HTMLElement>('localModelErrorText').textContent = [friendly.display, friendly.hint]
+        .filter(Boolean)
+        .join(' ');
       break;
     }
 
     default:
-      badge.textContent = 'Unknown';
-      notDownloaded.style.display = 'block';
+      setBadge('Error', 'error');
+      showPanel('localModelError');
+      byId<HTMLElement>('localModelErrorText').textContent = 'The local model reported an unknown state. Retry or delete its data.';
   }
 }
 
-// Set up event listeners for local model UI
-function setupLocalModelListeners() {
-  const downloadBtn = document.getElementById('downloadLocalModel') as HTMLButtonElement | null;
-  const retryBtn = document.getElementById('retryLocalModel') as HTMLButtonElement | null;
-
-  if (downloadBtn) {
-    downloadBtn.addEventListener('click', () => { (async () => {
-      const selectedLocalModel = getSelectedLocalModel();
-      if (!selectedLocalModel) {
-        console.error('No local model selected');
-        return;
-      }
-
-      downloadBtn.disabled = true;
-      downloadBtn.replaceChildren(parseHTML('<span class="download-icon">&#8987;</span> Starting...'));
-
-      try {
-        const type = pendingLocalModelSelection?.modelId === selectedLocalModel.name
-          ? 'downloadPendingLocalModel'
-          : 'initializeLocalModel';
-        const result: unknown = await chrome.runtime.sendMessage({ type, modelId: selectedLocalModel.name });
-        console.log('[Popup] local model download response:', result);
-      } catch (err) {
-        console.error('[Popup] Failed to start model download:', err);
-        downloadBtn.disabled = false;
-        downloadBtn.replaceChildren(parseHTML('<span class="download-icon">&#8595;</span> Download Model'));
-      }
-    })().catch(err => console.error('[Popup] download click failed:', err)); });
+function setControlsDisabled(disabled: boolean): void {
+  for (const id of [
+    'downloadLocalModel',
+    'cancelLocalModelDownload',
+    'retryLocalModel',
+    'deleteLocalModel',
+    'deleteLocalModelAfterError',
+  ]) {
+    byId<HTMLButtonElement>(id).disabled = disabled;
   }
 
-  if (retryBtn) {
-    retryBtn.addEventListener('click', () => { (async () => {
-      const selectedLocalModel = getSelectedLocalModel();
-      if (!selectedLocalModel) {
-        console.error('No local model selected');
-        return;
-      }
-
-      retryBtn.disabled = true;
-      retryBtn.textContent = 'Retrying...';
-
-      try {
-        const type = pendingLocalModelSelection?.modelId === selectedLocalModel.name
-          ? 'downloadPendingLocalModel'
-          : 'initializeLocalModel';
-        await chrome.runtime.sendMessage({ type, modelId: selectedLocalModel.name });
-      } catch (err) {
-        console.error('Failed to retry model download:', err);
-        retryBtn.disabled = false;
-        retryBtn.textContent = 'Retry';
-      }
-    })().catch(err => console.error('[Popup] retry click failed:', err)); });
-  }
-
-  const cancelBtn = document.getElementById('cancelLocalModelDownload') as HTMLButtonElement | null;
-  if (cancelBtn) {
-    cancelBtn.addEventListener('click', () => { (async () => {
-      const selectedLocalModel = getSelectedLocalModel();
-      if (!selectedLocalModel) return;
-
-      cancelBtn.disabled = true;
-      try {
-        await chrome.runtime.sendMessage({ type: 'cancelLocalModelDownload', modelId: selectedLocalModel.name });
-      } catch (err) {
-        console.error('Failed to cancel download:', err);
-      }
-      cancelBtn.disabled = false;
-    })().catch(err => console.error('[Popup] cancel download failed:', err)); });
-  }
+  const deleting = busyAction === 'delete';
+  byId<HTMLButtonElement>('deleteLocalModel').textContent = deleting ? 'Deleting…' : 'Delete model';
+  byId<HTMLButtonElement>('deleteLocalModelAfterError').textContent = deleting ? 'Deleting…' : 'Delete model data';
 }
 
-// Refresh model dropdown with current local model statuses
-async function refreshModelDropdownWithLocal() {
-  const data = await getStorage(['customModels', 'selectedModel', 'pendingLocalModelSelection']);
-  pendingLocalModelSelection = data.pendingLocalModelSelection || null;
-  renderModelDropdown(data.customModels || [], data.selectedModel || DEFAULT_MODEL);
+function setBadge(text: string, className?: 'downloading' | 'ready' | 'error'): void {
+  const badge = byId<HTMLElement>('localModelStatusBadge');
+  badge.textContent = text;
+  badge.classList.remove('downloading', 'ready', 'error');
+  if (className) badge.classList.add(className);
+}
+
+function showPanel(id: string): void {
+  byId<HTMLElement>(id).hidden = false;
+}
+
+function renderActionError(): void {
+  const error = byId<HTMLElement>('localModelActionError');
+  error.hidden = !actionError;
+  error.textContent = actionError || '';
+}
+
+function friendlyModelError(message: string | undefined): { display: string; hint: string } {
+  if (!message) return { display: 'The local model failed.', hint: 'Retry, or delete its data and download it again.' };
+  const lowerMessage = message.toLowerCase();
+  for (const [pattern, friendly] of LOCAL_MODEL_ERROR_MESSAGES) {
+    if (lowerMessage.includes(pattern)) return friendly;
+  }
+  return { display: message, hint: 'Retry, or delete the model data and download it again.' };
+}
+
+function errorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function byId<T extends HTMLElement>(id: string): T {
+  const element = document.getElementById(id);
+  if (!element) throw new Error(`Missing popup element #${id}`);
+  return element as T;
 }

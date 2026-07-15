@@ -19,7 +19,7 @@ interface InitProgressUpdate {
 
 interface BaseRequest { id: string; target: 'litertlm-offscreen' }
 interface InitRequest extends BaseRequest { method: 'init'; modelDef: LocalModelDef }
-interface GenerateRequest extends BaseRequest { method: 'generate'; messages: ChatMessage[]; maxTokens: number; params: Record<string, unknown> }
+interface GenerateRequest extends BaseRequest { method: 'generate'; messages: ChatMessage[]; maxTokens: number }
 interface InterruptRequest extends BaseRequest { method: 'interrupt' }
 interface UnloadRequest extends BaseRequest { method: 'unload' }
 interface CountRequest extends BaseRequest { method: 'countTokens'; text: string }
@@ -70,7 +70,7 @@ async function handle(req: Request): Promise<unknown> {
       return { ok: true };
     }
     case 'generate':
-      return { ok: true, value: await runtime.generate(req.messages, req.maxTokens, req.params) };
+      return { ok: true, value: await runtime.generate(req.messages, req.maxTokens) };
     case 'interrupt':
       await runtime.interrupt();
       return { ok: true };

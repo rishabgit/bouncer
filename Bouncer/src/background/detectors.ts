@@ -13,8 +13,7 @@
 //      detectors keep running but their results are dropped.
 //   2. If every detector settles without any of them saying hide, return the
 //      highest-priority detector's result. If that one rejected, throw its
-//      error so the pipeline's existing error handling (rate-limit, auth)
-//      still fires.
+//      error so the pipeline's local-runtime recovery path still fires.
 //   3. Lower-priority rejections are logged and ignored.
 //
 // To avoid one slow detector blocking the whole evaluation, each detector can

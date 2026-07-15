@@ -6,9 +6,6 @@ declare global {
     sanitize(dirty: string, config: { RETURN_DOM_FRAGMENT: true } & Record<string, unknown>): DocumentFragment;
     sanitize(dirty: string, config?: Record<string, unknown>): string;
   };
-  // esbuild replaces process.env.* at build time
-  var process: { env: Record<string, string> };
-
   // iOS WKWebView polyfill bridge
   var webkit: {
     messageHandlers: Record<string, { postMessage(msg: unknown): void }>;

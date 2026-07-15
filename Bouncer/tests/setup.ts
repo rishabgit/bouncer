@@ -1,9 +1,3 @@
-// Build-time env vars (normally replaced by esbuild, need defaults for tests)
-globalThis.process = globalThis.process || {};
-globalThis.process.env = globalThis.process.env || {};
-process.env.BOUNCER_ENV = process.env.BOUNCER_ENV || 'test';
-process.env.IMBUE_WS_URL = process.env.IMBUE_WS_URL || 'wss://test.aibutler.api.imbue.com';
-
 // Global mocks for Chrome extension APIs
 globalThis.chrome = {
   runtime: {
@@ -15,10 +9,6 @@ globalThis.chrome = {
     onSuspend: { addListener: vi.fn() },
     onInstalled: { addListener: vi.fn() },
   },
-  identity: {
-    launchWebAuthFlow: vi.fn(),
-    getRedirectURL: () => 'https://test-extension-id.chromiumapp.org/',
-  },
   storage: {
     local: {
       get: vi.fn().mockResolvedValue({}),
@@ -29,6 +19,7 @@ globalThis.chrome = {
   },
   tabs: {
     onRemoved: { addListener: vi.fn() },
+    onUpdated: { addListener: vi.fn() },
     sendMessage: vi.fn(),
   },
 } as unknown as typeof chrome;

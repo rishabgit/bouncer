@@ -8,19 +8,23 @@ vi.mock('@litert-lm/core', () => ({
   SamplerType: { GREEDY: 'GREEDY', TOP_K: 'TOP_K' },
 }));
 
-import { Engine, SamplerType } from '@litert-lm/core';
-import { LitertlmRuntime, prefetchLitertlmModel } from '../../src/offscreen/litertlm-runtime.js';
+import { Engine, loadLiteRtLm, SamplerType } from '@litert-lm/core';
+import {
+  LitertlmRuntime,
+  prefetchLitertlmModel,
+  unloadLitertlmWasm,
+} from '../../src/offscreen/litertlm-runtime.js';
 import type { LocalModelDef } from '../../src/types.js';
 
 describe('LitertlmRuntime', () => {
   const modelDef: LocalModelDef = {
     name: 'gemma-test',
+    display: 'Gemma test',
+    isLocal: true,
     backend: 'litertlm',
-    inferenceParams: { temperature: 0.7 },
     litertlmConfig: {
       modelUrl: 'https://example.test/gemma.litertlm',
       maxTokens: 1024,
-      topK: 40,
     },
   };
 
@@ -28,7 +32,9 @@ describe('LitertlmRuntime', () => {
   let runtime: LitertlmRuntime;
 
   beforeEach(() => {
+    unloadLitertlmWasm();
     vi.clearAllMocks();
+    (loadLiteRtLm as Mock).mockReset().mockResolvedValue(undefined);
     globalThis.chrome = {
       runtime: { getURL: vi.fn(path => `chrome-extension://test/${path}`) },
     } as unknown as typeof chrome;
@@ -48,6 +54,7 @@ describe('LitertlmRuntime', () => {
       open: vi.fn().mockResolvedValue({
         match: vi.fn().mockResolvedValue(new Response(new Uint8Array([1, 2, 3]))),
         put: vi.fn(),
+        delete: vi.fn().mockResolvedValue(true),
       }),
     } as unknown as CacheStorage;
 
@@ -85,13 +92,12 @@ describe('LitertlmRuntime', () => {
     vi.unstubAllGlobals();
   });
 
-  it('enforces maxOutputTokens and clamps sampled requests to greedy top-1', async () => {
+  it('enforces maxOutputTokens and uses deterministic greedy top-1', async () => {
     await runtime.initialize(modelDef, vi.fn(), new AbortController().signal);
 
     const result = await runtime.generate(
       [{ role: 'system', content: 'system' }, { role: 'user', content: 'post' }],
       37,
-      { temperature: 0.7 },
     );
 
     expect(result).toBe('yes');
@@ -108,4 +114,35 @@ describe('LitertlmRuntime', () => {
       },
     });
   });
+
+  it('allows a wasm load retry after the first load attempt fails', async () => {
+    (loadLiteRtLm as Mock)
+      .mockRejectedValueOnce(new Error('wasm load failed'))
+      .mockResolvedValueOnce(undefined);
+
+    await expect(runtime.initialize(modelDef, vi.fn(), new AbortController().signal))
+      .rejects.toThrow('wasm load failed');
+    await expect(runtime.initialize(modelDef, vi.fn(), new AbortController().signal))
+      .resolves.toBeUndefined();
+    expect(loadLiteRtLm).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([false, true])(
+    'fails cache deletion whenever the model survives (delete returned %s)',
+    async (deleteResult) => {
+      const survivor = new Response(new Uint8Array([1, 2, 3]));
+      globalThis.caches = {
+        open: vi.fn().mockResolvedValue({
+          delete: vi.fn().mockResolvedValue(deleteResult),
+          match: vi.fn().mockResolvedValue(survivor),
+        }),
+      } as unknown as CacheStorage;
+
+      await expect(LitertlmRuntime.deleteCache(modelDef))
+        .rejects.toThrow('cache entry survived deletion');
+      const cache = await caches.open('litertlm-cache');
+      expect(cache.delete).toHaveBeenCalledWith(modelDef.litertlmConfig!.modelUrl);
+      expect(cache.match).toHaveBeenCalledWith(modelDef.litertlmConfig!.modelUrl);
+    },
+  );
 });

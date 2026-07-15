@@ -21,7 +21,7 @@ export function mean(values: number[]): number {
 
 // Median follows the same definition as the app's pipeline `getMedianLatency()`
 // — average of the two middle elements for even-length input — so benchmark
-// medians stay directly comparable to the live `latencyUpdate` numbers.
+// medians stay directly comparable to the generate-only app timing span.
 export function median(values: number[]): number {
   if (values.length === 0) return NaN;
   const sorted = [...values].sort((a, b) => a - b);

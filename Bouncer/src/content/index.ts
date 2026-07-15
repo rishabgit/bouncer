@@ -84,7 +84,7 @@ import { formatPostForEvaluation } from '../shared/utils';
   // ==================== Core State ====================
 
   const processedPosts = new WeakSet<HTMLElement>();
-  const postReasonings = new WeakMap<HTMLElement, { shouldHide: boolean; reasoning: string; rawResponse?: string | null; isApiError?: boolean }>();
+  const postReasonings = new WeakMap<HTMLElement, { shouldHide: boolean; reasoning: string; rawResponse?: string | null; isModelError?: boolean }>();
   const errorPostUrls = new Set<string>();
   const lastProcessedContent = new WeakMap<HTMLElement, string>();
   const pendingPostReeval = new Map<HTMLElement, ReturnType<typeof setTimeout>>();
@@ -201,13 +201,11 @@ import { formatPostForEvaluation } from '../shared/utils';
     } catch { /* store not ready */ }
     if (!content) return;
 
-    const hasContent = content.text.trim() || (content.imageUrls && content.imageUrls.length > 0);
-    if (!hasContent) return;
+    if (!content.text.trim()) return;
 
     await chrome.runtime.sendMessage({
       type: 'clearSinglePost',
-      post: formatPostForEvaluation(content),
-      imageUrls: content.imageUrls || []
+      post: formatPostForEvaluation(content)
     });
 
     postReasonings.delete(article);
@@ -256,12 +254,10 @@ import { formatPostForEvaluation } from '../shared/utils';
     delete article.dataset.ffStoreRetries;
 
     const hasText = content.text.trim().length > 0;
-    const hasImages = content.imageUrls && content.imageUrls.length > 0;
-
-    if (!hasText && !hasImages) {
+    if (!hasText) {
       postReasonings.set(article, {
         shouldHide: false,
-        reasoning: 'No text or images to evaluate.'
+        reasoning: 'No text to evaluate.'
       });
       markPostVerified(article);
       return;
@@ -275,8 +271,6 @@ import { formatPostForEvaluation } from '../shared/utils';
           type: 'evaluatePost',
           evaluationId,
           post: formatPostForEvaluation(content),
-          rawText: content.text,
-          imageUrls: content.imageUrls || [],
           postUrl: content.postUrl || null,
           siteId: adapter.siteId
         });
@@ -312,20 +306,27 @@ import { formatPostForEvaluation } from '../shared/utils';
         // remove from processed so the post is re-evaluated once a model is ready.
         // The feed-level model-status indicator (storage-driven) explains what to do.
         processedPosts.delete(article);
+        if (response.retryAfterMs !== undefined) {
+          setTimeout(() => {
+            if (article.isConnected
+                && !article.dataset.filteredByExtension
+                && !processedPosts.has(article)) {
+              processPost(article, true);
+            }
+          }, response.retryAfterMs);
+        }
         return;
       }
 
       if ('error' in response) {
         // PipelineError - track for retry via error broadcasts
-        postReasonings.set(article, { shouldHide: false, isApiError: true, reasoning: response.reasoning });
+        postReasonings.set(article, { shouldHide: false, isModelError: true, reasoning: response.reasoning });
         if (content.postUrl) errorPostUrls.add(content.postUrl);
         article.dataset.errorType = response.error;
         const verificationBar = getVerificationBar(article);
-        verificationBar.classList.remove('pending', 'verified', 'api-error');
-        // Rate-limit errors fall back to the pending state; all other API errors
-        // leave the bar invisible. The red .api-error stripe has been removed
-        // entirely — a red stripe on a tweet is always wrong.
-        if (response.error === 'rate_limit') verificationBar.classList.add('pending');
+        verificationBar.classList.remove('pending', 'verified');
+        // Local runtime failures leave the bar invisible until the background
+        // recovery timer releases this post for re-evaluation.
         article.removeAttribute('data-ff-pending');
         article.classList.add('ff-error');
         return;
@@ -693,8 +694,6 @@ import { formatPostForEvaluation } from '../shared/utils';
           pendingPosts.delete(article);
           continue;
         }
-        if (article.dataset.rateLimited === 'true') continue;
-
         const startTime = parseInt(article.dataset.pendingStartTime || '0', 10);
         if (now - startTime < stuckPostCheckDelay) continue;
 
@@ -756,7 +755,6 @@ import { formatPostForEvaluation } from '../shared/utils';
       case 'ping':
         sendResponse({ alive: true });
         return;
-      case 'latencyUpdate':
       case 'errorStatusUpdate':
         sendResponse({ received: true });
         break;
@@ -784,9 +782,6 @@ import { formatPostForEvaluation } from '../shared/utils';
         sendResponse({ success: true, count: reEvaluatedCount });
         break;
       }
-      case 'queueStatusUpdate':
-        sendResponse({ received: true });
-        break;
       case 'processingPost':
         currentlyProcessingPostUrl = message.postUrl;
         sendResponse({ received: true });

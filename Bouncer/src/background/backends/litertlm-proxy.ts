@@ -23,6 +23,43 @@ function nextRequestId(): string {
 // the offscreen runtime during init().
 const progressListeners = new Map<string, (p: InitProgress) => void>();
 
+// Every proxy method can be the first caller after an MV3 worker restart.
+// Share the complete existence-check/create operation so concurrent sends do
+// not both observe "missing" and race createDocument(). The slot is cleared
+// after either success or failure so a later request can re-check/retry.
+let offscreenCreation: Promise<void> | null = null;
+let offscreenClosing: Promise<boolean> | null = null;
+let offscreenLifecycleTail: Promise<void> = Promise.resolve();
+
+function enqueueOffscreenLifecycle<T>(operation: () => T | Promise<T>): Promise<T> {
+  const run = offscreenLifecycleTail.catch(() => undefined).then(operation);
+  offscreenLifecycleTail = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+function closeOffscreenDocument(): Promise<boolean> {
+  if (offscreenClosing) return offscreenClosing;
+  if (!chrome.offscreen?.closeDocument) return Promise.resolve(false);
+
+  // Queue behind any existence check/creation that won the call-order race,
+  // then assign the barrier before Chrome is invoked. Later sends wait for
+  // this close and create a fresh document instead of reusing a doomed one.
+  const closing = enqueueOffscreenLifecycle(async (): Promise<boolean> => {
+    try {
+      await chrome.offscreen.closeDocument();
+      return true;
+    } catch {
+      // No offscreen document, or a direct Firefox/Safari event-page runtime.
+      return false;
+    }
+  });
+  offscreenClosing = closing;
+  void closing.then(() => {
+    if (offscreenClosing === closing) offscreenClosing = null;
+  });
+  return closing;
+}
+
 chrome.runtime.onMessage.addListener((message: unknown) => {
   const m = message as { channel?: string; id?: string; progress?: number; text?: string };
   if (m?.channel !== 'litertlm-progress') return false;
@@ -35,24 +72,44 @@ chrome.runtime.onMessage.addListener((message: unknown) => {
 });
 
 async function ensureOffscreen(): Promise<void> {
-  // Newer Chromes have hasDocument(); fall back to scanning client URLs.
-  const offscreenApi = chrome.offscreen as unknown as {
-    hasDocument?: () => Promise<boolean>;
-    createDocument: (opts: { url: string; reasons: string[]; justification: string }) => Promise<void>;
-  };
-  if (typeof offscreenApi.hasDocument === 'function') {
-    if (await offscreenApi.hasDocument()) return;
-  } else {
-    const matched = await (self as unknown as { clients: { matchAll: (opts: { includeUncontrolled: boolean }) => Promise<{ url: string }[]> } })
-      .clients.matchAll({ includeUncontrolled: true });
-    const target = chrome.runtime.getURL(OFFSCREEN_URL);
-    if (matched.some(c => c.url === target)) return;
+  // A close that was requested first owns the lifecycle queue. Wait for it to
+  // settle before joining or scheduling a creation on the other side.
+  while (offscreenClosing) await offscreenClosing;
+
+  if (offscreenCreation) {
+    await offscreenCreation;
+    return;
   }
-  await offscreenApi.createDocument({
-    url: OFFSCREEN_URL,
-    reasons: ['WORKERS'],
-    justification: 'Run LiteRT-LM Engine, whose wasm loader uses <script>-tag injection not available in MV3 service workers.',
+
+  // Queue the complete existence-check/create operation. This makes the
+  // inverse race deterministic too: a close requested while createDocument
+  // is pending runs immediately after creation, never before it.
+  const creation = enqueueOffscreenLifecycle(async (): Promise<void> => {
+    // Newer Chromes have hasDocument(); fall back to scanning client URLs.
+    const offscreenApi = chrome.offscreen as unknown as {
+      hasDocument?: () => Promise<boolean>;
+      createDocument: (opts: { url: string; reasons: string[]; justification: string }) => Promise<void>;
+    };
+    if (typeof offscreenApi.hasDocument === 'function') {
+      if (await offscreenApi.hasDocument()) return;
+    } else {
+      const matched = await (self as unknown as { clients: { matchAll: (opts: { includeUncontrolled: boolean }) => Promise<{ url: string }[]> } })
+        .clients.matchAll({ includeUncontrolled: true });
+      const target = chrome.runtime.getURL(OFFSCREEN_URL);
+      if (matched.some(c => c.url === target)) return;
+    }
+    await offscreenApi.createDocument({
+      url: OFFSCREEN_URL,
+      reasons: ['WORKERS'],
+      justification: 'Run LiteRT-LM Engine, whose wasm loader uses <script>-tag injection not available in MV3 service workers.',
+    });
   });
+  offscreenCreation = creation;
+  try {
+    await creation;
+  } finally {
+    if (offscreenCreation === creation) offscreenCreation = null;
+  }
 }
 
 interface OffscreenResponse<T = unknown> { ok: boolean; value?: T; error?: string }
@@ -127,15 +184,13 @@ export class LitertlmProxy {
       console.error('[LitertlmProxy] unload failed:', e);
     }
     // Tear the offscreen down so the next init starts fresh and we don't keep
-    // the WebGPU device pinned. closeDocument is safe even if the offscreen
-    // page is gone — swallow errors to keep teardown idempotent.
-    try {
-      await chrome.offscreen.closeDocument();
-    } catch { /* no offscreen open */ }
+    // the WebGPU device pinned. Share the close barrier with force-close so a
+    // concurrent send cannot race this teardown and reuse a doomed document.
+    await closeOffscreenDocument();
   }
 
-  async generate(messages: ChatMessage[], maxTokens: number, params: Record<string, unknown>): Promise<string> {
-    return send<string>({ method: 'generate', messages, maxTokens, params });
+  async generate(messages: ChatMessage[], maxTokens: number): Promise<string> {
+    return send<string>({ method: 'generate', messages, maxTokens });
   }
 
   async interrupt(): Promise<void> {
@@ -158,13 +213,6 @@ export class LitertlmProxy {
 // Engine.create cannot be interrupted once LiteRT begins cache-to-GPU setup.
 // Closing the offscreen page is the only bounded way to release a stuck init
 // so a user retry can create a fresh host instead of queueing behind it.
-export async function forceCloseLitertlmOffscreen(): Promise<boolean> {
-  if (!chrome.offscreen?.closeDocument) return false;
-  try {
-    await chrome.offscreen.closeDocument();
-    return true;
-  } catch {
-    // No offscreen document, or a direct Firefox/Safari event-page runtime.
-    return false;
-  }
+export function forceCloseLitertlmOffscreen(): Promise<boolean> {
+  return closeOffscreenDocument();
 }

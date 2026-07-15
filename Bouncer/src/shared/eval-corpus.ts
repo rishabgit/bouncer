@@ -1,7 +1,6 @@
 // Fixed labeled corpus for the dev-only accuracy eval. Original synthetic posts
 // (not scraped), short and colloquial like real tweets, so the inputs are stable
-// and shareable. Text-only by design — the head-to-head is Qwen 3.5 vs Gemma,
-// both text-only.
+// and shareable. Text-only by design, matching the production Gemma path.
 //
 // One filter, held constant across every example: "rage bait". The positive
 // class is "should hide". Positives are posts engineered to FARM OUTRAGE —

@@ -1,11 +1,8 @@
-// Common interface for local-inference backends (WebLLM/Qwen, LiteRT-LM/Gemma).
-// LocalEngine (the orchestrator) holds one of these and delegates the
-// model-specific calls. Lifecycle, status, the inference queue, keep-alive,
-// idle-unload, and preemption all live in the orchestrator and are shared
-// across backends.
+// Common boundary between the model lifecycle orchestrator and LiteRT-LM.
+// Keeping this seam makes the runtime testable without carrying multiple
+// product backends.
 
 import type { LocalModelDef, ChatMessage } from '../../types';
-import type { CompletionUsage } from '@mlc-ai/web-llm';
 
 export interface InitProgress {
   progress: number;   // 0..1
@@ -15,8 +12,7 @@ export interface InitProgress {
 export interface LocalBackend {
   // True when this backend owns an isolated runtime and can safely unload a
   // late engine after its initialization was superseded. Chrome LiteRT uses a
-  // shared offscreen host, so its proxy leaves this false; WebLLM is handled as
-  // instance-local by the orchestrator.
+  // shared offscreen host, so its proxy leaves this false.
   unloadAfterSuperseded?: boolean;
 
   // Load weights, tokenizer, and the GPU context. Resolves once the backend is
@@ -30,13 +26,10 @@ export interface LocalBackend {
   // Free GPU memory and tokenizer state.
   unload(): Promise<void>;
 
-  // Run a single completion. The backend is responsible for any per-call reset
-  // (e.g. WebLLM's resetChat) and for image/text formatting. Returns the
-  // trimmed text content with <think> blocks stripped.
+  // Run a single completion and return trimmed text with think blocks removed.
   generate(
     messages: ChatMessage[],
     maxTokens: number,
-    params: Record<string, unknown>,
   ): Promise<string>;
 
   // Cancel an in-flight generate(). Should be cheap to call when idle.
@@ -47,13 +40,6 @@ export interface LocalBackend {
   countTokens(text: string): Promise<number>;
   truncateText(text: string, maxTokens: number): Promise<string>;
 
-  // 0 if the backend does not support images for the loaded model.
-  getImageEmbedSize(): Promise<number>;
-
-  // Token + timing stats for the most recent generate() call. WebLLM populates
-  // this from the completion's `usage`; optional because LiteRT-LM exposes none.
-  // Used only by the dev-only latency benchmark.
-  getLastUsage?(): CompletionUsage | null;
 }
 
 // Backend-level static cache check — answered without an initialized engine.

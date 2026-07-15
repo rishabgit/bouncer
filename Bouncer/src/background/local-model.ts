@@ -4,21 +4,12 @@
 import type { LocalModelDef, LocalModelStatus, EvaluationPostData, ChatMessage } from '../types';
 import { PREDEFINED_MODELS } from '../shared/models';
 import { isGPUDeviceLostError, isNetworkError, formatLocalInferenceResult } from '../shared/utils';
-import {
-  buildLocalUserMessage,
-  buildSingleYesnoUserMessage,
-  buildTableYesnoUserMessage,
-  localSystemPrompt,
-  tableYesnoSingleSystemPrompt,
-  tableYesnoSystemPrompt,
-  type LocalPromptMode,
-} from '../shared/prompts';
+import type { LocalPromptMode } from '../shared/prompts';
 import { parseTableYesnoResponse } from '../shared/table-yesno';
+import { buildTableYesnoRequest } from '../shared/table-yesno-request';
 import { inferenceQueue } from './inference-queue';
 import { getStorage, setStorage } from '../shared/storage';
 import type { LocalBackend } from './backends/types';
-import type { CompletionUsage } from '@mlc-ai/web-llm';
-import { WebllmBackend, isWebllmCached, deleteWebllmCache } from './backends/webllm-backend';
 import {
   LitertlmBackend,
   isLitertlmCached,
@@ -26,8 +17,6 @@ import {
   forceCloseLitertlmOffscreen,
 } from './backends/litertlm-backend';
 
-// Re-exported so existing importers (and tests) keep their import path.
-export { buildModelConfig } from './backends/webllm-backend';
 export { parseTableYesnoResponse } from '../shared/table-yesno';
 
 declare global {
@@ -44,47 +33,31 @@ const KEEP_ALIVE_INTERVAL_MS = 5000;
 // ~30s idle ceilings. Keep this comfortably below that boundary.
 const DOWNLOAD_KEEP_ALIVE_MS = 5000;
 const IDLE_TIMEOUT_MS = 60000;
-const INFERENCE_TIMEOUT_MS = 30000;
 // Cold LiteRT-LM inference (first call after load) compiles WebGPU shaders,
 // prefills, and decodes — easily 30–60 s on a 4B model before the first token.
 const LITERTLM_INFERENCE_TIMEOUT_MS = 90000;
 const DOWNLOAD_MAX_RETRIES = 3;
 const DOWNLOAD_RETRY_DELAY_MS = 2000;
 const CANCEL_SETTLE_TIMEOUT_MS = 3000;
+export const MODEL_MAINTENANCE_ERROR = 'Local model maintenance in progress';
+
+interface InferenceBackendLease {
+  countTokens(text: string): Promise<number>;
+  truncateText(text: string, maxTokens: number): Promise<string>;
+  generate(messages: ChatMessage[], maxTokens: number): Promise<string>;
+}
 
 // ==================== Pure helpers ====================
 
-// Pick the backend for a model by its declared engine. Models with no backend
-// (custom/user-added) default to WebLLM.
-function selectBackend(modelDef: LocalModelDef): LocalBackend {
-  return modelDef.backend === 'litertlm' ? new LitertlmBackend() : new WebllmBackend();
+function resolveModel(modelId: string): LocalModelDef {
+  const modelDef = PREDEFINED_MODELS.local.find(model => model.name === modelId);
+  if (!modelDef) throw new Error(`Unknown local model: ${modelId}`);
+  return modelDef;
 }
 
 // Probe whether a model's weights are already on disk, without loading them.
 async function backendIsCached(modelDef: LocalModelDef): Promise<boolean> {
-  return modelDef.backend === 'litertlm' ? isLitertlmCached(modelDef) : isWebllmCached(modelDef);
-}
-
-// Parse a local model's freeform response to extract a hide/show decision and reasoning.
-// Uses last-index-wins: if "Matches <topic>" appears after any "No match", it's a hide.
-export function parseLocalModelResponse(rawResponse: string | null): { shouldHide: boolean; reasoning: string } {
-  if (!rawResponse) {
-    return { shouldHide: false, reasoning: 'Empty model response — model returned no output' };
-  }
-
-  let reasoning = rawResponse;
-  let shouldHide = false;
-
-  const lower = rawResponse.toLowerCase();
-  const matchesIdx = lower.lastIndexOf('matches ');
-  const noMatchIdx = lower.lastIndexOf('no match');
-  if (matchesIdx !== -1 && matchesIdx > noMatchIdx) {
-    shouldHide = true;
-    const matchedTopic = rawResponse.slice(matchesIdx + 'matches '.length).replace(/\.$/, '').trim();
-    reasoning = matchedTopic ? `${rawResponse} (Matched: ${matchedTopic})` : rawResponse;
-  }
-
-  return { shouldHide, reasoning };
+  return isLitertlmCached(modelDef);
 }
 
 // ==================== LocalEngine ====================
@@ -116,6 +89,14 @@ export class LocalEngine {
   // Preemption state
   _preempted: boolean;
   _interruptSettledPromise: Promise<void> | null;
+  _maintenance: boolean;
+  _maintenanceGeneration: number;
+  // Includes prompt preparation (token counting/truncation), not only decode.
+  // Maintenance and the idle timer must treat the whole backend interaction as
+  // one operation because LiteRT cannot be unloaded between those steps.
+  _activeModelOperations: number;
+  _activityGeneration: number;
+  _terminalErrorModels: Set<string>;
 
   constructor() {
     this.engine = null;
@@ -139,6 +120,11 @@ export class LocalEngine {
 
     this._preempted = false;
     this._interruptSettledPromise = null;
+    this._maintenance = false;
+    this._maintenanceGeneration = 0;
+    this._activeModelOperations = 0;
+    this._activityGeneration = 0;
+    this._terminalErrorModels = new Set();
   }
 
   // ---- State queries ----
@@ -146,29 +132,69 @@ export class LocalEngine {
   isInitializing(): boolean { return this._initializingModel !== null; }
   isModelLoaded(modelId: string): boolean { return this.engine !== null && this.loadedModel === modelId; }
   isInitializingModel(modelId: string): boolean { return this._initializingModel === modelId; }
+  isMaintaining(): boolean { return this._maintenance; }
 
-  // Dev benchmark only: token + timing stats from the loaded backend's last
-  // completion. WebLLM returns its `usage`; LiteRT-LM has no such method, so the
-  // optional-chained call yields null.
-  getLastUsage(): CompletionUsage | null { return this.engine?.getLastUsage?.() ?? null; }
+  async runMaintenance<T>(fn: () => Promise<T>, prepare?: () => void): Promise<T> {
+    if (this._maintenance) throw new Error(MODEL_MAINTENANCE_ERROR);
+    this._maintenanceGeneration++;
+    this._activityGeneration++;
+    this._maintenance = true;
+    this._stopIdleTimeout();
+    this.preempt();
+    try {
+      prepare?.();
+      return await this.drainQueue(fn);
+    } finally {
+      this._maintenance = false;
+      if (this.engine && this._activeModelOperations === 0) {
+        this._resetIdleTimeout();
+      }
+    }
+  }
 
   // ---- Lifecycle ----
 
   async ensureLoaded(modelId: string): Promise<void> {
+    const maintenanceGeneration = this._maintenanceGeneration;
+    this._assertMaintenanceGeneration(maintenanceGeneration);
     await this.syncStatus(modelId);
+    this._assertMaintenanceGeneration(maintenanceGeneration);
+    if (this._terminalErrorModels.has(modelId)) {
+      throw new Error('Local model requires an explicit Retry from the Bouncer popup.');
+    }
     if (!this.isModelLoaded(modelId)) {
-      const backend = await this.initialize(modelId);
+      const backend = await this.initialize(modelId, maintenanceGeneration, false);
+      this._assertMaintenanceGeneration(maintenanceGeneration);
       if (!backend) {
         throw new Error('Local model not available. WebGPU may not be supported or model not downloaded.');
       }
     }
   }
 
-  async initialize(modelId: string): Promise<LocalBackend | null> {
+  async initialize(
+    modelId: string,
+    expectedMaintenanceGeneration = this._maintenanceGeneration,
+    explicitRetry = true,
+  ): Promise<LocalBackend | null> {
     if (!modelId) {
       console.error('[LocalEngine] No model ID provided');
       return null;
     }
+
+    this._assertMaintenanceGeneration(expectedMaintenanceGeneration);
+
+    // Startup reconciliation may be in flight when the popup sends Retry.
+    // Wait for that existing status transaction before observing the fence;
+    // do not independently promote a transient same-worker UI error into one.
+    if (explicitRetry) {
+      await this._statusWriteChain;
+      this._assertMaintenanceGeneration(expectedMaintenanceGeneration);
+    }
+
+    if (!explicitRetry && this._terminalErrorModels.has(modelId)) {
+      throw new Error('Local model requires an explicit Retry from the Bouncer popup.');
+    }
+    const retryingTerminalError = explicitRetry && this._terminalErrorModels.delete(modelId);
 
     if (this.isInitializingModel(modelId)) {
       return this._initPromise;
@@ -182,10 +208,23 @@ export class LocalEngine {
       const previousInit = this._initSettledPromise;
       this._initAbortController?.abort();
       await previousInit;
+      this._assertMaintenanceGeneration(expectedMaintenanceGeneration);
       if (this.isInitializingModel(modelId)) return this._initPromise;
     }
 
+    // A terminal error can leave a logically loaded proxy whose offscreen
+    // engine has disappeared. Retry must rebuild the physical engine instead
+    // of publishing that stale proxy as ready again.
+    if (retryingTerminalError && this.isModelLoaded(modelId)) {
+      await this.reset();
+      this._assertMaintenanceGeneration(expectedMaintenanceGeneration);
+    }
+
     if (this.isModelLoaded(modelId)) {
+      // An explicit popup retry may be recovering a terminal inference status
+      // while the interrupted engine is still usable. Publish a genuine ready
+      // transition so error posts are released exactly once.
+      await this.updateStatus(modelId, { state: 'ready' });
       return this.engine;
     }
 
@@ -194,11 +233,8 @@ export class LocalEngine {
       return null;
     }
 
-    // Resolve the model definition. `_modelConfig` keeps the historical
-    // "found-or-null" value; the backend always gets a non-null def so a
-    // user-added/custom model id still resolves via the prebuilt registry.
-    const modelDef = PREDEFINED_MODELS.local.find(m => m.name === modelId) || null;
-    const backendModelDef = modelDef ?? ({ name: modelId } as LocalModelDef);
+    const modelDef = resolveModel(modelId);
+    this._assertMaintenanceGeneration(expectedMaintenanceGeneration);
 
     // Start tracking initialization BEFORE any async work so concurrent callers
     // see isInitializingModel() and wait on _initPromise.
@@ -206,6 +242,7 @@ export class LocalEngine {
     const abortSignal = this._initAbortController!.signal;
     this._startDownloadKeepAlive();
 
+    let attemptedBackend: LocalBackend | null = null;
     try {
       // If a different model is loaded, unload it first to free GPU memory.
       // Drain the inference queue so any in-flight task finishes before we dispose the engine.
@@ -225,7 +262,8 @@ export class LocalEngine {
         });
       }
 
-      const backend = selectBackend(backendModelDef);
+      const backend = new LitertlmBackend();
+      attemptedBackend = backend;
 
       // Retry loop for network errors
       let retryCount = 0;
@@ -239,7 +277,8 @@ export class LocalEngine {
           await this.updateStatus(modelId, { state: 'initializing', progress: 0, text: retryCount > 0 ? `Retrying (${retryCount}/${DOWNLOAD_MAX_RETRIES})...` : 'Starting...' });
 
           let lastProgressWrite = 0;
-          await backend.initialize(backendModelDef, (progress) => {
+          this._assertMaintenanceGeneration(expectedMaintenanceGeneration);
+          await backend.initialize(modelDef, (progress) => {
             if (abortSignal.aborted) return;
             const now = Date.now();
             if (progress.progress < 1 && now - lastProgressWrite < 250) return;
@@ -256,10 +295,8 @@ export class LocalEngine {
           if (abortSignal.aborted) {
             // A force-closed LiteRT host may already have been replaced. Its
             // proxy unload is host-global, so never let a stale generation tear
-            // down the replacement document. WebLLM unload targets only this
-            // backend instance and is always safe cleanup.
-            if (backendModelDef.backend !== 'litertlm'
-                || backend.unloadAfterSuperseded
+            // down the replacement document.
+            if (backend.unloadAfterSuperseded
                 || this._activeInitGeneration === initGeneration) {
               try { await backend.unload(); } catch { /* ignore */ }
             }
@@ -272,6 +309,7 @@ export class LocalEngine {
           this._modelConfig = modelDef;
 
           await this.updateStatus(modelId, { state: 'ready' });
+          if (retryingTerminalError) this._terminalErrorModels.delete(modelId);
 
           // Cancellation can arrive while the serialized storage write above
           // is pending. Do not let that stale operation restart timers or
@@ -282,8 +320,7 @@ export class LocalEngine {
               this.loadedModel = null;
               this._modelConfig = null;
             }
-            if (backendModelDef.backend !== 'litertlm'
-                || backend.unloadAfterSuperseded
+            if (backend.unloadAfterSuperseded
                 || this._activeInitGeneration === initGeneration) {
               try { await backend.unload(); } catch { /* ignore */ }
             }
@@ -300,6 +337,11 @@ export class LocalEngine {
           const errorMsg = (error as Error).message;
 
           if (abortSignal.aborted || errorMsg === 'aborted') {
+            this._completeInit(null, initGeneration);
+            return null;
+          }
+
+          if (errorMsg === MODEL_MAINTENANCE_ERROR) {
             this._completeInit(null, initGeneration);
             return null;
           }
@@ -326,17 +368,35 @@ export class LocalEngine {
 
           let errorMessage = errorMsg;
           if (isGPUDeviceLostError(errorMsg)) {
-            errorMessage = 'GPU memory exhausted. Try a smaller model or close other GPU-intensive tabs.';
+            errorMessage = 'GPU memory exhausted. Close other GPU-intensive tabs and retry.';
           } else if (isNetworkError(errorMsg)) {
             errorMessage = 'Download failed after multiple retries. Check your internet connection.';
           }
 
+          this._terminalErrorModels.add(modelId);
           await this.updateStatus(modelId, { state: 'error', error: errorMessage });
+          if (this.engine !== backend) {
+            try { await backend.unload(); } catch { /* best effort */ }
+          }
           await this.reset();
           return null;
         }
       }
     } finally {
+      // A storage/status failure can escape from inside either the success or
+      // recovery path. Always release logical init state, and dispose any
+      // backend that was never successfully published, before allowing Retry.
+      if (this._activeInitGeneration === initGeneration) {
+        if (attemptedBackend && this.engine === attemptedBackend) {
+          this.engine = null;
+          this.loadedModel = null;
+          this._modelConfig = null;
+        }
+        if (attemptedBackend) {
+          try { await attemptedBackend.unload(); } catch { /* best effort */ }
+        }
+        this._completeInit(null, initGeneration);
+      }
       this._settleInitOperation(initGeneration);
     }
   }
@@ -352,10 +412,9 @@ export class LocalEngine {
 
     // LiteRT owns an offscreen init request that can still emit progress after
     // abort. Give it a bounded window to settle before the terminal status is
-    // written. WebLLM's callback checks the same signal synchronously and its
-    // engine factory is not abortable, so waiting there would only add delay.
-    const modelDef = PREDEFINED_MODELS.local.find(model => model.name === modelId);
-    if (inFlight && modelDef?.backend === 'litertlm') {
+    // written.
+    resolveModel(modelId);
+    if (inFlight) {
       let settled = false;
       let settleTimeout: ReturnType<typeof setTimeout> | null = null;
       try {
@@ -392,20 +451,24 @@ export class LocalEngine {
   // to whatever actually remains in cache.
   async deleteModelCache(modelId: string): Promise<{ success: boolean; error?: string }> {
     if (!modelId) return { success: false, error: 'No model ID provided' };
+    let modelDef: LocalModelDef;
+    try {
+      modelDef = resolveModel(modelId);
+    } catch (error) {
+      return { success: false, error: (error as Error).message };
+    }
 
     if (this.isInitializingModel(modelId)) {
       await this.cancelDownload(modelId);
-      // WebLLM's engine factory cannot be externally interrupted. Wait for
-      // the physical worker before deleting, otherwise its late cache writes
-      // can resurrect a model immediately after a successful deletion.
+      // Wait for the physical worker before deleting, otherwise its late cache
+      // writes can resurrect a model immediately after a successful deletion.
       await this._initSettledPromise;
     } else if (this.isModelLoaded(modelId)) {
       await this.reset();
     }
 
     try {
-      const modelDef = PREDEFINED_MODELS.local.find(m => m.name === modelId) ?? ({ name: modelId } as LocalModelDef);
-      await (modelDef.backend === 'litertlm' ? deleteLitertlmCache(modelDef) : deleteWebllmCache(modelDef));
+      await deleteLitertlmCache(modelDef);
       await this.updateStatus(modelId, { state: 'not_downloaded' });
       return { success: true };
     } catch (e) {
@@ -425,6 +488,7 @@ export class LocalEngine {
     this.engine = null;
     this.loadedModel = null;
     this._modelConfig = null;
+    this._maintenance = false;
   }
 
   async reset(): Promise<void> {
@@ -447,10 +511,10 @@ export class LocalEngine {
     this._interruptSettledPromise = null;
     this._completeInit(null);
     // reset() is the logical teardown boundary. Do not resolve the separate
-    // physical-init barrier here: WebLLM and direct LiteRT engine factories
-    // cannot always be interrupted, and a replacement must not allocate a
-    // second GPU engine until the old factory actually returns. A Chrome
-    // offscreen force-close explicitly settles that barrier in cancelDownload.
+    // physical-init barrier here: LiteRT Engine.create cannot always be
+    // interrupted, and a replacement must not allocate a second GPU engine
+    // until the old factory actually returns. Chrome can force-close the
+    // offscreen host in cancelDownload when the bounded wait expires.
   }
 
   // ---- Inference ----
@@ -461,46 +525,126 @@ export class LocalEngine {
   async generate(
     messages: ChatMessage[],
     maxTokens: number,
-    { priority = 0, temperature, onStart }: { priority?: number; temperature?: number; onStart?: () => void } = {}
+    { priority = 0, onStart }: { priority?: number; onStart?: () => void } = {}
   ): Promise<string> {
-    const params: Record<string, unknown> = {};
-    if (temperature !== undefined) params.temperature = temperature;
-
-    return inferenceQueue.enqueue(async () => {
-      // Wait for any previous interrupt() to settle
-      if (this._interruptSettledPromise) {
-        await this._interruptSettledPromise;
-        this._interruptSettledPromise = null;
-      }
-
-      this._preempted = false;
+    return this.runInferenceOperation(async lease => {
       if (onStart) onStart();
-      try {
-        const raw = await this._callWithTimeout(messages, maxTokens, params);
-
-        if (this._preempted) throw new Error('Inference preempted');
-
-        this._resetIdleTimeout();
-        return raw;
-      } catch (error) {
-        if ((error as Error).message === 'Inference preempted') throw error;
-        if (this._preempted) {
-          throw new Error('Inference preempted', { cause: error });
-        }
-
-        if (isGPUDeviceLostError((error as Error).message)) {
-          console.error('[LocalEngine] GPU device lost during inference, resetting engine...');
-          const modelId = this.loadedModel;
-          await this.reset();
-          await this.updateStatus(modelId!, {
-            state: 'error',
-            error: 'GPU memory exhausted during inference. Try a smaller model or close other tabs.'
-          });
-        }
-
-        throw error;
-      }
+      return lease.generate(messages, maxTokens);
     }, { priority });
+  }
+
+  // Serialize every interaction with one physical LiteRT backend. Keeping
+  // prompt preparation and decode under the same queue lease prevents model
+  // deletion/idle unload from disposing the backend between countTokens,
+  // truncateText, and generate.
+  async runInferenceOperation<T>(
+    operation: (lease: InferenceBackendLease) => Promise<T>,
+    { priority = 0 }: { priority?: number } = {},
+  ): Promise<T> {
+    const maintenanceGeneration = this._maintenanceGeneration;
+    this._assertMaintenanceGeneration(maintenanceGeneration);
+    const backend = this.engine;
+    if (!backend) throw new Error('Engine not loaded');
+
+    this._activeModelOperations++;
+    this._activityGeneration++;
+    this._stopIdleTimeout();
+    try {
+      return await inferenceQueue.enqueue(async () => {
+        // Wait for any previous interrupt() to settle
+        if (this._interruptSettledPromise) {
+          await this._interruptSettledPromise;
+          this._interruptSettledPromise = null;
+        }
+
+        this._assertMaintenanceGeneration(maintenanceGeneration);
+        if (this.engine !== backend) throw new Error(MODEL_MAINTENANCE_ERROR);
+        this._preempted = false;
+
+        const assertLeaseActive = (): void => {
+          this._assertMaintenanceGeneration(maintenanceGeneration);
+          if (this.engine !== backend) throw new Error(MODEL_MAINTENANCE_ERROR);
+          if (this._preempted) throw new Error('Inference preempted');
+        };
+
+        const lease: InferenceBackendLease = {
+          countTokens: async (text: string) => {
+            assertLeaseActive();
+            const result = await backend.countTokens(text);
+            assertLeaseActive();
+            return result;
+          },
+          truncateText: async (text: string, maxTokens: number) => {
+            assertLeaseActive();
+            const result = await backend.truncateText(text, maxTokens);
+            assertLeaseActive();
+            return result;
+          },
+          generate: async (leaseMessages: ChatMessage[], leaseMaxTokens: number) => {
+            assertLeaseActive();
+            const result = await this._callWithTimeout(
+              backend,
+              leaseMessages,
+              leaseMaxTokens,
+            );
+            assertLeaseActive();
+            return result;
+          },
+        };
+
+        try {
+          return await operation(lease);
+        } catch (error) {
+          if ((error as Error).message === MODEL_MAINTENANCE_ERROR) throw error;
+          if ((error as Error).message === 'Inference preempted') throw error;
+          if (this._preempted) {
+            throw new Error('Inference preempted', { cause: error });
+          }
+
+          if (isGPUDeviceLostError((error as Error).message)) {
+            console.error('[LocalEngine] GPU device lost during inference, resetting engine...');
+            const modelId = this.loadedModel;
+            if (modelId) this._terminalErrorModels.add(modelId);
+            await this.reset();
+            await this.updateStatus(modelId!, {
+              state: 'error',
+              error: 'GPU memory exhausted during inference. Close other GPU-intensive tabs and retry.'
+            });
+          } else if ((error as Error).message.toLowerCase().includes('inference timeout')) {
+            // Do not await LiteRT interrupt/unload here: a stuck prefill is the
+            // reason the deadline fired, and both operations can wait on that
+            // same executor chain. Fence this backend synchronously and close
+            // Chrome's offscreen host out of band so the caller receives the
+            // timeout at the promised deadline and Retry starts fresh.
+            const modelId = this.loadedModel;
+            if (modelId) this._terminalErrorModels.add(modelId);
+            if (this.engine === backend) {
+              this.engine = null;
+              this.loadedModel = null;
+              this._modelConfig = null;
+              this._stopKeepAlive();
+              this._stopIdleTimeout();
+            }
+            void forceCloseLitertlmOffscreen().catch(closeError =>
+              console.error('[LocalEngine] Failed to close timed-out LiteRT host:', closeError)
+            );
+            if (modelId) {
+              void this.updateStatus(modelId, {
+                state: 'error',
+                error: 'Local inference timed out. Retry from the Bouncer popup.',
+              });
+            }
+          }
+
+          throw error;
+        }
+      }, { priority });
+    } finally {
+      this._activeModelOperations--;
+      if (this._activeModelOperations === 0 && this.engine && !this._maintenance) {
+        this._resetIdleTimeout();
+      }
+    }
   }
 
   preempt(): void {
@@ -516,18 +660,11 @@ export class LocalEngine {
   // ---- Token counting ----
 
   async countTokens(text: string): Promise<number> {
-    if (!this.engine) throw new Error('Engine not loaded');
-    return await this.engine.countTokens(text);
+    return this.runInferenceOperation(lease => lease.countTokens(text));
   }
 
   async truncateText(text: string, maxTokens: number): Promise<string> {
-    if (!this.engine) throw new Error('Engine not loaded');
-    return await this.engine.truncateText(text, maxTokens);
-  }
-
-  async getImageEmbedSize(): Promise<number> {
-    if (!this.engine) throw new Error('Engine not loaded');
-    return await this.engine.getImageEmbedSize();
+    return this.runInferenceOperation(lease => lease.truncateText(text, maxTokens));
   }
 
   // ---- Queue operations ----
@@ -543,57 +680,66 @@ export class LocalEngine {
       const statuses: Record<string, LocalModelStatus> = { ...(data.localModelStatuses ?? {}) };
       statuses[modelId] = status;
       await setStorage({ localModelStatuses: statuses });
+
     });
     this._statusWriteChain = write.catch(() => undefined);
     return write;
   }
 
+  async markTerminalError(modelId: string, error: string): Promise<void> {
+    this._terminalErrorModels.add(modelId);
+    await this.updateStatus(modelId, { state: 'error', error });
+  }
+
   async checkCached(modelId: string): Promise<boolean> {
-    const modelDef = PREDEFINED_MODELS.local.find(m => m.name === modelId) ?? ({ name: modelId } as LocalModelDef);
-    return backendIsCached(modelDef);
+    return backendIsCached(resolveModel(modelId));
   }
 
   async syncStatus(modelId: string): Promise<LocalModelStatus | undefined> {
-    const data = await getStorage(['localModelStatuses']);
-    const statuses: Record<string, LocalModelStatus> = { ...(data.localModelStatuses ?? {}) };
-    const storedStatus = statuses[modelId];
+    const sync = this._statusWriteChain.catch(() => undefined).then(async () => {
+      const data = await getStorage(['localModelStatuses']);
+      const statuses: Record<string, LocalModelStatus> = { ...(data.localModelStatuses ?? {}) };
+      const storedStatus = statuses[modelId];
 
-    if (!storedStatus) return storedStatus;
+      if (!storedStatus) return storedStatus;
 
-    let needsUpdate = false;
+      let needsUpdate = false;
 
-    if (storedStatus.state === 'ready' && !this.isModelLoaded(modelId)) {
-      const cached = await this.checkCached(modelId);
-      if (!cached) {
-        statuses[modelId] = { state: 'not_downloaded' };
-        needsUpdate = true;
-      } else {
-        statuses[modelId] = { state: 'cached' };
+      if (storedStatus.state === 'ready' && !this.isModelLoaded(modelId)) {
+        const cached = await this.checkCached(modelId);
+        if (!cached) {
+          statuses[modelId] = { state: 'not_downloaded' };
+          needsUpdate = true;
+        } else {
+          statuses[modelId] = { state: 'cached' };
+          needsUpdate = true;
+        }
+      }
+
+      if ((storedStatus.state === 'downloading' || storedStatus.state === 'initializing') &&
+          !this.isInitializing()) {
+        const cached = await this.checkCached(modelId);
+        statuses[modelId] = { state: cached ? 'cached' : 'not_downloaded' };
         needsUpdate = true;
       }
-    }
 
-    if ((storedStatus.state === 'downloading' || storedStatus.state === 'initializing') &&
-        !this.isInitializing()) {
-      const cached = await this.checkCached(modelId);
-      statuses[modelId] = { state: cached ? 'cached' : 'not_downloaded' };
-      needsUpdate = true;
-    }
+      // Error is a durable explicit-Retry fence, not merely a UI snapshot. An
+      // MV3 service worker can restart after a timeout/GPU failure and lose all
+      // in-memory state while the model remains cached. Rehydrate the fence
+      // from storage so the next post cannot silently reload the same model.
+      const reconciledStatus = statuses[modelId];
+      if (reconciledStatus.state === 'error') {
+        this._terminalErrorModels.add(modelId);
+      }
 
-    // After a background restart, a stale 'error' status no longer reflects
-    // reality — the engine isn't running.  Re-check the cache so the UI shows
-    // an actionable state instead of a stale error.
-    if (storedStatus.state === 'error' && !this.isInitializing()) {
-      const cached = await this.checkCached(modelId);
-      statuses[modelId] = { state: cached ? 'cached' : 'not_downloaded' };
-      needsUpdate = true;
-    }
+      if (needsUpdate) {
+        await setStorage({ localModelStatuses: statuses });
+      }
 
-    if (needsUpdate) {
-      await setStorage({ localModelStatuses: statuses });
-    }
-
-    return statuses[modelId];
+      return reconciledStatus;
+    });
+    this._statusWriteChain = sync.then(() => undefined, () => undefined);
+    return sync;
   }
 
   async syncAllStatuses(): Promise<void> {
@@ -602,36 +748,13 @@ export class LocalEngine {
     }
   }
 
-  async autoInitSelected(): Promise<void> {
-    try {
-      const data = await getStorage(['selectedModel', 'localModelStatuses']);
-      const selectedModel = data.selectedModel;
+  // ---- Private: initialization tracking ----
 
-      if (!selectedModel || !selectedModel.startsWith('local:')) return;
-
-      const modelId = selectedModel.split(':')[1];
-
-      if (this.isModelLoaded(modelId)) return;
-
-      // Don't auto-init a model that previously errored — the user must
-      // manually retry from the popup.  Without this guard, a partially-
-      // cached model that fails to download loops: error → restart →
-      // hasModelInCache(true) → auto-init → error → …
-      const statuses: Record<string, LocalModelStatus> = data.localModelStatuses ?? {};
-      if (statuses[modelId]?.state === 'error') return;
-
-      const cached = await this.checkCached(modelId);
-      if (!cached) return;
-
-      this.initialize(modelId).catch(err => {
-        console.error('[LocalEngine] Auto-init failed:', err);
-      });
-    } catch (e) {
-      console.error('[LocalEngine] Error in autoInitSelected:', e);
+  _assertMaintenanceGeneration(expected: number): void {
+    if (this._maintenance || this._maintenanceGeneration !== expected) {
+      throw new Error(MODEL_MAINTENANCE_ERROR);
     }
   }
-
-  // ---- Private: initialization tracking ----
 
   _startInit(modelId: string): number {
     const generation = ++this._initGeneration;
@@ -713,7 +836,13 @@ export class LocalEngine {
     if (this._idleTimeoutId !== null) {
       clearTimeout(this._idleTimeoutId);
     }
-    this._idleTimeoutId = setTimeout(() => this._onIdleTimeout(), IDLE_TIMEOUT_MS);
+    // Give every armed deadline its own lease. This also distinguishes a new
+    // timer from an older callback that was already queued before clearTimeout.
+    const activityGeneration = ++this._activityGeneration;
+    this._idleTimeoutId = setTimeout(
+      () => { void this._onIdleTimeout(activityGeneration); },
+      IDLE_TIMEOUT_MS,
+    );
   }
 
   _stopIdleTimeout(): void {
@@ -723,46 +852,71 @@ export class LocalEngine {
     }
   }
 
-  async _onIdleTimeout(): Promise<void> {
+  async _onIdleTimeout(activityGeneration: number): Promise<void> {
+    // A callback that was already queued before clearTimeout() can run after a
+    // newer deadline is armed. Do not let that stale callback erase the newer
+    // timer handle.
+    if (activityGeneration !== this._activityGeneration) return;
     this._idleTimeoutId = null;
-    if (!this.engine) return;
-    const modelId = this.loadedModel;
+    if (this._activeModelOperations > 0
+        || !this.engine
+        || this._maintenance) return;
+
     try {
-      await this.engine.unload();
+      await this.runMaintenance(async () => {
+        // runMaintenance blocks new leases before it owns the queue. The active
+        // operation check protects against a stale callback defensively.
+        if (this._activeModelOperations > 0 || !this.engine) return;
+        const modelId = this.loadedModel;
+        try {
+          await this.engine.unload();
+        } catch (e) {
+          console.error('[LocalEngine] Error during idle unload:', e);
+        }
+        this.engine = null;
+        this.loadedModel = null;
+        this._modelConfig = null;
+        this._stopKeepAlive();
+        if (modelId) {
+          await this.updateStatus(modelId, { state: 'cached' });
+        }
+      });
     } catch (e) {
-      console.error('[LocalEngine] Error during idle unload:', e);
-    }
-    this.engine = null;
-    this.loadedModel = null;
-    this._modelConfig = null;
-    this._stopKeepAlive();
-    if (modelId) {
-      await this.updateStatus(modelId, { state: 'cached' });
+      // A timer callback may already be queued when another maintenance starts.
+      // That maintenance owns the lifecycle and will re-arm the idle deadline
+      // in its finally block if it leaves the engine loaded.
+      if ((e as Error).message !== MODEL_MAINTENANCE_ERROR) {
+        console.error('[LocalEngine] Error during idle maintenance:', e);
+      }
     }
   }
 
   // ---- Private: inference timeout ----
 
-  _callWithTimeout(messages: ChatMessage[], maxTokens: number, params: Record<string, unknown>, timeoutMs?: number): Promise<string> {
-    // Cold LiteRT-LM inference needs a longer ceiling than WebLLM's steady state.
-    const ceiling = timeoutMs ?? (this._modelConfig?.backend === 'litertlm' ? LITERTLM_INFERENCE_TIMEOUT_MS : INFERENCE_TIMEOUT_MS);
+  _callWithTimeout(
+    backend: LocalBackend,
+    messages: ChatMessage[],
+    maxTokens: number,
+    timeoutMs?: number,
+  ): Promise<string> {
+    const ceiling = timeoutMs ?? LITERTLM_INFERENCE_TIMEOUT_MS;
     return new Promise((resolve, reject) => {
       let completed = false;
 
-      const onTimeout = async (): Promise<void> => {
+      const onTimeout = (): void => {
         if (completed) return;
         completed = true;
         console.warn(`[LocalEngine] Inference timeout after ${ceiling}ms, interrupting...`);
-        try {
-          await this.engine!.interrupt();
-        } catch (e) {
-          console.error('[LocalEngine] Failed to interrupt generation:', e);
-        }
         reject(new Error('Inference timeout - model took too long to respond'));
+        // Cleanup is best effort and deliberately detached. LiteRT's interrupt
+        // waits for its executor chain, which is allowed to be the stuck work.
+        void backend.interrupt().catch(e => {
+          console.error('[LocalEngine] Failed to interrupt generation:', e);
+        });
       };
       const timeoutId = setTimeout(() => { void onTimeout(); }, ceiling);
 
-      this.engine!.generate(messages, maxTokens, params)
+      backend.generate(messages, maxTokens)
         .then(result => {
           if (completed) return;
           completed = true;
@@ -785,8 +939,8 @@ export const localEngine = new LocalEngine();
 
 // ==================== Post inference orchestration ====================
 
-// Orchestrates local inference for a single post: builds prompt, calls generate,
-// handles image fallback, parses response. This is the post-filtering-specific
+// Orchestrates local inference for a single post: builds the prompt, calls
+// generate, and parses the response. This is the post-filtering-specific
 // wrapper around localEngine.generate().
 export async function callLocalInference(
   postData: EvaluationPostData,
@@ -800,102 +954,14 @@ export async function callLocalInference(
   } = {}
 ): Promise<{ shouldHide: boolean; reasoning: string; category?: string | null; rawResponse?: string | null; inferenceTime?: number }> {
   await localEngine.ensureLoaded(modelId);
-
-  // Per-model prompt style: LiteRT-LM/Gemma uses the terse table_yesno verdict
-  // row; WebLLM/Qwen keeps the reasoning-before-label prose (below, unchanged).
-  if (modelConfig?.backend === 'litertlm') {
-    return callTableYesnoInference(postData, bannedCategories, modelConfig, { priority, onInferenceStart, promptMode });
-  }
-
-  const post = postData;
-  const contextWindowSize = (modelConfig?.webllmConfig?.overrides?.context_window_size as number) || 1024;
-  const maxGenerationTokens = 40;
-  const supportsImages = modelConfig?.supportsImages === true;
-  let useImages = supportsImages && post.imageUrls && post.imageUrls.length > 0;
-
-  // Calculate token budget and truncate post text to fit within context window
-  const systemPrompt = localSystemPrompt(promptMode);
-  const overheadPrompt = buildLocalUserMessage('', bannedCategories, useImages);
-  const [systemTokens, overheadTokens] = await Promise.all([
-    localEngine.countTokens(systemPrompt),
-    localEngine.countTokens(overheadPrompt),
-  ]);
-
-  let imageTokens = 0;
-  if (useImages) {
-    const perImageTokens = await localEngine.getImageEmbedSize();
-    imageTokens = perImageTokens * post.imageUrls.length;
-  }
-
-  let postTextBudget = contextWindowSize - systemTokens - overheadTokens - maxGenerationTokens - imageTokens;
-
-  // If images leave no room for text, drop images and recalculate
-  if (useImages && postTextBudget < 1) {
-    console.log('[LocalEngine] Images consume too much context, falling back to text-only');
-    useImages = false;
-    const textOnlyOverhead = await localEngine.countTokens(buildLocalUserMessage('', bannedCategories, false));
-    postTextBudget = contextWindowSize - systemTokens - textOnlyOverhead - maxGenerationTokens;
-  }
-
-  // Truncate post text to fit budget (tokenize, slice, decode — only if needed)
-  const postText = postTextBudget > 0
-    ? await localEngine.truncateText(post.text, postTextBudget)
-    : '';
-  const userPrompt = buildLocalUserMessage(postText, bannedCategories, useImages);
-
-  let userContent: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
-  if (useImages) {
-    userContent = [{ type: "text", text: userPrompt }];
-    for (const url of post.imageUrls) {
-      (userContent as Array<{ type: string; text?: string; image_url?: { url: string } }>).push({ type: "image_url", image_url: { url } });
-    }
-  } else {
-    userContent = userPrompt;
-  }
-
-  const messages: ChatMessage[] = [
-    { role: "system", content: systemPrompt },
-    { role: "user", content: userContent }
-  ];
-
-  let inferenceStart: number;
-  const onStart = (): void => {
-    if (onInferenceStart) onInferenceStart();
-    inferenceStart = Date.now();
-  };
-
-  let rawResponse: string;
-  try {
-    rawResponse = await localEngine.generate(messages, 40, { priority, onStart });
-  } catch (imgError) {
-    if ((imgError as Error).message === 'Inference preempted') throw imgError;
-    if (useImages) {
-      console.warn('[LocalEngine] Image processing failed, retrying with text only:', (imgError as Error).message);
-      const textOnlyContent = buildLocalUserMessage(postText, bannedCategories, false);
-      const textMessages: ChatMessage[] = [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: textOnlyContent }
-      ];
-      rawResponse = await localEngine.generate(textMessages, 40, { priority, onStart });
-    } else {
-      throw imgError;
-    }
-  }
-
-  const inferenceTime = ((Date.now() - inferenceStart!) / 1000).toFixed(2);
-
-  const { shouldHide, reasoning } = parseLocalModelResponse(rawResponse);
-  if (!rawResponse) {
-    console.warn('[LocalEngine] Empty response from model');
-  }
-
-  const result: { shouldHide: boolean; reasoning: string; category?: string | null; rawResponse?: string | null; inferenceTime?: number } =
-    formatLocalInferenceResult(reasoning, shouldHide);
-  result.category = null;
-  result.rawResponse = rawResponse;
-  result.inferenceTime = parseFloat(inferenceTime);
-
-  return result;
+  const resolved = modelConfig ?? resolveModel(modelId);
+  if (resolved.name !== modelId) throw new Error(`Model config mismatch: ${modelId}`);
+  return callTableYesnoInference(
+    postData,
+    bannedCategories,
+    resolved,
+    { priority, onInferenceStart, promptMode },
+  );
 }
 
 // table_yesno path (LiteRT-LM/Gemma): one pipe-delimited yes/no row per
@@ -913,59 +979,11 @@ async function callTableYesnoInference(
   } = {}
 ): Promise<{ shouldHide: boolean; reasoning: string; category?: string | null; rawResponse?: string | null; inferenceTime?: number }> {
   const contextWindowSize = modelConfig.litertlmConfig?.maxTokens ?? 1024;
-  // Leave room for Gemma's occasional markdown/newline drift; the runtime now
+  const buildRequest = (postText: string) =>
+    buildTableYesnoRequest(postText, bannedCategories, promptMode);
+  // Leave room for Gemma's occasional markdown/newline drift; the runtime
   // enforces this budget through sessionConfig.maxOutputTokens.
-  const maxGenerationTokens = Math.max(64, 6 + 4 * bannedCategories.length);
-  const supportsImages = modelConfig.supportsImages === true;
-  let useImages = !!(supportsImages && postData.imageUrls && postData.imageUrls.length > 0);
-  const isSingleCategory = bannedCategories.length === 1;
-  const systemPrompt = isSingleCategory
-    ? tableYesnoSingleSystemPrompt(promptMode)
-    : tableYesnoSystemPrompt(promptMode);
-
-  const buildUserContent = (postText: string, includeImages: boolean): ChatMessage['content'] => {
-    const userText = isSingleCategory
-      ? buildSingleYesnoUserMessage(postText, bannedCategories[0], includeImages, promptMode)
-      : buildTableYesnoUserMessage(postText, bannedCategories, includeImages, promptMode);
-    if (!includeImages) return userText;
-    return [
-      { type: 'text', text: userText },
-      ...postData.imageUrls.map(url => ({ type: 'image_url' as const, image_url: { url } })),
-    ];
-  };
-  const buildMessages = (postText: string, includeImages: boolean): ChatMessage[] => [
-    { role: 'system', content: systemPrompt },
-    { role: 'user', content: buildUserContent(postText, includeImages) },
-  ];
-
-  // Estimate overhead from system + user-with-empty-post text. Image entries
-  // don't surface in the joined string; their cost is added separately.
-  const overheadText = (includeImages: boolean): string => buildMessages('', includeImages).map(m =>
-    typeof m.content === 'string'
-      ? m.content
-      : m.content.filter(c => c.type === 'text').map(c => c.text ?? '').join('')
-  ).join('\n');
-  const overheadTokens = await localEngine.countTokens(overheadText(useImages));
-
-  let imageTokens = 0;
-  if (useImages) {
-    const perImageTokens = await localEngine.getImageEmbedSize();
-    imageTokens = perImageTokens * postData.imageUrls.length;
-  }
-
-  let postTextBudget = contextWindowSize - overheadTokens - maxGenerationTokens - imageTokens;
-
-  // If images leave no room for text, drop them and recompute.
-  if (useImages && postTextBudget < 1) {
-    console.log('[LocalEngine] Images consume too much context, falling back to text-only');
-    useImages = false;
-    const textOnlyOverhead = await localEngine.countTokens(overheadText(false));
-    postTextBudget = contextWindowSize - textOnlyOverhead - maxGenerationTokens;
-  }
-
-  const postText = postTextBudget > 0
-    ? await localEngine.truncateText(postData.text, postTextBudget)
-    : '';
+  const maxGenerationTokens = buildRequest('').maxOutputTokens;
 
   let inferenceStart: number;
   const onStart = (): void => {
@@ -973,18 +991,22 @@ async function callTableYesnoInference(
     inferenceStart = Date.now();
   };
 
-  let rawResponse: string;
-  try {
-    rawResponse = await localEngine.generate(buildMessages(postText, useImages), maxGenerationTokens, { priority, onStart });
-  } catch (imgError) {
-    if ((imgError as Error).message === 'Inference preempted') throw imgError;
-    if (useImages) {
-      console.warn('[LocalEngine] Image processing failed, retrying with text only:', (imgError as Error).message);
-      rawResponse = await localEngine.generate(buildMessages(postText, false), maxGenerationTokens, { priority, onStart });
-    } else {
-      throw imgError;
-    }
-  }
+  const rawResponse = await localEngine.runInferenceOperation(async lease => {
+    const overheadText = buildRequest('').messages
+      .map(message => message.content)
+      .join('\n');
+    const overheadTokens = await lease.countTokens(overheadText);
+    const postTextBudget = contextWindowSize - overheadTokens - maxGenerationTokens;
+    const postText = postTextBudget > 0
+      ? await lease.truncateText(postData.text, postTextBudget)
+      : '';
+
+    onStart();
+    return lease.generate(
+      buildRequest(postText).messages,
+      maxGenerationTokens,
+    );
+  }, { priority });
 
   const inferenceTime = ((Date.now() - inferenceStart!) / 1000).toFixed(2);
 

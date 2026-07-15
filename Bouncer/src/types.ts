@@ -36,7 +36,6 @@ export interface EvaluationResult {
 /** The post data sent to a model for evaluation. */
 export interface EvaluationPostData {
   text: string;
-  imageUrls: string[];
 }
 
 // ==================== Pipeline Response ====================
@@ -46,7 +45,7 @@ export type PipelineResponse = EvaluationResult | PipelineError | PipelineRetry 
 
 /** Evaluation failed — content should track for retry via error broadcasts. */
 export interface PipelineError {
-  error: 'auth' | 'rate_limit' | 'not_found' | 'server_error';
+  error: 'local_model';
   reasoning: string;
 }
 
@@ -54,6 +53,7 @@ export interface PipelineError {
 export interface PipelineRetry {
   retry: true;
   reasoning: string;
+  retryAfterMs?: number;
 }
 
 // ==================== Post Content ====================
@@ -97,64 +97,31 @@ export interface FilteredPost {
 
 // ==================== Models & Config ====================
 
-/** A model in the catalog — covers predefined and custom models. */
-export interface ModelDef {
+/** The sole class of model supported by this local-only fork. */
+export interface LocalModelDef {
   name: string;
   display: string;
-  isFree?: boolean;
-  supportsImages?: boolean;
+  isLocal: true;
+  backend: 'litertlm';
   sizeGB?: number;
-  apiKwargs?: Record<string, unknown>;
-  api?: string;
-}
-
-/** A local model with backend-specific configuration. */
-export interface LocalModelDef extends ModelDef {
-  isLocal?: boolean;
-  backend?: 'webllm' | 'litertlm';
-  /** Shown in the picker as a "Recommended" badge; ordered first. */
-  recommended?: boolean;
-  extraBody?: Record<string, unknown>;
-  inferenceParams?: Record<string, unknown>;
-  /** WebLLM/MLC config — the model record + chat overrides. */
-  webllmConfig?: {
-    model?: string;
-    model_lib?: string;
-    model_type?: number;
-    overrides?: Record<string, unknown>;
-  };
   /** LiteRT-LM config — the `.litertlm` asset + sampler/budget knobs. */
-  litertlmConfig?: {
+  litertlmConfig: {
     // Absolute URL to the `.litertlm` model asset.
     modelUrl: string;
     // Combined prompt + output token budget (mainExecutorSettings.maxNumTokens).
     maxTokens?: number;
-    // Sampler top-k forwarded to SessionConfig; inferenceParams override per-call.
-    topK?: number;
   };
 }
 
 /** Typed map for PREDEFINED_MODELS — local models get extended fields. */
 export interface PredefinedModelsMap {
   local: LocalModelDef[];
-  [provider: string]: (ModelDef | LocalModelDef)[];
-}
-
-/** Runtime config for making an API call. Built by processBatch from Settings + ModelDef. */
-export interface APIConfig {
-  apiName: string;
-  modelName: string;
-  apiBase?: string;
-  apiKwargs?: Record<string, unknown>;
-  modelConfig?: ModelDef;
 }
 
 /** Fields shared between runtime Settings and the chrome.storage.local schema. */
 interface SettingsBase {
   enabled: boolean;
   selectedModel: string;
-  customModels: ModelDef[];
-  predefinedModelKwargs: Record<string, Record<string, unknown>>;
   // When false, replies on permalink (/status/<id>) pages are not
   // submitted for evaluation. The main timeline is unaffected either way.
   // Defaults to true to preserve historical behavior.
@@ -172,15 +139,6 @@ export interface LocalModelStatus {
   text?: string;
   error?: string;
   reason?: string;
-}
-
-/** A local model the user chose but which has not replaced the active model yet.
- *  The active `selectedModel` remains authoritative for filtering until the
- *  cache-only download identified by `operationId` completes. */
-export interface PendingLocalModelSelection {
-  modelId: string;
-  modelKey: string;
-  operationId: string;
 }
 
 // ==================== Platform Adapter ====================
@@ -224,10 +182,8 @@ export interface PlatformAdapter {
 // ==================== Pipeline Internals ====================
 
 export interface ErrorState {
-  type: 'auth' | 'rate_limit' | 'not_found' | 'server_error' | null;
-  subType: string | null;
+  type: 'local_model' | null;
   count: number;
-  apiDisplayName: string | null;
 }
 
 export interface PendingEvaluation {
@@ -235,10 +191,6 @@ export interface PendingEvaluation {
    *  originating article even when its postUrl is null (ads, etc.). */
   evaluationId: string;
   post: string;
-  /** Raw post text without the "Author: " prefix. Used by AI text detection
-   *  so the model only sees the post content, not author metadata. */
-  rawText: string;
-  imageUrls: string[];
   resolve: (result: PipelineResponse) => void;
   cacheKey: string;
   tabId: number | undefined;
@@ -250,37 +202,33 @@ export interface PendingEvaluation {
 
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+  content: string;
 }
 
 // ==================== Chrome Extension Messages ====================
 
 export type ContentToBackgroundMessage =
   | { type: 'pageLoad' }
-  | { type: 'evaluatePost'; evaluationId: string; post: string; rawText: string; imageUrls: string[]; postUrl: string | null; siteId: SiteId }
-  | { type: 'suggestAnnoyingReasons'; post: string; imageUrls: string[]; siteId?: SiteId }
+  | { type: 'evaluatePost'; evaluationId: string; post: string; postUrl: string | null; siteId: SiteId }
+  | { type: 'suggestAnnoyingReasons'; post: string; siteId?: SiteId }
   | { type: 'clearCache' }
-  | { type: 'clearSinglePost'; post: string; imageUrls: string[] }
+  | { type: 'clearSinglePost'; post: string }
   | { type: 'getStats' }
-  | { type: 'getReasoning'; post: string; imageUrls: string[] }
+  | { type: 'getReasoning'; post: string }
   | { type: 'getErrorStatus' }
   | { type: 'getAllLocalModelStatuses' }
-  | { type: 'selectLocalModel'; modelId: string }
-  | { type: 'downloadPendingLocalModel'; modelId: string }
-  | { type: 'initializeLocalModel'; modelId: string }
-  | { type: 'cancelLocalModelDownload'; modelId: string }
-  | { type: 'deleteLocalModel'; modelId: string }
+  | { type: 'initializeLocalModel' }
+  | { type: 'cancelLocalModelDownload' }
+  | { type: 'deleteLocalModel' }
   | { type: 'preemptInference' }
-  | { type: 'overrideCacheEntry'; post: string; imageUrls: string[]; shouldHide: boolean; reasoning?: string }
+  | { type: 'overrideCacheEntry'; post: string; shouldHide: boolean; reasoning?: string }
   // Dev-only latency benchmark (gated by __DEV__ in the background dispatch).
-  | { type: 'benchmark'; op: 'load' | 'infer' | 'unload'; modelId?: string; post?: { text: string; imageUrls: string[] }; categories?: string[]; promptMode?: 'baseline' | 'intent' };
+  | { type: 'benchmark'; op: 'load' | 'infer' | 'unload'; modelId?: string; post?: { text: string }; categories?: string[]; promptMode?: 'baseline' | 'intent' };
 
 export type BackgroundToContentMessage =
   | { type: 'ping' }
-  | { type: 'latencyUpdate'; isHighLatency: boolean; medianLatency: number; selectedModel: string; hasAlternativeApis: boolean }
-  | { type: 'errorStatusUpdate'; errorType: string | null; subType: string | null; count: number; apiDisplayName: string | null; selectedModel: string; hasAlternativeApis: boolean }
+  | { type: 'errorStatusUpdate'; errorType: 'local_model' | null; count: number }
   | { type: 'reEvaluateErrors' }
-  | { type: 'queueStatusUpdate'; pendingCount: number; isLocalModel: boolean; modelInitializing: boolean }
   | { type: 'getPositions'; postUrls: string[]; evaluationIds?: string[] }
   | { type: 'processingPost'; postUrl: string }
   | { type: 'annoyingProgress'; verified: number; total: number }
@@ -313,7 +261,7 @@ export interface PostOperations {
 
 export interface PostState {
   processedPosts: WeakSet<HTMLElement>;
-  postReasonings: WeakMap<HTMLElement, { shouldHide: boolean; reasoning: string; rawResponse?: string | null; isApiError?: boolean }>;
+  postReasonings: WeakMap<HTMLElement, { shouldHide: boolean; reasoning: string; rawResponse?: string | null; isModelError?: boolean }>;
   pendingPosts: Set<HTMLElement>;
 }
 
@@ -340,19 +288,9 @@ export type DescriptionKey = `descriptions_${SiteId}`;
 
 /** Typed schema for chrome.storage.local keys. */
 export type StorageSchema = SettingsBase & {
-  localModelsEnabled: boolean;
   localModelStatuses: Record<string, LocalModelStatus>;
-  pendingLocalModelSelection: PendingLocalModelSelection | null;
   evaluationCache: Record<string, EvaluationResult>;
   stats: { filtered: number; evaluated: number; totalCost: number };
-  lastSeenVersion: string;
+  gemmaOnlySchemaVersion: number;
+  retiredModelCacheCleanupVersion: number;
 } & DescriptionKeys;
-
-// ==================== Chat Completion Response ====================
-
-/** Shape of an OpenAI-compatible chat completions response. */
-export interface DirectAPIResponse {
-  choices: Array<{
-    message: { content: string };
-  }>;
-}

@@ -6,7 +6,7 @@
 import { localEngine, callLocalInference } from './local-model';
 import { PREDEFINED_MODELS } from '../shared/models';
 import type {
-  BenchmarkOp, BenchmarkPost, BenchmarkPromptMode, BenchmarkUsage,
+  BenchmarkOp, BenchmarkPost, BenchmarkPromptMode,
   BenchmarkInferResult, BenchmarkLoadResult,
 } from '../shared/benchmark-types';
 
@@ -16,23 +16,6 @@ export interface BenchmarkRequest {
   post?: BenchmarkPost;
   categories?: string[];
   promptMode?: BenchmarkPromptMode;
-}
-
-// WebLLM/Qwen surfaces token + timing stats via reply.usage; LiteRT/Gemma
-// surfaces none, so getLastUsage() returns null and so does this.
-function mapUsage(): BenchmarkUsage | null {
-  const usage = localEngine.getLastUsage();
-  if (!usage) return null;
-  const extra = usage.extra;
-  return {
-    promptTokens: usage.prompt_tokens,
-    completionTokens: usage.completion_tokens,
-    timeToFirstTokenS: extra.time_to_first_token_s,
-    timePerOutputTokenS: extra.time_per_output_token_s,
-    prefillTokensPerS: extra.prefill_tokens_per_s,
-    decodeTokensPerS: extra.decode_tokens_per_s,
-    e2eLatencyS: extra.e2e_latency_s,
-  };
 }
 
 export async function handleBenchmark(req: BenchmarkRequest): Promise<unknown> {
@@ -61,10 +44,10 @@ export async function handleBenchmark(req: BenchmarkRequest): Promise<unknown> {
       }
       const cfg = PREDEFINED_MODELS.local.find(m => m.name === modelId) ?? null;
       const t0 = performance.now();
-      // Real per-classification path: builds the model-specific prompt
-      // (Qwen reasoning / Gemma table_yesno), truncates, times generate().
+      // Real per-classification path: builds the table_yesno prompt,
+      // truncates, and times generation.
       const result = await callLocalInference(
-        { text: req.post.text, imageUrls: req.post.imageUrls ?? [] },
+        { text: req.post.text },
         req.categories,
         cfg,
         modelId,
@@ -78,7 +61,8 @@ export async function handleBenchmark(req: BenchmarkRequest): Promise<unknown> {
         reasoning: result.reasoning,
         rawResponse: result.rawResponse ?? null,
         completionChars: (result.rawResponse ?? '').length,
-        usage: mapUsage(),
+        // LiteRT-LM does not expose token-level timing through its JS API.
+        usage: null,
       } satisfies BenchmarkInferResult;
     }
 

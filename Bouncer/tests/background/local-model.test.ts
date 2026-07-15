@@ -1,1568 +1,979 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from 'vitest';
 
-// Mock @mlc-ai/web-llm before importing local-model
-vi.mock('@mlc-ai/web-llm', () => ({
-  CreateMLCEngine: vi.fn(),
-  hasModelInCache: vi.fn(),
-  deleteModelAllInfoInCache: vi.fn(),
-  prebuiltAppConfig: {
-    model_list: [
-      {
-        model_id: 'Qwen3-4B-q4f16_1-MLC',
-        model: 'https://huggingface.co/mlc-ai/Qwen3-4B-q4f16_1-MLC',
-        model_lib: 'https://raw.githubusercontent.com/user/Qwen3-4B-q4f16_1-ctx4k_cs1k-webgpu.wasm',
-      },
-    ],
+const litertState = vi.hoisted(() => ({
+  createBackend: vi.fn(),
+  isCached: vi.fn(),
+  deleteCache: vi.fn(),
+  forceCloseOffscreen: vi.fn(),
+}));
+
+const modelsState = vi.hoisted(() => ({
+  local: [] as unknown[],
+}));
+
+const utilityState = vi.hoisted(() => ({
+  isGpuLost: vi.fn(),
+  isNetworkError: vi.fn(),
+}));
+
+vi.mock('../../src/background/backends/litertlm-backend.js', () => ({
+  LitertlmBackend: vi.fn(function LitertlmBackendMock() {
+    return litertState.createBackend();
+  }),
+  isLitertlmCached: litertState.isCached,
+  deleteLitertlmCache: litertState.deleteCache,
+  forceCloseLitertlmOffscreen: litertState.forceCloseOffscreen,
+}));
+
+vi.mock('../../src/shared/models.js', () => ({
+  get PREDEFINED_MODELS() {
+    return { local: modelsState.local };
   },
 }));
 
-// Mock the LiteRT-LM backend so importing local-model.ts here doesn't pull in
-// @litert-lm/core (a browser/wasm module) under the node test env. The
-// orchestrator tests all exercise WebLLM-backed models, so the real LiteRT
-// backend is never constructed.
-vi.mock('../../src/background/backends/litertlm-backend.js', () => ({
-  LitertlmBackend: vi.fn(),
-  isLitertlmCached: vi.fn(async () => false),
-  deleteLitertlmCache: vi.fn(async () => undefined),
-  forceCloseLitertlmOffscreen: vi.fn(async () => false),
-}));
-
-// We need to mock models.js so we can control PREDEFINED_MODELS per test.
-// Use a mutable holder so individual tests can override the values.
-const modelsState: { PREDEFINED_MODELS: { local: Record<string, unknown>[] } } = {
-  PREDEFINED_MODELS: { local: [] },
-};
-
-vi.mock('../../src/shared/models.js', () => ({
-  get PREDEFINED_MODELS() { return modelsState.PREDEFINED_MODELS; },
-}));
-
-// Mock shared modules needed by LocalEngine
 vi.mock('../../src/shared/utils.js', () => ({
-  isGPUDeviceLostError: vi.fn(() => false),
-  isNetworkError: vi.fn(() => false),
-  formatLocalInferenceResult: vi.fn(),
-}));
-vi.mock('../../src/shared/prompts.js', () => ({
-  LOCAL_SYSTEM_PROMPT: 'mock system prompt',
-  TABLE_YESNO_SYSTEM_PROMPT: 'mock table prompt',
-  TABLE_YESNO_SINGLE_SYSTEM_PROMPT: 'mock single prompt',
-  buildLocalUserMessage: vi.fn(),
-  buildSingleYesnoUserMessage: vi.fn(),
-  buildTableYesnoUserMessage: vi.fn(),
-  localSystemPrompt: vi.fn(() => 'mock system prompt'),
-  tableYesnoSingleSystemPrompt: vi.fn(() => 'mock single prompt'),
-  tableYesnoSystemPrompt: vi.fn(() => 'mock table prompt'),
+  isGPUDeviceLostError: utilityState.isGpuLost,
+  isNetworkError: utilityState.isNetworkError,
+  formatLocalInferenceResult: (reasoning: string, shouldHide: boolean) => ({
+    shouldHide,
+    reasoning: reasoning || 'No reasoning provided',
+  }),
 }));
 
-import { buildModelConfig, localEngine, parseLocalModelResponse, parseTableYesnoResponse } from '../../src/background/local-model.js';
-import { WebllmBackend } from '../../src/background/backends/webllm-backend.js';
+import {
+  callLocalInference,
+  LocalEngine,
+  localEngine,
+  MODEL_MAINTENANCE_ERROR,
+} from '../../src/background/local-model.js';
 import {
   LitertlmBackend,
+  deleteLitertlmCache,
   forceCloseLitertlmOffscreen,
+  isLitertlmCached,
 } from '../../src/background/backends/litertlm-backend.js';
-import { InferenceQueue, inferenceQueue } from '../../src/background/inference-queue.js';
-import { CreateMLCEngine, hasModelInCache, deleteModelAllInfoInCache } from '@mlc-ai/web-llm';
-import { isGPUDeviceLostError, isNetworkError } from '../../src/shared/utils.js';
-import type { Mock } from 'vitest';
-import type { LocalModelDef } from '../../src/types.js';
+import {
+  InferenceQueue,
+  inferenceQueue,
+} from '../../src/background/inference-queue.js';
 import type { LocalBackend } from '../../src/background/backends/types.js';
+import type { LocalModelDef, LocalModelStatus } from '../../src/types.js';
 
-// ==================== InferenceQueue ====================
+const E2B_MODEL_ID = 'gemma-4-E2B-it-web';
+const E2B_MODEL: LocalModelDef = {
+  name: E2B_MODEL_ID,
+  display: 'Gemma 4 E2B (Instruct)',
+  isLocal: true,
+  backend: 'litertlm',
+  sizeGB: 2.008,
+  litertlmConfig: {
+    modelUrl: 'https://example.test/gemma-4-E2B-it-web.litertlm',
+    maxTokens: 1024,
+  },
+};
 
-// Each test gets a fresh queue instance — no shared mutable state.
+let storageData: Record<string, unknown>;
+let engine: LocalEngine | null;
+
+function makeBackend(overrides: Partial<LocalBackend> = {}): LocalBackend {
+  return {
+    unloadAfterSuperseded: false,
+    initialize: vi.fn().mockResolvedValue(undefined),
+    unload: vi.fn().mockResolvedValue(undefined),
+    generate: vi.fn().mockResolvedValue('no'),
+    interrupt: vi.fn().mockResolvedValue(undefined),
+    countTokens: vi.fn(async (text: string) => text.length),
+    truncateText: vi.fn(async (text: string, maxTokens: number) => text.slice(0, maxTokens)),
+    ...overrides,
+  };
+}
+
+function installChromeStorage(initial: Record<string, unknown> = {}): void {
+  storageData = structuredClone(initial);
+  globalThis.chrome = {
+    storage: {
+      local: {
+        get: vi.fn(async (keys?: string | string[]) => {
+          if (keys === undefined) return structuredClone(storageData);
+          const requested = Array.isArray(keys) ? keys : [keys];
+          return Object.fromEntries(
+            requested
+              .filter(key => Object.prototype.hasOwnProperty.call(storageData, key))
+              .map(key => [key, storageData[key]]),
+          );
+        }),
+        set: vi.fn(async (items: Record<string, unknown>) => {
+          Object.assign(storageData, structuredClone(items));
+        }),
+        remove: vi.fn(async (keys: string | string[]) => {
+          for (const key of Array.isArray(keys) ? keys : [keys]) delete storageData[key];
+        }),
+      } as unknown as chrome.storage.LocalStorageArea,
+    },
+  } as unknown as typeof chrome;
+}
+
+function setWebGpuSupported(supported: boolean): void {
+  Object.defineProperty(globalThis, 'navigator', {
+    configurable: true,
+    writable: true,
+    value: supported ? { gpu: {} } : {},
+  });
+}
+
+async function flushAsync(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+function statusFor(modelId = E2B_MODEL_ID): LocalModelStatus | undefined {
+  return (storageData.localModelStatuses as Record<string, LocalModelStatus> | undefined)?.[modelId];
+}
+
+beforeEach(() => {
+  vi.useRealTimers();
+  vi.clearAllMocks();
+  installChromeStorage();
+  setWebGpuSupported(true);
+  modelsState.local = [E2B_MODEL];
+  litertState.isCached.mockResolvedValue(false);
+  litertState.deleteCache.mockResolvedValue(undefined);
+  litertState.forceCloseOffscreen.mockResolvedValue(false);
+  litertState.createBackend.mockImplementation(() => makeBackend());
+  utilityState.isGpuLost.mockReturnValue(false);
+  utilityState.isNetworkError.mockReturnValue(false);
+  inferenceQueue.reset();
+  engine = null;
+});
+
+afterEach(async () => {
+  if (engine) {
+    await engine.reset();
+    engine._settleInitOperation(engine._initSettledGeneration);
+    engine.teardown();
+  }
+  inferenceQueue.reset();
+  vi.useRealTimers();
+});
+
 describe('InferenceQueue', () => {
-  it('clear rejects all pending tasks', async () => {
-    const q = new InferenceQueue();
-    const neverResolve = () => new Promise(() => {});
-
-    // p1 starts executing (shifted out of pending), p2 stays pending
-    q.enqueue(neverResolve);
-    const p2 = q.enqueue(neverResolve);
-    await new Promise(r => setTimeout(r, 0));
-
-    q.clear();
-
-    await expect(p2).rejects.toThrow('Inference queue cleared');
-  });
-
-  it('clear is a no-op when the queue is empty', () => {
-    const q = new InferenceQueue();
-    expect(() => q.clear()).not.toThrow();
-  });
-
-  it('drain waits for in-flight task before running callback', async () => {
-    const q = new InferenceQueue();
-    const order: string[] = [];
-    let resolveInflight!: (value: unknown) => void;
-
-    const inflightPromise = q.enqueue(() => new Promise(resolve => {
-      resolveInflight = resolve;
+  it('clears pending work without disturbing the in-flight task', async () => {
+    const queue = new InferenceQueue();
+    let finishInflight!: () => void;
+    const inflight = queue.enqueue(() => new Promise<void>(resolve => {
+      finishInflight = resolve;
     }));
-    await new Promise(r => setTimeout(r, 0));
+    await flushAsync();
+    const pending = queue.enqueue(async () => 'pending');
 
-    const drainPromise = q.drain(async () => { order.push('drain'); });
+    queue.clear();
 
-    // Drain should not have run yet
-    expect(order).toEqual([]);
-
-    resolveInflight('done');
-    await inflightPromise;
-    await drainPromise;
-
-    expect(order).toEqual(['drain']);
+    await expect(pending).rejects.toThrow('Inference queue cleared');
+    finishInflight();
+    await expect(inflight).resolves.toBeUndefined();
   });
 
-  it('drain clears pending tasks so only in-flight task runs first', async () => {
-    const q = new InferenceQueue();
-    let resolveInflight!: (value: unknown) => void;
-
-    q.enqueue(() => new Promise(resolve => { resolveInflight = resolve; }));
-    await new Promise(r => setTimeout(r, 0));
-
-    const pendingPromise = q.enqueue(() => Promise.resolve('should not run'));
-    pendingPromise.catch(() => {}); // prevent unhandled rejection
-
-    const drainPromise = q.drain(async () => 'drained');
-
-    await expect(pendingPromise).rejects.toThrow('Inference queue cleared');
-
-    resolveInflight('done');
-    await drainPromise;
-  });
-
-  it('concurrent drain calls serialize instead of rejecting each other', async () => {
-    const q = new InferenceQueue();
+  it('drains after the in-flight task and rejects ordinary pending work', async () => {
+    const queue = new InferenceQueue();
     const order: string[] = [];
-    let resolveInflight!: (value?: unknown) => void;
+    let finishInflight!: () => void;
+    const inflight = queue.enqueue(() => new Promise<void>(resolve => {
+      finishInflight = () => {
+        order.push('inflight');
+        resolve();
+      };
+    }));
+    await flushAsync();
+    const pending = queue.enqueue(async () => {
+      order.push('pending');
+    });
+    pending.catch(() => undefined);
+    const drain = queue.drain(async () => {
+      order.push('maintenance');
+      return 'done';
+    });
 
-    // Block with in-flight task
-    q.enqueue(() => new Promise(resolve => { resolveInflight = resolve; }));
-    await new Promise(r => setTimeout(r, 0));
+    finishInflight();
 
-    // Two concurrent drains — second must not reject first
-    const d1 = q.drain(async () => { order.push('drain1'); });
-    const d2 = q.drain(async () => { order.push('drain2'); });
-
-    resolveInflight();
-    await Promise.all([d1, d2]);
-
-    expect(order).toEqual(['drain1', 'drain2']);
+    await inflight;
+    await expect(pending).rejects.toThrow('Inference queue cleared');
+    await expect(drain).resolves.toBe('done');
+    expect(order).toEqual(['inflight', 'maintenance']);
   });
 
-  it('enqueue respects priority ordering among pending tasks', async () => {
-    const q = new InferenceQueue();
+  it('serializes concurrent drains', async () => {
+    const queue = new InferenceQueue();
     const order: string[] = [];
-    let resolveInflight!: (value?: unknown) => void;
+    const first = queue.drain(async () => {
+      order.push('first');
+    });
+    const second = queue.drain(async () => {
+      order.push('second');
+    });
 
-    // Block the queue with an in-flight task
-    q.enqueue(() => new Promise(resolve => { resolveInflight = resolve; }));
-    await new Promise(r => setTimeout(r, 0));
+    await Promise.all([first, second]);
 
-    // Queue tasks with different priorities
-    q.enqueue(async () => { order.push('low'); }, { priority: 0 });
-    q.enqueue(async () => { order.push('high'); }, { priority: 10 });
-    q.enqueue(async () => { order.push('mid'); }, { priority: 5 });
+    expect(order).toEqual(['first', 'second']);
+  });
 
-    resolveInflight();
-    // Wait for all tasks to process
-    await new Promise(r => setTimeout(r, 10));
+  it('runs higher-priority pending work first', async () => {
+    const queue = new InferenceQueue();
+    const order: string[] = [];
+    let finishInflight!: () => void;
+    const inflight = queue.enqueue(() => new Promise<void>(resolve => {
+      finishInflight = resolve;
+    }));
+    await flushAsync();
+    const low = queue.enqueue(async () => { order.push('low'); }, { priority: 0 });
+    const high = queue.enqueue(async () => { order.push('high'); }, { priority: 10 });
+    const middle = queue.enqueue(async () => { order.push('middle'); }, { priority: 5 });
 
-    expect(order).toEqual(['high', 'mid', 'low']);
+    finishInflight();
+    await Promise.all([inflight, low, high, middle]);
+
+    expect(order).toEqual(['high', 'middle', 'low']);
   });
 });
 
-// ==================== buildModelConfig ====================
-
-describe('buildModelConfig', () => {
+describe('LocalEngine initialization', () => {
   beforeEach(() => {
-    modelsState.PREDEFINED_MODELS = { local: [] };
+    engine = new LocalEngine();
   });
 
-  // --- appConfig tests ---
+  it('initializes the LiteRT backend with the E2B definition and publishes ready', async () => {
+    const backend = makeBackend({
+      initialize: vi.fn(async (_model, onProgress) => {
+        onProgress({ progress: 0.5, text: 'Downloading' });
+        onProgress({ progress: 1, text: 'Starting' });
+      }),
+    });
+    litertState.createBackend.mockReturnValue(backend);
 
-  it('returns undefined appConfig for a built-in model with no webllmConfig', () => {
-    modelsState.PREDEFINED_MODELS = {
-      local: [{ name: 'Qwen3-4B-q4f16_1-MLC', display: 'Qwen3 4B' }],
-    };
-    expect(buildModelConfig('Qwen3-4B-q4f16_1-MLC').appConfig).toBeUndefined();
+    await expect(engine!.initialize(E2B_MODEL_ID)).resolves.toBe(backend);
+    await engine!._statusWriteChain;
+
+    expect(LitertlmBackend).toHaveBeenCalledTimes(1);
+    expect(backend.initialize).toHaveBeenCalledWith(
+      E2B_MODEL,
+      expect.any(Function),
+      expect.any(AbortSignal),
+    );
+    expect(engine!.loadedModel).toBe(E2B_MODEL_ID);
+    expect(statusFor()).toEqual({ state: 'ready' });
   });
 
-  it('returns undefined appConfig for an unknown model', () => {
-    expect(buildModelConfig('nonexistent-model').appConfig).toBeUndefined();
+  it('coalesces concurrent initialization of the sole model', async () => {
+    let finishInitialize!: () => void;
+    const backend = makeBackend({
+      initialize: vi.fn(() => new Promise<void>(resolve => {
+        finishInitialize = resolve;
+      })),
+    });
+    litertState.createBackend.mockReturnValue(backend);
+
+    const first = engine!.initialize(E2B_MODEL_ID);
+    await vi.waitFor(() => expect(backend.initialize).toHaveBeenCalledTimes(1));
+    const second = engine!.initialize(E2B_MODEL_ID);
+    finishInitialize();
+
+    await expect(Promise.all([first, second])).resolves.toEqual([backend, backend]);
+    expect(LitertlmBackend).toHaveBeenCalledTimes(1);
   });
 
-  // --- Custom registry path (webllmConfig.model set) ---
+  it('marks the model unsupported without constructing LiteRT when WebGPU is absent', async () => {
+    setWebGpuSupported(false);
 
-  it('builds config from webllmConfig.model for non-registry models', () => {
-    modelsState.PREDEFINED_MODELS = {
-      local: [{
-        name: 'InternVL3_5-4B-q4f16_1-MLC',
-        webllmConfig: {
-          model_type: 2,
-          model: 'https://huggingface.co/imbue/internvl3_5-4b-q4f16_1-mlc',
-          model_lib: 'https://example.com/model.wasm',
-          overrides: { context_window_size: 4096, prefill_chunk_size: 1024 },
-        },
-      }],
-    };
-    const { appConfig } = buildModelConfig('InternVL3_5-4B-q4f16_1-MLC');
-    const record = appConfig!.model_list[0];
-    expect(record.model_id).toBe('InternVL3_5-4B-q4f16_1-MLC');
-    expect(record.model).toBe('https://huggingface.co/imbue/internvl3_5-4b-q4f16_1-mlc');
-    expect(record.model_lib).toBe('https://example.com/model.wasm');
-    expect(record.model_type).toBe(2);
-    expect(record.overrides).toEqual({ context_window_size: 4096, prefill_chunk_size: 1024 });
-  });
+    await expect(engine!.initialize(E2B_MODEL_ID)).resolves.toBeNull();
 
-  it('omits overrides key when webllmConfig has no overrides', () => {
-    modelsState.PREDEFINED_MODELS = {
-      local: [{
-        name: 'Custom-MLC',
-        webllmConfig: {
-          model: 'https://example.com/model',
-          model_lib: 'https://example.com/model.wasm',
-        },
-      }],
-    };
-    const record = buildModelConfig('Custom-MLC').appConfig!.model_list[0];
-    expect(record).not.toHaveProperty('overrides');
-  });
-
-  it('returns undefined appConfig when webllmConfig exists but model is not in prebuilt registry', () => {
-    modelsState.PREDEFINED_MODELS = {
-      local: [{
-        name: 'LocalOnly-MLC',
-        webllmConfig: { model_type: 2 },
-      }],
-    };
-    // Not in prebuilt registry and no custom model URL → falls through to default
-    expect(buildModelConfig('LocalOnly-MLC').appConfig).toBeUndefined();
-  });
-
-  it('merges model_lib override onto prebuilt registry record', () => {
-    modelsState.PREDEFINED_MODELS = {
-      local: [{
-        name: 'Qwen3-4B-q4f16_1-MLC',
-        webllmConfig: {
-          model_lib: 'https://example.com/custom.wasm',
-          overrides: { context_window_size: 4096 },
-        },
-      }],
-    };
-    const { appConfig } = buildModelConfig('Qwen3-4B-q4f16_1-MLC');
-    const record = appConfig!.model_list[0];
-    // Should use prebuilt model URL
-    expect(record.model).toBe('https://huggingface.co/mlc-ai/Qwen3-4B-q4f16_1-MLC');
-    // Should use custom model_lib
-    expect(record.model_lib).toBe('https://example.com/custom.wasm');
-    expect(record.overrides).toEqual({ context_window_size: 4096 });
-  });
-
-  it('returns undefined appConfig when webllmConfig has only overrides and model is in prebuilt registry', () => {
-    modelsState.PREDEFINED_MODELS = {
-      local: [{
-        name: 'Qwen3-4B-q4f16_1-MLC',
-        webllmConfig: {
-          overrides: { context_window_size: 4096 },
-        },
-      }],
-    };
-    // Only overrides, no record-level fields to merge → use default config
-    expect(buildModelConfig('Qwen3-4B-q4f16_1-MLC').appConfig).toBeUndefined();
-  });
-
-  // --- chatOpts tests ---
-
-  it('returns base chatOpts when no webllmConfig', () => {
-    modelsState.PREDEFINED_MODELS = {
-      local: [{ name: 'Qwen3-4B-q4f16_1-MLC', display: 'Qwen3 4B' }],
-    };
-    const { chatOpts } = buildModelConfig('Qwen3-4B-q4f16_1-MLC');
-    expect(chatOpts).toEqual({ context_window_size: 1024 });
-  });
-
-  it('merges overrides into chatOpts', () => {
-    modelsState.PREDEFINED_MODELS = {
-      local: [{
-        name: 'Qwen3-4B-q4f16_1-MLC',
-        webllmConfig: {
-          overrides: { context_window_size: 4096, prefill_chunk_size: 1024 },
-        },
-      }],
-    };
-    const { chatOpts } = buildModelConfig('Qwen3-4B-q4f16_1-MLC');
-    expect(chatOpts.context_window_size).toBe(4096);
-    expect(chatOpts.prefill_chunk_size).toBe(1024);
-  });
-
-  it('excludes model-record-level keys from chatOpts', () => {
-    modelsState.PREDEFINED_MODELS = {
-      local: [{
-        name: 'TestVLM-MLC',
-        webllmConfig: {
-          model_type: 2,
-          model: 'https://example.com/model',
-          model_lib: 'https://example.com/model.wasm',
-          overrides: { context_window_size: 4096 },
-        },
-      }],
-    };
-    const { chatOpts } = buildModelConfig('TestVLM-MLC');
-    expect(chatOpts).not.toHaveProperty('model_type');
-    expect(chatOpts).not.toHaveProperty('model');
-    expect(chatOpts).not.toHaveProperty('model_lib');
-    expect(chatOpts.context_window_size).toBe(4096);
-  });
-});
-
-// ==================== localEngine.cancelDownload ====================
-
-describe('localEngine.cancelDownload', () => {
-  let storageData: Record<string, unknown>;
-
-  beforeEach(async () => {
-    // Reset mocks and state
-    (CreateMLCEngine as Mock).mockReset();
-    (hasModelInCache as Mock).mockReset();
-    (isNetworkError as Mock).mockReturnValue(false);
-    modelsState.PREDEFINED_MODELS = { local: [{ name: 'TestModel-MLC', display: 'Test' }] };
-
-    await localEngine.reset();
-    // Individual cancellation tests intentionally use never-settling mocked
-    // factories. Detach a prior test's synthetic worker; production workers
-    // keep this barrier until the real factory returns.
-    localEngine._settleInitOperation(localEngine._initSettledGeneration);
-
-    // Mock chrome.storage
-    storageData = {};
-    globalThis.chrome = {
-      storage: {
-        local: {
-          get: vi.fn(async () => storageData),
-          set: vi.fn(async (data: Record<string, unknown>) => { Object.assign(storageData, data); }),
-        } as unknown as chrome.storage.LocalStorageArea,
-      },
-    } as unknown as typeof chrome;
-
-    // Mock navigator.gpu
-    Object.defineProperty(globalThis, 'navigator', {
-      value: { gpu: {} },
-      writable: true,
-      configurable: true,
+    expect(LitertlmBackend).not.toHaveBeenCalled();
+    expect(statusFor()).toEqual({
+      state: 'unsupported',
+      reason: 'WebGPU not supported',
     });
   });
 
-  it('returns false when no download is in progress for the model', async () => {
-    const result = await localEngine.cancelDownload('TestModel-MLC');
-    expect(result).toBe(false);
-  });
-
-  it('aborts an in-progress download and resets state', async () => {
-    (hasModelInCache as Mock).mockResolvedValue(false);
-
-    // Start an initialization that will hang (never resolve)
-    (CreateMLCEngine as Mock).mockImplementation(() => new Promise(() => {}));
-
-    // Start init (don't await - it will hang because CreateMLCEngine never resolves)
-    localEngine.initialize('TestModel-MLC');
-
-    // Wait for init to start
-    await new Promise(r => setTimeout(r, 10));
-
-    expect(localEngine.isInitializing()).toBe(true);
-    expect(localEngine.isInitializingModel('TestModel-MLC')).toBe(true);
-
-    // Cancel it
-    const cancelled = await localEngine.cancelDownload('TestModel-MLC');
-    expect(cancelled).toBe(true);
-
-    // State should be reset
-    expect(localEngine.isInitializing()).toBe(false);
-    expect(localEngine.engine).toBeNull();
-    expect(localEngine.loadedModel).toBeNull();
-  });
-
-  it('sets status to not_downloaded when model is not cached', async () => {
-    (hasModelInCache as Mock).mockResolvedValue(false);
-    (CreateMLCEngine as Mock).mockImplementation(() => new Promise(() => {}));
-
-    localEngine.initialize('TestModel-MLC');
-    await new Promise(r => setTimeout(r, 10));
-
-    await localEngine.cancelDownload('TestModel-MLC');
-
-    // Check that status was set to not_downloaded
-    const statuses = (storageData.localModelStatuses || {}) as Record<string, Record<string, unknown>>;
-    expect(statuses['TestModel-MLC']?.state).toBe('not_downloaded');
-  });
-
-  it('sets status to cached when partial download exists in cache', async () => {
-    // First call during init (for syncLocalModelStatus), then true for cancel check
-    (hasModelInCache as Mock).mockResolvedValue(true);
-    (CreateMLCEngine as Mock).mockImplementation(() => new Promise(() => {}));
-
-    localEngine.initialize('TestModel-MLC');
-    await new Promise(r => setTimeout(r, 10));
-
-    await localEngine.cancelDownload('TestModel-MLC');
-
-    const statuses = (storageData.localModelStatuses || {}) as Record<string, Record<string, unknown>>;
-    expect(statuses['TestModel-MLC']?.state).toBe('cached');
-  });
-
-  it('abort paths resolve initPromise when engine creation completes after abort', async () => {
-    (hasModelInCache as Mock).mockResolvedValue(false);
-
-    // CreateMLCEngine resolves after abort fires — the post-creation abort check
-    // must call _completeInit(null) so waiters on _initPromise don't hang.
-    const mockEngine = { unload: vi.fn().mockResolvedValue(undefined) };
-    let resolveCreate!: (value: unknown) => void;
-    (CreateMLCEngine as Mock).mockImplementation(() => new Promise(resolve => { resolveCreate = resolve; }));
-
-    const initPromise = localEngine.initialize('TestModel-MLC');
-    await new Promise(r => setTimeout(r, 10));
-
-    // A second caller starts waiting on _initPromise
-    const waiterPromise = localEngine._initPromise;
-
-    // Cancel via cancelDownload (which calls reset internally)
-    await localEngine.cancelDownload('TestModel-MLC');
-
-    // Now engine creation completes after abort
-    resolveCreate(mockEngine);
-    await new Promise(r => setTimeout(r, 10));
-
-    // Both promises should resolve to null (not hang)
-    const [engine, waiterResult] = await Promise.all([
-      Promise.race([initPromise, new Promise(r => setTimeout(() => r('TIMEOUT'), 100))]),
-      Promise.race([waiterPromise ?? Promise.resolve(null), new Promise(r => setTimeout(() => r('TIMEOUT'), 100))]),
-    ]);
-    expect(engine).toBeNull();
-    expect(waiterResult).toBeNull();
-  });
-
-  it('discards engine created after abort signal fires', async () => {
-    (hasModelInCache as Mock).mockResolvedValue(false);
-
-    const mockEngine = { unload: vi.fn().mockResolvedValue(undefined) };
-    let resolveCreate!: (value: unknown) => void;
-    (CreateMLCEngine as Mock).mockImplementation(() => new Promise(resolve => { resolveCreate = resolve; }));
-
-    const initPromise = localEngine.initialize('TestModel-MLC');
-    await new Promise(r => setTimeout(r, 10));
-
-    // Cancel while CreateMLCEngine is still pending
-    await localEngine.cancelDownload('TestModel-MLC');
-
-    // Now resolve CreateMLCEngine after cancellation
-    resolveCreate(mockEngine);
-    await new Promise(r => setTimeout(r, 10));
-
-    const engine = await initPromise;
-    expect(engine).toBeNull();
-    // Engine should have been unloaded since it completed after abort
-    expect(mockEngine.unload).toHaveBeenCalled();
-  });
-
-  it('waits for a canceled physical init before starting a newer init', async () => {
-    modelsState.PREDEFINED_MODELS = {
-      local: [
-        { name: 'Model-A', display: 'A' },
-        { name: 'Model-B', display: 'B' },
-      ],
-    };
-    (hasModelInCache as Mock).mockResolvedValue(false);
-
-    let resolveA!: (value: unknown) => void;
-    let resolveB!: (value: unknown) => void;
-    const engineA = { unload: vi.fn().mockResolvedValue(undefined) };
-    const engineB = { unload: vi.fn().mockResolvedValue(undefined) };
-    (CreateMLCEngine as Mock)
-      .mockImplementationOnce(() => new Promise(resolve => { resolveA = resolve; }))
-      .mockImplementationOnce(() => new Promise(resolve => { resolveB = resolve; }));
-
-    const initA = localEngine.initialize('Model-A');
-    await new Promise(resolve => setTimeout(resolve, 0));
-    await localEngine.cancelDownload('Model-A');
-
-    const initB = localEngine.initialize('Model-B');
-    await new Promise(resolve => setTimeout(resolve, 0));
-
-    // Cancel resolves A's logical waiters immediately, but CreateMLCEngine is
-    // not externally abortable. B must wait for that physical factory rather
-    // than allocating a concurrent GPU engine.
-    expect(CreateMLCEngine).toHaveBeenCalledTimes(1);
-    expect(localEngine.isInitializingModel('Model-B')).toBe(false);
-
-    resolveA(engineA);
-    await initA;
-    await new Promise(resolve => setTimeout(resolve, 0));
-
-    expect(CreateMLCEngine).toHaveBeenCalledTimes(2);
-    expect(localEngine.isInitializingModel('Model-B')).toBe(true);
-
-    resolveB(engineB);
-    await initB;
-    expect(localEngine.isModelLoaded('Model-B')).toBe(true);
-  });
-
-  it('keeps the physical barrier and unloads a late direct LiteRT engine', async () => {
-    modelsState.PREDEFINED_MODELS = {
-      local: [
-        { name: 'Gemma-A', display: 'A', backend: 'litertlm' },
-        { name: 'Gemma-B', display: 'B', backend: 'litertlm' },
-      ],
-    };
-
-    let resolveA!: () => void;
-    let resolveB!: () => void;
-    const backendA = {
-      unloadAfterSuperseded: true,
-      initialize: vi.fn(() => new Promise<void>(resolve => { resolveA = resolve; })),
-      unload: vi.fn().mockResolvedValue(undefined),
-    } as unknown as LocalBackend;
-    const backendB = {
-      unloadAfterSuperseded: true,
-      initialize: vi.fn(() => new Promise<void>(resolve => { resolveB = resolve; })),
-      unload: vi.fn().mockResolvedValue(undefined),
-    } as unknown as LocalBackend;
-    (LitertlmBackend as Mock).mockReset()
-      .mockImplementationOnce(function () { return backendA; })
-      .mockImplementationOnce(function () { return backendB; });
-    (forceCloseLitertlmOffscreen as Mock).mockResolvedValue(false);
-
+  it('retries a network failure three times before surfacing a terminal download error', async () => {
     vi.useFakeTimers();
-    try {
-      const initA = localEngine.initialize('Gemma-A');
-      await vi.advanceTimersByTimeAsync(0);
-      expect(LitertlmBackend).toHaveBeenCalledTimes(1);
+    utilityState.isNetworkError.mockImplementation((message: string) => message.includes('network'));
+    const backend = makeBackend({
+      initialize: vi.fn().mockRejectedValue(new Error('network failed')),
+    });
+    litertState.createBackend.mockReturnValue(backend);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-      const cancelA = localEngine.cancelDownload('Gemma-A');
-      await vi.advanceTimersByTimeAsync(3000);
-      await cancelA;
+    const initialization = engine!.initialize(E2B_MODEL_ID);
+    await flushAsync();
+    await vi.advanceTimersByTimeAsync(2_000);
+    await vi.advanceTimersByTimeAsync(4_000);
+    await vi.advanceTimersByTimeAsync(8_000);
 
-      const initB = localEngine.initialize('Gemma-B');
-      await vi.advanceTimersByTimeAsync(0);
-      expect(LitertlmBackend).toHaveBeenCalledTimes(1);
-
-      resolveA();
-      await initA;
-      await vi.advanceTimersByTimeAsync(0);
-      expect(backendA.unload).toHaveBeenCalledTimes(1);
-      expect(LitertlmBackend).toHaveBeenCalledTimes(2);
-
-      resolveB();
-      await expect(initB).resolves.toBe(backendB);
-      expect(localEngine.isModelLoaded('Gemma-B')).toBe(true);
-      await localEngine.reset();
-    } finally {
-      vi.useRealTimers();
-    }
+    await expect(initialization).resolves.toBeNull();
+    expect(backend.initialize).toHaveBeenCalledTimes(4);
+    expect(statusFor()).toEqual({
+      state: 'error',
+      error: 'Download failed after multiple retries. Check your internet connection.',
+    });
+    error.mockRestore();
   });
 
-  it('allows replacement only after a Chrome LiteRT host is confirmed closed', async () => {
-    modelsState.PREDEFINED_MODELS = {
-      local: [
-        { name: 'Gemma-A', display: 'A', backend: 'litertlm' },
-        { name: 'Gemma-B', display: 'B', backend: 'litertlm' },
-      ],
-    };
+  it('cleans up initialization state after persistent status storage failure and permits retry', async () => {
+    const firstBackend = makeBackend();
+    const retryBackend = makeBackend();
+    litertState.createBackend
+      .mockReturnValueOnce(firstBackend)
+      .mockReturnValueOnce(retryBackend);
+    const set = globalThis.chrome.storage.local.set as unknown as Mock;
+    set.mockRejectedValue(new Error('storage write failed'));
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
 
-    let resolveA!: () => void;
-    let resolveB!: () => void;
-    const backendA = {
-      unloadAfterSuperseded: false,
-      initialize: vi.fn(() => new Promise<void>(resolve => { resolveA = resolve; })),
-      unload: vi.fn().mockResolvedValue(undefined),
-    } as unknown as LocalBackend;
-    const backendB = {
-      unloadAfterSuperseded: false,
-      initialize: vi.fn(() => new Promise<void>(resolve => { resolveB = resolve; })),
-      unload: vi.fn().mockResolvedValue(undefined),
-    } as unknown as LocalBackend;
-    (LitertlmBackend as Mock).mockReset()
-      .mockImplementationOnce(function () { return backendA; })
-      .mockImplementationOnce(function () { return backendB; });
-    (forceCloseLitertlmOffscreen as Mock).mockResolvedValue(true);
+    await expect(engine!.initialize(E2B_MODEL_ID)).rejects.toThrow('storage write failed');
 
-    vi.useFakeTimers();
-    try {
-      const initA = localEngine.initialize('Gemma-A');
-      await vi.advanceTimersByTimeAsync(0);
-      const cancelA = localEngine.cancelDownload('Gemma-A');
-      await vi.advanceTimersByTimeAsync(3000);
-      await cancelA;
+    expect(engine!._initializingModel).toBeNull();
+    expect(engine!._initPromise).toBeNull();
+    expect(engine!._initAbortController).toBeNull();
+    expect(engine!._downloadKeepAliveInterval).toBeNull();
+    expect(engine!.engine).toBeNull();
+    expect(firstBackend.unload).toHaveBeenCalledTimes(1);
 
-      const initB = localEngine.initialize('Gemma-B');
-      await vi.advanceTimersByTimeAsync(0);
-      expect(forceCloseLitertlmOffscreen).toHaveBeenCalled();
-      expect(LitertlmBackend).toHaveBeenCalledTimes(2);
-
-      resolveB();
-      await expect(initB).resolves.toBe(backendB);
-      resolveA();
-      await expect(initA).resolves.toBeNull();
-      expect(backendA.unload).not.toHaveBeenCalled();
-      expect(localEngine.isModelLoaded('Gemma-B')).toBe(true);
-      await localEngine.reset();
-    } finally {
-      vi.useRealTimers();
-    }
+    set.mockImplementation(async (items: Record<string, unknown>) => {
+      Object.assign(storageData, structuredClone(items));
+    });
+    await expect(engine!.initialize(E2B_MODEL_ID)).resolves.toBe(retryBackend);
+    expect(engine!.engine).toBe(retryBackend);
+    expect(statusFor()).toEqual({ state: 'ready' });
+    error.mockRestore();
   });
 
-  it('does not retry a network-looking failure after cancellation', async () => {
-    (hasModelInCache as Mock).mockResolvedValue(false);
-    (isNetworkError as Mock).mockReturnValue(true);
+  it('preserves a persisted terminal fence across an MV3 worker restart until explicit Retry', async () => {
+    installChromeStorage({
+      localModelStatuses: {
+        [E2B_MODEL_ID]: {
+          state: 'error',
+          error: 'Local inference timed out. Retry from the Bouncer popup.',
+        },
+      },
+    });
+    litertState.isCached.mockResolvedValue(true);
+    const retryBackend = makeBackend();
+    litertState.createBackend.mockReturnValue(retryBackend);
 
-    let rejectCreate!: (error: Error) => void;
-    (CreateMLCEngine as Mock).mockImplementation(() => new Promise((_, reject) => {
-      rejectCreate = reject;
-    }));
+    // A newly constructed LocalEngine represents a fresh MV3 worker. Startup
+    // reconciliation must hydrate, not erase, its durable terminal fence.
+    engine = new LocalEngine();
+    await engine.syncAllStatuses();
 
-    const init = localEngine.initialize('TestModel-MLC');
-    await new Promise(resolve => setTimeout(resolve, 0));
-    await localEngine.cancelDownload('TestModel-MLC');
-    rejectCreate(new Error('network connection failed'));
+    expect(statusFor()).toEqual({
+      state: 'error',
+      error: 'Local inference timed out. Retry from the Bouncer popup.',
+    });
+    await expect(engine.ensureLoaded(E2B_MODEL_ID)).rejects.toThrow('explicit Retry');
+    expect(LitertlmBackend).not.toHaveBeenCalled();
 
-    await expect(init).resolves.toBeNull();
-    expect(CreateMLCEngine).toHaveBeenCalledTimes(1);
+    await expect(engine.initialize(E2B_MODEL_ID)).resolves.toBe(retryBackend);
+    expect(LitertlmBackend).toHaveBeenCalledTimes(1);
+    expect(statusFor()).toEqual({ state: 'ready' });
   });
 
-  it('serializes status writes so a later terminal state wins', async () => {
-    const writes: Array<Record<string, unknown>> = [];
-    let releaseFirst!: () => void;
-    let setCalls = 0;
-    (globalThis.chrome.storage.local.set as Mock).mockImplementation(async (data: Record<string, unknown>) => {
-      setCalls++;
-      if (setCalls === 1) {
-        await new Promise<void>(resolve => { releaseFirst = resolve; });
+  it('does not re-add a stale terminal fence while explicit Retry persists ready', async () => {
+    installChromeStorage({
+      localModelStatuses: {
+        [E2B_MODEL_ID]: {
+          state: 'error',
+          error: 'Local inference timed out. Retry from the Bouncer popup.',
+        },
+      },
+    });
+    const backend = makeBackend();
+    litertState.createBackend.mockReturnValue(backend);
+
+    let releaseInitializingWrite!: () => void;
+    let initializingWriteStarted!: () => void;
+    const initializingWrite = new Promise<void>(resolve => {
+      initializingWriteStarted = resolve;
+    });
+    const initializingGate = new Promise<void>(resolve => {
+      releaseInitializingWrite = resolve;
+    });
+    const set = globalThis.chrome.storage.local.set as unknown as Mock;
+    set.mockImplementation(async (items: Record<string, unknown>) => {
+      const nextStatuses = items.localModelStatuses as Record<string, LocalModelStatus> | undefined;
+      if (nextStatuses?.[E2B_MODEL_ID]?.state === 'initializing') {
+        initializingWriteStarted();
+        await initializingGate;
       }
-      Object.assign(storageData, data);
-      writes.push(data);
+      Object.assign(storageData, structuredClone(items));
     });
 
-    const progressWrite = localEngine.updateStatus('TestModel-MLC', {
-      state: 'downloading', progress: 0.8,
-    });
-    const terminalWrite = localEngine.updateStatus('TestModel-MLC', {
-      state: 'not_downloaded',
-    });
-    await new Promise(resolve => setTimeout(resolve, 0));
-    expect(writes).toHaveLength(0);
+    engine = new LocalEngine();
+    await engine.syncAllStatuses();
+    const retry = engine.initialize(E2B_MODEL_ID);
+    await initializingWrite;
 
-    releaseFirst();
-    await Promise.all([progressWrite, terminalWrite]);
+    // Feed work can arrive while the popup Retry is still initializing. It
+    // must serialize behind the status transition instead of reviving `error`.
+    const concurrentLoad = engine.ensureLoaded(E2B_MODEL_ID);
+    releaseInitializingWrite();
 
-    const statuses = storageData.localModelStatuses as Record<string, Record<string, unknown>>;
-    expect(statuses['TestModel-MLC'].state).toBe('not_downloaded');
-    expect(writes).toHaveLength(2);
+    await expect(retry).resolves.toBe(backend);
+    await expect(concurrentLoad).resolves.toBeUndefined();
+    await expect(engine.ensureLoaded(E2B_MODEL_ID)).resolves.toBeUndefined();
+    expect(statusFor()).toEqual({ state: 'ready' });
+  });
+
+  it('rebuilds a logically loaded backend when explicit Retry follows host loss', async () => {
+    const staleBackend = makeBackend();
+    const replacementBackend = makeBackend();
+    litertState.createBackend
+      .mockReturnValueOnce(staleBackend)
+      .mockReturnValueOnce(replacementBackend);
+
+    await expect(engine!.initialize(E2B_MODEL_ID)).resolves.toBe(staleBackend);
+    await engine!.markTerminalError(E2B_MODEL_ID, 'Engine not loaded');
+
+    await expect(engine!.initialize(E2B_MODEL_ID)).resolves.toBe(replacementBackend);
+
+    expect(staleBackend.unload).toHaveBeenCalledTimes(1);
+    expect(replacementBackend.initialize).toHaveBeenCalledTimes(1);
+    expect(engine!.engine).toBe(replacementBackend);
+    expect(statusFor()).toEqual({ state: 'ready' });
   });
 });
 
-// ==================== localEngine.deleteModelCache ====================
+describe('LocalEngine cancellation and cache deletion', () => {
+  beforeEach(() => {
+    engine = new LocalEngine();
+  });
 
-describe('localEngine.deleteModelCache', () => {
-  let storageData: Record<string, unknown>;
+  it('returns false when the model is not downloading', async () => {
+    await expect(engine!.cancelDownload(E2B_MODEL_ID)).resolves.toBe(false);
+    expect(forceCloseLitertlmOffscreen).not.toHaveBeenCalled();
+  });
 
-  beforeEach(async () => {
-    (CreateMLCEngine as Mock).mockReset();
-    (hasModelInCache as Mock).mockReset();
-    (deleteModelAllInfoInCache as Mock).mockReset();
-    modelsState.PREDEFINED_MODELS = { local: [{ name: 'TestModel-MLC', display: 'Test' }] };
-
-    await localEngine.reset();
-
-    storageData = {};
-    globalThis.chrome = {
-      storage: {
-        local: {
-          get: vi.fn(async () => storageData),
-          set: vi.fn(async (data: Record<string, unknown>) => { Object.assign(storageData, data); }),
-        } as unknown as chrome.storage.LocalStorageArea,
-      },
-    } as unknown as typeof chrome;
-
-    Object.defineProperty(globalThis, 'navigator', {
-      value: { gpu: {} },
-      writable: true,
-      configurable: true,
+  it('aborts an active LiteRT initialization and restores the cache-derived status', async () => {
+    let observedSignal: AbortSignal | undefined;
+    const backend = makeBackend({
+      initialize: vi.fn((_model, _progress, signal) => {
+        observedSignal = signal;
+        return new Promise<void>((_resolve, reject) => {
+          signal.addEventListener('abort', () => reject(new Error('aborted')), { once: true });
+        });
+      }),
     });
+    litertState.createBackend.mockReturnValue(backend);
+    litertState.isCached.mockResolvedValue(true);
+
+    const initialization = engine!.initialize(E2B_MODEL_ID);
+    await vi.waitFor(() => expect(backend.initialize).toHaveBeenCalledTimes(1));
+
+    await expect(engine!.cancelDownload(E2B_MODEL_ID)).resolves.toBe(true);
+    await expect(initialization).resolves.toBeNull();
+
+    expect(observedSignal?.aborted).toBe(true);
+    expect(engine!.engine).toBeNull();
+    expect(statusFor()).toEqual({ state: 'cached' });
+    expect(isLitertlmCached).toHaveBeenCalledWith(E2B_MODEL);
   });
 
-  it('returns error for an empty model id', async () => {
-    const result = await localEngine.deleteModelCache('');
-    expect(result.success).toBe(false);
-    expect(deleteModelAllInfoInCache as Mock).not.toHaveBeenCalled();
+  it('unloads a loaded E2B engine before deleting its exact LiteRT cache entry', async () => {
+    const backend = makeBackend();
+    litertState.createBackend.mockReturnValue(backend);
+    await engine!.initialize(E2B_MODEL_ID);
+
+    await expect(engine!.deleteModelCache(E2B_MODEL_ID)).resolves.toEqual({ success: true });
+
+    expect(backend.unload).toHaveBeenCalledTimes(1);
+    expect(deleteLitertlmCache).toHaveBeenCalledWith(E2B_MODEL);
+    expect(engine!.engine).toBeNull();
+    expect(statusFor()).toEqual({ state: 'not_downloaded' });
   });
 
-  it('deletes the cache and sets status to not_downloaded when model is not loaded', async () => {
-    (deleteModelAllInfoInCache as Mock).mockResolvedValue(undefined);
+  it('waits for an unabortable initializer before deleting so late writes cannot resurrect the model', async () => {
+    vi.useFakeTimers();
+    let finishInitialize!: () => void;
+    const backend = makeBackend({
+      unloadAfterSuperseded: true,
+      initialize: vi.fn(() => new Promise<void>(resolve => {
+        finishInitialize = resolve;
+      })),
+    });
+    litertState.createBackend.mockReturnValue(backend);
 
-    const result = await localEngine.deleteModelCache('TestModel-MLC');
+    const initialization = engine!.initialize(E2B_MODEL_ID);
+    await vi.waitFor(() => expect(backend.initialize).toHaveBeenCalledTimes(1));
 
-    expect(result.success).toBe(true);
-    expect(deleteModelAllInfoInCache as Mock).toHaveBeenCalledWith('TestModel-MLC', undefined);
-    const statuses = (storageData.localModelStatuses || {}) as Record<string, Record<string, unknown>>;
-    expect(statuses['TestModel-MLC']?.state).toBe('not_downloaded');
+    const deletion = engine!.deleteModelCache(E2B_MODEL_ID);
+    await flushAsync();
+    await vi.advanceTimersByTimeAsync(3_000);
+
+    expect(forceCloseLitertlmOffscreen).toHaveBeenCalledTimes(1);
+    expect(deleteLitertlmCache).not.toHaveBeenCalled();
+
+    finishInitialize();
+    await expect(initialization).resolves.toBeNull();
+    await expect(deletion).resolves.toEqual({ success: true });
+
+    expect(backend.unload).toHaveBeenCalledTimes(1);
+    expect(deleteLitertlmCache).toHaveBeenCalledWith(E2B_MODEL);
+    expect(LitertlmBackend).toHaveBeenCalledTimes(1);
+    expect(engine!.engine).toBeNull();
+    expect(engine!.loadedModel).toBeNull();
   });
 
-  it('unloads the engine before deleting when the model is currently loaded', async () => {
-    (deleteModelAllInfoInCache as Mock).mockResolvedValue(undefined);
-    const mockEngine = { unload: vi.fn().mockResolvedValue(undefined) };
-    localEngine.engine = mockEngine as unknown as typeof localEngine.engine;
-    localEngine.loadedModel = 'TestModel-MLC';
-    expect(localEngine.isModelLoaded('TestModel-MLC')).toBe(true);
+  it('deletes after Chrome confirms the unabortable offscreen host was closed', async () => {
+    vi.useFakeTimers();
+    let finishInitialize!: () => void;
+    const backend = makeBackend({
+      unloadAfterSuperseded: false,
+      initialize: vi.fn(() => new Promise<void>(resolve => {
+        finishInitialize = resolve;
+      })),
+    });
+    litertState.createBackend.mockReturnValue(backend);
+    litertState.forceCloseOffscreen.mockResolvedValue(true);
 
-    const result = await localEngine.deleteModelCache('TestModel-MLC');
+    const initialization = engine!.initialize(E2B_MODEL_ID);
+    await vi.waitFor(() => expect(backend.initialize).toHaveBeenCalledTimes(1));
+    const deletion = engine!.deleteModelCache(E2B_MODEL_ID);
+    await flushAsync();
+    await vi.advanceTimersByTimeAsync(3_000);
 
-    expect(result.success).toBe(true);
-    expect(mockEngine.unload).toHaveBeenCalled();
-    expect(deleteModelAllInfoInCache as Mock).toHaveBeenCalled();
-    expect(localEngine.engine).toBeNull();
-    expect(localEngine.loadedModel).toBeNull();
+    await expect(deletion).resolves.toEqual({ success: true });
+    expect(forceCloseLitertlmOffscreen).toHaveBeenCalledTimes(1);
+    expect(deleteLitertlmCache).toHaveBeenCalledWith(E2B_MODEL);
+
+    finishInitialize();
+    await expect(initialization).resolves.toBeNull();
+    await engine!._statusWriteChain;
+
+    // The late proxy completion belongs to the force-closed host. It must not
+    // unload a replacement host or publish itself after cache deletion.
+    expect(backend.unload).not.toHaveBeenCalled();
+    expect(LitertlmBackend).toHaveBeenCalledTimes(1);
+    expect(engine!.engine).toBeNull();
+    expect(engine!.loadedModel).toBeNull();
+    expect(statusFor()).toEqual({ state: 'not_downloaded' });
   });
 
-  it('aborts an in-progress download before deleting', async () => {
-    (hasModelInCache as Mock).mockResolvedValue(false);
-    (deleteModelAllInfoInCache as Mock).mockResolvedValue(undefined);
-    const lateEngine = { unload: vi.fn().mockResolvedValue(undefined) };
-    let resolveCreate!: (value: unknown) => void;
-    (CreateMLCEngine as Mock).mockImplementation(() => new Promise(resolve => {
-      resolveCreate = resolve;
+  it('re-syncs status when LiteRT cache deletion fails', async () => {
+    litertState.deleteCache.mockRejectedValue(new Error('Cache delete failed'));
+    litertState.isCached.mockResolvedValue(true);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(engine!.deleteModelCache(E2B_MODEL_ID)).resolves.toEqual({
+      success: false,
+      error: 'Cache delete failed',
+    });
+
+    expect(statusFor()).toEqual({ state: 'cached' });
+    error.mockRestore();
+  });
+
+  it('rejects empty and retired model IDs without touching cache storage', async () => {
+    await expect(engine!.deleteModelCache('')).resolves.toEqual({
+      success: false,
+      error: 'No model ID provided',
+    });
+    await expect(engine!.deleteModelCache('retired-local-model')).resolves.toEqual({
+      success: false,
+      error: 'Unknown local model: retired-local-model',
+    });
+
+    expect(deleteLitertlmCache).not.toHaveBeenCalled();
+  });
+
+  it('serializes stale progress before a later terminal status', async () => {
+    const get = globalThis.chrome.storage.local.get as unknown as Mock<
+      (keys: string | string[]) => Promise<Record<string, unknown>>
+    >;
+    let releaseFirstRead!: () => void;
+    get.mockImplementationOnce(() => new Promise(resolve => {
+      releaseFirstRead = () => resolve({ localModelStatuses: {} });
     }));
 
-    localEngine.initialize('TestModel-MLC');
-    await new Promise(r => setTimeout(r, 10));
-    expect(localEngine.isInitializingModel('TestModel-MLC')).toBe(true);
-
-    let deletionSettled = false;
-    const deletion = localEngine.deleteModelCache('TestModel-MLC').then(result => {
-      deletionSettled = true;
-      return result;
+    const progress = engine!.updateStatus(E2B_MODEL_ID, {
+      state: 'downloading',
+      progress: 0.8,
     });
-    await Promise.resolve();
-    expect(deletionSettled).toBe(false);
-    expect(deleteModelAllInfoInCache).not.toHaveBeenCalled();
+    const terminal = engine!.updateStatus(E2B_MODEL_ID, { state: 'not_downloaded' });
+    await flushAsync();
 
-    resolveCreate(lateEngine);
-    const result = await deletion;
+    expect(globalThis.chrome.storage.local.set).not.toHaveBeenCalled();
+    releaseFirstRead();
+    await Promise.all([progress, terminal]);
 
-    expect(result.success).toBe(true);
-    expect(localEngine.isInitializing()).toBe(false);
-    expect(localEngine.engine).toBeNull();
-    expect(lateEngine.unload).toHaveBeenCalledTimes(1);
-    expect(deleteModelAllInfoInCache as Mock).toHaveBeenCalled();
-  });
-
-  it('returns success:false and re-syncs status when deletion throws', async () => {
-    (deleteModelAllInfoInCache as Mock).mockRejectedValue(new Error('ModelNotFound'));
-    (hasModelInCache as Mock).mockResolvedValue(true);
-
-    const result = await localEngine.deleteModelCache('TestModel-MLC');
-
-    expect(result.success).toBe(false);
-    expect(result.error).toBe('ModelNotFound');
-    const statuses = (storageData.localModelStatuses || {}) as Record<string, Record<string, unknown>>;
-    expect(statuses['TestModel-MLC']?.state).toBe('cached');
-  });
-
-  it('purges only this model\'s orphaned tensor-cache.json manifest', async () => {
-    // WebLLM's deleteModelInCache deletes the shards but leaves
-    // tensor-cache.json behind; deleteModelCache must scrub it.
-    modelsState.PREDEFINED_MODELS = { local: [{
-      name: 'TestModel-MLC', display: 'Test',
-      webllmConfig: { model: 'https://huggingface.co/test/TestModel-MLC', model_lib: 'https://x/test.wasm' },
-    }] };
-    (deleteModelAllInfoInCache as Mock).mockResolvedValue(undefined);
-
-    const orphan = 'https://huggingface.co/test/TestModel-MLC/resolve/main/tensor-cache.json';
-    const otherModel = 'https://huggingface.co/test/OtherModel/resolve/main/tensor-cache.json';
-    const deleted: string[] = [];
-    const modelCache = {
-      keys: vi.fn(async () => [{ url: orphan }, { url: otherModel }]),
-      delete: vi.fn(async (req: { url: string }) => { deleted.push(req.url); return true; }),
-    };
-    const prevCaches = (globalThis as unknown as { caches?: unknown }).caches;
-    (globalThis as unknown as { caches: unknown }).caches = {
-      open: vi.fn(async (n: string) => (n === 'webllm/model' ? modelCache : { keys: async () => [], delete: async () => false })),
-    };
-
-    try {
-      const result = await localEngine.deleteModelCache('TestModel-MLC');
-      expect(result.success).toBe(true);
-      // Only this model's manifest — not OtherModel's.
-      expect(deleted).toEqual([orphan]);
-    } finally {
-      (globalThis as unknown as { caches?: unknown }).caches = prevCaches;
-    }
+    expect(statusFor()).toEqual({ state: 'not_downloaded' });
   });
 });
 
-// ==================== Idle timeout ====================
-
-describe('idle timeout', () => {
-  let storageData: Record<string, unknown>;
-
-  beforeEach(async () => {
+describe('LocalEngine idle lifecycle', () => {
+  beforeEach(() => {
     vi.useFakeTimers();
-    (CreateMLCEngine as Mock).mockReset();
-    (hasModelInCache as Mock).mockReset();
-    modelsState.PREDEFINED_MODELS = {
-      local: [{ name: 'TestModel-MLC', display: 'Test' }],
-    };
+    engine = new LocalEngine();
+  });
 
-    await localEngine.reset();
+  it('unloads E2B and marks it cached after one idle minute', async () => {
+    const backend = makeBackend();
+    litertState.createBackend.mockReturnValue(backend);
+    await engine!.initialize(E2B_MODEL_ID);
 
-    storageData = {};
-    globalThis.chrome = {
-      storage: {
-        local: {
-          get: vi.fn(async () => storageData),
-          set: vi.fn(async (data: Record<string, unknown>) => { Object.assign(storageData, data); }),
-        } as unknown as chrome.storage.LocalStorageArea,
-      },
-    } as unknown as typeof chrome;
+    await vi.advanceTimersByTimeAsync(60_000);
+    await engine!._statusWriteChain;
 
-    Object.defineProperty(globalThis, 'navigator', {
-      value: { gpu: {} },
-      writable: true,
-      configurable: true,
+    expect(backend.unload).toHaveBeenCalledTimes(1);
+    expect(engine!.engine).toBeNull();
+    expect(statusFor()).toEqual({ state: 'cached' });
+  });
+
+  it('a successful generation resets the idle deadline', async () => {
+    const backend = makeBackend({
+      generate: vi.fn().mockResolvedValue('yes'),
     });
+    litertState.createBackend.mockReturnValue(backend);
+    await engine!.initialize(E2B_MODEL_ID);
+
+    await vi.advanceTimersByTimeAsync(59_000);
+    await engine!.generate([{ role: 'user', content: 'post' }], 16);
+    await vi.advanceTimersByTimeAsync(59_000);
+    expect(backend.unload).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(backend.unload).toHaveBeenCalledTimes(1);
   });
 
-  afterEach(async () => {
-    await localEngine.reset();
-    vi.useRealTimers();
+  it('keeps the engine loaded during generation and starts a fresh idle minute afterward', async () => {
+    let finishGeneration!: (result: string) => void;
+    const backend = makeBackend({
+      generate: vi.fn(() => new Promise<string>(resolve => {
+        finishGeneration = resolve;
+      })),
+    });
+    litertState.createBackend.mockReturnValue(backend);
+    await engine!.initialize(E2B_MODEL_ID);
+
+    await vi.advanceTimersByTimeAsync(59_000);
+    const generation = engine!.generate([{ role: 'user', content: 'post' }], 16);
+    await flushAsync();
+    expect(backend.generate).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(backend.unload).not.toHaveBeenCalled();
+
+    finishGeneration('yes');
+    await expect(generation).resolves.toBe('yes');
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(backend.unload).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    await flushAsync();
+    await engine!._statusWriteChain;
+    expect(backend.unload).toHaveBeenCalledTimes(1);
+    expect(statusFor()).toEqual({ state: 'cached' });
   });
 
-  // Helper: advance time and flush the async idle timeout callback.
-  // Stops keepalive first to prevent infinite interval ticks, then
-  // uses vi.advanceTimersByTimeAsync which handles promise-based callbacks.
-  async function advanceAndFlush(ms: number): Promise<void> {
-    localEngine._stopKeepAlive();
-    await vi.advanceTimersByTimeAsync(ms);
-  }
+  it('defers the idle deadline while another maintenance owns the engine', async () => {
+    let finishMaintenance!: () => void;
+    const backend = makeBackend();
+    litertState.createBackend.mockReturnValue(backend);
+    await engine!.initialize(E2B_MODEL_ID);
 
-  it('unloads engine after idle timeout fires', async () => {
-    const mockEngine = { unload: vi.fn().mockResolvedValue(undefined) };
-    (CreateMLCEngine as Mock).mockResolvedValue(mockEngine);
+    await vi.advanceTimersByTimeAsync(59_000);
+    const staleIdleGeneration = engine!._activityGeneration;
+    const maintenance = engine!.runMaintenance(
+      () => new Promise<void>(resolve => { finishMaintenance = resolve; }),
+    );
+    await flushAsync();
+    expect(engine!.isMaintaining()).toBe(true);
 
-    await localEngine.initialize('TestModel-MLC');
-    expect(localEngine.engine).not.toBeNull();
+    // Simulate an already-queued callback that escaped clearTimeout(). It must
+    // return without attempting nested maintenance or unloading the backend.
+    await expect(engine!._onIdleTimeout(staleIdleGeneration)).resolves.toBeUndefined();
 
-    await advanceAndFlush(60000);
+    // Cross the original idle deadline while maintenance is still active.
+    await vi.advanceTimersByTimeAsync(61_000);
+    expect(backend.unload).not.toHaveBeenCalled();
 
-    expect(mockEngine.unload).toHaveBeenCalled();
-    expect(localEngine.engine).toBeNull();
-    expect(localEngine.loadedModel).toBeNull();
-  });
+    finishMaintenance();
+    await maintenance;
+    expect(engine!.isMaintaining()).toBe(false);
 
-  it('sets status to cached after idle unload', async () => {
-    const mockEngine = { unload: vi.fn().mockResolvedValue(undefined) };
-    (CreateMLCEngine as Mock).mockResolvedValue(mockEngine);
-
-    await localEngine.initialize('TestModel-MLC');
-
-    await advanceAndFlush(60000);
-
-    const statuses = (storageData.localModelStatuses || {}) as Record<string, Record<string, unknown>>;
-    expect(statuses['TestModel-MLC']?.state).toBe('cached');
-  });
-
-  it('_resetIdleTimeout delays the unload', async () => {
-    const mockEngine = { unload: vi.fn().mockResolvedValue(undefined) };
-    (CreateMLCEngine as Mock).mockResolvedValue(mockEngine);
-
-    await localEngine.initialize('TestModel-MLC');
-
-    // Advance 50s (not yet at 60s threshold)
-    await advanceAndFlush(50000);
-    expect(localEngine.engine).not.toBeNull();
-
-    // Reset the timer (simulates an inference request)
-    localEngine._resetIdleTimeout();
-
-    // Advance another 50s (100s total, but only 50s since reset)
-    await advanceAndFlush(50000);
-    expect(localEngine.engine).not.toBeNull();
-
-    // Advance 10 more seconds (60s since last reset)
-    await advanceAndFlush(10000);
-
-    expect(mockEngine.unload).toHaveBeenCalled();
-    expect(localEngine.engine).toBeNull();
-  });
-
-  it('explicit reset clears idle timer and prevents double-unload', async () => {
-    const mockEngine = { unload: vi.fn().mockResolvedValue(undefined) };
-    (CreateMLCEngine as Mock).mockResolvedValue(mockEngine);
-
-    await localEngine.initialize('TestModel-MLC');
-
-    // Explicitly reset state (which calls _stopIdleTimeout internally)
-    await localEngine.reset();
-    expect(mockEngine.unload).toHaveBeenCalledTimes(1);
-
-    // Advance past what would have been the idle timeout
-    await advanceAndFlush(60000);
-
-    // Should not have been called again by the idle timer
-    expect(mockEngine.unload).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(59_999);
+    expect(backend.unload).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    await flushAsync();
+    expect(backend.unload).toHaveBeenCalledTimes(1);
   });
 });
 
-// ==================== localEngine.initialize (model switch) ====================
+describe('LocalEngine generation, preemption, and maintenance', () => {
+  beforeEach(() => {
+    engine = new LocalEngine();
+  });
 
-describe('localEngine.initialize model switch', () => {
-  let storageData: Record<string, unknown>;
-
-  beforeEach(async () => {
-    (CreateMLCEngine as Mock).mockReset();
-    (hasModelInCache as Mock).mockReset();
-    modelsState.PREDEFINED_MODELS = {
-      local: [
-        { name: 'ModelA-MLC', display: 'Model A' },
-        { name: 'ModelB-MLC', display: 'Model B' },
-      ],
-    };
-
-    await localEngine.reset();
-
-    storageData = {};
-    globalThis.chrome = {
-      storage: {
-        local: {
-          get: vi.fn(async () => storageData),
-          set: vi.fn(async (data: Record<string, unknown>) => { Object.assign(storageData, data); }),
-        } as unknown as chrome.storage.LocalStorageArea,
-      },
-    } as unknown as typeof chrome;
-
-    Object.defineProperty(globalThis, 'navigator', {
-      value: { gpu: {} },
-      writable: true,
-      configurable: true,
+  it('passes the request through the LiteRT seam', async () => {
+    const onStart = vi.fn();
+    const backend = makeBackend({
+      generate: vi.fn().mockResolvedValue('| yes | no'),
     });
+    litertState.createBackend.mockReturnValue(backend);
+    await engine!.initialize(E2B_MODEL_ID);
+    const messages = [{ role: 'user' as const, content: 'post' }];
+
+    await expect(engine!.generate(messages, 24, {
+      priority: 3,
+      onStart,
+    })).resolves.toBe('| yes | no');
+
+    expect(onStart).toHaveBeenCalledTimes(1);
+    expect(backend.generate).toHaveBeenCalledWith(messages, 24);
   });
 
-  it('concurrent init calls for new model do not reject each other via drain race', async () => {
-    // Model A is loaded and "running inference" (in-flight task in the queue)
-    const oldEngine = { unload: vi.fn(async () => {}), chat: { completions: { create: vi.fn() } } };
-    localEngine.engine = oldEngine as unknown as typeof localEngine.engine;
-    localEngine.loadedModel = 'ModelA-MLC';
-
-    // CreateMLCEngine for model B — use a deferred promise so we control when it resolves
-    const newEngine = { unload: vi.fn(async () => {}), chat: { completions: { create: vi.fn() } } };
-    (CreateMLCEngine as Mock).mockImplementation(() => new Promise(resolve => {
-      // Resolve on next tick to simulate async engine creation
-      setTimeout(() => resolve(newEngine), 10);
-    }));
-
-    // Two concurrent localEngine.initialize calls for the new model,
-    // simulating two processBatch → callLocalInference → initialize calls.
-    // Before the fix, both would enter the drain path and the second drain would
-    // clear the first's queued task, causing "Inference queue cleared" rejection.
-    const [engine1, engine2] = await Promise.all([
-      localEngine.initialize('ModelB-MLC'),
-      localEngine.initialize('ModelB-MLC'),
-    ]);
-
-    // Both should resolve to the same backend — no "Inference queue cleared" error
-    expect(engine1).not.toBeNull();
-    expect(engine1).toBe(engine2);
-
-    // Old engine should have been unloaded exactly once
-    expect(oldEngine.unload).toHaveBeenCalledTimes(1);
-  });
-
-  it('settles coalesced A waiters before starting a replacement B init', async () => {
-    let resolveA!: (value: unknown) => void;
-    let resolveB!: (value: unknown) => void;
-    const engineA = { unload: vi.fn().mockResolvedValue(undefined) };
-    const engineB = { unload: vi.fn().mockResolvedValue(undefined) };
-    (CreateMLCEngine as Mock)
-      .mockImplementationOnce(() => new Promise(resolve => { resolveA = resolve; }))
-      .mockImplementationOnce(() => new Promise(resolve => { resolveB = resolve; }));
-
-    const initA = localEngine.initialize('ModelA-MLC');
-    await new Promise(resolve => setTimeout(resolve, 0));
-    const waiterA = localEngine.initialize('ModelA-MLC');
-    const initB = localEngine.initialize('ModelB-MLC');
-    await new Promise(resolve => setTimeout(resolve, 0));
-
-    // B cannot create a second GPU engine while A's unabortable factory is
-    // still winding down.
-    expect(CreateMLCEngine).toHaveBeenCalledTimes(1);
-
-    resolveA(engineA);
-    await expect(Promise.all([initA, waiterA])).resolves.toEqual([null, null]);
-    await new Promise(resolve => setTimeout(resolve, 0));
-    expect(CreateMLCEngine).toHaveBeenCalledTimes(2);
-
-    resolveB(engineB);
-    await expect(initB).resolves.not.toBeNull();
-    expect(engineA.unload).toHaveBeenCalledTimes(1);
-    expect(localEngine.isModelLoaded('ModelB-MLC')).toBe(true);
-  });
-});
-
-// ==================== parseLocalModelResponse ====================
-
-describe('parseLocalModelResponse', () => {
-  it('returns SHOW with empty-response reasoning for empty string', () => {
-    const result = parseLocalModelResponse('');
-    expect(result.shouldHide).toBe(false);
-    expect(result.reasoning).toMatch(/empty model response/i);
-  });
-
-  it('returns SHOW with empty-response reasoning for null', () => {
-    const result = parseLocalModelResponse(null);
-    expect(result.shouldHide).toBe(false);
-    expect(result.reasoning).toMatch(/empty model response/i);
-  });
-
-  it('returns SHOW when response contains "No match"', () => {
-    const result = parseLocalModelResponse('Post about cooking dinner at home. No match.');
-    expect(result.shouldHide).toBe(false);
-    expect(result.reasoning).toBe('Post about cooking dinner at home. No match.');
-  });
-
-  it('returns HIDE when response contains "Matches <topic>"', () => {
-    const result = parseLocalModelResponse('Post about NBA basketball game results. Matches sports.');
-    expect(result.shouldHide).toBe(true);
-    expect(result.reasoning).toContain('(Matched: sports)');
-  });
-
-  it('uses last occurrence when both "no match" and "matches" are present', () => {
-    // "Matches" after "no match" → HIDE (last-wins)
-    const hide = parseLocalModelResponse('Not a no match situation. Matches politics.');
-    expect(hide.shouldHide).toBe(true);
-
-    // "No match" after "matches" → SHOW (last-wins)
-    const show = parseLocalModelResponse('This matches nothing relevant. No match.');
-    expect(show.shouldHide).toBe(false);
-  });
-
-  it('returns SHOW when neither pattern is present', () => {
-    const result = parseLocalModelResponse('Post about cooking dinner at home.');
-    expect(result.shouldHide).toBe(false);
-    expect(result.reasoning).toBe('Post about cooking dinner at home.');
-  });
-
-  it('is case-insensitive', () => {
-    const upper = parseLocalModelResponse('Post about sports. MATCHES sports.');
-    expect(upper.shouldHide).toBe(true);
-
-    const mixed = parseLocalModelResponse('Post about food. No Match.');
-    expect(mixed.shouldHide).toBe(false);
-  });
-
-  it('extracts the matched topic from after "Matches "', () => {
-    const result = parseLocalModelResponse('Political content about elections. Matches politics.');
-    expect(result.reasoning).toContain('(Matched: politics)');
-  });
-
-  it('strips trailing period from matched topic', () => {
-    const result = parseLocalModelResponse('Sports content. Matches sports.');
-    expect(result.reasoning).toContain('(Matched: sports)');
-    expect(result.reasoning).not.toContain('(Matched: sports.)');
-  });
-});
-
-// ==================== parseTableYesnoResponse ====================
-
-describe('parseTableYesnoResponse', () => {
-  const cats = ['crypto', 'sports', 'politics'];
-
-  it('returns SHOW for empty/null response', () => {
-    expect(parseTableYesnoResponse('', ['a'])).toMatchObject({
-      shouldHide: false,
-      matches: [],
-      malformed: true,
+  it('preempts an in-flight generation and does not interrupt twice', async () => {
+    let rejectGeneration!: (error: Error) => void;
+    const backend = makeBackend({
+      generate: vi.fn(() => new Promise<string>((_resolve, reject) => {
+        rejectGeneration = reject;
+      })),
+      interrupt: vi.fn(async () => {
+        rejectGeneration(new Error('interrupted'));
+      }),
     });
-    expect(parseTableYesnoResponse(null, ['a'])).toMatchObject({
-      shouldHide: false,
-      matches: [],
-      malformed: true,
+    litertState.createBackend.mockReturnValue(backend);
+    await engine!.initialize(E2B_MODEL_ID);
+
+    const generation = engine!.generate([{ role: 'user', content: 'post' }], 16);
+    await flushAsync();
+    engine!.preempt();
+    engine!.preempt();
+
+    await expect(generation).rejects.toThrow('Inference preempted');
+    expect(backend.interrupt).toHaveBeenCalledTimes(1);
+  });
+
+  it('waits for interrupt settlement before starting the queued generation', async () => {
+    let rejectFirst!: (error: Error) => void;
+    let finishInterrupt!: () => void;
+    const backend = makeBackend({
+      generate: vi.fn()
+        .mockImplementationOnce(() => new Promise<string>((_resolve, reject) => {
+          rejectFirst = reject;
+        }))
+        .mockResolvedValueOnce('second result'),
+      interrupt: vi.fn(() => {
+        rejectFirst(new Error('interrupted'));
+        return new Promise<void>(resolve => {
+          finishInterrupt = resolve;
+        });
+      }),
     });
-  });
+    litertState.createBackend.mockReturnValue(backend);
+    await engine!.initialize(E2B_MODEL_ID);
 
-  it('parses a canonical prompt-shaped row and returns matched categories in order', () => {
-    const r = parseTableYesnoResponse('| yes | no | yes', cats);
-    expect(r.shouldHide).toBe(true);
-    expect(r.matches).toEqual(['crypto', 'politics']);
-  });
-
-  it('parses a bare row without a leading pipe', () => {
-    const r = parseTableYesnoResponse('no|yes|yes', cats);
-    expect(r.shouldHide).toBe(true);
-    expect(r.matches).toEqual(['sports', 'politics']);
-  });
-
-  it('tolerates a trailing pipe', () => {
-    const r = parseTableYesnoResponse('| no | yes | yes |', cats);
-    expect(r.matches).toEqual(['sports', 'politics']);
-  });
-
-  it('tolerates whitespace around verdicts', () => {
-    const r = parseTableYesnoResponse('  no | yes | no  ', cats);
-    expect(r.matches).toEqual(['sports']);
-  });
-
-  it('returns SHOW with no matches when all verdicts are no', () => {
-    const r = parseTableYesnoResponse('| no | no', ['crypto', 'sports']);
-    expect(r.shouldHide).toBe(false);
-    expect(r.matches).toEqual([]);
-    expect(r.malformed).toBe(false);
-  });
-
-  it('is case-insensitive on verdicts', () => {
-    expect(parseTableYesnoResponse('| YES | No', ['crypto', 'sports']).matches).toEqual(['crypto']);
-  });
-
-  it('tolerates a non-verdict preamble before the row', () => {
-    expect(parseTableYesnoResponse('Here you go: | yes | no', ['crypto', 'sports']).matches)
-      .toEqual(['crypto']);
-  });
-
-  it('falls back to SHOW when verdict count != category count', () => {
-    const r = parseTableYesnoResponse('| yes', ['crypto', 'sports']);
-    expect(r.shouldHide).toBe(false);
-    expect(r.reasoning).toMatch(/expected 2 verdicts, got 1/);
-    expect(r.malformed).toBe(true);
-  });
-
-  it('falls back to SHOW when a bare row count is malformed', () => {
-    const r = parseTableYesnoResponse('yes no', ['crypto', 'sports']);
-    expect(r.shouldHide).toBe(false);
-    expect(r.reasoning).toMatch(/Malformed verdict row/);
-    expect(r.malformed).toBe(true);
-  });
-
-  it('falls back to SHOW on a non yes/no verdict', () => {
-    const r = parseTableYesnoResponse('| maybe | no', ['crypto', 'sports']);
-    expect(r.shouldHide).toBe(false);
-    expect(r.reasoning).toMatch(/Malformed verdict row/);
-  });
-
-  it('strips Gemma chat-template markers before parsing', () => {
-    const r = parseTableYesnoResponse('<start_of_turn>model\n| yes | no <end_of_turn>', ['crypto', 'sports']);
-    expect(r.shouldHide).toBe(true);
-    expect(r.matches).toEqual(['crypto']);
-  });
-
-  it('handles a single-category bare verdict', () => {
-    const r = parseTableYesnoResponse('yes', ['only']);
-    expect(r.shouldHide).toBe(true);
-    expect(r.matches).toEqual(['only']);
-    expect(r.malformed).toBe(false);
-  });
-
-  it('parses newline-per-verdict output and additional turn markers', () => {
-    const r = parseTableYesnoResponse('<|turn>model\nno\nyes\nno<turn|>', cats);
-    expect(r.matches).toEqual(['sports']);
-    expect(r.malformed).toBe(false);
-  });
-
-  it('accepts punctuation but rejects explanations for one bare verdict', () => {
-    expect(parseTableYesnoResponse('Yes,', ['only']).matches).toEqual(['only']);
-    expect(parseTableYesnoResponse('no.', ['only']).malformed).toBe(false);
-    expect(parseTableYesnoResponse('Yes, but actually no after reconsidering', ['only']).malformed).toBe(true);
-    expect(parseTableYesnoResponse('no because this does match', ['only']).malformed).toBe(true);
-  });
-
-  it('rejects contradictory newline verdicts for one category', () => {
-    const result = parseTableYesnoResponse('yes\nno', ['only']);
-    expect(result.shouldHide).toBe(false);
-    expect(result.malformed).toBe(true);
-    expect(result.reasoning).toMatch(/expected 1 verdicts, got 2/);
-  });
-
-  it('rejects extra verdicts instead of truncating them', () => {
-    const r = parseTableYesnoResponse('| yes | no', ['only']);
-    expect(r.shouldHide).toBe(false);
-    expect(r.matches).toEqual([]);
-    expect(r.malformed).toBe(true);
-    expect(r.reasoning).toMatch(/expected 1 verdicts, got 2/);
-  });
-});
-
-// ==================== LocalEngine.generate / preempt / ensureLoaded / teardown ====================
-
-describe('LocalEngine generate + preempt + lifecycle', () => {
-  let storageData: Record<string, unknown>;
-  let mockEngine: ReturnType<typeof makeMockEngine>;
-
-  function makeMockEngine(createResponse = 'No match.') {
-    return {
-      resetChat: vi.fn().mockResolvedValue(undefined),
-      interruptGenerate: vi.fn().mockResolvedValue(undefined),
-      interruptSignal: false,
-      unload: vi.fn().mockResolvedValue(undefined),
-      chat: {
-        completions: {
-          create: vi.fn().mockResolvedValue({
-            choices: [{ message: { content: createResponse } }],
-          }),
-        },
-      },
-    };
-  }
-
-  // The orchestrator now holds a LocalBackend, not a raw MLCEngine. Wrap the
-  // mock engine in a real WebllmBackend so generate()/interrupt()/unload() hit
-  // the actual extracted code path while still asserting on the mock engine.
-  function loadedBackend(mockEngineInstance: ReturnType<typeof makeMockEngine>): NonNullable<typeof localEngine.engine> {
-    const b = new WebllmBackend();
-    (b as unknown as { engine: unknown; modelDef: LocalModelDef }).engine = mockEngineInstance;
-    (b as unknown as { engine: unknown; modelDef: LocalModelDef }).modelDef = { name: 'TestModel-MLC', display: 'Test' } as LocalModelDef;
-    return b;
-  }
-
-  beforeEach(async () => {
-    (CreateMLCEngine as Mock).mockReset();
-    (hasModelInCache as Mock).mockReset();
-    (isGPUDeviceLostError as Mock).mockReturnValue(false);
-
-    modelsState.PREDEFINED_MODELS = {
-      local: [{ name: 'TestModel-MLC', display: 'Test' }],
-    };
-
-    mockEngine = makeMockEngine();
-
-    // Reset localEngine and inference queue to clean state
-    await localEngine.reset();
-    inferenceQueue.reset();
-
-    // Set localEngine to a "loaded" state with the mock engine
-    localEngine.engine = loadedBackend(mockEngine);
-    localEngine.loadedModel = 'TestModel-MLC';
-    localEngine._modelConfig = { name: 'TestModel-MLC', display: 'Test' } as LocalModelDef;
-
-    storageData = {};
-    globalThis.chrome = {
-      storage: {
-        local: {
-          get: vi.fn(async () => storageData),
-          set: vi.fn(async (data: Record<string, unknown>) => { Object.assign(storageData, data); }),
-        } as unknown as chrome.storage.LocalStorageArea,
-      },
-    } as unknown as typeof chrome;
-
-    Object.defineProperty(globalThis, 'navigator', {
-      value: { gpu: {} },
-      writable: true,
-      configurable: true,
-    });
-  });
-
-  afterEach(async () => {
-    await localEngine.reset();
-    inferenceQueue.reset();
-  });
-
-  // ---- generate() basic behavior ----
-
-  it('calls resetChat before inference and returns stripped response', async () => {
-    const result = await localEngine.generate(
-      [{ role: 'user', content: 'hello' }], 40
+    const first = engine!.generate([{ role: 'user', content: 'first' }], 16);
+    await flushAsync();
+    engine!.preempt();
+    const onSecondStart = vi.fn();
+    const second = engine!.generate(
+      [{ role: 'user', content: 'second' }],
+      16,
+      { onStart: onSecondStart },
     );
-    expect(mockEngine.resetChat).toHaveBeenCalled();
-    expect(mockEngine.chat.completions.create).toHaveBeenCalled();
-    expect(result).toBe('No match.');
-  });
-
-  it('strips <think> blocks from response', async () => {
-    mockEngine.chat.completions.create.mockResolvedValue({
-      choices: [{ message: { content: '<think>reasoning here</think>No match.' } }],
-    });
-    const result = await localEngine.generate(
-      [{ role: 'user', content: 'test' }], 40
-    );
-    expect(result).toBe('No match.');
-  });
-
-  it('passes temperature override through to engine request', async () => {
-    await localEngine.generate(
-      [{ role: 'user', content: 'test' }], 40, { temperature: 0.7 }
-    );
-    const request = mockEngine.chat.completions.create.mock.calls[0][0];
-    expect(request.temperature).toBe(0.7);
-  });
-
-  it('fires onStart callback when task begins executing, not when enqueued', async () => {
-    const order: string[] = [];
-    let resolveFirst!: (value: unknown) => void;
-
-    // Block the queue with a first generate
-    mockEngine.chat.completions.create
-      .mockImplementationOnce(() => new Promise(resolve => {
-        resolveFirst = resolve;
-      }))
-      .mockResolvedValueOnce({
-        choices: [{ message: { content: 'second' } }],
-      });
-
-    const first = localEngine.generate(
-      [{ role: 'user', content: 'first' }], 40,
-      { onStart: () => order.push('onStart-1') }
-    );
-    // Let the first task start executing
-    await new Promise(r => setTimeout(r, 0));
-
-    const second = localEngine.generate(
-      [{ role: 'user', content: 'second' }], 40,
-      { onStart: () => order.push('onStart-2') }
-    );
-
-    // First onStart should have fired, second should not yet
-    expect(order).toEqual(['onStart-1']);
-
-    // Resolve first, let second start
-    resolveFirst({ choices: [{ message: { content: 'first' } }] });
-    await first;
-    await second;
-
-    expect(order).toEqual(['onStart-1', 'onStart-2']);
-  });
-
-  // ---- preempt() during generate() ----
-
-  it('preempt rejects in-flight generate with "Inference preempted"', async () => {
-    // Make the engine completion hang until preempted
-    mockEngine.chat.completions.create.mockImplementation(
-      () => new Promise((_, reject) => {
-        // Simulate engine rejecting after interrupt
-        setTimeout(() => reject(new Error('AbortError')), 20);
-      })
-    );
-
-    const genPromise = localEngine.generate(
-      [{ role: 'user', content: 'test' }], 40
-    );
-    await new Promise(r => setTimeout(r, 0));
-
-    localEngine.preempt();
-
-    await expect(genPromise).rejects.toThrow('Inference preempted');
-    expect(mockEngine.interruptGenerate).toHaveBeenCalled();
-  });
-
-  it('preempt is idempotent — second call does not re-call interruptGenerate', async () => {
-    mockEngine.chat.completions.create.mockImplementation(
-      () => new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('AbortError')), 20);
-      })
-    );
-
-    const genPromise = localEngine.generate(
-      [{ role: 'user', content: 'test' }], 40
-    );
-    await new Promise(r => setTimeout(r, 0));
-
-    localEngine.preempt();
-    localEngine.preempt();
-
-    await genPromise.catch(() => {});
-    expect(mockEngine.interruptGenerate).toHaveBeenCalledTimes(1);
-  });
-
-  // ---- preempt + next generate interaction ----
-
-  it('generate after preempt waits for interruptGenerate to settle and clears stale interruptSignal', async () => {
-    let resolveInterrupt!: (value?: unknown) => void;
-    mockEngine.interruptGenerate.mockImplementation(
-      () => new Promise(resolve => { resolveInterrupt = resolve; })
-    );
-
-    // First generate hangs, then gets preempted
-    mockEngine.chat.completions.create
-      .mockImplementationOnce(() => new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('AbortError')), 10);
-      }))
-      .mockResolvedValueOnce({
-        choices: [{ message: { content: 'after preempt' } }],
-      });
-
-    const first = localEngine.generate(
-      [{ role: 'user', content: 'first' }], 40
-    );
-    await new Promise(r => setTimeout(r, 0));
-
-    localEngine.preempt();
-    // Simulate stale interruptSignal left on engine
-    mockEngine.interruptSignal = true;
-
-    // Queue a second generate
-    const onStart2 = vi.fn();
-    const second = localEngine.generate(
-      [{ role: 'user', content: 'second' }], 40,
-      { onStart: onStart2 }
-    );
-
-    // First should reject
-    await expect(first).rejects.toThrow('Inference preempted');
-
-    // Second should be blocked waiting for interruptGenerate to settle
-    await new Promise(r => setTimeout(r, 0));
-    expect(onStart2).not.toHaveBeenCalled();
-
-    // Resolve the interrupt
-    resolveInterrupt();
-    const result = await second;
-
-    expect(result).toBe('after preempt');
-    expect(onStart2).toHaveBeenCalled();
-    // interruptSignal should have been cleared
-    expect(mockEngine.interruptSignal).toBe(false);
-  });
-
-  // ---- generate + generate + preempt: second generate picks up ----
-
-  it('preempting first generate allows queued second generate to execute with onStart', async () => {
-    let rejectFirst!: (reason?: unknown) => void;
-    mockEngine.chat.completions.create
-      .mockImplementationOnce(() => new Promise((_resolve, reject) => {
-        rejectFirst = reject;
-      }))
-      .mockResolvedValueOnce({
-        choices: [{ message: { content: 'second result' } }],
-      });
-
-    const onStart1 = vi.fn();
-    const onStart2 = vi.fn();
-
-    const first = localEngine.generate(
-      [{ role: 'user', content: 'first' }], 40,
-      { onStart: onStart1 }
-    );
-    await new Promise(r => setTimeout(r, 0));
-    expect(onStart1).toHaveBeenCalled();
-
-    // Queue second while first is in-flight
-    const second = localEngine.generate(
-      [{ role: 'user', content: 'second' }], 40,
-      { onStart: onStart2 }
-    );
-    expect(onStart2).not.toHaveBeenCalled();
-
-    // Preempt first
-    localEngine.preempt();
-    rejectFirst(new Error('AbortError'));
 
     await expect(first).rejects.toThrow('Inference preempted');
+    await flushAsync();
+    expect(onSecondStart).not.toHaveBeenCalled();
+    expect(backend.generate).toHaveBeenCalledTimes(1);
 
-    // Second should complete
-    const result = await second;
-    expect(result).toBe('second result');
-    expect(onStart2).toHaveBeenCalled();
+    finishInterrupt();
+    await expect(second).resolves.toBe('second result');
+    expect(onSecondStart).toHaveBeenCalledTimes(1);
+    expect(backend.generate).toHaveBeenCalledTimes(2);
   });
 
-  // ---- ensureLoaded + generate ----
+  it('blocks reloads during maintenance and leaves no loaded engine after deletion', async () => {
+    let rejectGeneration!: (error: Error) => void;
+    const backend = makeBackend({
+      generate: vi.fn(() => new Promise<string>((_resolve, reject) => {
+        rejectGeneration = reject;
+      })),
+      interrupt: vi.fn(async () => {
+        rejectGeneration(new Error('interrupted for maintenance'));
+      }),
+    });
+    litertState.createBackend.mockReturnValue(backend);
+    await engine!.initialize(E2B_MODEL_ID);
+    const generation = engine!.generate([{ role: 'user', content: 'post' }], 16);
+    await flushAsync();
+    const prepare = vi.fn();
 
-  it('ensureLoaded initializes engine if not loaded, then generate works', async () => {
-    // Start with no engine
-    localEngine.engine = null;
-    localEngine.loadedModel = null;
-
-    const freshEngine = makeMockEngine('Matches politics.');
-    (CreateMLCEngine as Mock).mockResolvedValue(freshEngine);
-    (hasModelInCache as Mock).mockResolvedValue(false);
-
-    await localEngine.ensureLoaded('TestModel-MLC');
-    expect(localEngine.engine).not.toBeNull();
-
-    const result = await localEngine.generate(
-      [{ role: 'user', content: 'test' }], 40
+    const maintenance = engine!.runMaintenance(
+      () => engine!.deleteModelCache(E2B_MODEL_ID),
+      prepare,
     );
-    expect(result).toBe('Matches politics.');
-    expect(freshEngine.resetChat).toHaveBeenCalled();
+
+    await expect(engine!.ensureLoaded(E2B_MODEL_ID)).rejects.toThrow(MODEL_MAINTENANCE_ERROR);
+    await expect(engine!.initialize(E2B_MODEL_ID)).rejects.toThrow(MODEL_MAINTENANCE_ERROR);
+    await expect(generation).rejects.toThrow('Inference preempted');
+    await expect(maintenance).resolves.toEqual({ success: true });
+
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(backend.unload).toHaveBeenCalledTimes(1);
+    expect(deleteLitertlmCache).toHaveBeenCalledWith(E2B_MODEL);
+    expect(LitertlmBackend).toHaveBeenCalledTimes(1);
+    expect(engine!.isMaintaining()).toBe(false);
+    expect(engine!.engine).toBeNull();
+    expect(engine!.loadedModel).toBeNull();
   });
 
-  it('ensureLoaded is a no-op when model is already loaded', async () => {
-    await localEngine.ensureLoaded('TestModel-MLC');
-    // Should not have called CreateMLCEngine since engine is already set
-    expect(CreateMLCEngine).not.toHaveBeenCalled();
+  it('rejects a stale ensureLoaded after fast maintenance spans its status await', async () => {
+    let finishStatusSync!: () => void;
+    vi.spyOn(engine!, 'syncStatus').mockImplementationOnce(
+      () => new Promise(resolve => { finishStatusSync = () => resolve(undefined); }),
+    );
+
+    const staleLoad = engine!.ensureLoaded(E2B_MODEL_ID);
+    const staleLoadAssertion = expect(staleLoad).rejects.toThrow(MODEL_MAINTENANCE_ERROR);
+    await flushAsync();
+    await engine!.runMaintenance(async () => undefined);
+    finishStatusSync();
+
+    await staleLoadAssertion;
+    expect(LitertlmBackend).not.toHaveBeenCalled();
+    expect(engine!.engine).toBeNull();
   });
 
-  it('ensureLoaded throws when engine cannot be created', async () => {
-    localEngine.engine = null;
-    localEngine.loadedModel = null;
+  it('waits for deferred token counting before deleting the leased backend', async () => {
+    let finishCount!: (count: number) => void;
+    const backend = makeBackend({
+      countTokens: vi.fn(() => new Promise<number>(resolve => {
+        finishCount = resolve;
+      })),
+    });
+    litertState.createBackend.mockReturnValue(backend);
+    engine = localEngine;
+    await engine.initialize(E2B_MODEL_ID);
 
-    // Remove WebGPU support
-    Object.defineProperty(globalThis, 'navigator', {
-      value: { gpu: null },
-      writable: true,
-      configurable: true,
+    const inference = callLocalInference(
+      { text: 'A post that should still be preparing its prompt.' },
+      ['rage bait'],
+      E2B_MODEL,
+      E2B_MODEL_ID,
+    );
+    await vi.waitFor(() => expect(backend.countTokens).toHaveBeenCalledTimes(1));
+
+    const deletion = engine.runMaintenance(
+      () => engine!.deleteModelCache(E2B_MODEL_ID),
+    );
+    await flushAsync();
+
+    expect(backend.unload).not.toHaveBeenCalled();
+    expect(deleteLitertlmCache).not.toHaveBeenCalled();
+
+    finishCount(12);
+    await expect(inference).rejects.toThrow(MODEL_MAINTENANCE_ERROR);
+    await expect(deletion).resolves.toEqual({ success: true });
+
+    expect(backend.truncateText).not.toHaveBeenCalled();
+    expect(backend.generate).not.toHaveBeenCalled();
+    expect(backend.unload).toHaveBeenCalledTimes(1);
+    expect(deleteLitertlmCache).toHaveBeenCalledWith(E2B_MODEL);
+  });
+
+  it('resets the engine and records an actionable status after GPU loss', async () => {
+    utilityState.isGpuLost.mockImplementation((message: string) => message.includes('device lost'));
+    const backend = makeBackend({
+      generate: vi.fn().mockRejectedValue(new Error('GPU device lost')),
+    });
+    litertState.createBackend.mockReturnValue(backend);
+    await engine!.initialize(E2B_MODEL_ID);
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+    await expect(
+      engine!.generate([{ role: 'user', content: 'post' }], 16),
+    ).rejects.toThrow('GPU device lost');
+
+    expect(backend.unload).toHaveBeenCalledTimes(1);
+    expect(engine!.engine).toBeNull();
+    expect(statusFor()).toEqual({
+      state: 'error',
+      error: 'GPU memory exhausted during inference. Close other GPU-intensive tabs and retry.',
     });
 
-    await expect(localEngine.ensureLoaded('TestModel-MLC'))
-      .rejects.toThrow('Local model not available');
+    litertState.isCached.mockResolvedValue(true);
+    await expect(engine!.ensureLoaded(E2B_MODEL_ID))
+      .rejects.toThrow('explicit Retry');
+    expect(LitertlmBackend).toHaveBeenCalledTimes(1);
+
+    const retryBackend = makeBackend();
+    litertState.createBackend.mockReturnValue(retryBackend);
+    await expect(engine!.initialize(E2B_MODEL_ID)).resolves.toBe(retryBackend);
+    expect(LitertlmBackend).toHaveBeenCalledTimes(2);
+    expect(statusFor()).toEqual({ state: 'ready' });
+    error.mockRestore();
   });
 
-  // ---- teardown ----
-
-  it('teardown nulls engine synchronously and stops timers', () => {
-    // Start keepalive and idle timeout
-    localEngine._startKeepAlive();
-    localEngine._resetIdleTimeout();
-    expect(localEngine._keepAliveInterval).not.toBeNull();
-    expect(localEngine._idleTimeoutId).not.toBeNull();
-
-    localEngine.teardown();
-
-    expect(localEngine.engine).toBeNull();
-    expect(localEngine.loadedModel).toBeNull();
-    expect(localEngine._modelConfig).toBeNull();
-    expect(localEngine._keepAliveInterval).toBeNull();
-    expect(localEngine._idleTimeoutId).toBeNull();
-  });
-
-  it('generate fails after teardown because engine is null', async () => {
-    localEngine.teardown();
-
-    await expect(
-      localEngine.generate([{ role: 'user', content: 'test' }], 40)
-    ).rejects.toThrow();
-  });
-
-  // ---- generate resets idle timeout ----
-
-  it('successful generate resets idle timeout', async () => {
+  it('rejects at the inference deadline even when interrupt never settles', async () => {
     vi.useFakeTimers();
-    try {
-      localEngine._resetIdleTimeout();
-      const originalTimeoutId = localEngine._idleTimeoutId;
+    const backend = makeBackend({
+      generate: vi.fn(() => new Promise<string>(() => undefined)),
+      interrupt: vi.fn(() => new Promise<void>(() => undefined)),
+    });
+    litertState.createBackend.mockReturnValue(backend);
+    await engine!.initialize(E2B_MODEL_ID);
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 
-      await localEngine.generate(
-        [{ role: 'user', content: 'test' }], 40
-      );
+    const generation = engine!.generate([{ role: 'user', content: 'post' }], 16);
+    const generationAssertion = expect(generation).rejects.toThrow('Inference timeout');
+    await flushAsync();
+    await vi.advanceTimersByTimeAsync(90_000);
 
-      // Timeout should have been reset (new timer ID)
-      expect(localEngine._idleTimeoutId).not.toBe(originalTimeoutId);
-      expect(localEngine._idleTimeoutId).not.toBeNull();
-    } finally {
-      localEngine._stopIdleTimeout();
-      vi.useRealTimers();
-    }
+    await generationAssertion;
+    expect(backend.interrupt).toHaveBeenCalledTimes(1);
+    expect(engine!.engine).toBeNull();
+    expect(forceCloseLitertlmOffscreen).toHaveBeenCalled();
+    await engine!._statusWriteChain;
+    expect(statusFor()).toEqual({
+      state: 'error',
+      error: 'Local inference timed out. Retry from the Bouncer popup.',
+    });
+    warning.mockRestore();
   });
 
-  // ---- GPU device lost during generate ----
+  it('publishes ready when explicit retry finds an already-loaded backend', async () => {
+    const backend = makeBackend();
+    litertState.createBackend.mockReturnValue(backend);
+    await engine!.initialize(E2B_MODEL_ID);
+    await engine!.updateStatus(E2B_MODEL_ID, {
+      state: 'error',
+      error: 'temporary runtime failure',
+    });
 
-  it('generate resets engine and updates status on GPU device lost error', async () => {
-    (isGPUDeviceLostError as Mock).mockReturnValue(true);
-    mockEngine.chat.completions.create.mockRejectedValue(
-      new Error('GPU device was lost')
-    );
+    await expect(engine!.initialize(E2B_MODEL_ID)).resolves.toBe(backend);
 
-    await expect(
-      localEngine.generate([{ role: 'user', content: 'test' }], 40)
-    ).rejects.toThrow('GPU device was lost');
+    expect(statusFor()).toEqual({ state: 'ready' });
+    expect(LitertlmBackend).toHaveBeenCalledTimes(1);
+  });
 
-    expect(localEngine.engine).toBeNull();
-    const statuses = (storageData.localModelStatuses || {}) as Record<string, Record<string, unknown>>;
-    expect(statuses['TestModel-MLC']?.state).toBe('error');
-    expect(statuses['TestModel-MLC']?.error).toMatch(/GPU memory/);
+  it('teardown clears model references and timers synchronously', async () => {
+    const backend = makeBackend();
+    litertState.createBackend.mockReturnValue(backend);
+    await engine!.initialize(E2B_MODEL_ID);
+
+    engine!.teardown();
+
+    expect(engine!.engine).toBeNull();
+    expect(engine!.loadedModel).toBeNull();
+    expect(engine!._modelConfig).toBeNull();
+    expect(engine!._idleTimeoutId).toBeNull();
+    expect(engine!._keepAliveInterval).toBeNull();
+    expect(engine!._downloadKeepAliveInterval).toBeNull();
   });
 });

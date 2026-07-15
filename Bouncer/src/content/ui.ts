@@ -61,8 +61,49 @@ let activePopupArticle: HTMLElement | null = null;
 // Persists across in-place re-renders so the user's tab selection isn't lost
 // when a late-arriving detectorResponse triggers a refresh.
 let activePopupTab: string | null = null;
-const annoyingReasonsCache: WeakMap<HTMLElement, Promise<{ reasons: string[]; hadImages?: boolean }>> = new WeakMap();
+export interface SuggestionResponse {
+  reasons?: string[];
+  retry?: boolean;
+  error?: string;
+}
+
+export function suggestionResponseError(response: SuggestionResponse | null | undefined): string | null {
+  if (!response) return 'The local model did not respond. Try again.';
+  if (response.retry) return response.error || 'The local model is busy. Try again.';
+  return response.error || null;
+}
+
+export interface SuggestionRequestEntry {
+  postKey: string;
+  promise: Promise<SuggestionResponse>;
+}
+
+const annoyingReasonsCache: WeakMap<HTMLElement, SuggestionRequestEntry> = new WeakMap();
 const annoyingTooltipCleanup = new WeakMap<HTMLElement, () => void>();
+
+export function getSuggestionRequest(
+  article: HTMLElement,
+  postKey: string,
+  create: () => Promise<SuggestionResponse>,
+): SuggestionRequestEntry {
+  const cached = annoyingReasonsCache.get(article);
+  if (cached?.postKey === postKey) return cached;
+  const entry = { postKey, promise: create() };
+  annoyingReasonsCache.set(article, entry);
+  return entry;
+}
+
+export function isSuggestionRequestCurrent(
+  article: HTMLElement,
+  entry: SuggestionRequestEntry,
+  currentPostKey: string,
+): boolean {
+  return annoyingReasonsCache.get(article) === entry && entry.postKey === currentPostKey;
+}
+
+function clearSuggestionRequest(article: HTMLElement, entry: SuggestionRequestEntry): void {
+  if (annoyingReasonsCache.get(article) === entry) annoyingReasonsCache.delete(article);
+}
 
 function removeAnnoyingTooltip(tooltip: Element): void {
   if (tooltip instanceof HTMLElement) {
@@ -1514,8 +1555,8 @@ function modelStatusView(
       // progress) → set the honest "first run can take a minute" expectation,
       // which is the silent phase users mistake for a hang.
       if (status?.state === 'downloading' && typeof status.progress === 'number') {
-        // Show a clean percent + progress bar — never WebLLM's verbose internal
-        // string (shard counts / MB / "N secs elapsed"), which reads as noise.
+        // Show a clean percent + progress bar rather than verbose internal
+        // transfer details.
         return { variant: 'progress', body: `Downloading ${display}`, dismissible: false, percent: Math.round(status.progress * 100) };
       }
       return { variant: 'progress', body: `Loading ${display} — the first run can take up to a minute.`, dismissible: false };
@@ -1923,7 +1964,7 @@ export function renderFilteredPostsView(container: Element) {
     // Reasoning — table_yesno (Gemma) posts carry matched categories in
     // `post.category` and a terse pipe-row in `post.reasoning`; show the clean
     // "Matched: …" summary instead of running the pipe-row through cleanReasoning.
-    // Prose models (Qwen) have no category and keep their reasoning text.
+    // Keep a fallback for malformed/legacy cache entries without a category.
     const reasoning = document.createElement('div');
     reasoning.className = 'slop-post-reasoning';
     reasoning.textContent = post.category
@@ -1941,14 +1982,6 @@ export function renderFilteredPostsView(container: Element) {
     restoreBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      chrome.runtime.sendMessage({
-        type: 'sendFeedback',
-        siteId: _deps.adapter.siteId,
-        tweetData: { text: post.evaluationText, imageUrls: postContent.imageUrls || [] },
-        rawResponse: post.rawResponse || '',
-        reasoning: post.reasoning || '',
-        decision: 'false_positive'
-      }).catch(err => console.error('[Bouncer] Undo feedback error:', err));
 
       // Remove from filtered posts list
       const key = postContent.postUrl || post.evaluationText.substring(0, 200);
@@ -1976,7 +2009,6 @@ export function renderFilteredPostsView(container: Element) {
       chrome.runtime.sendMessage({
         type: 'overrideCacheEntry',
         post: post.evaluationText,
-        imageUrls: postContent.imageUrls || [],
         shouldHide: false,
         reasoning: 'User reported: false positive'
       }).catch(err => console.error('[Bouncer] Override cache error:', err));
@@ -2062,7 +2094,7 @@ function clearPendingDimTimer(article: HTMLElement) {
 
 export function markPostPending(article: HTMLElement) {
   const bar = getVerificationBar(article);
-  bar.classList.remove('verified', 'api-error');
+  bar.classList.remove('verified');
   bar.classList.add('pending');
   article.setAttribute('data-ff-pending', '');
   article.classList.remove('ff-error');
@@ -2090,7 +2122,7 @@ export function markPostPending(article: HTMLElement) {
 
 export function markPostVerified(article: HTMLElement) {
   const bar = getVerificationBar(article);
-  bar.classList.remove('pending', 'api-error');
+  bar.classList.remove('pending');
   bar.classList.add('verified');
   article.removeAttribute('data-ff-pending');
   article.classList.remove('ff-error');
@@ -2140,7 +2172,7 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
   // race resolves, then HIDDEN / KEPT / ERROR. Tabs below show per-detector
   // reasoning when the multi-detector flow is in play.
   let statusClass: string, statusText: string;
-  if (stored?.isApiError) {
+  if (stored?.isModelError) {
     statusClass = 'status-error';
     statusText = 'ERROR';
   } else if (stored?.shouldHide) {
@@ -2201,7 +2233,7 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
       // table_yesno (Gemma) returns matched categories in `category` and a terse
       // pipe-row in `reasoning`. Render the matches as chips rather than running
       // the pipe-row through cleanReasoning (which splits on "|" and would mangle
-      // it). Prose models (Qwen) have no category and keep the reasoning text.
+      // it). Keep a text fallback for malformed/legacy cache entries.
       const reasoningBody = active.category
         ? `<div class="reasoning-match-label">Matched categories</div><div class="reasoning-match-chips">${active.category.split(',').map(c => c.trim()).filter(Boolean).map(c => `<span class="reasoning-match-chip">${escapeHtml(c)}</span>`).join('')}</div>`
         : `<div class="reasoning-text">${escapeHtml(cleanReasoning(active.reasoning ?? '') ?? '')}</div>`;
@@ -2273,13 +2305,17 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
       btn.textContent = 'Thinking...';
       suggestionsDiv.replaceChildren();
       try {
-        const response: { reasons?: string[] } | undefined = await chrome.runtime.sendMessage({
+        const response: SuggestionResponse | undefined = await chrome.runtime.sendMessage({
           type: 'suggestAnnoyingReasons',
           post: content.text,
-          imageUrls: content.imageUrls || [],
           siteId: _deps.adapter.siteId
         });
-        if (response?.reasons?.length) {
+        const responseError = suggestionResponseError(response);
+        if (responseError) {
+          btn.textContent = 'Error - try again';
+          btn.title = responseError;
+          btn.disabled = false;
+        } else if (response?.reasons?.length) {
           btn.style.display = 'none';
           suggestionsDiv.replaceChildren(parseHTML(response.reasons.map(r =>
             `<button class="reasoning-suggestion-chip">${escapeHtml(r)}</button>`
@@ -2525,22 +2561,19 @@ async function fetchReasoningIfNeeded(article: HTMLElement) {
   if (_deps.postReasonings.has(article)) return;
 
   const content = _deps.extractPostContent(article);
-  const hasContent = content.text.trim() || (content.imageUrls && content.imageUrls.length > 0);
-  if (!hasContent) return;
+  if (!content.text.trim()) return;
 
   try {
     let response: { found?: boolean; shouldHide?: boolean; reasoning?: string; rawResponse?: string } | undefined = await chrome.runtime.sendMessage({
       type: 'getReasoning',
-      post: formatPostForEvaluation(content),
-      imageUrls: content.imageUrls || []
+      post: formatPostForEvaluation(content)
     });
 
     // If not found, try with plain text (DOM re-renders may change HTML but not text)
     if (!response?.found && content.text) {
       response = await chrome.runtime.sendMessage({
         type: 'getReasoning',
-        post: content.text,
-        imageUrls: content.imageUrls || []
+        post: content.text
       });
     }
 
@@ -2559,8 +2592,6 @@ async function fetchReasoningIfNeeded(article: HTMLElement) {
 // ==================== DOM Mutation Handler ====================
 
 // ==================== Why Annoying Button ====================
-
-const DEBUG = false;
 
 // Add inline "why annoying" button next to Share post button
 export function addWhyAnnoyingButton(article: HTMLElement) {
@@ -2598,6 +2629,7 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
     document.querySelectorAll('.ff-annoying-tooltip').forEach(removeAnnoyingTooltip);
 
     const content = _deps.extractPostContent(article);
+    const openedPostKey = `${_deps.adapter.getPostUrl(article) || ''}\n${formatPostForEvaluation(content)}`;
 
     // Create tooltip — append to body with fixed positioning so it escapes
     // any overflow:hidden ancestors in Twitter's DOM
@@ -2659,6 +2691,20 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
       if (btnTooltip === tooltip) btnTooltip = null;
     };
 
+    let requestEntry: SuggestionRequestEntry | null = null;
+    const identityObserver = new MutationObserver(() => {
+      const currentPostKey = `${_deps.adapter.getPostUrl(article) || ''}\n${formatPostForEvaluation(_deps.extractPostContent(article))}`;
+      if (currentPostKey === openedPostKey) return;
+      if (requestEntry) clearSuggestionRequest(article, requestEntry);
+      btn.title = 'Bounce this tweet';
+      removeTooltip();
+    });
+    identityObserver.observe(article, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+
     // Reposition on scroll/resize; dismiss if X recycles the button or it
     // leaves the viewport.
     const onViewportChange = () => {
@@ -2684,28 +2730,27 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
       window.removeEventListener('scroll', onViewportChange, true);
       window.removeEventListener('resize', onViewportChange);
       resizeObserver?.disconnect();
+      identityObserver.disconnect();
       if (positionFrame !== null) cancelAnimationFrame(positionFrame);
       positionFrame = null;
     });
     schedulePosition();
 
     // Use prefetched result if available, otherwise fire a new request
-    let cachedPromise = annoyingReasonsCache.get(article);
-    if (!cachedPromise) {
-      cachedPromise = chrome.runtime.sendMessage({
+    requestEntry = getSuggestionRequest(article, openedPostKey, () => (
+      chrome.runtime.sendMessage({
         type: 'suggestAnnoyingReasons',
         post: content.text,
-        imageUrls: content.imageUrls || [],
         siteId: _deps.adapter.siteId
-      });
-      annoyingReasonsCache.set(article, cachedPromise);
-    }
+      })
+    ));
+    const cachedPromise = requestEntry.promise;
 
     (async () => {
     // Check if the promise is already resolved (settled) by racing with an instant resolve
-    let response: { reasons: string[]; hadImages?: boolean } | null = null;
+    let response: SuggestionResponse | null = null;
     const settled = await Promise.race([
-      cachedPromise.then((r: { reasons: string[]; hadImages?: boolean }) => { response = r; return 'done' as const; }),
+      cachedPromise.then((r: SuggestionResponse) => { response = r; return 'done' as const; }),
       Promise.resolve('pending' as const)
     ]);
     const alreadyDone = settled === 'done';
@@ -2733,15 +2778,6 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
       tooltip.querySelector('.ff-missed-link')!.addEventListener('click', (linkEvent) => {
         linkEvent.preventDefault();
         linkEvent.stopPropagation();
-        const reasoning = _deps.postReasonings.get(article);
-        chrome.runtime.sendMessage({
-          type: 'sendFeedback',
-          siteId: _deps.adapter.siteId,
-          tweetData: { text: formatPostForEvaluation(content), imageUrls: content.imageUrls || [] },
-          rawResponse: reasoning?.rawResponse || '',
-          reasoning: reasoning?.reasoning || '',
-          decision: 'false_negative'
-        }).catch(err => console.error('[Bouncer] Missed feedback error:', err));
         removeTooltip();
         storeFilteredPost(article, content, 'User reported: should have been filtered');
         article.style.transition = 'opacity 0.3s ease';
@@ -2750,41 +2786,48 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
         chrome.runtime.sendMessage({
           type: 'overrideCacheEntry',
           post: formatPostForEvaluation(content),
-          imageUrls: content.imageUrls || [],
           shouldHide: true,
           reasoning: 'User reported: should have been filtered'
         }).catch(err => console.error('[Bouncer] Override cache error:', err));
       });
       try {
-        response = await cachedPromise as { reasons: string[]; hadImages?: boolean };
+        response = await cachedPromise;
       } catch (err) {
         console.error('[Bouncer] Why annoying error:', err);
         cleanupProgress();
         tooltipContent.replaceChildren(parseHTML('<span class="ff-annoying-empty">Error - try again</span>'));
-        annoyingReasonsCache.delete(article);
+        clearSuggestionRequest(article, requestEntry);
         return;
       }
       cleanupProgress();
     }
 
+    const currentPostKey = `${_deps.adapter.getPostUrl(article) || ''}\n${formatPostForEvaluation(_deps.extractPostContent(article))}`;
+    if (!isSuggestionRequestCurrent(article, requestEntry, currentPostKey)) {
+      removeTooltip();
+      return;
+    }
+
+    const responseError = suggestionResponseError(response);
+    if (responseError) {
+      clearSuggestionRequest(article, requestEntry);
+      tooltipContent.replaceChildren(parseHTML('<span class="ff-annoying-empty">Error - try again</span>'));
+      tooltipContent.querySelector<HTMLElement>('.ff-annoying-empty')!.title = responseError;
+      return;
+    }
+
     // Render results
     tooltipContent.replaceChildren();
-    if (response && response.reasons?.length) {
-      const resp = response;
+    const reasons = response?.reasons ?? [];
+    if (reasons.length > 0) {
       const label = document.createElement('span');
       label.className = 'ff-annoying-label';
       label.textContent = 'Block this due to:';
       tooltipContent.appendChild(label);
-      resp.reasons.forEach(r => {
+      reasons.forEach(r => {
         const chip = document.createElement('button');
         chip.className = 'ff-annoying-chip';
         chip.textContent = r;
-        if (DEBUG) {
-          const imgBadge = document.createElement('span');
-          imgBadge.className = 'ff-img-badge';
-          imgBadge.textContent = resp.hadImages ? '[img]' : '[txt]';
-          chip.appendChild(imgBadge);
-        }
         chip.addEventListener('click', (ce) => {
           ce.stopPropagation();
           // Remove tooltip before the filter triggers re-evaluation and captures the post
@@ -2821,7 +2864,6 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
         chrome.runtime.sendMessage({
           type: 'overrideCacheEntry',
           post: formatPostForEvaluation(content),
-          imageUrls: content.imageUrls || [],
           shouldHide: true,
           reasoning
         }).catch(err => console.error('[Bouncer] Override cache error:', err));
@@ -2856,15 +2898,6 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
       missedLink.addEventListener('click', (linkEvent) => {
         linkEvent.preventDefault();
         linkEvent.stopPropagation();
-        const reasoning = _deps.postReasonings.get(article);
-        chrome.runtime.sendMessage({
-          type: 'sendFeedback',
-          siteId: _deps.adapter.siteId,
-          tweetData: { text: formatPostForEvaluation(content), imageUrls: content.imageUrls || [] },
-          rawResponse: reasoning?.rawResponse || '',
-          reasoning: reasoning?.reasoning || '',
-          decision: 'false_negative'
-        }).catch(err => console.error('[Bouncer] Missed feedback error:', err));
         removeTooltip();
         storeFilteredPost(article, content, 'User reported: should have been filtered');
         article.style.transition = 'opacity 0.3s ease';
@@ -2873,7 +2906,6 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
         chrome.runtime.sendMessage({
           type: 'overrideCacheEntry',
           post: formatPostForEvaluation(content),
-          imageUrls: content.imageUrls || [],
           shouldHide: true,
           reasoning: 'User reported: should have been filtered'
         }).catch(err => console.error('[Bouncer] Override cache error:', err));

@@ -1,28 +1,39 @@
-# Accuracy eval — rage bait boundary
+# Historical accuracy eval — Qwen 3.5 and Gemma E4B
 
-This dev-only eval measures classification quality for one deliberately narrow
-filter boundary: rage bait / outrage farming vs. ordinary negativity.
+This page preserves the 2026-06-07 Qwen 3.5/WebLLM and Gemma E4B/LiteRT result.
+Neither model is selectable in the current product. Bouncer now ships Gemma 4
+E2B as its sole production model; see the
+[current E2B decision and contemporaneous comparison](e2b-evaluation.md).
+
+The eval measures classification quality for one deliberately narrow filter
+boundary: rage bait / outrage farming vs. ordinary negativity.
 
 It is not a statistical benchmark. The corpus is intentionally small and
 hand-auditable so prompt/filter changes can be judged from concrete examples
 rather than intuition.
 
-## TL;DR from 2026-06-07 run
+## Historical TL;DR from the 2026-06-07 run
 
-On Apple Silicon, **Gemma baseline is the strongest current shipped behavior**
-on this corpus: 92.5% accuracy, 0.92 F1, and 2/18 ambiguous-negative false
-positives.
+On Apple Silicon, the then-shipped **Gemma E4B baseline was stronger than the
+then-shipped Qwen baseline** on this corpus: 92.5% accuracy, 0.92 F1, and 2/18
+ambiguous-negative false positives.
 
 For Qwen, the baseline over-filters ordinary frustration. The intent-aware
 prompt fixes that boundary in this run: 95.0% accuracy, 0.94 F1, 0/18
 ambiguous-negative false positives, and recall improves from 83.3% to 88.9%.
-The narrower `outrage farming` filter text alone is not a good candidate.
+The narrower `outrage farming` filter text alone was not a good candidate.
+
+The 2026-07-15 contemporaneous, counterbalanced E2B/E4B runs produced 95.0%
+accuracy and 0.944 F1 for E2B, versus 92.5% and 0.919 for E4B; both were
+deterministic with no malformed verdicts. Qwen's tuned result here is important
+context: removing Qwen is a product-simplification decision, not a universal
+claim that the model family cannot classify well.
 
 ## Corpus policy
 
 - Synthetic tweet-like posts only: no scraped posts, real handles, PII, URLs, or
   real people.
-- Text-only for v1.
+- The corpus is text-only.
 - No slurs, hate speech, protected-class targeting, or extreme content.
 - Positive class means "should hide": the post is engineered to farm outrage,
   invite a pile-on, or amplify anger.
@@ -39,12 +50,12 @@ The current corpus has 40 rows:
 
 ## Variant matrix
 
-The benchmark page runs all variants for each selected ready model:
+The historical benchmark page ran all variants for each selected ready model:
 
 | Variant | Filter text | Prompt mode |
 |---------|-------------|-------------|
-| `baseline` | `rage bait` | current shipped prompt |
-| `filter-outrage-farming` | `outrage farming` | current shipped prompt |
+| `baseline` | `rage bait` | then-shipped prompt |
+| `filter-outrage-farming` | `outrage farming` | then-shipped prompt |
 | `prompt-intent` | `rage bait` | intent-aware dev prompt |
 | `combined-intent-outrage-farming` | `outrage farming` | intent-aware dev prompt |
 
@@ -71,15 +82,15 @@ Stress metrics:
 - ambiguous-negative false positives
 - unstable rows where repeated runs disagree
 
-For Qwen, the eval uses 3 runs per post and majority vote to expose stochastic
-variance. Gemma is deterministic in practice, but it uses the same repeated-run
+For Qwen, the eval used 3 runs per post and majority vote to expose stochastic
+variance. Gemma was deterministic in practice, but it used the same repeated-run
 shape so exports are comparable.
 
 ## Conservative ship bar
 
-This eval pass does not change production behavior automatically.
+This historical eval pass did not change production behavior automatically.
 
-A variant is only eligible for a separate production follow-up if:
+A variant was only eligible for a separate production follow-up if:
 
 - positive recall does not drop relative to baseline; and
 - ambiguous-negative false positives decrease relative to baseline.
@@ -122,9 +133,9 @@ Findings:
   Gemma's ambiguous-negative false positives from 2 to 3.
 - **Qwen benefits from the intent prompt.** It removes all 6 ambiguous-negative
   false positives from baseline and improves positive recall by one row.
-- **Gemma baseline remains the best current shipped behavior under the
-  conservative bar.** The intent variants remove false positives, but they miss
-  2 positives instead of baseline's 1.
+- **Gemma E4B baseline was the strongest then-shipped behavior under the
+  conservative bar.** The intent variants removed false positives, but they
+  missed 2 positives instead of baseline's 1.
 - **`p15` and `p18` need label review.** Both intent variants miss them for both
   models, which suggests they may be too subtle for the current positive
   definition unless the eval deliberately wants CTA-light outrage examples.
@@ -132,29 +143,20 @@ Findings:
   sarcasm, and both are baseline false positives for Gemma while also appearing
   in Qwen's baseline false-positive set.
 
-## Reproduce
+## Reproduction status
 
-```bash
-cd Bouncer
-npm run build:dev
-```
+The current production tree intentionally no longer contains WebLLM/Qwen, so
+it cannot reproduce this exact historical model matrix. The raw export below
+is the source of truth for the 2026-06-07 result; do not re-add a retired engine
+to production merely to replay it.
 
-Then load the unpacked extension from `Bouncer/` in Chrome and open:
-
-```text
-chrome-extension://<actual-extension-id>/benchmark.html
-```
-
-Manual run steps:
-
-1. Select Qwen 3.5 and Gemma if both are downloaded.
-2. Click **Run accuracy eval**.
-3. Click **Export eval JSON**.
-4. Use the exported JSON as the source of truth for interpretation.
-
-Codex cannot currently drive `chrome-extension://` pages through Chrome
-automation, so browser execution is a manual checkpoint.
+For the current, counterbalanced E2B/E4B accuracy run, use the localhost Gemma
+comparison procedure in [`e2b-evaluation.md`](e2b-evaluation.md#reproduce-the-comparison).
+The dev-only extension `benchmark.html` can separately exercise the sole E2B
+model through the actual MV3 background/offscreen path.
 
 ## Raw data
 
 - [`data/accuracy-2026-06-07-apple-silicon.json`](data/accuracy-2026-06-07-apple-silicon.json) — full per-model, per-variant, per-run eval export
+- [`data/e2b-e4b-2026-07-15-e2b-first.json`](data/e2b-e4b-2026-07-15-e2b-first.json) — final-parser E2B-first report
+- [`data/e2b-e4b-2026-07-15-e4b-first.json`](data/e2b-e4b-2026-07-15-e4b-first.json) — final-parser E4B-first report

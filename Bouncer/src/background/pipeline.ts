@@ -1,18 +1,15 @@
 // Post processing pipeline: queue, cache, error/latency state
 
-import {
-  generateCacheKey,
-  checkRateLimitError, checkApiError, checkAuthenticationError,
-  RATE_LIMIT_TYPE_CONFIG, API_ERROR_TYPE_CONFIG,
-} from '../shared/utils';
+import { generateCacheKey, isGPUDeviceLostError } from '../shared/utils';
 import { PREDEFINED_MODELS, DEFAULT_MODEL } from '../shared/models';
 import { parseTableYesnoResponse } from '../shared/table-yesno';
+import { buildSuggestionSystemPrompt, parseCandidatePhrases } from '../shared/suggestions';
 import { runDetectors, type Detector, type DetectorResult } from './detectors';
-import { callLocalInference, localEngine } from './local-model';
-import { getStorage, setStorage, removeStorage, getDescriptions } from '../shared/storage';
+import { callLocalInference, localEngine, MODEL_MAINTENANCE_ERROR } from './local-model';
+import { getStorage, setStorage, getDescriptions } from '../shared/storage';
 import type {
   EvaluationResult, PipelineResponse, PipelineError, PendingEvaluation,
-  ErrorState, Settings, APIConfig, BackgroundToContentMessage, LocalModelDef,
+  ErrorState, Settings, BackgroundToContentMessage,
   SiteId, DetectorSnapshot,
 } from '../types';
 
@@ -22,16 +19,9 @@ const CACHE_SIZE = 500; // Increased for persistent storage
 const BATCH_DELAY_MS = 1000; // Wait time to collect posts before sending batch
 const MAX_CONCURRENT_BATCHES = 100; // Allow parallel batch processing
 
-// Latency tracking
-const LATENCY_WINDOW_SIZE = 5;
-const LATENCY_THRESHOLD_SECONDS = 8;
-
 // Error retry
-const RATE_LIMIT_RETRY_INTERVAL_MS = 60000; // 1 minute
-
-
-// Queue backlog
-export const QUEUE_BACKLOG_THRESHOLD = 5;
+const LOCAL_ERROR_RETRY_INTERVAL_MS = 5000;
+const LOCAL_ERROR_MAX_AUTO_RETRIES = 2;
 
 
 // =============================================================================
@@ -166,28 +156,31 @@ export let evaluationCache = new Map<string, EvaluationResult>();
 let batchTimeout: ReturnType<typeof setTimeout> | null = null;
 let inFlightBatches = 0; // Counter for concurrent batch processing
 let cacheLoaded = false;
+let cacheWriteChain: Promise<void> = Promise.resolve();
 
 // Per-tab queue management
 const tabQueues = new Map<number, PendingEvaluation[]>();      // tabId -> array of queue items
 const tabPendingKeys = new Map<number, Set<string>>(); // tabId -> Set of cacheKeys
 const tabDuplicateResolvers = new Map<number, Map<string, Array<(result: PipelineResponse) => void>>>(); // tabId -> Map<cacheKey, [resolve]>
+// Invalidates processBatch closures that were captured before a queue flush.
+// This is separate from LocalEngine maintenance because settings/filter flushes
+// also must not allow a stale batch to write cache entries after they return.
+let pipelineGeneration = 0;
 let activeTabId: number | null = null;
 
-// Latency tracking for warning banner
-const latencyWindow: number[] = [];
+function assertPipelineGeneration(expected: number): void {
+  if (pipelineGeneration !== expected || localEngine.isMaintaining()) {
+    throw new Error(MODEL_MAINTENANCE_ERROR);
+  }
+}
 
 // Unified error state
 export let errorState: ErrorState = {
-  type: null,           // 'auth' | 'rate_limit' | 'not_found' | 'server_error' | null
-  subType: null,        // rate limit sub-type: 'generic' | null (local-only — no provider sub-types)
-  count: 0,             // number of tracked error posts
-  apiDisplayName: null   // for auth errors: provider display name
+  type: null,
+  count: 0,
 };
 let errorRetryTimeout: ReturnType<typeof setTimeout> | null = null;
-let serverErrorRetried = false; // Track whether we've already done a one-time retry for transient server errors
-
-// Track last broadcast state to avoid spamming updates
-let lastQueueBroadcastState = { pendingCount: 0, modelInitializing: false };
+let localErrorAutoRetryCount = 0;
 
 // Tab set reference (set from index.ts)
 let activeContentTabsRef: Set<number> | null = null;
@@ -198,11 +191,23 @@ export function initPipeline(tabs: Set<number>): void {
   activeContentTabsRef = tabs;
 }
 
+export function requiresLocalInference(
+  settings: Pick<Settings, 'enabled' | 'descriptions'>,
+): boolean {
+  return settings.enabled && settings.descriptions.length > 0;
+}
+
 // ==================== Per-tab queue management ====================
 
 // Update active tab. Clears inference queue (stale closures) and schedules batch for new tab.
 export function setActiveTab(tabId: number | null): void {
-  console.log('[Bouncer][diag] setActiveTab: prev=', activeTabId, 'new=', tabId, 'hasQueue=', tabId !== null && tabQueues.has(tabId), 'queueLen=', tabId !== null ? tabQueues.get(tabId)?.length : 'n/a');
+  if (tabId === activeTabId) return;
+  if (activeTabId !== null) {
+    // Do not spend up to the full inference deadline decoding for a tab the
+    // user has left. LiteRT interrupt makes the serial slot available to the
+    // newly active tab; the old item remains queued for a later return.
+    localEngine.preempt();
+  }
   activeTabId = tabId;
   localEngine.clearQueue();
   if (tabId !== null && tabQueues.has(tabId) && tabQueues.get(tabId)!.length > 0) {
@@ -241,7 +246,6 @@ export function isKeyPending(tabId: number, cacheKey: string): boolean {
 
 // Resolve an item AND any duplicate resolvers waiting on the same cacheKey.
 function resolveWithDuplicates(tabId: number, item: PendingEvaluation, result: PipelineResponse): void {
-  console.log('[Bouncer][diag] resolveWithDuplicates: tab=', tabId, 'evalId=', item.evaluationId, 'resultKind=', result === null ? 'null' : Object.keys(result as object).slice(0, 3).join(','));
   item.resolve(result);
   const dupes = tabDuplicateResolvers.get(tabId);
   if (dupes && item.cacheKey && dupes.has(item.cacheKey)) {
@@ -258,6 +262,16 @@ export function clearTabQueue(tabId: number): void {
   if (queue) {
     for (const item of queue) {
       resolveWithDuplicates(tabId, item, null);
+    }
+    // The original for a duplicate key may already have been shifted into an
+    // in-flight batch. Those duplicate callbacks then exist only in this map;
+    // resolve them before dropping tab state so no sendMessage promise hangs.
+    const remainingDuplicates = tabDuplicateResolvers.get(tabId);
+    if (remainingDuplicates) {
+      for (const resolvers of remainingDuplicates.values()) {
+        for (const resolve of resolvers) resolve(null);
+      }
+      remainingDuplicates.clear();
     }
     tabQueues.delete(tabId);
     tabPendingKeys.delete(tabId);
@@ -330,7 +344,6 @@ export async function getSettings(siteId?: SiteId): Promise<Settings> {
   const descriptionsKey = siteId ? `descriptions_${siteId}` as const : undefined;
   const settingsKeys = [
     'enabled', 'selectedModel',
-    'customModels', 'predefinedModelKwargs',
     'filterReplies'
   ] as const;
   const [data, descriptions] = await Promise.all([
@@ -341,8 +354,6 @@ export async function getSettings(siteId?: SiteId): Promise<Settings> {
     enabled: data.enabled !== false,
     descriptions,
     selectedModel: data.selectedModel || DEFAULT_MODEL,
-    customModels: data.customModels || [],
-    predefinedModelKwargs: data.predefinedModelKwargs || {},
     filterReplies: data.filterReplies !== false
   };
 }
@@ -350,25 +361,20 @@ export async function getSettings(siteId?: SiteId): Promise<Settings> {
 // ==================== Error state management ====================
 
 // Broadcast unified error status to all tabs
-export async function broadcastErrorStatus(): Promise<void> {
-  const settings = await getSettings();
-
+export function broadcastErrorStatus(): Promise<void> {
   const status: BackgroundToContentMessage = {
     type: 'errorStatusUpdate',
     errorType: errorState.type,
-    subType: errorState.subType,
     count: errorState.count,
-    apiDisplayName: errorState.apiDisplayName,
-    selectedModel: settings.selectedModel,
-    hasAlternativeApis: false
   };
   broadcastToTabs(status);
+  return Promise.resolve();
 }
 
 // Reset error state and broadcast
-export async function clearErrorState(): Promise<void> {
-  errorState = { type: null, subType: null, count: 0, apiDisplayName: null };
-  serverErrorRetried = false;
+export async function clearErrorState(resetRetryBudget = true): Promise<void> {
+  errorState = { type: null, count: 0 };
+  if (resetRetryBudget) localErrorAutoRetryCount = 0;
   if (errorRetryTimeout) {
     clearTimeout(errorRetryTimeout);
     errorRetryTimeout = null;
@@ -377,113 +383,61 @@ export async function clearErrorState(): Promise<void> {
 }
 
 // Trigger re-evaluation of error posts in content scripts
-export async function triggerErrorRetry(): Promise<void> {
-  if (errorState.count === 0) return;
+export async function triggerErrorRetry(
+  resetRetryBudget = true,
+  forceBroadcast = false,
+): Promise<void> {
+  if (errorState.count === 0 && !forceBroadcast) return;
   errorState.count = 0;
   errorState.type = null;
-  errorState.subType = null;
-  errorState.apiDisplayName = null;
-  serverErrorRetried = false;
+  if (resetRetryBudget) localErrorAutoRetryCount = 0;
   if (errorRetryTimeout) {
     clearTimeout(errorRetryTimeout);
     errorRetryTimeout = null;
   }
-  // Don't clear authErrorApis here - auth errors persist per-provider
-  // They get cleared when the provider succeeds (clearErrorState) or when its API key changes
   await broadcastErrorStatus();
   broadcastToTabs({ type: 'reEvaluateErrors' });
 }
 
-// Schedule auto-retry for rate limit errors
-function scheduleAutoRetry(): void {
+// Retry local runtime failures after a short recovery window. The retry event
+// clears content-side error markers so posts cannot remain permanently skipped.
+export function localErrorRetryDelay(
+  errorMessage: string,
+  completedAutoRetries: number,
+): number | null {
+  // Device loss, resource exhaustion, and an inference timeout can otherwise
+  // create a costly unload/reload loop on battery. They require the popup's
+  // explicit Retry action (or another genuine ready transition).
+  if (isGPUDeviceLostError(errorMessage)
+      || errorMessage.toLowerCase().includes('inference timeout')) {
+    return null;
+  }
+  if (completedAutoRetries >= LOCAL_ERROR_MAX_AUTO_RETRIES) return null;
+  return LOCAL_ERROR_RETRY_INTERVAL_MS * (2 ** completedAutoRetries);
+}
+
+function scheduleLocalErrorRetry(errorMessage: string, modelName: string): void {
   if (errorRetryTimeout) {
     clearTimeout(errorRetryTimeout);
   }
 
-  errorRetryTimeout = setTimeout(() => {
-    if (errorState.count > 0 && errorState.type === 'rate_limit') {
-      console.log(`[Error] Retry interval elapsed, retrying ${errorState.count} rate-limited posts`);
-      triggerErrorRetry().catch(err => console.error('[Error] triggerErrorRetry failed:', err));
-    }
-  }, RATE_LIMIT_RETRY_INTERVAL_MS);
-}
-
-// ==================== Latency tracking ====================
-
-function recordLatency(seconds: number): void {
-  latencyWindow.push(seconds);
-  if (latencyWindow.length > LATENCY_WINDOW_SIZE) {
-    latencyWindow.shift();
-  }
-  broadcastLatencyStatus().catch(err => console.error('[Latency] Broadcast failed:', err));
-}
-
-function getMedianLatency(): number {
-  if (latencyWindow.length === 0) return 0;
-  const sorted = [...latencyWindow].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
-  return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
-}
-
-export function isHighLatency(): boolean {
-  // Only trigger if we have enough samples and median is above threshold
-  return latencyWindow.length >= 3 && getMedianLatency() > LATENCY_THRESHOLD_SECONDS;
-}
-
-export function getMedianLatencyValue(): number {
-  return getMedianLatency();
-}
-
-export function getLatencySampleCount(): number {
-  return latencyWindow.length;
-}
-
-async function broadcastLatencyStatus(): Promise<void> {
-  const settings = await getSettings();
-
-  const status: BackgroundToContentMessage = {
-    type: 'latencyUpdate',
-    isHighLatency: isHighLatency(),
-    medianLatency: getMedianLatency(),
-    selectedModel: settings.selectedModel,
-    hasAlternativeApis: false
-  };
-  broadcastToTabs(status);
-}
-
-// ==================== Queue status ====================
-
-// Broadcast queue status to all tabs (for local model backlog warning)
-export async function broadcastQueueStatus(): Promise<void> {
-  const settings = await getSettings();
-  const isLocalModel = settings.selectedModel?.startsWith('local:');
-  // Use active tab's pending keys for accurate count of unique pending posts
-  const activeKeys = activeTabId !== null ? tabPendingKeys.get(activeTabId) : null;
-  const pendingCount = activeKeys ? activeKeys.size : 0;
-
-  // Check if model is initializing
-  let modelInitializing = false;
-  if (isLocalModel) {
-    const modelId = settings.selectedModel.split(':')[1];
-    modelInitializing = localEngine.isInitializing() ||
-      (!localEngine.isModelLoaded(modelId) && pendingCount > 0);
-  }
-
-  // Only broadcast if state actually changed
-  if (pendingCount === lastQueueBroadcastState.pendingCount &&
-      modelInitializing === lastQueueBroadcastState.modelInitializing) {
+  const delay = localErrorRetryDelay(errorMessage, localErrorAutoRetryCount);
+  if (delay === null) {
+    errorRetryTimeout = null;
+    void localEngine.markTerminalError(
+      modelName,
+      errorMessage || 'The local model failed repeatedly. Retry from the Bouncer popup.',
+    ).catch(err => console.error('[Error] Failed to publish terminal local-model status:', err));
     return;
   }
 
-  lastQueueBroadcastState = { pendingCount, modelInitializing };
-
-  const status: BackgroundToContentMessage = {
-    type: 'queueStatusUpdate',
-    pendingCount,
-    isLocalModel: !!isLocalModel,
-    modelInitializing
-  };
-  broadcastToTabs(status);
+  errorRetryTimeout = setTimeout(() => {
+    if (errorState.count > 0 && errorState.type === 'local_model') {
+      localErrorAutoRetryCount++;
+      console.log(`[Error] Recovery interval elapsed, retrying ${errorState.count} local-model posts`);
+      triggerErrorRetry(false).catch(err => console.error('[Error] triggerErrorRetry failed:', err));
+    }
+  }, delay);
 }
 
 // ==================== Cache ====================
@@ -505,9 +459,13 @@ export async function loadCache(): Promise<void> {
 
 // Save cache to persistent storage
 export async function saveCache(): Promise<void> {
+  const cacheObj = Object.fromEntries(evaluationCache);
   try {
-    const cacheObj = Object.fromEntries(evaluationCache);
-    await setStorage({ evaluationCache: cacheObj });
+    const write = cacheWriteChain
+      .catch(() => undefined)
+      .then(() => setStorage({ evaluationCache: cacheObj }));
+    cacheWriteChain = write.catch(() => undefined);
+    await write;
   } catch (err) {
     console.error('Failed to save cache:', err);
   }
@@ -515,7 +473,11 @@ export async function saveCache(): Promise<void> {
 
 export async function clearEvaluationCache(): Promise<void> {
   evaluationCache.clear();
-  await removeStorage('evaluationCache');
+  const write = cacheWriteChain
+    .catch(() => undefined)
+    .then(() => setStorage({ evaluationCache: {} }));
+  cacheWriteChain = write.catch(() => undefined);
+  await write;
 }
 
 // ==================== Viewport prioritization ====================
@@ -575,33 +537,10 @@ export async function prioritizeByViewportDistance(queue: PendingEvaluation[]): 
 
 // ==================== Error classification ====================
 
-// Classify an error message into a type using priority ordering: auth > rate_limit > api_error.
-// apiName is needed to determine if auth errors should be checked (excluded for local).
-// Returns { errorType, subType } where both may be null if no pattern matches.
-export function classifyError(errorMessage: string, apiName: string): { errorType: ErrorState['type']; subType: string | null } {
-  // Auth errors only apply to external API providers (none in this local-only fork).
-  if (apiName !== 'local' && checkAuthenticationError(errorMessage)) {
-    return { errorType: 'auth', subType: null };
-  }
-
-  const rateLimitCheck = checkRateLimitError(errorMessage);
-  if (rateLimitCheck.isRateLimited) {
-    return { errorType: 'rate_limit', subType: rateLimitCheck.type };
-  }
-
-  const apiErrorCheck = checkApiError(errorMessage);
-  if (apiErrorCheck.isApiError) {
-    return { errorType: apiErrorCheck.type as ErrorState['type'], subType: null };
-  }
-
-  return { errorType: null, subType: null };
-}
-
 // ==================== Batch processing ====================
 
 // Process a batch of posts
 async function processBatch(): Promise<void> {
-  console.log('[Bouncer][diag] processBatch entered; activeTabId=', activeTabId, 'inFlight=', inFlightBatches);
   batchTimeout = null; // Clear timeout first, before any early returns
 
   if (activeTabId === null) return;
@@ -623,8 +562,16 @@ async function processBatch(): Promise<void> {
   if (!pendingEvaluations || pendingEvaluations.length === 0) return;
 
   inFlightBatches++;
+  const batchGeneration = pipelineGeneration;
+  let suppressWakeOnExit = false;
+  let deferWakeOnExit = false;
+
+  try {
 
   const settings = await getSettings(pendingEvaluations[0]?.siteId);
+  if (batchGeneration !== pipelineGeneration) {
+    return;
+  }
   const isLocalModel = settings.selectedModel?.startsWith('local:');
 
   // Local models serialize inference, so limit to 1 in-flight batch to ensure
@@ -632,28 +579,34 @@ async function processBatch(): Promise<void> {
   // Don't schedule a deferred retry here — the current in-flight batch will
   // call scheduleBatch() when it completes, which re-sorts by viewport.
   if (isLocalModel && inFlightBatches > 1) {
-    inFlightBatches--;
     return;
   }
 
   // For local models, prioritize posts closest to viewport center
   if (isLocalModel && pendingEvaluations.length > 0) {
     await prioritizeByViewportDistance(pendingEvaluations);
+    if (batchGeneration !== pipelineGeneration) {
+      return;
+    }
+  }
+
+  // setActiveTab() can run while settings or viewport ordering is awaiting.
+  // Keep this tab's item queued instead of starting battery-expensive inference
+  // for a tab that is no longer active; the finalizer wakes the new active tab.
+  if (activeTabId !== batchTabId) {
+    return;
   }
 
   // Grab one post from the queue (re-check length — async ops above may have drained it)
   if (pendingEvaluations.length === 0) {
-    inFlightBatches--;
     return;
   }
   const item = pendingEvaluations.shift()!;
   if (item.cacheKey) pendingKeys!.delete(item.cacheKey);
-  broadcastQueueStatus().catch(err => console.error('[Queue] Broadcast failed:', err));
 
   // Handle disabled case
   if (!settings.enabled) {
     resolveWithDuplicates(batchTabId, item, { shouldHide: false, reasoning: 'Filtering is disabled' });
-    inFlightBatches--;
     return;
   }
 
@@ -663,36 +616,42 @@ async function processBatch(): Promise<void> {
   const filterEnabled = !!(settings.descriptions && settings.descriptions.length > 0);
 
   // Check cache
-  const imageUrls = item.imageUrls || [];
-  const cacheKey = generateCacheKey(item.post, imageUrls);
+  const cacheKey = generateCacheKey(item.post);
   if (evaluationCache.has(cacheKey)) {
     const cached = evaluationCache.get(cacheKey)!;
     replayDetectorStates(batchTabId, item.evaluationId, cached);
     resolveWithDuplicates(batchTabId, item, { ...cached, cached: true });
-    inFlightBatches--;
-    if (pendingEvaluations.length > 0) scheduleBatch();
     return;
   }
 
-  const postData = { text: item.post, imageUrls };
-  const startTime = Date.now();
-
-  // Build API config (only used when the filter path runs). Local-only: the
-  // selected model is always a local WebLLM model.
+  const postData = { text: item.post };
+  // Resolve the one production model. Unknown/retired ids fail closed instead
+  // of falling through to a removed backend.
   const modelName = settings.selectedModel.split(':')[1];
-  const modelConfig = PREDEFINED_MODELS.local?.find(m => m.name === modelName) || {} as LocalModelDef;
-  const apiConfig: APIConfig = { modelName, apiName: 'local', modelConfig };
+  const modelConfig = PREDEFINED_MODELS.local.find(model => model.name === modelName);
+  if (!modelConfig) {
+    resolveWithDuplicates(batchTabId, item, { retry: true, reasoning: 'Local model configuration is being updated.' });
+    return;
+  }
 
   try {
     let result: DetectorResult;
 
-    // The user-selected filter pipeline — local WebLLM inference.
+    // The user-selected filter pipeline — local LiteRT-LM inference.
     const runFilter = async (): Promise<DetectorResult> => {
       const postUrl = item.postUrl;
-      const onInferenceStart = postUrl
-        ? () => { void sendToTab(batchTabId, { type: 'processingPost', postUrl }); }
-        : undefined;
-      return await callLocalInference(postData, settings.descriptions, apiConfig.modelConfig as LocalModelDef | null, apiConfig.modelName, { onInferenceStart });
+      const onInferenceStart = (): void => {
+        // Model loading and token preparation both await. A tab switch in that
+        // window cannot be interrupted because decode has not started yet, so
+        // enforce ownership again at the last boundary before generation.
+        if (activeTabId !== batchTabId) throw new Error('Inference queue cleared');
+        // The same cold-load window exists for filter/settings changes. A
+        // preempt issued before an engine exists cannot interrupt anything, so
+        // fence the stale batch again immediately before the expensive decode.
+        assertPipelineGeneration(batchGeneration);
+        if (postUrl) void sendToTab(batchTabId, { type: 'processingPost', postUrl });
+      };
+      return await callLocalInference(postData, settings.descriptions, modelConfig, modelName, { onInferenceStart });
     };
 
     // Per-post detector orchestration: plan the tab and dispatch its initial
@@ -718,6 +677,17 @@ async function processBatch(): Promise<void> {
       );
     }
 
+    // A settings/model flush may have happened while inference was running.
+    // Never persist or publish a result computed under the retired generation.
+    if (batchGeneration !== pipelineGeneration) {
+      resolveWithDuplicates(batchTabId, item, {
+        retry: true,
+        reasoning: 'Local model or filter settings changed during evaluation.',
+        retryAfterMs: 250,
+      });
+      return;
+    }
+
     console.log(`[Eval] shouldHide=${result.shouldHide}, category="${result.category}", reasoning="${result.reasoning?.substring(0, 80)}"`);
 
     const evalResult: EvaluationResult = {
@@ -730,138 +700,198 @@ async function processBatch(): Promise<void> {
       detectorStates: buildDetectorStates(tabPlan, snapshots),
     };
 
-    // Update cache
+    // Stats are ancillary persistence, not part of model inference. A transient
+    // storage failure must not poison the local-model error budget or force a
+    // healthy multi-GB engine through terminal Retry/reload recovery.
+    try {
+      const statsData = await getStorage(['stats']);
+      const stats = statsData.stats || { filtered: 0, evaluated: 0, totalCost: 0 };
+      stats.evaluated++;
+      if (evalResult.shouldHide) {
+        stats.filtered++;
+      }
+      await setStorage({ stats });
+    } catch (statsError) {
+      console.error('[Stats] Failed to update evaluation counters:', statsError);
+    }
+
+    // A filter/model change can arrive while stats storage is pending. Do not
+    // repopulate the just-invalidated cache or publish a verdict from the old
+    // rules after that boundary.
+    if (batchGeneration !== pipelineGeneration) {
+      resolveWithDuplicates(batchTabId, item, {
+        retry: true,
+        reasoning: 'Local model or filter settings changed during evaluation.',
+        retryAfterMs: 250,
+      });
+      return;
+    }
+
     evaluationCache.set(cacheKey, evalResult);
     if (evaluationCache.size > CACHE_SIZE) {
       const firstKey = evaluationCache.keys().next().value;
       if (firstKey !== undefined) evaluationCache.delete(firstKey);
     }
-
-    // Update stats
-    const statsData = await getStorage(['stats']);
-    const stats = statsData.stats || { filtered: 0, evaluated: 0, totalCost: 0 };
-    stats.evaluated++;
-    if (evalResult.shouldHide) {
-      stats.filtered++;
-    }
-    await setStorage({ stats });
     await saveCache();
 
-    const wallTime = ((Date.now() - startTime) / 1000).toFixed(2);
-    const latencyTime = isLocalModel && result.inferenceTime != null ? result.inferenceTime : parseFloat(wallTime);
-    recordLatency(latencyTime);
+    if (batchGeneration !== pipelineGeneration) {
+      if (evaluationCache.get(cacheKey) === evalResult) {
+        evaluationCache.delete(cacheKey);
+      }
+      await saveCache();
+      resolveWithDuplicates(batchTabId, item, {
+        retry: true,
+        reasoning: 'Local model or filter settings changed during evaluation.',
+        retryAfterMs: 250,
+      });
+      return;
+    }
 
     // Successful evaluation — clear error state and re-evaluate stuck error posts
     if (errorState.type) {
       await clearErrorState();
       broadcastToTabs({ type: 'reEvaluateErrors' });
     }
+
+    if (batchGeneration !== pipelineGeneration) {
+      if (evaluationCache.get(cacheKey) === evalResult) {
+        evaluationCache.delete(cacheKey);
+        await saveCache();
+      }
+      resolveWithDuplicates(batchTabId, item, {
+        retry: true,
+        reasoning: 'Local model or filter settings changed during evaluation.',
+        retryAfterMs: 250,
+      });
+      return;
+    }
     resolveWithDuplicates(batchTabId, item, evalResult);
   } catch (error) {
+    const errorMessage = (error as Error).message;
+    if (batchGeneration !== pipelineGeneration
+        || errorMessage === MODEL_MAINTENANCE_ERROR
+        || (localEngine.isMaintaining()
+          && (errorMessage === 'Inference preempted' || errorMessage === 'Inference queue cleared'))) {
+      resolveWithDuplicates(batchTabId, item, {
+        retry: true,
+        reasoning: 'Local model maintenance in progress.',
+        retryAfterMs: 250,
+      });
+      return;
+    }
     // Handle inference preempted (user scrolled past) — re-queue and process next
-    if ((error as Error).message === 'Inference preempted') {
+    if (errorMessage === 'Inference preempted') {
+      deferWakeOnExit = true;
       const currentQueue = tabQueues.get(batchTabId);
       const currentKeys = tabPendingKeys.get(batchTabId);
-      if (currentQueue && currentKeys) {
+      // A reload can replace both collections under the same numeric tab id
+      // before the interrupted decode settles. Never inject an old-document
+      // item into that replacement queue.
+      if (currentQueue === pendingEvaluations
+          && currentKeys !== undefined
+          && currentKeys === pendingKeys) {
         currentQueue.push(item);
         if (item.cacheKey) currentKeys.add(item.cacheKey);
       } else {
         resolveWithDuplicates(batchTabId, item, null);
       }
-      inFlightBatches--;
-      scheduleBatch(); // Re-sort by viewport and process the now-visible post
       return;
     }
 
     // Handle inference queue cleared (tab switch) — re-queue item to original tab
-    if ((error as Error).message === 'Inference queue cleared') {
+    if (errorMessage === 'Inference queue cleared') {
+      suppressWakeOnExit = true;
       const currentQueue = tabQueues.get(batchTabId);
       const currentKeys = tabPendingKeys.get(batchTabId);
 
       // Only re-queue if the tab's queue is the SAME object we shifted from.
       // If it was deleted (tab closed) or replaced (page reload), resolve gracefully.
-      if (currentQueue === pendingEvaluations && currentKeys) {
+      if (currentQueue === pendingEvaluations
+          && currentKeys !== undefined
+          && currentKeys === pendingKeys) {
         currentQueue.push(item);
         if (item.cacheKey) currentKeys.add(item.cacheKey);
       } else {
         resolveWithDuplicates(batchTabId, item, null);
       }
-      inFlightBatches--;
       return; // setActiveTab handles scheduling for the new tab
     }
 
     console.error('Inference error:', error);
 
-    const classified = classifyError((error as Error).message, apiConfig.apiName);
-    const errorType = classified.errorType;
-    const subType = classified.subType;
-    let reasoning = (error as Error).message;
+    errorState.type = 'local_model';
+    errorState.count++;
+    broadcastErrorStatus().catch(err => console.error('[Error] Broadcast failed:', err));
+    scheduleLocalErrorRetry(errorMessage, modelName);
 
-    if (errorType === 'rate_limit') {
-      const typeConfig = RATE_LIMIT_TYPE_CONFIG[subType!];
-      reasoning = typeConfig?.reasoning || 'Rate limited - will retry when model is switched or after 1 minute of inactivity';
-    } else if (errorType === 'not_found' || errorType === 'server_error') {
-      const typeConfig = API_ERROR_TYPE_CONFIG[errorType];
-      reasoning = typeConfig?.message || `API error: ${(error as Error).message}`;
-    }
-
-    if (errorType) {
-      errorState.type = errorType;
-      errorState.subType = subType;
-      errorState.count++;
-      broadcastErrorStatus().catch(err => console.error('[Error] Broadcast failed:', err));
-
-      if (errorType === 'rate_limit') {
-        scheduleAutoRetry();
-      } else if (errorType === 'server_error' && !serverErrorRetried) {
-        serverErrorRetried = true;
-        setTimeout(() => {
-          if (errorState.count > 0 && errorState.type === 'server_error') {
-            triggerErrorRetry().catch(err => console.error('[Error] triggerErrorRetry failed:', err));
-          }
-        }, 5000);
-      }
-    }
-
-    const errorResult: PipelineError = { error: errorType || 'server_error', reasoning };
+    const errorResult: PipelineError = {
+      error: 'local_model',
+      reasoning: errorMessage || 'The local model failed. Bouncer will retry this post.',
+    };
     resolveWithDuplicates(batchTabId, item, errorResult);
   }
 
-  inFlightBatches--;
+  } catch (error) {
+    // Infrastructure failed before an item reached the inner inference/error
+    // boundary (for example, chrome.storage was briefly unavailable). Release
+    // one caller with a bounded retry instead of leaving its Promise parked.
+    const failedItem = pendingEvaluations.shift();
+    if (failedItem) {
+      if (failedItem.cacheKey) pendingKeys?.delete(failedItem.cacheKey);
+      resolveWithDuplicates(batchTabId, failedItem, {
+        retry: true,
+        reasoning: (error as Error).message || 'Local pipeline temporarily unavailable.',
+        retryAfterMs: 1000,
+      });
+    }
+    console.error('[Pipeline] Batch preparation failed:', error);
+  } finally {
+    // Every path after claiming a batch slot—including storage, viewport, and
+    // cache failures—must release it. A leaked count permanently stalls this
+    // serial local pipeline because later work looks spuriously concurrent.
+    inFlightBatches--;
 
-  // Clean up empty tab queue entries to prevent memory leak over long sessions
-  const batchQueue = tabQueues.get(batchTabId);
-  if (batchQueue && batchQueue.length === 0) {
-    tabQueues.delete(batchTabId);
-    tabPendingKeys.delete(batchTabId);
-    tabDuplicateResolvers.delete(batchTabId);
-  }
+    // Clean up empty tab queue entries to prevent memory leak over long sessions.
+    const batchQueue = tabQueues.get(batchTabId);
+    if (batchQueue && batchQueue.length === 0) {
+      tabQueues.delete(batchTabId);
+      tabPendingKeys.delete(batchTabId);
+      tabDuplicateResolvers.delete(batchTabId);
+    }
 
-  // Process next post if there are more pending in the active tab
-  const activeQueue = activeTabId !== null ? tabQueues.get(activeTabId) : null;
-  if (activeQueue && activeQueue.length > 0) {
-    scheduleBatch();
+    // A concurrent local attempt may have returned while this older batch was
+    // still settling. The final owner of the serial slot is responsible for
+    // waking whatever is now queued, regardless of its own exit path.
+    const activeQueue = activeTabId !== null ? tabQueues.get(activeTabId) : null;
+    if ((!suppressWakeOnExit || activeTabId !== batchTabId)
+        && inFlightBatches === 0
+        && activeQueue
+        && activeQueue.length > 0) {
+      if (deferWakeOnExit) {
+        batchTimeout = setTimeout(() => {
+          processBatch().catch(err => console.error('[Pipeline] processBatch failed:', err));
+        }, BATCH_DELAY_MS);
+      } else {
+        scheduleBatch();
+      }
+    }
   }
 }
 
 // Schedule processing for the next pending post
 export function scheduleBatch(): void {
   if (batchTimeout) {
-    console.log('[Bouncer][diag] scheduleBatch: already scheduled, returning');
     return;
   }
   if (activeTabId === null) {
-    console.log('[Bouncer][diag] scheduleBatch: activeTabId is null — items will sit unresolved until setActiveTab runs');
     return;
   }
 
   const activeQueue = tabQueues.get(activeTabId);
   if (!activeQueue || activeQueue.length === 0) {
-    console.log('[Bouncer][diag] scheduleBatch: no queue or empty queue for activeTabId=', activeTabId);
     return;
   }
 
-  console.log('[Bouncer][diag] scheduleBatch: invoking processBatch, queueLen=', activeQueue.length);
   processBatch().catch(err => console.error('[Pipeline] processBatch failed:', err));
 }
 
@@ -871,22 +901,50 @@ export function scheduleBatch(): void {
 // and queued classifications to be retried against fresh settings while keeping cached
 // classifications intact.
 function flushPipelineQueues(reason: string): void {
+  pipelineGeneration++;
+  // A queue flush retires the active batch as well as pending items. Interrupt
+  // an already-running Gemma decode so fresh work does not sit behind a stale
+  // operation for the remainder of the inference deadline.
+  localEngine.preempt();
   if (batchTimeout) {
     clearTimeout(batchTimeout);
     batchTimeout = null;
   }
   for (const [tabId, queue] of tabQueues.entries()) {
-    const result: PipelineResponse = { retry: true as const, reasoning: reason };
+    const result: PipelineResponse = {
+      retry: true as const,
+      reasoning: reason,
+      retryAfterMs: 250,
+    };
     for (const queueItem of queue) {
       resolveWithDuplicates(tabId, queueItem, result);
+    }
+    queue.length = 0;
+    // processBatch shifts its item before awaiting inference. Same-key callers
+    // registered after that shift live only in the duplicate map, so resolve
+    // any entries left after the queued originals before deleting tab state.
+    const remainingDuplicates = tabDuplicateResolvers.get(tabId);
+    if (remainingDuplicates) {
+      for (const resolvers of remainingDuplicates.values()) {
+        for (const resolve of resolvers) resolve(result);
+      }
+      remainingDuplicates.clear();
     }
     tabQueues.delete(tabId);
     tabPendingKeys.delete(tabId);
     tabDuplicateResolvers.delete(tabId);
   }
   localEngine.clearQueue();
-  broadcastQueueStatus().catch(err => console.error('[Queue] Broadcast failed:', err));
-  inFlightBatches = 0;
+}
+
+// Prevent any queued or newly arriving work from reloading the sole model
+// while its multi-GB cache entry is being deleted. LocalEngine raises a
+// retryable maintenance signal for work that was already between awaits.
+export function runModelMaintenance<T>(fn: () => Promise<T>): Promise<T> {
+  return localEngine.runMaintenance(
+    fn,
+    () => flushPipelineQueues('Local model maintenance in progress.'),
+  );
 }
 
 // Called from index.ts when settings change to reset pipeline state.
@@ -907,10 +965,9 @@ export async function handleSettingsChange(changes: Record<string, chrome.storag
 
 // Called when the filter phrase list changed. Clears the cache and flushes in-flight
 // batches so they re-run against the updated phrase set.
-export function handleFilterPackChange(): void {
-  evaluationCache.clear();
-  removeStorage('evaluationCache').catch(err => console.error('[Cache] clear failed:', err));
+export async function handleFilterPackChange(): Promise<void> {
   flushPipelineQueues('Filter phrases changed, re-evaluating...');
+  await clearEvaluationCache();
 }
 
 // Handle page load: clear pending evaluations for a specific tab
@@ -924,59 +981,26 @@ export function handlePageLoad(tabId: number): void {
 // ==================== Suggest annoying reasons ====================
 
 // Validate a single filter phrase by running the post through the actual filter model
-async function validateFilterPhrase(postText: string, imageUrls: string[], phrase: string, settings: Settings): Promise<boolean> {
-  const postData = { text: postText, imageUrls: imageUrls || [] };
+async function validateFilterPhrase(postText: string, phrase: string, settings: Settings): Promise<boolean> {
+  const postData = { text: postText };
   const modelName = settings.selectedModel.split(':')[1];
-  const modelConfig = PREDEFINED_MODELS.local?.find(m => m.name === modelName) || {} as LocalModelDef;
+  const modelConfig = PREDEFINED_MODELS.local.find(model => model.name === modelName);
+  if (!modelConfig) throw new Error(`Unknown local model: ${modelName}`);
   const localResult = await callLocalInference(postData, [phrase], modelConfig, modelName, { priority: 1 });
   return localResult.shouldHide === true;
 }
 
-// Generate candidate filter phrases using the local model.
-// Local WebLLM models don't support image inputs — use text only.
-export function parseCandidatePhrases(rawText: string, count: number): string[] {
-  const unwrap = (input: string): string => {
-    let value = input.trim();
-    const wrappers: Array<[string, string]> = [
-      ['**', '**'], ['__', '__'], ['`', '`'], ['“', '”'], ['"', '"'], ['*', '*'], ['_', '_'],
-    ];
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (const [start, end] of wrappers) {
-        if (value.length > start.length + end.length && value.startsWith(start) && value.endsWith(end)) {
-          value = value.slice(start.length, -end.length).trim();
-          changed = true;
-          break;
-        }
-      }
-    }
-    return value;
-  };
+// Compatibility re-export for existing tests/callers; implementation is shared
+// with the live-model comparison so the two cannot silently drift.
+export { parseCandidatePhrases } from '../shared/suggestions';
 
-  return rawText.split('\n')
-    .map(line => line
-      .replace(/^\d+[.)-]\s*/, '')
-      .replace(/^[-*•]\s+/, ''))
-    .map(unwrap)
-    .filter(line => line.length > 0 && line.length <= 40 && !line.startsWith('<'))
-    .slice(0, count)
-    .map(line => line.toLowerCase());
-}
-
-async function generateCandidatePhrases(postText: string, _imageUrls: string[], count: number, rejectPhrases: string[], settings: Settings): Promise<string[]> {
-  const rejected = rejectPhrases.length > 0
-    ? ` Do NOT suggest any of these: ${rejectPhrases.join(', ')}.`
-    : '';
-
-  const simpleSystemPrompt = `Given a social media post, suggest exactly ${count} filter phrases (1-3 words each) that someone might add to hide posts like this one because it is annoying, obnoxious, or unpleasant. Each phrase must still work as a category: if another model were asked "does this post relate to [phrase]?", it would say yes. Favor phrases that name what is irritating about the post — its negative tone, behavior, or tactic — and make them as specific as possible. At most one phrase may be a plain topic (like "crypto" or "politics"); every other phrase must carry a clearly negative connotation. Only use an example if it genuinely fits the post.${rejected} Output ONLY the ${count} phrases, one per line, nothing else.`;
-
+async function generateCandidatePhrases(postText: string, count: number, rejectPhrases: string[], settings: Settings): Promise<string[]> {
   const modelName = settings.selectedModel.split(':')[1];
   await localEngine.ensureLoaded(modelName);
   const rawText = await localEngine.generate([
-    { role: 'system', content: simpleSystemPrompt },
+    { role: 'system', content: buildSuggestionSystemPrompt(count, rejectPhrases) },
     { role: 'user', content: postText }
-  ], 150, { priority: 1, temperature: 0.7 });
+  ], 150, { priority: 1 });
   return parseCandidatePhrases(rawText, count);
 }
 
@@ -985,16 +1009,15 @@ async function generateCandidatePhrases(postText: string, _imageUrls: string[], 
 // propagate so a broken GPU/session does not fan out into nine doomed calls.
 async function validatePhrasesBatchedLitert(
   postText: string,
-  imageUrls: string[],
   phrases: string[],
   settings: Settings,
 ): Promise<string[] | null> {
   const modelName = settings.selectedModel.split(':')[1];
-  const modelConfig = PREDEFINED_MODELS.local?.find(model => model.name === modelName);
-  if (modelConfig?.backend !== 'litertlm') return null;
+  const modelConfig = PREDEFINED_MODELS.local.find(model => model.name === modelName);
+  if (!modelConfig) throw new Error(`Unknown local model: ${modelName}`);
 
   const result = await callLocalInference(
-    { text: postText, imageUrls: imageUrls || [] },
+    { text: postText },
     phrases,
     modelConfig,
     modelName,
@@ -1005,11 +1028,16 @@ async function validatePhrasesBatchedLitert(
 }
 
 // Generate 9 candidate filter phrases up front, then return the first 3 that validate
-export async function suggestAnnoyingReasons(postText: string, imageUrls: string[], siteId?: SiteId, tabId?: number): Promise<string[]> {
+export async function suggestAnnoyingReasons(postText: string, siteId?: SiteId, tabId?: number): Promise<string[]> {
+  if (!postText.trim()) return [];
+  const operationGeneration = pipelineGeneration;
+  assertPipelineGeneration(operationGeneration);
   const settings = await getSettings(siteId);
+  assertPipelineGeneration(operationGeneration);
   const rejected: string[] = [];
 
-  const candidates = await generateCandidatePhrases(postText, imageUrls, 9, rejected, settings);
+  const candidates = await generateCandidatePhrases(postText, 9, rejected, settings);
+  assertPipelineGeneration(operationGeneration);
 
   const uniqueCandidates = [...new Set(candidates)];
   let validatedCount = 0;
@@ -1027,10 +1055,10 @@ export async function suggestAnnoyingReasons(postText: string, imageUrls: string
   if (uniqueCandidates.length > 1) {
     const batchedMatches = await validatePhrasesBatchedLitert(
       postText,
-      imageUrls,
       uniqueCandidates,
       settings,
     );
+    assertPipelineGeneration(operationGeneration);
     if (batchedMatches !== null) {
       const matched = new Set(batchedMatches);
       const accepted = uniqueCandidates.filter(phrase => matched.has(phrase)).slice(0, 3);
@@ -1042,20 +1070,19 @@ export async function suggestAnnoyingReasons(postText: string, imageUrls: string
     }
   }
 
-  const results = await Promise.all(uniqueCandidates.map(async (phrase) => {
-    try {
-      const passes = await validateFilterPhrase(postText, imageUrls, phrase, settings);
-      if (passes && validatedCount < 3) {
-        validatedCount++;
-        sendProgress();
-      }
-      return { phrase, passes };
-    } catch (err) {
-      console.warn(`[Suggest] Validation error for "${phrase}":`, (err as Error).message);
-      return { phrase, passes: false };
+  const finalValidated: string[] = [];
+  for (const phrase of uniqueCandidates) {
+    // Operational failures are not negative classifications. Propagate them so
+    // maintenance/GPU/runtime errors cannot masquerade as a successful empty
+    // suggestion result, and stop once the UI's three slots are filled.
+    const passes = await validateFilterPhrase(postText, phrase, settings);
+    assertPipelineGeneration(operationGeneration);
+    if (passes) {
+      finalValidated.push(phrase);
+      validatedCount++;
+      sendProgress();
+      if (finalValidated.length === 3) break;
     }
-  }));
-
-  const finalValidated = results.filter(r => r.passes).map(r => r.phrase).slice(0, 3);
+  }
   return finalValidated;
 }

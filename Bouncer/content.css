@@ -85,9 +85,7 @@ html.twitter-dark, .dark-mode {
 .ff-ios-page,
 .ff-ios-page *,
 .ff-ios-filtered-modal,
-.ff-ios-filtered-modal *,
-.filter-signin-prompt,
-.filter-signin-prompt * {
+.ff-ios-filtered-modal * {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -1384,65 +1382,6 @@ article {
   border-radius: 16px;
   display: flex;
   flex-direction: column
-}
-
-/* ==================== Sign-in prompt ==================== */
-
-.filter-signin-prompt {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 8px 0 4px;
-}
-
-.ff-signin-explanation {
-  margin: 8px 0 0;
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.5);
-  text-align: center;
-  line-height: 1.4;
-}
-
-.light-mode .ff-signin-explanation {
-  color: rgba(0, 0, 0, 0.45);
-}
-
-.google-signin-btn {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 20px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.08);
-  color: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-  width: 100%;
-  justify-content: center;
-}
-
-.google-signin-btn:hover {
-  background: rgba(255, 255, 255, 0.14);
-  border-color: rgba(255, 255, 255, 0.35);
-}
-
-.google-signin-btn .google-icon {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-}
-
-.light-mode .google-signin-btn {
-  border-color: rgba(0, 0, 0, 0.15);
-  background: rgba(0, 0, 0, 0.04);
-}
-
-.light-mode .google-signin-btn:hover {
-  background: rgba(0, 0, 0, 0.08);
-  border-color: rgba(0, 0, 0, 0.25);
 }
 
 .filter-phrases-header {

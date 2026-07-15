@@ -44,10 +44,9 @@
 <body>
   <h1>Bouncer — Latency Benchmark <span class="muted">(dev-only)</span></h1>
   <div class="caveat">
-    Measures <b>per-classification latency</b>, not raw tokens/sec — Qwen decodes ~40 reasoning tokens,
-    Gemma emits a short verdict row. Headline = <code>inferenceTime</code> (generate-only, matches the app).
-    WebLLM/Qwen also reports token counts + TTFT/decode TPS (<code>usage.extra</code>); LiteRT/Gemma reports
-    none, so those columns are blank for it. On Chrome, Gemma's number includes SW↔offscreen IPC.
+    Measures <b>per-classification latency</b>, not raw tokens/sec. Gemma emits a short verdict row.
+    Headline = <code>inferenceTime</code> (generate-only, matches the app). LiteRT-LM does not expose
+    token-level timing, so those optional columns are blank. On Chrome, the number includes SW↔offscreen IPC.
     Run with no x.com tab actively filtering. Load times are from cache (download models in the popup first).
   </div>
 
@@ -73,7 +72,7 @@
   <h3>Accuracy eval <span class="muted">(labeled corpus)</span></h3>
   <div class="caveat">
     Runs the labeled <code>eval-corpus</code> through the real classifier across baseline and dev-only
-    filter/prompt variants — <b>3 runs/post, majority vote</b> (absorbs Qwen's temperature-0.7 variance; Gemma is deterministic).
+    filter/prompt variants — <b>3 runs/post, majority vote</b> (also catches unexpected instability in deterministic Gemma output).
     Positive class = "should hide": low <b>precision</b> = over-filtering legit posts; low <b>recall</b> = missed rage bait.
     Candidate variants are only eligible for follow-up if they reduce ambiguous-negative false positives without reducing
     positive recall. Warmup/timed inputs above apply to the latency benchmark only.

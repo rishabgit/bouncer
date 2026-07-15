@@ -3,9 +3,8 @@
 // The PAGE owns the run loop and drives a thin background worker
 // (src/background/benchmark.ts) one bounded op at a time, so the MV3 service
 // worker is never asked to hold a response open for a whole run. Headline metric
-// is `inferenceTime` (generate-only seconds, matching the app's latencyUpdate);
-// for Qwen/WebLLM we also surface the usage.extra decomposition. LiteRT/Gemma
-// reports wall-clock only. See the plan for the full rationale.
+// is `inferenceTime` (generate-only seconds from the app's inference wrapper).
+// LiteRT-LM reports wall-clock only. See the benchmark docs for rationale.
 
 import { PREDEFINED_MODELS } from '../shared/models';
 import { POSTS, categories, type CorpusPost } from '../shared/benchmark-corpus';
@@ -35,7 +34,7 @@ interface Report {
 // ---- Accuracy-eval shapes --------------------------------------------------
 
 // Fixed repeats per post: odd, so the majority vote (hideCount*2 > RUNS) never
-// ties, and it absorbs Qwen's temperature-0.7 variance (Gemma is deterministic).
+// ties and catches any unexpected instability in deterministic Gemma output.
 const RUNS = 3;
 
 interface EvalRow {
@@ -114,7 +113,7 @@ async function send(msg: Record<string, unknown>): Promise<Record<string, unknow
 interface MadeCell { post: BenchmarkPost; categories: string[]; label: string; promptMode?: BenchmarkPromptMode }
 function makeCell(postId: CorpusPost['id'], nCats: number): MadeCell {
   return {
-    post: { text: POSTS[postId].text, imageUrls: [] },
+    post: { text: POSTS[postId].text },
     categories: categories(nCats),
     label: `${POSTS[postId].label} ×${nCats}`,
   };
@@ -177,7 +176,7 @@ function buildModelChecks(): void {
   for (const m of PREDEFINED_MODELS.local) {
     const checkbox = document.createElement('input');
     checkbox.type = 'checkbox';
-    checkbox.checked = !!m.recommended || m.backend === 'litertlm'; // default: Qwen3.5 + Gemma
+    checkbox.checked = true;
 
     const badge = document.createElement('span');
     badge.className = 'badge badge-unknown';
@@ -434,8 +433,7 @@ function exportCsv(): void {
 // ==== Accuracy eval =========================================================
 // Reuses the latency harness's plumbing — resolveReady / load / infer / unload,
 // the model checkboxes, the running+cancelled flags, and the DOM helpers. Each
-// post is classified RUNS times against EVAL_FILTERS and majority-voted, so
-// Qwen's stochastic decoding can't let one unlucky sample flip a verdict.
+// post is classified RUNS times against EVAL_FILTERS and majority-voted.
 
 async function runEval(): Promise<void> {
   if (running) return;
@@ -476,7 +474,7 @@ async function runEval(): Promise<void> {
           for (let r = 0; r < RUNS && !cancelled; r++) {
             setStatus(`${mdef.display} · ${variant.label} · ${post.id} · run ${r + 1}/${RUNS} (post ${i}/${EVAL_POSTS.length})`);
             const out = await infer(modelId, {
-              post: { text: post.text, imageUrls: [] },
+              post: { text: post.text },
               categories: variant.filters,
               label: `${variant.id}:${post.id}`,
               promptMode: variant.promptMode,

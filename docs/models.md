@@ -1,37 +1,73 @@
-# Model weights — sources, mirrors & licenses
+# Model artifact — source, pin, and license
 
-Bouncer downloads its model weights at runtime, client-side (WebGPU/WebLLM and LiteRT). To keep this fork working even if an upstream repo is deleted, renamed, or changed, the two models it actually ships are served from **self-hosted, revision-pinned mirrors** on Hugging Face. The mirrors are byte-for-byte copies of the upstream files; pinning each URL to a commit SHA means upstream changes can't silently alter behavior either.
+Bouncer has one production model: **Gemma 4 E2B (Instruct)** running through
+LiteRT-LM/WebGPU. There is no production WebLLM/Qwen catalog, vision model,
+custom-model path, or model picker.
 
-**All weights are [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0).** Each mirror ships a `LICENSE` and a model card documenting the full chain.
+## Production artifact
 
-## What the extension fetches
+| Field | Value |
+|---|---|
+| Model | Gemma 4 E2B (Instruct) |
+| Runtime | LiteRT-LM |
+| Source repository | [`litert-community/gemma-4-E2B-it-litert-lm`](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm) |
+| Pinned revision | `9262660a1676eed6d0c477ab1a86344430854664` |
+| File | `gemma-4-E2B-it-web.litertlm` |
+| Size | 2,008,432,640 bytes (1.870 GiB) |
+| LFS SHA-256 | `3a08e8d94e23b814ae5414469c370c503813949acb8ceaa17e4ebf8a35af35b5` |
+| Declared license | Apache-2.0 |
 
-| Model | Engine | Mirror (pinned) | Mirrored from | Base model · license |
-|---|---|---|---|---|
-| Qwen 3.5 4B (default) | WebLLM | [`rishabhf/bouncer-qwen3.5-4b-mlc`](https://huggingface.co/rishabhf/bouncer-qwen3.5-4b-mlc) `@3a23198` | [`imbue/Qwen3.5-4B-q4f16_1-MLC-2`](https://huggingface.co/imbue/Qwen3.5-4B-q4f16_1-MLC-2) `@16b7d99` + WebGPU lib [`imbue-ai/binary-mlc-llm-libs`](https://github.com/imbue-ai/binary-mlc-llm-libs) `@96d72b4` | [`Qwen/Qwen3.5-4B`](https://huggingface.co/Qwen/Qwen3.5-4B) · Apache-2.0 (© Qwen Team, Alibaba) |
-| Gemma 4 E4B | LiteRT | [`rishabhf/bouncer-gemma-4-e4b-litert`](https://huggingface.co/rishabhf/bouncer-gemma-4-e4b-litert) `@41a40de` | [`litert-community/gemma-4-E4B-it-litert-lm`](https://huggingface.co/litert-community/gemma-4-E4B-it-litert-lm) `@65ce5ba` (web `.litertlm` only) | [`google/gemma-4-E4B-it`](https://huggingface.co/google/gemma-4-E4B-it) · Apache-2.0 (© Google DeepMind) |
+The exact `resolve/<revision>/...` URL lives in
+[`Bouncer/src/shared/models.ts`](../Bouncer/src/shared/models.ts). Pinning the
+revision prevents an upstream update from silently changing model behavior.
+Changing that URL deliberately causes a fresh browser download because Cache
+Storage is keyed by the full URL.
 
-The exact pinned `…/resolve/<sha>/…` URLs live in [`Bouncer/src/shared/models.ts`](../Bouncer/src/shared/models.ts). The other models in the picker (Qwen 3 4B, Qwen 3.5 Vision) are **not** mirrored — they still fetch from their original upstreams.
+The current production URL points directly to the revision-pinned
+`litert-community` repository. **It is not yet a fork-owned mirror.** The model
+decision does not depend on pretending otherwise: the source revision,
+artifact size, and checksum above describe exactly what the browser fetches.
+Before relying on independent long-term availability, copy this exact artifact
+to a fork-owned repository with its source revision, checksum, license, and a
+model card, then update the pinned URL and rerun the capability checks.
 
-> A WebLLM model is a pair: the quantized weights (HF) **plus** a compiled WebGPU kernel library (`.wasm`). The Qwen mirror co-locates both so they stay pinned together. Gemma's `.litertlm` is a single self-contained file.
+The repository declares Apache-2.0 for the converted artifact and identifies
+[`google/gemma-4-E2B-it`](https://huggingface.co/google/gemma-4-E2B-it) as the
+base model. Preserve the license, source attribution, unmodified-artifact note,
+and lack-of-endorsement notice in any future mirror.
 
-## Licensing & attribution
+## Development-only E4B comparator
 
-Both base models are genuinely Apache-2.0 — including Gemma 4, whose [license page](https://ai.google.dev/gemma/docs/gemma_4_license) *is* the Apache-2.0 text (a departure from the older Gemma Terms of Use). Redistribution via these mirrors honors Apache-2.0 §4:
+The dev localhost harness retains Gemma 4 E4B solely to keep the production
+decision reproducible:
 
-- the full license is included (`LICENSE`) — Qwen's mirror carries Qwen's own upstream `LICENSE`; Gemma's carries the canonical Apache-2.0 text (the Google base repo ships no license file);
-- upstream copyright/attribution is retained in each mirror's model card;
-- the weights are marked **unmodified** copies;
-- no endorsement by the original authors is implied.
+| Field | Value |
+|---|---|
+| Definition | [`Bouncer/src/shared/benchmark-models.ts`](../Bouncer/src/shared/benchmark-models.ts) |
+| Artifact | `rishabhf/bouncer-gemma-4-e4b-litert@41a40dee03ce6185fb76bd96294f74561bf87f89` |
+| Size | 2,969,059,328 bytes (2.765 GiB) |
+| Role | Dev-only benchmark comparator |
 
-## Refreshing / re-pinning a mirror
+E4B is not included in the production model catalog, shown in the popup, or
+loaded as part of normal filtering. Its presence in a dev entry point does not
+create a two-model product pipeline.
 
-To roll a mirror forward to a newer upstream revision:
+## Retired artifacts
 
-```bash
-hf download <upstream-repo> --revision <sha> --local-dir ./m   # add the .wasm for the Qwen mirror
-hf upload  rishabhf/<mirror-repo> ./m . --commit-message "..."
-curl -s https://huggingface.co/api/models/rishabhf/<mirror-repo>/revision/main   # -> .sha
-```
+The old WebLLM/Qwen weights and compiled WebGPU module are no longer fetched or
+bundled. Historical Qwen and E4B result pages remain in `docs/benchmarks/` so
+the decision trail is auditable; those pages do not describe selectable models
+in the current product.
 
-Then update the `resolve/<sha>/` URL(s) in `models.ts`. Changing a URL is a one-time re-download for any browser (Cache Storage is keyed by the full URL).
+## Updating the production pin
+
+Treat a model URL change as a behavior change, not routine dependency churn:
+
+1. Record the upstream repository, exact revision, filename, size, SHA-256, and license.
+2. Run the counterbalanced classification, latency, and suggestion flows on the target Mac in Chrome.
+3. Review suggestion text semantically; the automated checks only validate shape and self-consistency.
+4. Update `models.ts`, this page, and the E2B decision record together.
+5. Expect every browser profile to download the new artifact once.
+
+The current evidence and its limitations are in
+[`benchmarks/e2b-evaluation.md`](benchmarks/e2b-evaluation.md).

@@ -37,10 +37,15 @@ export interface InitProgress {
 }
 
 function getWasmBaseUrl(): string {
-  // Same-origin path resolved through the extension URL scheme. The
-  // LiteRT-LM loader appends litertlm_wasm_internal.js (or its compat
-  // variant) to this prefix.
-  return chrome.runtime.getURL(`${WASM_BASE}/`);
+  // Production runs inside an extension and resolves through its URL scheme.
+  // The dev-only Gemma comparison page is served from localhost, where Chrome
+  // exposes `window.chrome` but not `chrome.runtime.getURL`; in that case the
+  // copied wasm directory sits next to the comparison bundle under dist/.
+  // LiteRT-LM appends litertlm_wasm_internal.js (or its compat variant).
+  const runtime = globalThis.chrome?.runtime;
+  return runtime?.getURL
+    ? runtime.getURL(`${WASM_BASE}/`)
+    : new URL('./litertlm-wasm/', import.meta.url).href;
 }
 
 // Stream a remote model into the Cache Storage while reporting progress.
@@ -109,9 +114,7 @@ export async function fetchAndCacheModel(
   return cachedAfter;
 }
 
-/** Cache-only LiteRT download used by staged model switching. This deliberately
- *  stops before wasm/model initialization so the currently active GPU backend
- *  can continue filtering while the multi-GB blob arrives. */
+/** Cache-only LiteRT download used by the development comparison runner. */
 export async function prefetchLitertlmModel(
   modelDef: LocalModelDef,
   onProgress: (p: InitProgress) => void,
@@ -129,9 +132,28 @@ export async function prefetchLitertlmModel(
 let wasmLoaded: Promise<void> | null = null;
 function ensureWasmLoaded(): Promise<void> {
   if (!wasmLoaded) {
-    wasmLoaded = loadLiteRtLm(getWasmBaseUrl()).then(() => undefined);
+    // Defer the loader call so even a synchronous loader failure is captured
+    // by the shared promise. Keep that exact promise in the cache: comparing
+    // against a derived catch promise would never match and would permanently
+    // poison retries after the first failure.
+    const loading = Promise.resolve()
+      .then(() => loadLiteRtLm(getWasmBaseUrl()))
+      .then(() => undefined);
+    wasmLoaded = loading;
+    void loading.catch(() => {
+      // Clear only this failed attempt. A teardown followed by a newer load
+      // must not be invalidated by an older promise settling late.
+      if (wasmLoaded === loading) wasmLoaded = null;
+    });
   }
   return wasmLoaded;
+}
+
+// The dev comparison warms this separately so first-model load time is not
+// charged for one-time LiteRT wasm startup. Production initialization still
+// calls the same idempotent helper through initialize().
+export function warmLitertlmWasm(): Promise<void> {
+  return ensureWasmLoaded();
 }
 
 export class LitertlmRuntime {
@@ -212,16 +234,11 @@ export class LitertlmRuntime {
   // message. The system message goes into the preface; the last user message
   // is what gets sent. LiteRT-LM applies the model's chat template internally.
   private splitMessages(messages: ChatMessage[]): { prefaceMessages: Message[]; userText: string } {
-    const flatten = (content: ChatMessage['content']): string =>
-      typeof content === 'string'
-        ? content
-        : content.filter(c => c.type === 'text').map(c => c.text ?? '').join('');
-
     const prefaceMessages: Message[] = [];
     let userText = '';
     for (let i = 0; i < messages.length; i++) {
       const m = messages[i];
-      const text = flatten(m.content);
+      const text = m.content;
       const isLastUser = i === messages.length - 1 && m.role === 'user';
       if (isLastUser) {
         userText = text;
@@ -232,7 +249,7 @@ export class LitertlmRuntime {
     return { prefaceMessages, userText };
   }
 
-  generate(messages: ChatMessage[], maxTokens: number, _params: Record<string, unknown>): Promise<string> {
+  generate(messages: ChatMessage[], maxTokens: number): Promise<string> {
     if (!this.engine) throw new Error('Engine not loaded');
     return this.enqueue(async () => {
       if (!this.engine) throw new Error('Engine not loaded');
@@ -329,7 +346,13 @@ export class LitertlmRuntime {
     if (!url) return;
     if (typeof caches === 'undefined') return;
     const cache = await caches.open(LITERTLM_CACHE_KEY);
-    await cache.delete(url);
+    const deleted = await cache.delete(url);
+    const survivor = await cache.match(url);
+    if (survivor) {
+      throw new Error(
+        `LiteRT-LM cache entry survived deletion (${deleted ? 'delete reported success' : 'delete reported failure'}).`,
+      );
+    }
   }
 }
 

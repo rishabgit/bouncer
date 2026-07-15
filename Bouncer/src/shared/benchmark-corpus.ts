@@ -1,6 +1,6 @@
 // Fixed text corpus for the latency benchmark. Original synthetic posts (not
 // scraped) so the inputs are stable and shareable. Text-only by design — the
-// head-to-head is Qwen 3.5 vs Gemma, both text-only.
+// production Gemma path is text-only.
 
 export interface CorpusPost {
   id: 'short' | 'medium' | 'long';
@@ -48,8 +48,8 @@ export const CATEGORY_POOL = [
   'drama',
 ];
 
-// Filter counts swept (Gemma's output budget = max(20, 6 + 4·N); Qwen's output
-// is fixed but its prefill/TTFT still grows with the list).
+// Filter counts swept (Gemma's capped output budget leaves room for either the
+// requested compact verdicts or exact category-labeled E2B drift).
 export const FILTER_COUNTS = [1, 3, 5, 10];
 
 export function categories(n: number): string[] {

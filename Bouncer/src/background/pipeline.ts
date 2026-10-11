@@ -16,6 +16,7 @@ import type {
 // ==================== Constants ====================
 
 const CACHE_SIZE = 500; // Increased for persistent storage
+const AUTOMATIC_CACHE_WRITE_DELAY_MS = 3000;
 const BATCH_DELAY_MS = 1000; // Wait time to collect posts before sending batch
 const MAX_CONCURRENT_BATCHES = 100; // Allow parallel batch processing
 
@@ -86,15 +87,18 @@ async function runDetectorsAndCaptureSnapshots(
   snapshots: Map<string, DetectorSnapshot>,
   tabId: number,
   evaluationId: string,
+  isCurrent: () => boolean,
 ): Promise<DetectorResult> {
   const result = await runDetectors(detectors, {
     onResponse: (detName, value, error) => {
+      if (!isCurrent()) return;
       if (value) {
         snapshots.set(detName, {
           status: 'success',
           shouldHide: value.shouldHide,
           reasoning: value.reasoning,
           category: value.category ?? null,
+          ...(value.matches !== undefined && { matches: value.matches }),
         });
       } else if (error) {
         snapshots.set(detName, { status: 'error', error: error.message });
@@ -107,6 +111,7 @@ async function runDetectorsAndCaptureSnapshots(
           shouldHide: value.shouldHide,
           reasoning: value.reasoning,
           category: value.category ?? null,
+          ...(value.matches !== undefined && { matches: value.matches }),
         }),
         ...(error && { error: error.message }),
       });
@@ -157,6 +162,7 @@ let batchTimeout: ReturnType<typeof setTimeout> | null = null;
 let inFlightBatches = 0; // Counter for concurrent batch processing
 let cacheLoaded = false;
 let cacheWriteChain: Promise<void> = Promise.resolve();
+let automaticCacheSaveTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // Per-tab queue management
 const tabQueues = new Map<number, PendingEvaluation[]>();      // tabId -> array of queue items
@@ -166,6 +172,51 @@ const tabDuplicateResolvers = new Map<number, Map<string, Array<(result: Pipelin
 // This is separate from LocalEngine maintenance because settings/filter flushes
 // also must not allow a stale batch to write cache entries after they return.
 let pipelineGeneration = 0;
+// Only active automatic evaluations own fences. User actions retire these
+// tokens without accumulating a per-post generation map over a long session.
+interface PostEvaluationFence { cacheKey: string; current: boolean }
+const postEvaluationFences = new Map<string, Set<PostEvaluationFence>>();
+// Only pending explicit writes own an entry. Every cache reader waits here,
+// including readers that have not claimed an automatic-evaluation fence yet.
+const pendingPostDecisions = new Map<string, Promise<void>>();
+
+function retirePostEvaluations(cacheKey: string): void {
+  for (const fence of postEvaluationFences.get(cacheKey) ?? []) fence.current = false;
+}
+
+function beginPostDecision(cacheKey: string): () => void {
+  let resolve!: () => void;
+  const decision = new Promise<void>(done => { resolve = done; });
+  pendingPostDecisions.set(cacheKey, decision);
+  return () => {
+    if (pendingPostDecisions.get(cacheKey) === decision) pendingPostDecisions.delete(cacheKey);
+    resolve();
+  };
+}
+
+function claimPostEvaluation(cacheKey: string): PostEvaluationFence {
+  const fence = { cacheKey, current: true };
+  const fences = postEvaluationFences.get(cacheKey) ?? new Set<PostEvaluationFence>();
+  fences.add(fence);
+  postEvaluationFences.set(cacheKey, fences);
+  return fence;
+}
+
+function releasePostEvaluation(fence: PostEvaluationFence): void {
+  const fences = postEvaluationFences.get(fence.cacheKey);
+  fences?.delete(fence);
+  if (fences?.size === 0) postEvaluationFences.delete(fence.cacheKey);
+}
+
+async function retiredEvaluationResponse(fence: PostEvaluationFence | null): Promise<PipelineResponse> {
+  const manual = fence && !fence.current && await readCachedEvaluation(fence.cacheKey);
+  if (manual && manual.userOverride) return { ...manual, cached: true };
+  return {
+    retry: true,
+    reasoning: 'Local model or filter settings changed during evaluation.',
+    retryAfterMs: 250,
+  };
+}
 let activeTabId: number | null = null;
 
 function assertPipelineGeneration(expected: number): void {
@@ -305,6 +356,7 @@ export function replayDetectorStates(tabId: number, evaluationId: string, evalRe
           shouldHide: snap.shouldHide,
           reasoning: snap.reasoning,
           category: snap.category ?? null,
+          ...(snap.matches !== undefined && { matches: snap.matches }),
         }),
         ...(snap.status === 'error' && { error: snap.error }),
         ...(snap.status === 'skipped' && { skipped: true, skipReason: snap.skipReason }),
@@ -324,6 +376,7 @@ export function replayDetectorStates(tabId: number, evaluationId: string, evalRe
     shouldHide: evalResult.shouldHide,
     reasoning: evalResult.reasoning,
     category: evalResult.category ?? null,
+    ...(evalResult.matches !== undefined && { matches: evalResult.matches }),
   });
 }
 
@@ -442,6 +495,13 @@ function scheduleLocalErrorRetry(errorMessage: string, modelName: string): void 
 
 // ==================== Cache ====================
 
+/** Read only settled cache state; re-read after explicit persistence/rollback. */
+export async function readCachedEvaluation(cacheKey: string): Promise<EvaluationResult | undefined> {
+  let decision: Promise<void> | undefined;
+  while ((decision = pendingPostDecisions.get(cacheKey))) await decision;
+  return evaluationCache.get(cacheKey);
+}
+
 // Load cache from persistent storage on startup
 export async function loadCache(): Promise<void> {
   if (cacheLoaded) return;
@@ -457,8 +517,27 @@ export async function loadCache(): Promise<void> {
   }
 }
 
-// Save cache to persistent storage
-export async function saveCache(): Promise<void> {
+function cancelAutomaticCacheSave(): void {
+  if (automaticCacheSaveTimeout === null) return;
+  clearTimeout(automaticCacheSaveTimeout);
+  automaticCacheSaveTimeout = null;
+}
+
+// Automatic verdicts share one bounded write window. Snapshot only when the
+// first dirty entry's timer fires; later entries do not slide the deadline.
+// A worker terminating within that window can lose these optional cache hits.
+export function scheduleAutomaticCacheSave(): void {
+  if (automaticCacheSaveTimeout !== null) return;
+  automaticCacheSaveTimeout = setTimeout(() => {
+    automaticCacheSaveTimeout = null;
+    void saveCache();
+  }, AUTOMATIC_CACHE_WRITE_DELAY_MS);
+}
+
+// Explicit saves are immediate serialized barriers, including user decisions
+// and rollback. They also flush any automatic changes waiting for their timer.
+export async function saveCache(throwOnError = false): Promise<void> {
+  cancelAutomaticCacheSave();
   const cacheObj = Object.fromEntries(evaluationCache);
   try {
     const write = cacheWriteChain
@@ -468,16 +547,81 @@ export async function saveCache(): Promise<void> {
     await write;
   } catch (err) {
     console.error('Failed to save cache:', err);
+    if (throwOnError) throw err;
   }
 }
 
 export async function clearEvaluationCache(): Promise<void> {
+  cancelAutomaticCacheSave();
   evaluationCache.clear();
   const write = cacheWriteChain
     .catch(() => undefined)
     .then(() => setStorage({ evaluationCache: {} }));
   cacheWriteChain = write.catch(() => undefined);
   await write;
+}
+
+/** Durable explicit user decision. A late automatic evaluation cannot replace it. */
+export async function overridePost(
+  post: string,
+  shouldHide: boolean,
+  reasoning = 'User override',
+  matches?: string[],
+): Promise<void> {
+  await loadCache();
+  const cacheKey = generateCacheKey(post);
+  const settleDecision = beginPostDecision(cacheKey);
+  retirePostEvaluations(cacheKey);
+  const previous = evaluationCache.get(cacheKey);
+  const override: EvaluationResult = {
+    shouldHide, reasoning, userOverride: true, timestamp: Date.now(),
+    ...(matches !== undefined && {
+      matches,
+      category: matches.length > 0 ? matches.join(', ') : null,
+    }),
+  };
+  evaluationCache.set(cacheKey, override);
+  try {
+    await saveCache(true);
+  } catch (error) {
+    if (evaluationCache.get(cacheKey) === override) {
+      if (previous) evaluationCache.set(cacheKey, previous);
+      else evaluationCache.delete(cacheKey);
+      // Another post may already have queued a cache snapshot containing this
+      // provisional override. Put the rollback after those serialized writes.
+      await saveCache();
+    }
+    throw error;
+  } finally {
+    settleDecision();
+  }
+}
+
+export async function clearPost(post: string): Promise<void> {
+  await loadCache();
+  const cacheKey = generateCacheKey(post);
+  retirePostEvaluations(cacheKey);
+  const previous = evaluationCache.get(cacheKey);
+  if (!previous) {
+    // Even a missing-key clear finishes pending automatic persistence. Flush a
+    // waiting timer now, or wait for an already-running write without duplicating it.
+    if (automaticCacheSaveTimeout !== null) await saveCache(true);
+    else await cacheWriteChain;
+    return;
+  }
+  const settleDecision = beginPostDecision(cacheKey);
+  evaluationCache.delete(cacheKey);
+  try {
+    await saveCache(true);
+  } catch (error) {
+    if (!evaluationCache.has(cacheKey)) {
+      evaluationCache.set(cacheKey, previous);
+      await saveCache();
+    }
+    throw error;
+  } finally {
+    settleDecision();
+  }
 }
 
 // ==================== Viewport prioritization ====================
@@ -565,6 +709,7 @@ async function processBatch(): Promise<void> {
   const batchGeneration = pipelineGeneration;
   let suppressWakeOnExit = false;
   let deferWakeOnExit = false;
+  let postFence: PostEvaluationFence | null = null;
 
   try {
 
@@ -617,8 +762,16 @@ async function processBatch(): Promise<void> {
 
   // Check cache
   const cacheKey = generateCacheKey(item.post);
-  if (evaluationCache.has(cacheKey)) {
-    const cached = evaluationCache.get(cacheKey)!;
+  // Own the post before the cache read yields, including an already-settled
+  // miss. An explicit decision can begin in that await's continuation window.
+  postFence = claimPostEvaluation(cacheKey);
+  const isEvaluationCurrent = (): boolean => batchGeneration === pipelineGeneration && postFence!.current;
+  const cached = await readCachedEvaluation(cacheKey);
+  if (!isEvaluationCurrent()) {
+    resolveWithDuplicates(batchTabId, item, await retiredEvaluationResponse(postFence));
+    return;
+  }
+  if (cached) {
     replayDetectorStates(batchTabId, item.evaluationId, cached);
     resolveWithDuplicates(batchTabId, item, { ...cached, cached: true });
     return;
@@ -649,6 +802,7 @@ async function processBatch(): Promise<void> {
         // preempt issued before an engine exists cannot interrupt anything, so
         // fence the stale batch again immediately before the expensive decode.
         assertPipelineGeneration(batchGeneration);
+        if (!postFence!.current) throw new Error(MODEL_MAINTENANCE_ERROR);
         if (postUrl) void sendToTab(batchTabId, { type: 'processingPost', postUrl });
       };
       return await callLocalInference(postData, settings.descriptions, modelConfig, modelName, { onInferenceStart });
@@ -674,17 +828,14 @@ async function processBatch(): Promise<void> {
         snapshots,
         batchTabId,
         item.evaluationId,
+        isEvaluationCurrent,
       );
     }
 
     // A settings/model flush may have happened while inference was running.
     // Never persist or publish a result computed under the retired generation.
-    if (batchGeneration !== pipelineGeneration) {
-      resolveWithDuplicates(batchTabId, item, {
-        retry: true,
-        reasoning: 'Local model or filter settings changed during evaluation.',
-        retryAfterMs: 250,
-      });
+    if (!isEvaluationCurrent()) {
+      resolveWithDuplicates(batchTabId, item, await retiredEvaluationResponse(postFence));
       return;
     }
 
@@ -694,6 +845,7 @@ async function processBatch(): Promise<void> {
       shouldHide: result.shouldHide,
       reasoning: result.reasoning,
       category: result.category || null,
+      ...(result.matches !== undefined && { matches: result.matches }),
       rawResponse: result.rawResponse || null,
       model: settings.selectedModel || 'unknown',
       timestamp: Date.now(),
@@ -718,12 +870,8 @@ async function processBatch(): Promise<void> {
     // A filter/model change can arrive while stats storage is pending. Do not
     // repopulate the just-invalidated cache or publish a verdict from the old
     // rules after that boundary.
-    if (batchGeneration !== pipelineGeneration) {
-      resolveWithDuplicates(batchTabId, item, {
-        retry: true,
-        reasoning: 'Local model or filter settings changed during evaluation.',
-        retryAfterMs: 250,
-      });
+    if (!isEvaluationCurrent()) {
+      resolveWithDuplicates(batchTabId, item, await retiredEvaluationResponse(postFence));
       return;
     }
 
@@ -732,18 +880,14 @@ async function processBatch(): Promise<void> {
       const firstKey = evaluationCache.keys().next().value;
       if (firstKey !== undefined) evaluationCache.delete(firstKey);
     }
-    await saveCache();
+    scheduleAutomaticCacheSave();
 
-    if (batchGeneration !== pipelineGeneration) {
+    if (!isEvaluationCurrent()) {
       if (evaluationCache.get(cacheKey) === evalResult) {
         evaluationCache.delete(cacheKey);
+        scheduleAutomaticCacheSave();
       }
-      await saveCache();
-      resolveWithDuplicates(batchTabId, item, {
-        retry: true,
-        reasoning: 'Local model or filter settings changed during evaluation.',
-        retryAfterMs: 250,
-      });
+      resolveWithDuplicates(batchTabId, item, await retiredEvaluationResponse(postFence));
       return;
     }
 
@@ -753,26 +897,22 @@ async function processBatch(): Promise<void> {
       broadcastToTabs({ type: 'reEvaluateErrors' });
     }
 
-    if (batchGeneration !== pipelineGeneration) {
+    if (!isEvaluationCurrent()) {
       if (evaluationCache.get(cacheKey) === evalResult) {
         evaluationCache.delete(cacheKey);
-        await saveCache();
+        scheduleAutomaticCacheSave();
       }
-      resolveWithDuplicates(batchTabId, item, {
-        retry: true,
-        reasoning: 'Local model or filter settings changed during evaluation.',
-        retryAfterMs: 250,
-      });
+      resolveWithDuplicates(batchTabId, item, await retiredEvaluationResponse(postFence));
       return;
     }
     resolveWithDuplicates(batchTabId, item, evalResult);
   } catch (error) {
     const errorMessage = (error as Error).message;
-    if (batchGeneration !== pipelineGeneration
+    if (!isEvaluationCurrent()
         || errorMessage === MODEL_MAINTENANCE_ERROR
         || (localEngine.isMaintaining()
           && (errorMessage === 'Inference preempted' || errorMessage === 'Inference queue cleared'))) {
-      resolveWithDuplicates(batchTabId, item, {
+      resolveWithDuplicates(batchTabId, item, postFence && !postFence.current ? await retiredEvaluationResponse(postFence) : {
         retry: true,
         reasoning: 'Local model maintenance in progress.',
         retryAfterMs: 250,
@@ -846,6 +986,7 @@ async function processBatch(): Promise<void> {
     }
     console.error('[Pipeline] Batch preparation failed:', error);
   } finally {
+    if (postFence) releasePostEvaluation(postFence);
     // Every path after claiming a batch slot—including storage, viewport, and
     // cache failures—must release it. A leaked count permanently stalls this
     // serial local pipeline because later work looks spuriously concurrent.

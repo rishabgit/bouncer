@@ -52,6 +52,19 @@ describe('restoreFilteredContainer', () => {
     expect(restoreFilteredContainer(container)).toBe(false);
     expect(container.style.display).toBe('none');
   });
+
+  it('cancels our pending fade without clearing the platform container display', () => {
+    vi.useFakeTimers();
+    const container = document.createElement('div');
+    const article = document.createElement('article');
+    container.style.display = 'none';
+    article.style.opacity = '0';
+    scheduleFilteredHide(article, vi.fn());
+    expect(restoreFilteredContainer(container, article)).toBe(true);
+    expect(container.style.display).toBe('none');
+    expect(article.style.opacity).toBe('');
+    vi.useRealTimers();
+  });
 });
 
 describe('isRendered', () => {

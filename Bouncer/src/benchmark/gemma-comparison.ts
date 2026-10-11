@@ -19,6 +19,9 @@ import { EVAL_POSTS, EVAL_VARIANTS, expectsHide } from '../shared/eval-corpus';
 import { score, scoreByKind, unstableCount } from '../shared/eval-metrics';
 import type { ChatMessage, LocalModelDef } from '../types';
 
+// Injected from the installed package by build.js, including baseline builds.
+declare const __LITERTLM_VERSION__: string;
+
 const WARMUPS = 3;
 const TIMED_RUNS = 20;
 const ACCURACY_RUNS = 3;
@@ -77,6 +80,14 @@ const statusEl = document.getElementById('status') as HTMLDivElement;
 const progressEl = document.getElementById('progress') as HTMLProgressElement;
 const summaryEl = document.getElementById('summary') as HTMLPreElement;
 const runButton = document.getElementById('run') as HTMLButtonElement;
+const downloadButton = document.getElementById('download-report') as HTMLButtonElement;
+let downloadableReport: { json: string; filename: string } | null = null;
+const pageParams = new URL(location.href).searchParams;
+if (pageParams.get('scope') === 'smoke') runButton.textContent = 'Run E2B lifecycle smoke';
+else if (pageParams.get('model') === 'e2b') {
+  runButton.textContent = pageParams.get('scope') === 'suggestions'
+    ? 'Run E2B suggestion verification' : 'Run E2B verification';
+}
 
 function setStatus(text: string, kind: 'info' | 'ok' | 'error' = 'info', progress?: number): void {
   statusEl.textContent = text;
@@ -85,14 +96,36 @@ function setStatus(text: string, kind: 'info' | 'ok' | 'error' = 'info', progres
 }
 
 function gemmaModels(): LocalModelDef[] {
+  const params = new URL(location.href).searchParams;
+  const selectedModel = params.get('model');
+  if (selectedModel !== null && selectedModel !== 'e2b') {
+    throw new Error(`Unsupported benchmark model selection: ${selectedModel}. Use model=e2b or omit model for the comparison.`);
+  }
+  if (selectedModel === 'e2b' || params.get('scope') === 'smoke') {
+    const models = GEMMA_BENCHMARK_MODELS.filter(model => model.name.includes('E2B'));
+    if (models.length !== 1) throw new Error(`Expected one pinned E2B model; found ${models.length}.`);
+    return models;
+  }
   const models = [...GEMMA_BENCHMARK_MODELS];
-  const order = new URL(location.href).searchParams.get('order');
+  if (models.length !== 2) throw new Error(`Expected E2B and E4B in the dev build; found ${models.length}.`);
+  const order = params.get('order');
   if (order === 'e2b-first') {
     models.sort((a, b) => Number(b.name.includes('E2B')) - Number(a.name.includes('E2B')));
   } else {
     models.sort((a, b) => Number(b.name.includes('E4B')) - Number(a.name.includes('E4B')));
   }
   return models;
+}
+
+function modelIdentity(model: LocalModelDef): Record<string, unknown> {
+  const modelUrl = model.litertlmConfig.modelUrl;
+  return {
+    modelId: model.name,
+    display: model.display,
+    sizeGB: model.sizeGB,
+    modelUrl,
+    modelRevision: new URL(modelUrl).pathname.match(/\/resolve\/([^/]+)\//)?.[1] ?? null,
+  };
 }
 
 function buildMessages(
@@ -235,30 +268,140 @@ async function describeGpu(): Promise<string> {
   }
 }
 
-async function compare(): Promise<void> {
-  if (!navigator.gpu) throw new Error('WebGPU is unavailable in this Chrome tab.');
-  const suggestionsOnly = new URL(location.href).searchParams.get('scope') === 'suggestions';
-  const models = gemmaModels();
-  if (models.length !== 2) throw new Error(`Expected E2B and E4B in the dev build; found ${models.length}.`);
+async function interruptProbe(runtime: LitertlmRuntime, delayMs: number): Promise<Record<string, unknown>> {
+  const cats = categories(3);
+  const request = buildMessages(POSTS.medium.text, cats, 'baseline');
+  const started = performance.now();
+  let pending = true;
+  const generation = runtime.generate(request.messages, request.maxOutputTokens).then(
+    rawResponse => {
+      pending = false;
+      return {
+        status: 'fulfilled',
+        settledAfterMs: performance.now() - started,
+        rawResponse,
+        parsed: parseTableYesnoResponse(rawResponse, cats),
+      };
+    },
+    (error: unknown) => {
+      pending = false;
+      return {
+        status: 'rejected',
+        settledAfterMs: performance.now() - started,
+        errorName: error instanceof Error ? error.name : null,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    },
+  );
+  if (delayMs > 0) await new Promise<void>(resolve => setTimeout(resolve, delayMs));
+  const pendingAtInterrupt = pending;
+  const interruptRequestedAfterMs = performance.now() - started;
+  let interruptError: string | null = null;
+  try { await runtime.interrupt(); }
+  catch (error) { interruptError = error instanceof Error ? error.message : String(error); }
+  return {
+    attemptedPhase: delayMs === 0 ? 'request-setup' : 'pending-work',
+    requestedDelayMs: delayMs,
+    interruptRequestedAfterMs,
+    requestPendingAtInterrupt: pendingAtInterrupt,
+    activeDecodeTargeted: 'unverified: public runtime API does not expose setup, prefill, or decode state',
+    interruptResolvedAfterMs: performance.now() - started,
+    interruptError,
+    generation: await generation,
+  };
+}
 
-  for (let index = 0; index < models.length; index++) {
-    await prepareModel(models[index], index, models.length);
-  }
+async function smoke(runtime: LitertlmRuntime, model: LocalModelDef): Promise<Record<string, unknown>> {
+  const classifications: Array<{
+    stage: string; postId: string; categories: string[]; promptMode: LocalPromptMode; result: InferResult;
+  }> = [];
+  const classify = async (
+    stage: string,
+    post: { id: string; text: string },
+    cats: string[],
+    mode: LocalPromptMode = 'baseline',
+  ): Promise<void> => {
+    setStatus(`${model.display}: smoke ${stage}`, 'info');
+    classifications.push({ stage, postId: post.id, categories: cats, promptMode: mode,
+      result: await infer(runtime, model, post.text, cats, mode) });
+  };
+
+  // Reuse existing synthetic inputs and prompt variants; this is a lifecycle
+  // probe rather than an additional corpus or ground-truth quality score.
+  await classify('independent-first', EVAL_POSTS[0], ['rage bait']);
+  await classify('independent-second', POSTS.short, ['rage bait']);
+  await classify('single-filter', POSTS.medium, categories(1));
+  await classify('multiple-filters', POSTS.medium, categories(3));
+  await classify('prompt-mode-change', POSTS.medium, categories(3), 'intent');
+  setStatus(`${model.display}: smoke suggestion flow`, 'info');
+  const suggestion = await evaluateSuggestion(runtime, model, SUGGESTION_FIXTURES[0]);
+  await classify('after-suggestion', POSTS.medium, categories(3));
+
+  setStatus(`${model.display}: smoke interrupt during request setup`, 'info');
+  const setupInterrupt = await interruptProbe(runtime, 0);
+  await classify('after-setup-interrupt', POSTS.medium, categories(3));
+  setStatus(`${model.display}: smoke interrupt pending work`, 'info');
+  const pendingInterrupt = await interruptProbe(runtime, 25);
+  await classify('after-pending-interrupt', POSTS.medium, categories(3));
+
+  setStatus(`${model.display}: smoke unload and reload`, 'info');
+  const unloadStarted = performance.now();
+  await runtime.unload();
+  const unloadMs = performance.now() - unloadStarted;
+  const reloadStarted = performance.now();
+  await runtime.initialize(model, () => undefined, new AbortController().signal);
+  const reloadMs = performance.now() - reloadStarted;
+  await classify('after-reload', POSTS.medium, categories(3));
+
+  return {
+    classifications,
+    suggestion,
+    interrupts: [setupInterrupt, pendingInterrupt],
+    unloadMs,
+    reloadMs,
+    allClassificationsWellFormed: classifications.every(row => !row.result.malformed),
+    suggestionAutomatedPass: suggestion.passesAutomatedChecks,
+    requiresManualSemanticReview: true,
+  };
+}
+
+async function compare(): Promise<void> {
+  // Reset before any validation or async work so a failed rerun cannot export
+  // a previous run's successful report or leave a stale completion marker.
+  globalThis.__BOUNCER_GEMMA_REPORT__ = undefined;
+  downloadableReport = null;
+  downloadButton.disabled = true;
+  summaryEl.dataset.complete = 'false';
+  summaryEl.textContent = 'Run in progress.';
+  progressEl.value = 0;
+  const startedAt = new Date().toISOString();
+  if (!navigator.gpu) throw new Error('WebGPU is unavailable in this Chrome tab.');
+  const requestedScope = new URL(location.href).searchParams.get('scope');
+  const scope = requestedScope === 'suggestions' || requestedScope === 'smoke' ? requestedScope : 'full';
+  const suggestionsOnly = scope === 'suggestions';
+  const models = gemmaModels();
 
   const report = {
-    startedAt: new Date().toISOString(),
+    startedAt,
+    runtimeVersion: __LITERTLM_VERSION__,
     environment: { userAgent: navigator.userAgent, gpu: await describeGpu() },
     config: {
       warmups: WARMUPS,
       timedRuns: TIMED_RUNS,
       accuracyRuns: ACCURACY_RUNS,
-      scope: suggestionsOnly ? 'suggestions' : 'full',
+      scope,
+      selectedModels: models.map(modelIdentity),
       modelOrder: models.map(model => model.name),
       timer: 'direct full call (prompt budgeting + truncation + generation); excludes MV3 IPC',
+      progressUnits: 'classification calls and completed suggestion fixtures; each fixture includes any strict fallback calls',
     },
     wasmWarmupMs: 0,
     models: [] as Array<Record<string, unknown>>,
   };
+
+  for (let index = 0; index < models.length; index++) {
+    await prepareModel(models[index], index, models.length);
+  }
 
   const wasmStarted = performance.now();
   await warmLitertlmWasm();
@@ -268,7 +411,7 @@ async function compare(): Promise<void> {
     ? 0
     : 1 + CELLS.length * (WARMUPS + TIMED_RUNS)
       + EVAL_VARIANTS.length * EVAL_POSTS.length * ACCURACY_RUNS;
-  const workPerModel = fullWork + SUGGESTION_FIXTURES.length * 2;
+  const workPerModel = fullWork + SUGGESTION_FIXTURES.length;
   const totalWork = workPerModel * models.length;
   let completed = 0;
 
@@ -279,6 +422,12 @@ async function compare(): Promise<void> {
       const loadStarted = performance.now();
       await runtime.initialize(model, () => undefined, new AbortController().signal);
       const loadMs = performance.now() - loadStarted;
+
+      if (scope === 'smoke') {
+        report.models.push({ ...modelIdentity(model), loadMs, smoke: await smoke(runtime, model) });
+        summaryEl.textContent = JSON.stringify(report, null, 2);
+        continue;
+      }
 
       let first: InferResult | null = null;
       const latency: Array<Record<string, unknown>> = [];
@@ -345,13 +494,11 @@ async function compare(): Promise<void> {
       for (const post of SUGGESTION_FIXTURES) {
         setStatus(`${model.display}: suggestion fixture ${suggestions.length + 1}/${SUGGESTION_FIXTURES.length}`, 'info', completed / totalWork);
         suggestions.push(await evaluateSuggestion(runtime, model, post));
-        completed += 2;
+        completed++;
       }
 
       report.models.push({
-        modelId: model.name,
-        display: model.display,
-        sizeGB: model.sizeGB,
+        ...modelIdentity(model),
         loadMs,
         firstInferenceMs: first?.fullCallMs ?? null,
         firstGenerationMs: first?.generationMs ?? null,
@@ -370,7 +517,12 @@ async function compare(): Promise<void> {
   summaryEl.textContent = JSON.stringify(finished, null, 2);
   summaryEl.dataset.complete = 'true';
   globalThis.__BOUNCER_GEMMA_REPORT__ = finished;
-  setStatus('Comparison complete.', 'ok', 1);
+  downloadableReport = {
+    json: JSON.stringify(finished, null, 2),
+    filename: `bouncer-gemma-${scope}-${finished.runtimeVersion}-${finished.finishedAt.replace(/[:.]/g, '-')}.json`,
+  };
+  downloadButton.disabled = false;
+  setStatus(`${scope === 'smoke' ? 'Smoke run' : models.length === 1 ? 'E2B verification' : 'Comparison'} complete.`, 'ok', 1);
 }
 
 declare global {
@@ -388,6 +540,16 @@ runButton.addEventListener('click', () => {
   }).finally(() => {
     runButton.disabled = false;
   });
+});
+
+downloadButton.addEventListener('click', () => {
+  if (!downloadableReport || summaryEl.dataset.complete !== 'true') return;
+  const url = URL.createObjectURL(new Blob([downloadableReport.json], { type: 'application/json' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = downloadableReport.filename;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
 
 if (new URL(location.href).searchParams.get('autorun') === '1') runButton.click();

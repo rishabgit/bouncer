@@ -36,7 +36,7 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
-    "@litert-lm/core": "^0.12.1",
+    "@litert-lm/core": "0.17.0",
     "dompurify": "^3.3.1",
     "html-to-image": "^1.11.13"
   }

@@ -1,0 +1,297 @@
+{
+  "startedAt": "2026-10-11T07:44:53.480Z",
+  "runtimeVersion": "0.12.1",
+  "environment": {
+    "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36",
+    "gpu": "apple / metal-3"
+  },
+  "config": {
+    "warmups": 3,
+    "timedRuns": 20,
+    "accuracyRuns": 3,
+    "scope": "smoke",
+    "selectedModels": [
+      {
+        "modelId": "gemma-4-E2B-it-web",
+        "display": "Gemma 4 E2B (Instruct)",
+        "sizeGB": 2.008,
+        "modelUrl": "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/9262660a1676eed6d0c477ab1a86344430854664/gemma-4-E2B-it-web.litertlm",
+        "modelRevision": "9262660a1676eed6d0c477ab1a86344430854664"
+      }
+    ],
+    "modelOrder": [
+      "gemma-4-E2B-it-web"
+    ],
+    "timer": "direct full call (prompt budgeting + truncation + generation); excludes MV3 IPC",
+    "progressUnits": "classification calls and completed suggestion fixtures; each fixture includes any strict fallback calls"
+  },
+  "wasmWarmupMs": 60.29999999701977,
+  "models": [
+    {
+      "modelId": "gemma-4-E2B-it-web",
+      "display": "Gemma 4 E2B (Instruct)",
+      "sizeGB": 2.008,
+      "modelUrl": "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/9262660a1676eed6d0c477ab1a86344430854664/gemma-4-E2B-it-web.litertlm",
+      "modelRevision": "9262660a1676eed6d0c477ab1a86344430854664",
+      "loadMs": 1322.7999999970198,
+      "smoke": {
+        "classifications": [
+          {
+            "stage": "independent-first",
+            "postId": "p1",
+            "categories": [
+              "rage bait"
+            ],
+            "promptMode": "baseline",
+            "result": {
+              "shouldHide": true,
+              "reasoning": "yes (Matched: rage bait)",
+              "matches": [
+                "rage bait"
+              ],
+              "malformed": false,
+              "rawResponse": "yes",
+              "generationMs": 234.79999999701977,
+              "fullCallMs": 235.1000000089407
+            }
+          },
+          {
+            "stage": "independent-second",
+            "postId": "short",
+            "categories": [
+              "rage bait"
+            ],
+            "promptMode": "baseline",
+            "result": {
+              "shouldHide": false,
+              "reasoning": "no",
+              "matches": [],
+              "malformed": false,
+              "rawResponse": "no",
+              "generationMs": 87.79999999701977,
+              "fullCallMs": 87.79999999701977
+            }
+          },
+          {
+            "stage": "single-filter",
+            "postId": "medium",
+            "categories": [
+              "crypto"
+            ],
+            "promptMode": "baseline",
+            "result": {
+              "shouldHide": false,
+              "reasoning": "no",
+              "matches": [],
+              "malformed": false,
+              "rawResponse": "no",
+              "generationMs": 124.29999999701977,
+              "fullCallMs": 124.29999999701977
+            }
+          },
+          {
+            "stage": "multiple-filters",
+            "postId": "medium",
+            "categories": [
+              "crypto",
+              "politics",
+              "engagement bait"
+            ],
+            "promptMode": "baseline",
+            "result": {
+              "shouldHide": false,
+              "reasoning": "| no | no | no",
+              "matches": [],
+              "malformed": false,
+              "rawResponse": "| no | no | no",
+              "generationMs": 224.90000000596046,
+              "fullCallMs": 225.09999999403954
+            }
+          },
+          {
+            "stage": "prompt-mode-change",
+            "postId": "medium",
+            "categories": [
+              "crypto",
+              "politics",
+              "engagement bait"
+            ],
+            "promptMode": "intent",
+            "result": {
+              "shouldHide": false,
+              "reasoning": "| no | no | no |",
+              "matches": [],
+              "malformed": false,
+              "rawResponse": "| no | no | no |",
+              "generationMs": 285,
+              "fullCallMs": 285.1000000089407
+            }
+          },
+          {
+            "stage": "after-suggestion",
+            "postId": "medium",
+            "categories": [
+              "crypto",
+              "politics",
+              "engagement bait"
+            ],
+            "promptMode": "baseline",
+            "result": {
+              "shouldHide": false,
+              "reasoning": "| no | no | no",
+              "matches": [],
+              "malformed": false,
+              "rawResponse": "| no | no | no",
+              "generationMs": 220.20000000298023,
+              "fullCallMs": 220.29999999701977
+            }
+          },
+          {
+            "stage": "after-setup-interrupt",
+            "postId": "medium",
+            "categories": [
+              "crypto",
+              "politics",
+              "engagement bait"
+            ],
+            "promptMode": "baseline",
+            "result": {
+              "shouldHide": false,
+              "reasoning": "| no | no | no",
+              "matches": [],
+              "malformed": false,
+              "rawResponse": "| no | no | no",
+              "generationMs": 216.40000000596046,
+              "fullCallMs": 216.40000000596046
+            }
+          },
+          {
+            "stage": "after-pending-interrupt",
+            "postId": "medium",
+            "categories": [
+              "crypto",
+              "politics",
+              "engagement bait"
+            ],
+            "promptMode": "baseline",
+            "result": {
+              "shouldHide": false,
+              "reasoning": "| no | no | no",
+              "matches": [],
+              "malformed": false,
+              "rawResponse": "| no | no | no",
+              "generationMs": 211.6000000089407,
+              "fullCallMs": 211.70000000298023
+            }
+          },
+          {
+            "stage": "after-reload",
+            "postId": "medium",
+            "categories": [
+              "crypto",
+              "politics",
+              "engagement bait"
+            ],
+            "promptMode": "baseline",
+            "result": {
+              "shouldHide": false,
+              "reasoning": "| no | no | no",
+              "matches": [],
+              "malformed": false,
+              "rawResponse": "| no | no | no",
+              "generationMs": 265.70000000298023,
+              "fullCallMs": 265.80000001192093
+            }
+          }
+        ],
+        "suggestion": {
+          "post": "absolutely disgusting. quote this everywhere until the company is forced to answer for it.",
+          "rawGeneration": "Disgusting post\nToxic behavior\nAnnoying demands\nUnpleasant tone\nExcessive quoting\nAggressive language\nVindictive action\nOffensive content\nUnwarranted criticism",
+          "candidates": [
+            "disgusting post",
+            "toxic behavior",
+            "annoying demands",
+            "unpleasant tone",
+            "excessive quoting",
+            "aggressive language",
+            "vindictive action",
+            "offensive content",
+            "unwarranted criticism"
+          ],
+          "uniqueCandidates": [
+            "disgusting post",
+            "toxic behavior",
+            "annoying demands",
+            "unpleasant tone",
+            "excessive quoting",
+            "aggressive language",
+            "vindictive action",
+            "offensive content",
+            "unwarranted criticism"
+          ],
+          "invalidWordCount": [],
+          "negativeSignalCandidates": [
+            "toxic behavior",
+            "aggressive language"
+          ],
+          "validationRaw": "| yes | yes | no | no | yes | yes | no | no | no |",
+          "validationMalformed": false,
+          "fallbackUsed": false,
+          "fallbackRuns": [],
+          "accepted": [
+            "disgusting post",
+            "toxic behavior",
+            "excessive quoting"
+          ],
+          "generationMs": 700.7000000029802,
+          "validationMs": 402.40000000596046,
+          "passesAutomatedChecks": true,
+          "requiresManualSemanticReview": true
+        },
+        "interrupts": [
+          {
+            "attemptedPhase": "request-setup",
+            "requestedDelayMs": 0,
+            "interruptRequestedAfterMs": 0,
+            "requestPendingAtInterrupt": true,
+            "activeDecodeTargeted": "unverified: public runtime API does not expose setup, prefill, or decode state",
+            "interruptResolvedAfterMs": 217.09999999403954,
+            "interruptError": null,
+            "generation": {
+              "status": "fulfilled",
+              "settledAfterMs": 217.09999999403954,
+              "rawResponse": "| no | no | no",
+              "parsed": {
+                "shouldHide": false,
+                "reasoning": "| no | no | no",
+                "matches": [],
+                "malformed": false
+              }
+            }
+          },
+          {
+            "attemptedPhase": "pending-work",
+            "requestedDelayMs": 25,
+            "interruptRequestedAfterMs": 29.80000001192093,
+            "requestPendingAtInterrupt": true,
+            "activeDecodeTargeted": "unverified: public runtime API does not expose setup, prefill, or decode state",
+            "interruptResolvedAfterMs": 124.90000000596046,
+            "interruptError": null,
+            "generation": {
+              "status": "rejected",
+              "settledAfterMs": 124.80000001192093,
+              "errorName": "Error",
+              "error": "Task cancelled"
+            }
+          }
+        ],
+        "unloadMs": 27.400000005960464,
+        "reloadMs": 1074.7999999970198,
+        "allClassificationsWellFormed": true,
+        "suggestionAutomatedPass": true,
+        "requiresManualSemanticReview": true
+      }
+    }
+  ],
+  "finishedAt": "2026-10-11T07:44:59.313Z"
+}

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
 
 const localEngineState = vi.hoisted(() => ({ maintaining: false }));
 
@@ -75,6 +75,10 @@ describe('requiresLocalInference', () => {
 
 beforeEach(() => {
   localEngineState.maintaining = false;
+});
+
+afterEach(async () => {
+  await clearEvaluationCache();
 });
 
 /** Create a PendingEvaluation with sensible defaults. */

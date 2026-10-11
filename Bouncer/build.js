@@ -3,12 +3,16 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { generateManifest } from './generate-manifests.mjs';
+import { copyLitertlmAssets } from './litertlm-assets.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isWatch = process.argv.includes('--watch');
 const env = process.argv.includes('--dev') ? 'dev' : 'prod';
 const targetArg = process.argv.find((a) => a.startsWith('--target='));
 const target = targetArg ? targetArg.split('=')[1] : 'chrome';
+const litertlmVersion = JSON.parse(fs.readFileSync(
+  path.join(__dirname, 'node_modules/@litert-lm/core/package.json'), 'utf8',
+)).version;
 
 // This is a local-only fork: all cloud/remote backends were removed, so there
 // are no build-time secrets. NODE_ENV is the only define the vendored deps read.
@@ -17,31 +21,12 @@ const define = {
   // Dev-only flag: gates the latency-benchmark surface so it's stripped from prod
   // bundles (the `if (__DEV__)` branch in background/index.ts becomes `if(false)`).
   '__DEV__': String(env === 'dev'),
+  '__LITERTLM_VERSION__': JSON.stringify(litertlmVersion),
+  '__BOUNCER_BUILD_TARGET__': JSON.stringify(target),
 };
 
 const adapterTsPath = path.join(__dirname, 'adapters/twitter/TwitterAdapter.ts');
 const hasAdapterTs = fs.existsSync(adapterTsPath);
-
-// Copy LiteRT-LM's wasm loader + binaries into dist/litertlm-wasm/ so the
-// offscreen document (Chrome) / event page (Firefox) can resolve them via
-// chrome.runtime.getURL(...). The runtime feature-detects relaxed-SIMD and
-// loads either litertlm_wasm_internal or litertlm_wasm_compat_internal; each
-// .js fetches its sibling .wasm, so all four files sit at the same URL prefix.
-// By default the package resolves these from a CDN URL the extension CSP
-// blocks — loadLiteRtLm() points at this local directory instead.
-function copyLitertlmAssets() {
-  const srcDir = path.join(__dirname, 'node_modules/@litert-lm/core/wasm');
-  const dstDir = path.join(__dirname, 'dist/litertlm-wasm');
-  if (!fs.existsSync(srcDir)) {
-    console.warn('@litert-lm/core wasm dir not found — skipping copy');
-    return;
-  }
-  fs.mkdirSync(dstDir, { recursive: true });
-  for (const name of fs.readdirSync(srcDir)) {
-    fs.copyFileSync(path.join(srcDir, name), path.join(dstDir, name));
-  }
-  console.log('Copied LiteRT-LM wasm assets into dist/litertlm-wasm/');
-}
 
 async function build() {
   console.log(`Building local-only (env: ${env}, target: ${target})`);
@@ -55,8 +40,15 @@ async function build() {
   // 0. Regenerate manifest.json from manifest.base.json + manifest.<target>.json.
   generateManifest(target);
 
-  // Copy LiteRT-LM's wasm loader + binaries into dist/litertlm-wasm/.
-  copyLitertlmAssets();
+  // Chrome/Firefox ship the JSPI pairs; Safari ships the asyncify pairs. Each
+  // loader fetches its sibling binary from this local extension directory.
+  // Missing assets abort the build; unselected variants cannot leak into dist.
+  const wasmAssets = copyLitertlmAssets(
+    path.join(__dirname, 'node_modules/@litert-lm/core/wasm'),
+    path.join(distDir, 'litertlm-wasm'),
+    target,
+  );
+  console.log(`Copied ${wasmAssets.length} LiteRT-LM wasm assets for ${target}`);
 
   // 1. Background service worker.
   const bgCtx = await esbuild.context({

@@ -952,7 +952,7 @@ export async function callLocalInference(
     onInferenceStart?: () => void;
     promptMode?: LocalPromptMode;
   } = {}
-): Promise<{ shouldHide: boolean; reasoning: string; category?: string | null; rawResponse?: string | null; inferenceTime?: number }> {
+): Promise<{ shouldHide: boolean; reasoning: string; category?: string | null; matches?: string[]; rawResponse?: string | null; inferenceTime?: number }> {
   await localEngine.ensureLoaded(modelId);
   const resolved = modelConfig ?? resolveModel(modelId);
   if (resolved.name !== modelId) throw new Error(`Model config mismatch: ${modelId}`);
@@ -965,9 +965,8 @@ export async function callLocalInference(
 }
 
 // table_yesno path (LiteRT-LM/Gemma): one pipe-delimited yes/no row per
-// category — far fewer output tokens than a reasoning sentence. Matched
-// categories are surfaced in `category` (comma-joined) so the filtered-posts
-// UI renders one chip per match.
+// category — far fewer output tokens than a reasoning sentence. Exact matched
+// phrases are returned separately from the legacy comma-joined category label.
 async function callTableYesnoInference(
   postData: EvaluationPostData,
   bannedCategories: string[],
@@ -977,7 +976,7 @@ async function callTableYesnoInference(
     onInferenceStart?: () => void;
     promptMode?: LocalPromptMode;
   } = {}
-): Promise<{ shouldHide: boolean; reasoning: string; category?: string | null; rawResponse?: string | null; inferenceTime?: number }> {
+): Promise<{ shouldHide: boolean; reasoning: string; category?: string | null; matches?: string[]; rawResponse?: string | null; inferenceTime?: number }> {
   const contextWindowSize = modelConfig.litertlmConfig?.maxTokens ?? 1024;
   const buildRequest = (postText: string) =>
     buildTableYesnoRequest(postText, bannedCategories, promptMode);
@@ -1020,6 +1019,7 @@ async function callTableYesnoInference(
     shouldHide: formatted.shouldHide,
     reasoning: formatted.reasoning,
     category: matches.length > 0 ? matches.join(', ') : null,
+    matches,
     rawResponse,
     inferenceTime: parseFloat(inferenceTime),
   };

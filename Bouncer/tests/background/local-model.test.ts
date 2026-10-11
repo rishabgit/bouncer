@@ -165,6 +165,42 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 
+describe('local inference match contract', () => {
+  it('returns exact phrases even when a matched label contains commas', async () => {
+    const backend = makeBackend({ generate: vi.fn().mockResolvedValue('| yes | no | yes |') });
+    litertState.createBackend.mockReturnValue(backend);
+    engine = localEngine;
+    await engine.initialize(E2B_MODEL_ID);
+
+    await expect(callLocalInference(
+      { text: 'A synthetic post about digital collectibles and sports.' },
+      ['Markets, crypto and NFTs', 'Politics', 'Sports'], E2B_MODEL, E2B_MODEL_ID,
+    )).resolves.toMatchObject({
+      shouldHide: true,
+      matches: ['Markets, crypto and NFTs', 'Sports'],
+      category: 'Markets, crypto and NFTs, Sports',
+    });
+  });
+
+  it('keeps malformed output fail-open with an explicit empty matches array', async () => {
+    const backend = makeBackend({ generate: vi.fn().mockResolvedValue('| yes |') });
+    litertState.createBackend.mockReturnValue(backend);
+    engine = localEngine;
+    await engine.initialize(E2B_MODEL_ID);
+
+    await expect(callLocalInference(
+      { text: 'A synthetic malformed response fixture.' },
+      ['Sports', 'Politics'], E2B_MODEL, E2B_MODEL_ID,
+    )).resolves.toMatchObject({
+      shouldHide: false,
+      matches: [],
+      category: null,
+      reasoning: expect.stringContaining('Malformed verdict row'),
+    });
+    expect(backend.generate).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('InferenceQueue', () => {
   it('clears pending work without disturbing the in-flight task', async () => {
     const queue = new InferenceQueue();

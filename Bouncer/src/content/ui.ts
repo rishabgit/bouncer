@@ -16,7 +16,11 @@ import {
   tooltipHorizontalPosition,
   tooltipVerticalPosition,
 } from './geometry';
-import { isRendered } from './dom-state';
+import { cancelScheduledFilteredHide, hasScheduledFilteredHide, isRendered, restoreFilteredContainer, scheduleFilteredHide } from './dom-state';
+import {
+  currentPostDecision, displayedMatches, forgetPostDecision, getPostDecision,
+  isPostIdentityCurrent, postIdentity, rememberPostDecision, survivingMatches,
+} from './filter-actions';
 
 // Dependencies (set by initUI from index.ts)
 let _deps: ContentUIDeps;
@@ -43,8 +47,18 @@ export function initUI(deps: ContentUIDeps) {
 // ==================== UI State ====================
 
 // Filtered posts storage
+const MAX_FILTERED_POSTS = 500;
 const filteredPosts: FilteredPost[] = [];
 const filteredPostKeys = new Set<string>();
+const filteredKeyByArticle = new WeakMap<HTMLElement, string>();
+interface RestoreStatus {
+  pending: boolean;
+  error?: string;
+}
+// Status contains no DOM nodes or snapshot references. It survives row
+// replacement only while the corresponding snapshot remains retained.
+const filteredRestoreStatuses = new WeakMap<FilteredPost, RestoreStatus>();
+const renderedFilteredSnapshots = new WeakMap<HTMLElement, FilteredPost>();
 
 let filteredTabActive = false;
 let filteredModalBackdrop: HTMLElement | null = null;
@@ -170,6 +184,7 @@ export function getFilteredTabActive() { return filteredTabActive; }
 // ==================== Filtered Posts ====================
 
 export function clearFilteredPosts() {
+  filteredPosts.forEach(post => filteredRestoreStatuses.delete(post));
   filteredPosts.length = 0;
   filteredPostKeys.clear();
   updateFilteredTabCount();
@@ -178,6 +193,126 @@ export function clearFilteredPosts() {
     const content = filteredViewContainer.querySelector('.filtered-modal-content');
     if (content) renderFilteredPostsView(content);
   }
+}
+
+function filteredPostKey(post: FilteredPost): string {
+  return post.post.postUrl || post.evaluationText.substring(0, 200);
+}
+
+function applyRestoreStatus(button: HTMLButtonElement, errorEl: HTMLElement, status?: RestoreStatus): void {
+  button.disabled = status?.pending ?? false;
+  button.textContent = status?.pending ? 'Restoring…' : status?.error ? 'Retry Restore' : 'Restore';
+  errorEl.textContent = status?.error || '';
+}
+
+function refreshRestoreControls(status?: RestoreStatus): void {
+  const rows = document.querySelectorAll<HTMLElement>('.slop-post-wrapper');
+  if (!rows.length) return;
+  const retained = new Map(filteredPosts.map(post => [filteredPostKey(post), post]));
+  rows.forEach(row => {
+    const rendered = renderedFilteredSnapshots.get(row);
+    const post = rendered ? retained.get(filteredPostKey(rendered)) : undefined;
+    const currentStatus = post ? filteredRestoreStatuses.get(post) : undefined;
+    if (status && currentStatus !== status) return;
+    const button = row.querySelector<HTMLButtonElement>('.slop-restore');
+    const errorEl = row.querySelector<HTMLElement>('.slop-restore-error');
+    if (button && errorEl) applyRestoreStatus(button, errorEl, currentStatus);
+  });
+}
+
+function refreshFilteredPostsView(): void {
+  updateFilteredTabCount();
+  const containers = document.querySelectorAll('.filtered-modal-content, .ff-ios-filtered-modal-content');
+  containers.forEach(renderFilteredPostsView);
+}
+
+export function removeFilteredPostForArticle(article: HTMLElement, refresh = true): void {
+  const content = _deps.extractPostContent(article);
+  const key = filteredKeyByArticle.get(article)
+    || content.postUrl || formatPostForEvaluation(content).substring(0, 200);
+  const index = filteredPosts.findIndex(post => filteredPostKey(post) === key);
+  if (index !== -1) {
+    filteredRestoreStatuses.delete(filteredPosts[index]);
+    filteredPosts.splice(index, 1);
+  }
+  filteredPostKeys.delete(key);
+  filteredKeyByArticle.delete(article);
+  if (index !== -1 && refresh) refreshFilteredPostsView();
+}
+
+export function resetPostForRecycling(article: HTMLElement): void {
+  restoreFilteredContainer(_deps.adapter.getPostContainer(article), article);
+  forgetPostDecision(article);
+  removeFilteredPostForArticle(article);
+  postDetectorStates.delete(article);
+  _deps.postReasonings.delete(article);
+  _deps.processedPosts.delete(article);
+  _deps.pendingPosts.delete(article);
+  clearPendingDimTimer(article);
+  article.removeAttribute('data-ff-pending');
+  delete article.dataset.pendingStartTime;
+  article.querySelector('.post-verification-bar')?.remove();
+}
+
+/** Reconcile every live hiding unit, including adapter-hidden thread siblings. */
+export function reconcileFilterChanges(phrases: string[], processRestoredPosts = true): void {
+  const posts = _deps.findPosts();
+  const liveContainers = new Set(posts.map(article => _deps.adapter.getPostContainer(article)));
+  let shouldProcessRestoredPosts = false;
+  for (const article of posts) {
+    const container = _deps.adapter.getPostContainer(article);
+    const decision = currentPostDecision(_deps.adapter, article);
+    if (decision?.userOverride) continue;
+    const hidden = container.dataset.filteredByExtension === 'true' || hasScheduledFilteredHide(article);
+    if (!decision?.shouldHide && !hidden) continue;
+    const matches = decision?.shouldHide ? survivingMatches(decision.matches, phrases) : null;
+    if (matches?.length) {
+      rememberPostDecision(article, { ...decision!, matches });
+      if (hasScheduledFilteredHide(article)) {
+        cancelScheduledFilteredHide(article);
+        hidePost(article);
+      }
+      const stored = _deps.postReasonings.get(article);
+      if (stored) Object.assign(stored, { matches, category: matches.join(', ') });
+      const detectors = postDetectorStates.get(article);
+      detectors?.byName.forEach(state => {
+        if (state.shouldHide) Object.assign(state, { matches: [...matches], category: matches.join(', ') });
+      });
+      refreshActivePopupIfFor(article);
+      continue;
+    }
+    restoreFilteredContainer(container, article);
+    forgetPostDecision(article);
+    _deps.processedPosts.delete(article);
+    _deps.postReasonings.delete(article);
+    postDetectorStates.delete(article);
+    removeFilteredPostForArticle(article, false);
+    markPostVerified(article);
+    if (matches === null) shouldProcessRestoredPosts = true;
+    refreshActivePopupIfFor(article);
+  }
+  // A virtualized cell can temporarily have no article. Its Bouncer marker is
+  // sufficient authority to restore it; newly mounted content is observed later.
+  document.querySelectorAll<HTMLElement>('[data-filtered-by-extension="true"]').forEach(container => {
+    if (!liveContainers.has(container)) {
+      restoreFilteredContainer(container);
+    }
+  });
+  for (let index = filteredPosts.length - 1; index >= 0; index--) {
+    const post = filteredPosts[index];
+    if (post.userOverride) continue;
+    const matches = survivingMatches(post.matches, phrases);
+    if (matches?.length) {
+      post.matches = matches;
+      post.category = matches.join(', ');
+    } else {
+      filteredRestoreStatuses.delete(post);
+      filteredPosts.splice(index, 1);
+      filteredPostKeys.delete(filteredPostKey(post));
+    }
+  }
+  refreshFilteredPostsView();
+  if (shouldProcessRestoredPosts && processRestoredPosts) _deps.processExistingPosts();
 }
 
 // ==================== Theme ====================
@@ -1232,7 +1367,6 @@ export async function addFilterPhrase(text: string) {
     await setDescriptions(_deps.descriptionsKey, descriptions);
     console.log('[Bouncer] addFilterPhrase complete');
     syncFilterPhrases();
-    _deps.reEvaluateAllPosts();
     return true;
   } catch (err) {
     console.error('[Bouncer] addFilterPhrase error:', err);
@@ -1247,7 +1381,6 @@ export async function removeFilterPhrase(phrase: string) {
     return;
   }
   await setDescriptions(_deps.descriptionsKey, descriptions.filter((d: string) => d !== phrase));
-  clearFilteredPosts();
   syncFilterPhrases();
 }
 
@@ -1814,6 +1947,7 @@ export function renderFilteredPostsView(container: Element) {
     const { post: postContent } = post;
     const wrapper = document.createElement('div');
     wrapper.className = 'slop-post-wrapper';
+    renderedFilteredSnapshots.set(wrapper, post);
 
     // Main post row: avatar + body
     const postRow = document.createElement('div');
@@ -1868,8 +2002,8 @@ export function renderFilteredPostsView(container: Element) {
     }
     top.appendChild(meta);
 
-    if (post.category) {
-      const names = post.category.split(',').map(s => s.trim()).filter(Boolean);
+    if (displayedMatches(post).length) {
+      const names = displayedMatches(post);
       if (names.length > 0) {
         const tagGroup = document.createElement('div');
         tagGroup.style.display = 'flex';
@@ -1967,8 +2101,8 @@ export function renderFilteredPostsView(container: Element) {
     // Keep a fallback for malformed/legacy cache entries without a category.
     const reasoning = document.createElement('div');
     reasoning.className = 'slop-post-reasoning';
-    reasoning.textContent = post.category
-      ? `Matched: ${post.category}`
+    reasoning.textContent = displayedMatches(post).length
+      ? `Matched: ${displayedMatches(post).join(', ')}`
       : (cleanReasoning(post.reasoning) || 'Filtered');
     body.appendChild(reasoning);
 
@@ -1979,46 +2113,17 @@ export function renderFilteredPostsView(container: Element) {
     const restoreBtn = document.createElement('button');
     restoreBtn.className = 'slop-restore';
     restoreBtn.textContent = 'Restore';
+    const restoreError = document.createElement('span');
+    restoreError.className = 'slop-restore-error';
+    restoreError.setAttribute('role', 'alert');
+    applyRestoreStatus(restoreBtn, restoreError, filteredRestoreStatuses.get(post));
     restoreBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-
-      // Remove from filtered posts list
-      const key = postContent.postUrl || post.evaluationText.substring(0, 200);
-      const idx = filteredPosts.findIndex(p => (p.post.postUrl || p.evaluationText.substring(0, 200)) === key);
-      if (idx !== -1) filteredPosts.splice(idx, 1);
-      filteredPostKeys.delete(key);
-
-      // Try to unhide original article in the feed
-      for (const article of _deps.findPosts()) {
-        const postUrl = _deps.adapter.getPostUrl(article);
-        if (postUrl && postContent.postUrl && postUrl.includes(postContent.postUrl)) {
-          const container = _deps.adapter.getPostContainer(article);
-          container.style.display = '';
-          container.style.visibility = '';
-          delete container.dataset.filteredByExtension;
-          article.style.opacity = '';
-          article.style.transition = '';
-          _deps.processedPosts.delete(article);
-          markPostVerified(article);
-          break;
-        }
-      }
-
-      // Override cache so re-evaluation keeps post visible
-      chrome.runtime.sendMessage({
-        type: 'overrideCacheEntry',
-        post: post.evaluationText,
-        shouldHide: false,
-        reasoning: 'User reported: false positive'
-      }).catch(err => console.error('[Bouncer] Override cache error:', err));
-
-      updateFilteredTabCount();
-      const outerContainer = restoreBtn.closest('.filtered-view-container') || restoreBtn.closest('.ff-ios-filtered-modal-backdrop');
-      const innerContainer = outerContainer?.querySelector('.filtered-modal-content') || outerContainer?.querySelector('.ff-ios-filtered-modal-content');
-      if (innerContainer) renderFilteredPostsView(innerContainer);
+      asyncHandler(() => restorePostSnapshot(post, restoreBtn, restoreError))();
     });
     actions.appendChild(restoreBtn);
+    actions.appendChild(restoreError);
     body.appendChild(actions);
 
     postRow.appendChild(body);
@@ -2043,13 +2148,79 @@ export function renderFilteredPostsView(container: Element) {
   });
 }
 
+async function restorePostSnapshot(post: FilteredPost, button: HTMLButtonElement, errorEl: HTMLElement): Promise<void> {
+  const key = filteredPostKey(post);
+  post = filteredPosts.find(entry => filteredPostKey(entry) === key) || post;
+  if (filteredRestoreStatuses.get(post)?.pending || button.disabled) return;
+  const targets = _deps.findPosts().filter(article => {
+    const content = _deps.extractPostContent(article);
+    return post.post.postUrl
+      ? _deps.adapter.getPostUrl(article) === post.post.postUrl
+      : formatPostForEvaluation(content) === post.evaluationText;
+  }).map(article => ({ article, identity: postIdentity(_deps.adapter, article), decision: getPostDecision(article) }));
+  const status: RestoreStatus = { pending: true };
+  filteredRestoreStatuses.set(post, status);
+  applyRestoreStatus(button, errorEl, status);
+  refreshRestoreControls(status);
+  try {
+    const response: { success?: boolean; error?: string } | undefined = await chrome.runtime.sendMessage({
+      type: 'overrideCacheEntry', post: post.evaluationText, shouldHide: false,
+      reasoning: 'User reported: false positive',
+    });
+    if (!response?.success) throw new Error(response?.error || 'The local Restore action did not complete.');
+
+    const index = filteredPosts.findIndex(entry => filteredPostKey(entry) === key);
+    // A later explicit Bounce owns its snapshot and live hide. Automatic
+    // refreshes of the same post still yield to this successful user Restore.
+    const snapshot = filteredPosts[index];
+    const superseded = snapshot && snapshot !== post && snapshot.userOverride;
+    if (!superseded) {
+      for (const target of targets) {
+        if (!isPostIdentityCurrent(_deps.adapter, target.article, target.identity)) continue;
+        const decision = getPostDecision(target.article);
+        if (decision !== target.decision && decision?.userOverride && decision.shouldHide) continue;
+        restoreFilteredContainer(_deps.adapter.getPostContainer(target.article), target.article);
+        rememberPostDecision(target.article, { identity: target.identity, shouldHide: false, userOverride: true });
+        _deps.postReasonings.set(target.article, { shouldHide: false, reasoning: 'User reported: false positive', userOverride: true });
+        postDetectorStates.delete(target.article);
+        _deps.processedPosts.delete(target.article);
+        markPostVerified(target.article);
+      }
+      if (index !== -1) {
+        filteredRestoreStatuses.delete(filteredPosts[index]);
+        filteredPosts.splice(index, 1);
+      }
+      filteredPostKeys.delete(key);
+      refreshFilteredPostsView();
+    }
+    filteredRestoreStatuses.delete(post);
+  } catch (err) {
+    console.error('[Bouncer] Restore action error:', err);
+    status.error = `Restore failed: ${err instanceof Error ? err.message : 'Try again.'}`;
+  } finally {
+    status.pending = false;
+    refreshRestoreControls(status);
+  }
+}
+
 // ==================== Filtered Post Storage ====================
 
-export function storeFilteredPost(article: HTMLElement, contentObj: PostContent, reasoning: string, rawResponse = '', category: string | null = null) {
+export function storeFilteredPost(article: HTMLElement, contentObj: PostContent, reasoning: string, rawResponse = '', category: string | null = null, matches?: string[], userOverride?: boolean) {
   // Use postUrl or content hash as dedup key
   const evalText = formatPostForEvaluation(contentObj);
   const key = contentObj.postUrl || evalText.substring(0, 200);
+  filteredKeyByArticle.set(article, key);
   if (filteredPostKeys.has(key)) {
+    const index = filteredPosts.findIndex(post => filteredPostKey(post) === key);
+    if (index !== -1) {
+      const previous = filteredPosts[index];
+      const status = filteredRestoreStatuses.get(previous);
+      const replacement = { ...previous, reasoning, rawResponse, category, matches: matches ? [...matches] : undefined, userOverride };
+      filteredPosts[index] = replacement;
+      if (status && !userOverride) filteredRestoreStatuses.set(replacement, status);
+      filteredRestoreStatuses.delete(previous);
+      refreshRestoreControls();
+    }
     return; // Already stored
   }
   filteredPostKeys.add(key);
@@ -2060,9 +2231,19 @@ export function storeFilteredPost(article: HTMLElement, contentObj: PostContent,
     reasoning,
     rawResponse,
     category: category || null,
+    matches: matches ? [...matches] : undefined,
+    userOverride,
     timestamp: Date.now()
   });
-  updateFilteredTabCount();
+  let evictedSnapshot = false;
+  while (filteredPosts.length > MAX_FILTERED_POSTS) {
+    const evicted = filteredPosts.shift()!;
+    filteredPostKeys.delete(filteredPostKey(evicted));
+    filteredRestoreStatuses.delete(evicted);
+    evictedSnapshot = true;
+  }
+  if (evictedSnapshot) refreshFilteredPostsView();
+  else updateFilteredTabCount();
 }
 
 // ==================== Verification Bars ====================
@@ -2149,12 +2330,56 @@ export function restoreVerificationBars() {
 // ==================== Post Hiding ====================
 
 export function hidePost(article: HTMLElement) {
+  cancelScheduledFilteredHide(article);
   _deps.pendingPosts.delete(article);
   delete article.dataset.pendingStartTime;
   article.removeAttribute('data-ff-pending');
   clearPendingDimTimer(article);
 
-  _deps.adapter.hidePost(article);
+  // The adapter owns deferred scroll hiding; explicit actions target one cell.
+  _deps.adapter.hidePost(article, !currentPostDecision(_deps.adapter, article)?.userOverride);
+}
+
+/** One atomic background action establishes both the rule and durable override. */
+export async function bouncePost(article: HTMLElement, content: PostContent, phrase?: string, reasoning = phrase ? `User blocked: ${phrase}` : 'User reported: should have been filtered'): Promise<boolean> {
+  const identity = postIdentity(_deps.adapter, article);
+  const currentContent = _deps.extractPostContent(article);
+  if (!article.isConnected || currentContent.postUrl !== content.postUrl || formatPostForEvaluation(currentContent) !== formatPostForEvaluation(content)) return false;
+  const matches = phrase ? [phrase] : undefined;
+  const decision = { identity, shouldHide: true, matches, userOverride: true };
+  rememberPostDecision(article, decision);
+  const manualDecision = getPostDecision(article);
+  postDetectorStates.delete(article);
+  _deps.postReasonings.set(article, { shouldHide: true, reasoning, category: phrase || null, matches, userOverride: true });
+  storeFilteredPost(article, content, reasoning, '', phrase || null, matches, true);
+  article.style.transition = 'opacity 0.3s ease';
+  article.style.opacity = '0';
+  scheduleFilteredHide(article, () => {
+    if (isPostIdentityCurrent(_deps.adapter, article, identity) && getPostDecision(article) === manualDecision) {
+      hidePost(article);
+    } else {
+      restoreFilteredContainer(_deps.adapter.getPostContainer(article), article);
+    }
+  });
+  try {
+    const response: { success?: boolean; error?: string } | undefined = await chrome.runtime.sendMessage({
+      type: 'bouncePost', post: formatPostForEvaluation(content), phrase, reasoning, siteId: _deps.adapter.siteId,
+    });
+    if (!response?.success) throw new Error(response?.error || 'The local Bounce action did not complete.');
+    if (isPostIdentityCurrent(_deps.adapter, article, identity)) syncFilterPhrases();
+    return true;
+  } catch (err) {
+    console.error('[Bouncer] Bounce action error:', err);
+    // A failed durable write must not leave a pretend-success hidden post.
+    if (isPostIdentityCurrent(_deps.adapter, article, identity) && getPostDecision(article) === manualDecision) {
+      restoreFilteredContainer(_deps.adapter.getPostContainer(article), article);
+      forgetPostDecision(article);
+      removeFilteredPostForArticle(article);
+      _deps.postReasonings.delete(article);
+      markPostVerified(article);
+    }
+    return false;
+  }
 }
 
 // ==================== Reasoning Popup ====================
@@ -2163,6 +2388,7 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
   hideReasoningPopup();
 
   const content = _deps.extractPostContent(article);
+  const openedPostIdentity = postIdentity(_deps.adapter, article);
   const stored = _deps.postReasonings.get(article);
 
   const popup = document.createElement('div');
@@ -2234,8 +2460,8 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
       // pipe-row in `reasoning`. Render the matches as chips rather than running
       // the pipe-row through cleanReasoning (which splits on "|" and would mangle
       // it). Keep a text fallback for malformed/legacy cache entries.
-      const reasoningBody = active.category
-        ? `<div class="reasoning-match-label">Matched categories</div><div class="reasoning-match-chips">${active.category.split(',').map(c => c.trim()).filter(Boolean).map(c => `<span class="reasoning-match-chip">${escapeHtml(c)}</span>`).join('')}</div>`
+      const reasoningBody = displayedMatches(active).length
+        ? `<div class="reasoning-match-label">Matched categories</div><div class="reasoning-match-chips">${displayedMatches(active).map(c => `<span class="reasoning-match-chip">${escapeHtml(c)}</span>`).join('')}</div>`
         : `<div class="reasoning-text">${escapeHtml(cleanReasoning(active.reasoning ?? '') ?? '')}</div>`;
       tabBody = `
         <div class="reasoning-tab-verdict ${verdictClass}">${verdict}</div>
@@ -2250,7 +2476,9 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
   } else {
     // Fallback: single-reason render for cache hits / no-rules / disabled.
     const reasoning = stored?.reasoning ?? 'Post not yet evaluated. It may be queued or no filter rules are set.';
-    bodyHtml = `<div class="reasoning-text">${escapeHtml(cleanReasoning(reasoning) ?? '')}</div>`;
+    bodyHtml = displayedMatches(stored || {}).length
+      ? `<div class="reasoning-match-label">Matched categories</div><div class="reasoning-match-chips">${displayedMatches(stored!).map(c => `<span class="reasoning-match-chip">${escapeHtml(c)}</span>`).join('')}</div>`
+      : `<div class="reasoning-text">${escapeHtml(cleanReasoning(reasoning) ?? '')}</div>`;
   }
 
   popup.replaceChildren(parseHTML(`
@@ -2310,6 +2538,7 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
           post: content.text,
           siteId: _deps.adapter.siteId
         });
+        if (!isPostIdentityCurrent(_deps.adapter, article, openedPostIdentity) || !popup.isConnected) return;
         const responseError = suggestionResponseError(response);
         if (responseError) {
           btn.textContent = 'Error - try again';
@@ -2321,13 +2550,17 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
             `<button class="reasoning-suggestion-chip">${escapeHtml(r)}</button>`
           ).join('')));
           suggestionsDiv.querySelectorAll('.reasoning-suggestion-chip').forEach(chip => {
-            chip.addEventListener('click', () => {
+            chip.addEventListener('click', asyncHandler(async () => {
               const phrase = chip.textContent ?? '';
-              addFilterPhrase(phrase).catch(err => console.error('[UI] addFilterPhrase failed:', err));
-              chip.classList.add('suggestion-added');
-              chip.textContent = `+ ${phrase}`;
+              if (!isPostIdentityCurrent(_deps.adapter, article, openedPostIdentity)) return;
               (chip as HTMLButtonElement).disabled = true;
-            });
+              if (await bouncePost(article, content, phrase)) {
+                chip.classList.add('suggestion-added');
+                chip.textContent = `+ ${phrase}`;
+              } else {
+                (chip as HTMLButtonElement).disabled = false;
+              }
+            }));
           });
         } else {
           btn.textContent = 'No suggestions';
@@ -2376,6 +2609,7 @@ interface DetectorPopupState {
   shouldHide?: boolean;
   reasoning?: string;
   category?: string | null;
+  matches?: string[];
   error?: string;
   skipReason?: string;
 }
@@ -2387,6 +2621,11 @@ interface DetectorPopupEntry {
 }
 
 const postDetectorStates = new WeakMap<HTMLElement, DetectorPopupEntry>();
+
+export function clearDetectorStates(article: HTMLElement): void {
+  postDetectorStates.delete(article);
+  refreshActivePopupIfFor(article);
+}
 
 export function initDetectorStates(article: HTMLElement, names: string[]) {
   if (names.length === 0) return;
@@ -2466,10 +2705,16 @@ function showCategoryLimitWarning() {
 
 // ==================== Context Menu ====================
 
+const contextMenuArticles = new WeakSet<HTMLElement>();
+
 export function addContextMenuHandler(article: HTMLElement) {
+  if (contextMenuArticles.has(article)) return;
+  contextMenuArticles.add(article);
   const openPopup = (x: number, y: number) => {
+    const identity = postIdentity(_deps.adapter, article);
     (async () => {
       await fetchReasoningIfNeeded(article);
+      if (!isPostIdentityCurrent(_deps.adapter, article, identity)) return;
       showReasoningPopup(article, x, y);
     })().catch(err => console.error('[UI] getReasoning handler failed:', err));
   };
@@ -2561,10 +2806,11 @@ async function fetchReasoningIfNeeded(article: HTMLElement) {
   if (_deps.postReasonings.has(article)) return;
 
   const content = _deps.extractPostContent(article);
+  const identity = postIdentity(_deps.adapter, article);
   if (!content.text.trim()) return;
 
   try {
-    let response: { found?: boolean; shouldHide?: boolean; reasoning?: string; rawResponse?: string } | undefined = await chrome.runtime.sendMessage({
+    let response: { found?: boolean; shouldHide?: boolean; reasoning?: string; rawResponse?: string; matches?: string[]; category?: string | null; userOverride?: boolean } | undefined = await chrome.runtime.sendMessage({
       type: 'getReasoning',
       post: formatPostForEvaluation(content)
     });
@@ -2577,11 +2823,15 @@ async function fetchReasoningIfNeeded(article: HTMLElement) {
       });
     }
 
-    if (response && response.found) {
+    if (response && response.found && isPostIdentityCurrent(_deps.adapter, article, identity)
+        && !currentPostDecision(_deps.adapter, article)?.userOverride) {
       _deps.postReasonings.set(article, {
         shouldHide: response.shouldHide ?? false,
         reasoning: response.reasoning ?? '',
-        rawResponse: response.rawResponse ?? null
+        rawResponse: response.rawResponse ?? null,
+        matches: response.matches,
+        category: response.category,
+        userOverride: response.userOverride,
       });
     }
   } catch (err) {
@@ -2779,16 +3029,7 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
         linkEvent.preventDefault();
         linkEvent.stopPropagation();
         removeTooltip();
-        storeFilteredPost(article, content, 'User reported: should have been filtered');
-        article.style.transition = 'opacity 0.3s ease';
-        article.style.opacity = '0';
-        setTimeout(() => hidePost(article), 300);
-        chrome.runtime.sendMessage({
-          type: 'overrideCacheEntry',
-          post: formatPostForEvaluation(content),
-          shouldHide: true,
-          reasoning: 'User reported: should have been filtered'
-        }).catch(err => console.error('[Bouncer] Override cache error:', err));
+        void bouncePost(article, content);
       });
       try {
         response = await cachedPromise;
@@ -2832,7 +3073,7 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
           ce.stopPropagation();
           // Remove tooltip before the filter triggers re-evaluation and captures the post
           removeTooltip();
-          addFilterPhrase(r).catch(err => console.error('[UI] addFilterPhrase failed:', err));
+          void bouncePost(article, content, r);
         });
         tooltipContent.appendChild(chip);
       });
@@ -2854,19 +3095,7 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
         const value = customInput.value.trim();
         if (!value) return;
         removeTooltip();
-        addFilterPhrase(value).catch(err => console.error('[UI] addFilterPhrase failed:', err));
-        // Forcibly remove this post regardless of AI evaluation
-        const reasoning = `User blocked: ${value}`;
-        storeFilteredPost(article, content, reasoning, '', value);
-        article.style.transition = 'opacity 0.3s ease';
-        article.style.opacity = '0';
-        setTimeout(() => hidePost(article), 300);
-        chrome.runtime.sendMessage({
-          type: 'overrideCacheEntry',
-          post: formatPostForEvaluation(content),
-          shouldHide: true,
-          reasoning
-        }).catch(err => console.error('[Bouncer] Override cache error:', err));
+        void bouncePost(article, content, value);
       };
 
       customInput.addEventListener('click', (e) => e.stopPropagation());
@@ -2899,16 +3128,7 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
         linkEvent.preventDefault();
         linkEvent.stopPropagation();
         removeTooltip();
-        storeFilteredPost(article, content, 'User reported: should have been filtered');
-        article.style.transition = 'opacity 0.3s ease';
-        article.style.opacity = '0';
-        setTimeout(() => hidePost(article), 300);
-        chrome.runtime.sendMessage({
-          type: 'overrideCacheEntry',
-          post: formatPostForEvaluation(content),
-          shouldHide: true,
-          reasoning: 'User reported: should have been filtered'
-        }).catch(err => console.error('[Bouncer] Override cache error:', err));
+        void bouncePost(article, content);
       });
       tooltipContent.appendChild(missedLink);
 

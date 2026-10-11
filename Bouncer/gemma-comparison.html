@@ -19,13 +19,25 @@
   </style>
 </head>
 <body>
-  <h1>Gemma E2B vs E4B</h1>
+  <h1>Gemma verification and comparison</h1>
   <p class="hint">
     Development-only localhost runner. It uses Bouncer's pinned model definitions,
     LiteRT runtime, prompts, parser, latency corpus, accuracy corpus, and suggestion
     gate. Model bytes stay in this localhost origin's Cache Storage.
   </p>
+  <p class="hint">
+    <a href="?model=e2b">E2B quality and latency</a> ·
+    <a href="?model=e2b&amp;scope=suggestions">E2B suggestions</a> ·
+    <a href="?model=e2b&amp;scope=smoke">E2B lifecycle smoke</a> ·
+    <a href="?order=e2b-first">E2B-first comparison</a> ·
+    <a href="?order=e4b-first">E4B-first comparison</a>.
+    Add <code>&amp;autorun=1</code> to start automatically. Reports include the
+    exact installed LiteRT-LM version and pinned model URLs. The smoke run records
+    interrupt timing and recovery; the public runtime does not expose whether an
+    interrupt reached setup, prefill, or active decoding.
+  </p>
   <button id="run">Run full comparison</button>
+  <button id="download-report" disabled>Download completed JSON report</button>
   <div id="status" data-kind="info">Ready. Keep this tab active while the comparison runs.</div>
   <progress id="progress" max="1" value="0"></progress>
   <pre id="summary">No result yet.</pre>

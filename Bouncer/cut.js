@@ -119,6 +119,7 @@ async function main() {
     'build.js',
     'cut.js',
     'generate-manifests.mjs',
+    'litertlm-assets.mjs',
     'background.js',
     'popup.js',
     'content.js',

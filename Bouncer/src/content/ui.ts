@@ -47,9 +47,18 @@ export function initUI(deps: ContentUIDeps) {
 // ==================== UI State ====================
 
 // Filtered posts storage
+const MAX_FILTERED_POSTS = 500;
 const filteredPosts: FilteredPost[] = [];
 const filteredPostKeys = new Set<string>();
 const filteredKeyByArticle = new WeakMap<HTMLElement, string>();
+interface RestoreStatus {
+  pending: boolean;
+  error?: string;
+}
+// Status contains no DOM nodes or snapshot references. It survives row
+// replacement only while the corresponding snapshot remains retained.
+const filteredRestoreStatuses = new WeakMap<FilteredPost, RestoreStatus>();
+const renderedFilteredSnapshots = new WeakMap<HTMLElement, FilteredPost>();
 
 let filteredTabActive = false;
 let filteredModalBackdrop: HTMLElement | null = null;
@@ -175,6 +184,7 @@ export function getFilteredTabActive() { return filteredTabActive; }
 // ==================== Filtered Posts ====================
 
 export function clearFilteredPosts() {
+  filteredPosts.forEach(post => filteredRestoreStatuses.delete(post));
   filteredPosts.length = 0;
   filteredPostKeys.clear();
   updateFilteredTabCount();
@@ -189,6 +199,27 @@ function filteredPostKey(post: FilteredPost): string {
   return post.post.postUrl || post.evaluationText.substring(0, 200);
 }
 
+function applyRestoreStatus(button: HTMLButtonElement, errorEl: HTMLElement, status?: RestoreStatus): void {
+  button.disabled = status?.pending ?? false;
+  button.textContent = status?.pending ? 'Restoring…' : status?.error ? 'Retry Restore' : 'Restore';
+  errorEl.textContent = status?.error || '';
+}
+
+function refreshRestoreControls(status?: RestoreStatus): void {
+  const rows = document.querySelectorAll<HTMLElement>('.slop-post-wrapper');
+  if (!rows.length) return;
+  const retained = new Map(filteredPosts.map(post => [filteredPostKey(post), post]));
+  rows.forEach(row => {
+    const rendered = renderedFilteredSnapshots.get(row);
+    const post = rendered ? retained.get(filteredPostKey(rendered)) : undefined;
+    const currentStatus = post ? filteredRestoreStatuses.get(post) : undefined;
+    if (status && currentStatus !== status) return;
+    const button = row.querySelector<HTMLButtonElement>('.slop-restore');
+    const errorEl = row.querySelector<HTMLElement>('.slop-restore-error');
+    if (button && errorEl) applyRestoreStatus(button, errorEl, currentStatus);
+  });
+}
+
 function refreshFilteredPostsView(): void {
   updateFilteredTabCount();
   const containers = document.querySelectorAll('.filtered-modal-content, .ff-ios-filtered-modal-content');
@@ -200,7 +231,10 @@ export function removeFilteredPostForArticle(article: HTMLElement, refresh = tru
   const key = filteredKeyByArticle.get(article)
     || content.postUrl || formatPostForEvaluation(content).substring(0, 200);
   const index = filteredPosts.findIndex(post => filteredPostKey(post) === key);
-  if (index !== -1) filteredPosts.splice(index, 1);
+  if (index !== -1) {
+    filteredRestoreStatuses.delete(filteredPosts[index]);
+    filteredPosts.splice(index, 1);
+  }
   filteredPostKeys.delete(key);
   filteredKeyByArticle.delete(article);
   if (index !== -1 && refresh) refreshFilteredPostsView();
@@ -272,6 +306,7 @@ export function reconcileFilterChanges(phrases: string[], processRestoredPosts =
       post.matches = matches;
       post.category = matches.join(', ');
     } else {
+      filteredRestoreStatuses.delete(post);
       filteredPosts.splice(index, 1);
       filteredPostKeys.delete(filteredPostKey(post));
     }
@@ -1912,6 +1947,7 @@ export function renderFilteredPostsView(container: Element) {
     const { post: postContent } = post;
     const wrapper = document.createElement('div');
     wrapper.className = 'slop-post-wrapper';
+    renderedFilteredSnapshots.set(wrapper, post);
 
     // Main post row: avatar + body
     const postRow = document.createElement('div');
@@ -2080,6 +2116,7 @@ export function renderFilteredPostsView(container: Element) {
     const restoreError = document.createElement('span');
     restoreError.className = 'slop-restore-error';
     restoreError.setAttribute('role', 'alert');
+    applyRestoreStatus(restoreBtn, restoreError, filteredRestoreStatuses.get(post));
     restoreBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -2112,17 +2149,19 @@ export function renderFilteredPostsView(container: Element) {
 }
 
 async function restorePostSnapshot(post: FilteredPost, button: HTMLButtonElement, errorEl: HTMLElement): Promise<void> {
-  if (button.disabled) return;
   const key = filteredPostKey(post);
+  post = filteredPosts.find(entry => filteredPostKey(entry) === key) || post;
+  if (filteredRestoreStatuses.get(post)?.pending || button.disabled) return;
   const targets = _deps.findPosts().filter(article => {
     const content = _deps.extractPostContent(article);
     return post.post.postUrl
       ? _deps.adapter.getPostUrl(article) === post.post.postUrl
       : formatPostForEvaluation(content) === post.evaluationText;
   }).map(article => ({ article, identity: postIdentity(_deps.adapter, article), decision: getPostDecision(article) }));
-  button.disabled = true;
-  button.textContent = 'Restoring…';
-  errorEl.textContent = '';
+  const status: RestoreStatus = { pending: true };
+  filteredRestoreStatuses.set(post, status);
+  applyRestoreStatus(button, errorEl, status);
+  refreshRestoreControls(status);
   try {
     const response: { success?: boolean; error?: string } | undefined = await chrome.runtime.sendMessage({
       type: 'overrideCacheEntry', post: post.evaluationText, shouldHide: false,
@@ -2147,17 +2186,20 @@ async function restorePostSnapshot(post: FilteredPost, button: HTMLButtonElement
         _deps.processedPosts.delete(target.article);
         markPostVerified(target.article);
       }
-      if (index !== -1) filteredPosts.splice(index, 1);
+      if (index !== -1) {
+        filteredRestoreStatuses.delete(filteredPosts[index]);
+        filteredPosts.splice(index, 1);
+      }
       filteredPostKeys.delete(key);
       refreshFilteredPostsView();
     }
-    button.textContent = 'Restore';
+    filteredRestoreStatuses.delete(post);
   } catch (err) {
     console.error('[Bouncer] Restore action error:', err);
-    errorEl.textContent = `Restore failed: ${err instanceof Error ? err.message : 'Try again.'}`;
-    button.textContent = 'Retry Restore';
+    status.error = `Restore failed: ${err instanceof Error ? err.message : 'Try again.'}`;
   } finally {
-    button.disabled = false;
+    status.pending = false;
+    refreshRestoreControls(status);
   }
 }
 
@@ -2170,7 +2212,15 @@ export function storeFilteredPost(article: HTMLElement, contentObj: PostContent,
   filteredKeyByArticle.set(article, key);
   if (filteredPostKeys.has(key)) {
     const index = filteredPosts.findIndex(post => filteredPostKey(post) === key);
-    if (index !== -1) filteredPosts[index] = { ...filteredPosts[index], reasoning, rawResponse, category, matches: matches ? [...matches] : undefined, userOverride };
+    if (index !== -1) {
+      const previous = filteredPosts[index];
+      const status = filteredRestoreStatuses.get(previous);
+      const replacement = { ...previous, reasoning, rawResponse, category, matches: matches ? [...matches] : undefined, userOverride };
+      filteredPosts[index] = replacement;
+      if (status && !userOverride) filteredRestoreStatuses.set(replacement, status);
+      filteredRestoreStatuses.delete(previous);
+      refreshRestoreControls();
+    }
     return; // Already stored
   }
   filteredPostKeys.add(key);
@@ -2185,7 +2235,15 @@ export function storeFilteredPost(article: HTMLElement, contentObj: PostContent,
     userOverride,
     timestamp: Date.now()
   });
-  updateFilteredTabCount();
+  let evictedSnapshot = false;
+  while (filteredPosts.length > MAX_FILTERED_POSTS) {
+    const evicted = filteredPosts.shift()!;
+    filteredPostKeys.delete(filteredPostKey(evicted));
+    filteredRestoreStatuses.delete(evicted);
+    evictedSnapshot = true;
+  }
+  if (evictedSnapshot) refreshFilteredPostsView();
+  else updateFilteredTabCount();
 }
 
 // ==================== Verification Bars ====================

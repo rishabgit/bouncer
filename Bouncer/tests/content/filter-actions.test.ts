@@ -106,6 +106,42 @@ describe('live content filter actions', () => {
     return panel.querySelector<HTMLButtonElement>('.slop-restore')!;
   }
 
+  function adoptFilteredCount(): HTMLElement {
+    const count = document.createElement('span');
+    count.className = 'filtered-toggle-count';
+    count.textContent = '(0)';
+    const filterBox = document.createElement('div');
+    filterBox.className = 'filter-phrases-sidebar';
+    filterBox.appendChild(count);
+    document.body.appendChild(filterBox);
+    ui.injectFilterPhrasesInput();
+    return count;
+  }
+
+  function fillSnapshots(firstId: number, lastId: number, template: PostContent): void {
+    for (let id = firstId; id <= lastId; id++) {
+      const content = { ...template, text: `Synthetic snapshot ${id}`, postUrl: `https://x.com/synthetic/status/${id}` };
+      ui.storeFilteredPost(document.createElement('article'), content, 'Synthetic matched rage', '', 'rage', ['rage']);
+    }
+  }
+
+  async function prepareRestoreAtCapacity(id = 500) {
+    const article = post(String(id));
+    await start();
+    const count = adoptFilteredCount();
+    const content = adapter.extractPostContent(article);
+    if (id === 500) fillSnapshots(1, 499, content);
+    await verdict(0, ['rage']);
+    if (id === 1) fillSnapshots(2, 500, content);
+    renderRestorePanel();
+    const button = document.querySelector<HTMLButtonElement>(`a[href="${content.postUrl}"] .slop-restore`)!;
+    return { article, content, count, button };
+  }
+
+  function currentRestoreButton(content: PostContent): HTMLButtonElement {
+    return document.querySelector<HTMLButtonElement>(`a[href="${content.postUrl}"] .slop-restore`)!;
+  }
+
   beforeEach(() => {
     vi.resetModules();
     vi.useFakeTimers();
@@ -220,6 +256,215 @@ describe('live content filter actions', () => {
     expect(adapter.getPostContainer(parent).style.display).toBe('');
     expect(adapter.getPostContainer(reply).style.display).toBe('');
     expect(ui.getFilteredPosts()).toHaveLength(0);
+  });
+
+  it('retains the newest 500 snapshots without changing an evicted live hide or its rule-removal restoration', async () => {
+    const original = post('1');
+    await start();
+    const count = adoptFilteredCount();
+    await verdict(0, ['rage']);
+    fillSnapshots(2, 500, adapter.extractPostContent(original));
+    const panel = document.createElement('div');
+    panel.className = 'filtered-modal-content';
+    document.body.appendChild(panel);
+    ui.renderFilteredPostsView(panel);
+    expect(panel.querySelector('a[href="https://x.com/synthetic/status/1"]')).not.toBeNull();
+    fillSnapshots(501, 502, adapter.extractPostContent(original));
+
+    expect(ui.getFilteredPosts()).toHaveLength(500);
+    expect(ui.getFilteredPosts().map(entry => entry.post.postUrl)).toEqual(
+      Array.from({ length: 500 }, (_, index) => `https://x.com/synthetic/status/${index + 3}`),
+    );
+    expect(count.textContent).toBe('(500)');
+    expect(panel.querySelectorAll('.slop-post-wrapper')).toHaveLength(500);
+    expect(panel.querySelector('a[href="https://x.com/synthetic/status/1"]')).toBeNull();
+    expect(panel.querySelector('a[href="https://x.com/synthetic/status/2"]')).toBeNull();
+    expect(panel.querySelector('a[href="https://x.com/synthetic/status/502"]')).not.toBeNull();
+    expect(adapter.getPostContainer(original).style.display).toBe('none');
+    expect(adapter.getPostContainer(original).dataset.filteredByExtension).toBe('true');
+
+    await ui.removeFilterPhrase('rage');
+    await flush();
+    expect(adapter.getPostContainer(original).style.display).toBe('');
+    expect(adapter.getPostContainer(original).dataset.filteredByExtension).toBeUndefined();
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+    expect(count.textContent).toBe('(0)');
+  });
+
+  it('readmits evicted dedup keys while duplicates replace snapshots without growth or FIFO eviction', async () => {
+    const original = post('1');
+    await start();
+    const count = adoptFilteredCount();
+    await verdict(0, ['rage']);
+    const content = adapter.extractPostContent(original);
+    fillSnapshots(2, 501, content);
+    const oldestSurvivor = ui.getFilteredPosts()[0];
+    const duplicate = ui.getFilteredPosts()[298];
+    ui.storeFilteredPost(document.createElement('article'), duplicate.post, 'Synthetic refreshed match', '', 'rage', ['rage']);
+
+    expect(ui.getFilteredPosts()).toHaveLength(500);
+    expect(ui.getFilteredPosts()[0]).toBe(oldestSurvivor);
+    expect(ui.getFilteredPosts()[298]).not.toBe(duplicate);
+    expect(ui.getFilteredPosts()[298].reasoning).toBe('Synthetic refreshed match');
+    expect(count.textContent).toBe('(500)');
+
+    ui.storeFilteredPost(original, content, 'Synthetic readmitted match', '', 'rage', ['rage']);
+    expect(ui.getFilteredPosts()).toHaveLength(500);
+    expect(ui.getFilteredPosts()[0].post.postUrl).toBe('https://x.com/synthetic/status/3');
+    expect(ui.getFilteredPosts().at(-1)?.post.postUrl).toBe(content.postUrl);
+    expect(ui.getFilteredPosts().filter(entry => entry.post.postUrl === content.postUrl)).toHaveLength(1);
+    expect(count.textContent).toBe('(500)');
+    expect(adapter.getPostContainer(original).style.display).toBe('none');
+
+    ui.storeFilteredPost(original, content, 'Synthetic duplicate readmission', '', 'rage', ['rage']);
+    expect(ui.getFilteredPosts()).toHaveLength(500);
+    expect(ui.getFilteredPosts()[0].post.postUrl).toBe('https://x.com/synthetic/status/3');
+    expect(ui.getFilteredPosts().at(-1)?.reasoning).toBe('Synthetic duplicate readmission');
+  });
+
+  it('restores an evicted live reply on toggle-off without disturbing retained historical snapshots', async () => {
+    permalink = true;
+    const reply = post('1');
+    await start();
+    const count = adoptFilteredCount();
+    await verdict(0, ['rage']);
+    fillSnapshots(2, 501, adapter.extractPostContent(reply));
+    expect(ui.getFilteredPosts().some(entry => entry.post.postUrl?.endsWith('/1'))).toBe(false);
+
+    change('filterReplies', false);
+    await flush();
+    expect(adapter.getPostContainer(reply).style.display).toBe('');
+    expect(adapter.getPostContainer(reply).dataset.filteredByExtension).toBeUndefined();
+    expect(ui.getFilteredPosts()).toHaveLength(500);
+    expect(count.textContent).toBe('(500)');
+  });
+
+  it.each(['success', 'failure', 'rejection'])('keeps a retained Restore visibly pending through unrelated eviction and handles %s', async outcome => {
+    const { article, content, count, button } = await prepareRestoreAtCapacity();
+    restoreResponse = deferred();
+    button.click();
+    await flush();
+    fillSnapshots(501, 501, content);
+    const renderedButton = currentRestoreButton(content);
+
+    expect(renderedButton).not.toBe(button);
+    expect(button.isConnected).toBe(false);
+    expect(renderedButton.disabled).toBe(true);
+    expect(renderedButton.textContent).toBe('Restoring…');
+    renderedButton.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush();
+    expect(sendMessage.mock.calls.filter(([message]) => message.type === 'overrideCacheEntry')).toHaveLength(1);
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+
+    if (outcome === 'success') restoreResponse.resolve({ success: true });
+    else {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      if (outcome === 'failure') restoreResponse.resolve({ success: false, error: 'Synthetic retained failure' });
+      else restoreResponse.reject(new Error('Synthetic retained rejection'));
+    }
+    await flush();
+
+    if (outcome !== 'success') {
+      const retry = currentRestoreButton(content);
+      expect(retry.disabled).toBe(false);
+      expect(retry.textContent).toBe('Retry Restore');
+      expect(retry.parentElement?.querySelector('[role="alert"]')?.textContent).toContain(`Restore failed: Synthetic retained ${outcome}`);
+      expect(adapter.getPostContainer(article).style.display).toBe('none');
+      expect(ui.getFilteredPosts()).toHaveLength(500);
+      restoreResponse = deferred();
+      retry.click();
+      await flush();
+      expect(retry.disabled).toBe(true);
+      expect(retry.parentElement?.querySelector('[role="alert"]')?.textContent).toBe('');
+      expect(sendMessage.mock.calls.filter(([message]) => message.type === 'overrideCacheEntry')).toHaveLength(2);
+      restoreResponse.resolve({ success: true });
+      await flush();
+    }
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(499);
+    expect(count.textContent).toBe('(499)');
+
+    // Completion must not attach the previous operation/error to readmission.
+    ui.storeFilteredPost(article, content, 'Synthetic readmitted history', '', 'rage', ['rage']);
+    fillSnapshots(502, 502, content);
+    expect(currentRestoreButton(content).disabled).toBe(false);
+    expect(currentRestoreButton(content).textContent).toBe('Restore');
+    expect(currentRestoreButton(content).parentElement?.querySelector('[role="alert"]')?.textContent).toBe('');
+  });
+
+  it('carries Restore ownership across an automatic duplicate snapshot refresh and eviction render', async () => {
+    const { article, content, button } = await prepareRestoreAtCapacity();
+    restoreResponse = deferred();
+    button.click();
+    await flush();
+    ui.storeFilteredPost(article, content, 'Synthetic automatic refresh', '', 'rage', ['rage']);
+    fillSnapshots(501, 501, content);
+    expect(currentRestoreButton(content).disabled).toBe(true);
+    expect(currentRestoreButton(content).textContent).toBe('Restoring…');
+    currentRestoreButton(content).dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flush();
+    expect(sendMessage.mock.calls.filter(([message]) => message.type === 'overrideCacheEntry')).toHaveLength(1);
+
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    restoreResponse.resolve({ success: false, error: 'Synthetic duplicate failure' });
+    await flush();
+    expect(currentRestoreButton(content).textContent).toBe('Retry Restore');
+    expect(currentRestoreButton(content).parentElement?.querySelector('[role="alert"]')?.textContent).toContain('Synthetic duplicate failure');
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+  });
+
+  it('lets a later Bounce and Restore own current controls when an older Restore completes after eviction', async () => {
+    const { article, content, button } = await prepareRestoreAtCapacity();
+    const oldRestore = deferred<{ success: boolean; error?: string }>();
+    restoreResponse = oldRestore;
+    button.click();
+    await flush();
+    await ui.bouncePost(article, content, 'new phrase');
+    await vi.advanceTimersByTimeAsync(300);
+    fillSnapshots(501, 501, content);
+    expect(currentRestoreButton(content).disabled).toBe(false);
+    expect(currentRestoreButton(content).textContent).toBe('Restore');
+    expect(ui.getFilteredPosts().find(entry => entry.post.postUrl === content.postUrl)?.matches).toEqual(['new phrase']);
+
+    restoreResponse = deferred();
+    currentRestoreButton(content).click();
+    await flush();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    oldRestore.reject(new Error('Synthetic superseded failure'));
+    await flush();
+    expect(currentRestoreButton(content).disabled).toBe(true);
+    expect(currentRestoreButton(content).textContent).toBe('Restoring…');
+    expect(currentRestoreButton(content).parentElement?.querySelector('[role="alert"]')?.textContent).toBe('');
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+
+    restoreResponse.resolve({ success: true });
+    await flush();
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+  });
+
+  it.each(['success', 'failure', 'rejection'])('drops an evicted row Restore association after %s without leaking it into readmission', async outcome => {
+    const { article, content, button } = await prepareRestoreAtCapacity(1);
+    restoreResponse = deferred();
+    button.click();
+    await flush();
+    fillSnapshots(501, 501, content);
+    expect(document.querySelector(`a[href="${content.postUrl}"] .slop-restore`)).toBeNull();
+    expect(ui.getFilteredPosts().some(entry => entry.post.postUrl === content.postUrl)).toBe(false);
+
+    if (outcome === 'success') restoreResponse.resolve({ success: true });
+    else {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      if (outcome === 'failure') restoreResponse.resolve({ success: false, error: 'Synthetic evicted failure' });
+      else restoreResponse.reject(new Error('Synthetic evicted rejection'));
+    }
+    await flush();
+    expect(document.querySelector('.slop-restore-error')?.textContent).toBe('');
+    expect(adapter.getPostContainer(article).style.display).toBe(outcome === 'success' ? '' : 'none');
+
+    ui.storeFilteredPost(article, content, 'Synthetic readmitted evicted history', '', 'rage', ['rage']);
+    expect(currentRestoreButton(content).disabled).toBe(false);
+    expect(currentRestoreButton(content).textContent).toBe('Restore');
+    expect(currentRestoreButton(content).parentElement?.querySelector('[role="alert"]')?.textContent).toBe('');
   });
 
   it('retains a surviving comma-containing exact match in the panel and detector popup', async () => {

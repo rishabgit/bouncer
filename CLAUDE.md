@@ -54,6 +54,29 @@ npm run test
 - **Post tracking**: Filtered posts stored in `filteredPosts` with their HTML, matched filters, image URLs, and post URLs.
 - **Filter transparency**: Each filtered post shows the matched filter categories. Gemma's terse classifier does not generate free-form per-post reasoning.
 
+### Filter actions and retained history
+
+Bounce adds its optional phrase and persists the chosen post's hide as one
+serialized background action. Duplicate phrases still hide the chosen post.
+Restore changes the UI only after its local cache override succeeds; failures
+keep the hidden post and offer a retry. Pending automatic evaluations yield to
+explicit post decisions, and every cache reader waits for their persistence or
+rollback to settle.
+
+Use exact `matches[]` for rule-edit decisions. Comma-separated legacy category
+text is display-only. Every genuine ordered phrase change still invalidates the
+entire evaluation cache. On the current page, surviving exact matches retain an
+automatic hide; removed or unknown matches restore and re-evaluate it. Live
+manual decisions are tracked separately and keep their current-page behavior.
+Do not add a separate durable override store as part of this mechanism.
+
+The filtered panel retains the newest 500 snapshots. Eviction releases panel
+rows and deduplication keys, but does not restore live posts or remove their
+weakly held identity/decision metadata. Automatic evaluation cache writes share
+a bounded three-second window; explicit post decisions and cache clears remain
+immediate ordered writes. Worker termination during that window may discard
+recent automatic cache hits, which can be recomputed.
+
 ### Production model: Gemma 4 E2B through LiteRT-LM
 
 The production catalog has one text-only model: revision-pinned Gemma 4 E2B.

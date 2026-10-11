@@ -16,6 +16,7 @@ import type {
 // ==================== Constants ====================
 
 const CACHE_SIZE = 500; // Increased for persistent storage
+const AUTOMATIC_CACHE_WRITE_DELAY_MS = 3000;
 const BATCH_DELAY_MS = 1000; // Wait time to collect posts before sending batch
 const MAX_CONCURRENT_BATCHES = 100; // Allow parallel batch processing
 
@@ -161,6 +162,7 @@ let batchTimeout: ReturnType<typeof setTimeout> | null = null;
 let inFlightBatches = 0; // Counter for concurrent batch processing
 let cacheLoaded = false;
 let cacheWriteChain: Promise<void> = Promise.resolve();
+let automaticCacheSaveTimeout: ReturnType<typeof setTimeout> | null = null;
 
 // Per-tab queue management
 const tabQueues = new Map<number, PendingEvaluation[]>();      // tabId -> array of queue items
@@ -515,8 +517,27 @@ export async function loadCache(): Promise<void> {
   }
 }
 
-// Save cache to persistent storage
+function cancelAutomaticCacheSave(): void {
+  if (automaticCacheSaveTimeout === null) return;
+  clearTimeout(automaticCacheSaveTimeout);
+  automaticCacheSaveTimeout = null;
+}
+
+// Automatic verdicts share one bounded write window. Snapshot only when the
+// first dirty entry's timer fires; later entries do not slide the deadline.
+// A worker terminating within that window can lose these optional cache hits.
+export function scheduleAutomaticCacheSave(): void {
+  if (automaticCacheSaveTimeout !== null) return;
+  automaticCacheSaveTimeout = setTimeout(() => {
+    automaticCacheSaveTimeout = null;
+    void saveCache();
+  }, AUTOMATIC_CACHE_WRITE_DELAY_MS);
+}
+
+// Explicit saves are immediate serialized barriers, including user decisions
+// and rollback. They also flush any automatic changes waiting for their timer.
 export async function saveCache(throwOnError = false): Promise<void> {
+  cancelAutomaticCacheSave();
   const cacheObj = Object.fromEntries(evaluationCache);
   try {
     const write = cacheWriteChain
@@ -531,6 +552,7 @@ export async function saveCache(throwOnError = false): Promise<void> {
 }
 
 export async function clearEvaluationCache(): Promise<void> {
+  cancelAutomaticCacheSave();
   evaluationCache.clear();
   const write = cacheWriteChain
     .catch(() => undefined)
@@ -580,7 +602,13 @@ export async function clearPost(post: string): Promise<void> {
   const cacheKey = generateCacheKey(post);
   retirePostEvaluations(cacheKey);
   const previous = evaluationCache.get(cacheKey);
-  if (!previous) return;
+  if (!previous) {
+    // Even a missing-key clear finishes pending automatic persistence. Flush a
+    // waiting timer now, or wait for an already-running write without duplicating it.
+    if (automaticCacheSaveTimeout !== null) await saveCache(true);
+    else await cacheWriteChain;
+    return;
+  }
   const settleDecision = beginPostDecision(cacheKey);
   evaluationCache.delete(cacheKey);
   try {
@@ -852,12 +880,12 @@ async function processBatch(): Promise<void> {
       const firstKey = evaluationCache.keys().next().value;
       if (firstKey !== undefined) evaluationCache.delete(firstKey);
     }
-    await saveCache();
+    scheduleAutomaticCacheSave();
 
     if (!isEvaluationCurrent()) {
       if (evaluationCache.get(cacheKey) === evalResult) {
         evaluationCache.delete(cacheKey);
-        await saveCache();
+        scheduleAutomaticCacheSave();
       }
       resolveWithDuplicates(batchTabId, item, await retiredEvaluationResponse(postFence));
       return;
@@ -872,7 +900,7 @@ async function processBatch(): Promise<void> {
     if (!isEvaluationCurrent()) {
       if (evaluationCache.get(cacheKey) === evalResult) {
         evaluationCache.delete(cacheKey);
-        await saveCache();
+        scheduleAutomaticCacheSave();
       }
       resolveWithDuplicates(batchTabId, item, await retiredEvaluationResponse(postFence));
       return;

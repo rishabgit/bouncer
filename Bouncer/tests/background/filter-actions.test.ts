@@ -119,9 +119,12 @@ beforeEach(async () => {
   await send({ type: 'getStats' });
 });
 
-afterEach(() => {
+afterEach(async () => {
   pipeline.clearTabQueue(1);
   pipeline.setActiveTab(null);
+  // Retired module timers must not write into a later test's Chrome fixture.
+  await pipeline.clearEvaluationCache().catch(() => undefined);
+  vi.useRealTimers();
 });
 
 describe('atomic local Bounce actions', () => {
@@ -502,7 +505,7 @@ describe('explicit post decisions fence automatic work', () => {
     errorLog.mockRestore();
   });
 
-  it('rolls back a failed override after an unrelated post queued its provisional cache snapshot', async () => {
+  it('rolls back a failed override while preserving an unrelated dirty automatic result', async () => {
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const inference = deferred<EvaluationResult>();
     const manualWrite = deferred<void>();
@@ -540,7 +543,7 @@ describe('explicit post decisions fence automatic work', () => {
     }));
   });
 
-  it.each(['stats read', 'stats write', 'cache write'])('preserves Bounce across a pending automatic %s', async (pauseStage) => {
+  it.each(['stats read', 'stats write'])('preserves Bounce across a pending automatic %s', async (pauseStage) => {
     const pause = deferred<void>();
     let reachedPause = false;
     if (pauseStage === 'stats read') {
@@ -553,9 +556,7 @@ describe('explicit post decisions fence automatic work', () => {
       });
     } else {
       writeStorage.mockImplementation(async (items: Record<string, unknown>) => {
-        const shouldPause = pauseStage === 'stats write' ? 'stats' in items
-          : 'evaluationCache' in items && !reachedPause;
-        if (shouldPause) {
+        if ('stats' in items) {
           reachedPause = true;
           await pause.promise;
         }
@@ -570,6 +571,37 @@ describe('explicit post decisions fence automatic work', () => {
     await expect(action).resolves.toEqual({ success: true });
     await expect(result).resolves.toMatchObject({ shouldHide: true, userOverride: true });
     expect(cached('post with pending persistence')).toMatchObject({ shouldHide: true, userOverride: true });
+  });
+
+  it('delivers an automatic verdict before its timer and orders a later Bounce after the held automatic write', async () => {
+    vi.useFakeTimers();
+    const post = 'post with held automatic cache persistence';
+    const automaticWrite = deferred<void>();
+    let writingAutomatic = false;
+    writeStorage.mockImplementation(async (items: Record<string, unknown>) => {
+      if ('evaluationCache' in items && !writingAutomatic) {
+        writingAutomatic = true;
+        await automaticWrite.promise;
+      }
+      Object.assign(stored, structuredClone(items));
+    });
+    const result = evaluate(post);
+    await vi.advanceTimersByTimeAsync(0);
+    await expect(result).resolves.toMatchObject({ shouldHide: false, reasoning: 'automatic verdict' });
+    expect(stored.evaluationCache).toEqual({});
+    expect(writingAutomatic).toBe(false);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(writingAutomatic).toBe(true);
+    const action = bounce(post, 'Sports');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(pipeline.evaluationCache.get(generateCacheKey(post))?.userOverride).toBe(true);
+    automaticWrite.resolve();
+
+    await expect(action).resolves.toEqual({ success: true });
+    expect(cached(post)).toMatchObject({ shouldHide: true, userOverride: true });
+    await expect(send({ type: 'getReasoning', post })).resolves.toMatchObject({ shouldHide: true, userOverride: true });
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(cached(post)).toMatchObject({ shouldHide: true, userOverride: true });
   });
 
   it('prevents a clearSinglePost from being undone by late inference', async () => {
@@ -609,6 +641,7 @@ describe('explicit post decisions fence automatic work', () => {
     });
     await expect(evaluate('post matching comma label')).resolves.toMatchObject({ cached: true, matches });
     await expect(send({ type: 'getReasoning', post: 'post matching comma label' })).resolves.toMatchObject({ matches });
+    await pipeline.saveCache();
     expect(cached('post matching comma label')?.matches).toEqual(matches);
     expect(chrome.tabs.sendMessage).toHaveBeenCalledWith(1, expect.objectContaining({
       type: 'detectorResponse', matches,

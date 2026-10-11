@@ -2,17 +2,17 @@
 
 import { DEFAULT_MODEL, PREDEFINED_MODELS, PRIMARY_LOCAL_MODEL_ID } from '../shared/models';
 import { generateCacheKey } from '../shared/utils';
-import { getStorage, setStorage } from '../shared/storage';
+import { getStorage, setStorage, getDescriptions, setDescriptions } from '../shared/storage';
 import type { ContentToBackgroundMessage, LocalModelStatus } from '../types';
 import { localEngine, MODEL_MAINTENANCE_ERROR } from './local-model';
 import { forceCloseLitertlmOffscreen } from './backends/litertlm-backend';
 import { migrateToGemmaOnlyModel } from './model-migration';
 import {
-  initPipeline, loadCache, saveCache,
+  initPipeline, loadCache, overridePost, clearPost, readCachedEvaluation,
   setActiveTab, enqueuePost, isKeyPending, clearTabQueue,
   scheduleBatch, getSettings,
   errorState,
-  evaluationCache, clearEvaluationCache,
+  clearEvaluationCache,
   handleSettingsChange, handleFilterPackChange, handlePageLoad, suggestAnnoyingReasons,
   replayDetectorStates,
   runModelMaintenance,
@@ -155,6 +155,29 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   }
 });
 
+// Serialize local filter actions with effective-filter invalidation. Storage
+// notifications can arrive after set() resolves, so they reconcile the current
+// list rather than clearing again for a previously completed change event.
+let filterActionChain: Promise<void> = Promise.resolve();
+let appliedDescriptions: string[] = [];
+let filtersInitialized = false;
+let startupFiltersChanged = false;
+const MAX_CATEGORIES_LENGTH = 1000;
+
+function runFilterAction<T>(operation: () => Promise<T>): Promise<T> {
+  const result = filterActionChain.catch(() => undefined).then(operation);
+  filterActionChain = result.then(() => undefined, () => undefined);
+  return result;
+}
+
+async function synchronizeFilters(): Promise<void> {
+  const descriptions = await getDescriptions('descriptions_twitter');
+  if (descriptions.length === appliedDescriptions.length
+      && descriptions.every((phrase, index) => phrase === appliedDescriptions[index])) return;
+  await handleFilterPackChange();
+  appliedDescriptions = descriptions;
+}
+
 // ==================== Startup ====================
 
 async function initializeBackground(): Promise<void> {
@@ -167,6 +190,11 @@ async function initializeBackground(): Promise<void> {
     // or evaluation results. The cache cleanup phase is retryable/non-fatal.
     await migrateToGemmaOnlyModel();
     await loadCache();
+    appliedDescriptions = await getDescriptions('descriptions_twitter');
+    // A real phrase event during startup may already be reflected in the
+    // initial read while the loaded cache still belongs to the old phrases.
+    if (startupFiltersChanged) await handleFilterPackChange();
+    filtersInitialized = true;
     initPipeline(activeContentTabs);
     await localEngine.syncAllStatuses();
 
@@ -217,6 +245,9 @@ async function handleMessage(
 
   switch (message.type) {
     case 'evaluatePost': {
+      // Phrase storage is visible before onChanged necessarily runs. Reconcile
+      // it here too, so a delayed event cannot leave an old-rule cache hit valid.
+      await runFilterAction(synchronizeFilters);
       // Register before the maintenance check: opening a fresh X tab must
       // invalidate a last-tab-close unload that is waiting for the queue.
       if (tabId !== undefined) registerContentTab(tabId);
@@ -259,8 +290,13 @@ async function handleMessage(
       const cacheKey = generateCacheKey(message.post);
 
       // Check main cache
-      if (evaluationCache.has(cacheKey)) {
-        const cached = evaluationCache.get(cacheKey)!;
+      const cached = await runFilterAction(async () => {
+        // Settings/model preparation awaits above can span a phrase write whose
+        // notification is still delayed. Synchronize at cache acceptance too.
+        await synchronizeFilters();
+        return readCachedEvaluation(cacheKey);
+      });
+      if (cached) {
         if (tabId !== undefined) replayDetectorStates(tabId, message.evaluationId, cached);
         return { ...cached, cached: true };
       }
@@ -311,23 +347,40 @@ async function handleMessage(
     }
 
     case 'clearSinglePost': {
-      await loadCache();
-      const cacheKey = generateCacheKey(message.post);
-      if (evaluationCache.has(cacheKey)) {
-        evaluationCache.delete(cacheKey);
-        await saveCache();
-      }
+      await runFilterAction(() => clearPost(message.post));
       return { success: true };
     }
 
     case 'overrideCacheEntry': {
-      await loadCache();
-      const cacheKey = generateCacheKey(message.post);
-      evaluationCache.set(cacheKey, {
-        shouldHide: message.shouldHide,
-        reasoning: message.reasoning || 'User override',
+      await runFilterAction(async () => {
+        await synchronizeFilters();
+        await overridePost(message.post, message.shouldHide, message.reasoning || 'User override');
       });
-      await saveCache();
+      return { success: true };
+    }
+
+    case 'bouncePost': {
+      if (message.siteId !== 'twitter') return { success: false, error: 'Unsupported site.' };
+      await runFilterAction(async () => {
+        const phrase = message.phrase?.trim();
+        const descriptions = await getDescriptions('descriptions_twitter');
+        if (phrase && !descriptions.includes(phrase)) {
+          const updated = [...descriptions, phrase];
+          if (updated.reduce((total, value) => total + value.length, 0) > MAX_CATEGORIES_LENGTH) {
+            throw new Error('Filter phrases exceed the 1000-character limit.');
+          }
+          await setDescriptions('descriptions_twitter', updated);
+        }
+        // Finish the full filter invalidation before committing the override.
+        // A delayed onChanged callback observes the same applied list and skips.
+        await synchronizeFilters();
+        await overridePost(
+          message.post,
+          true,
+          message.reasoning || 'Bounced by you',
+          phrase ? [phrase] : undefined,
+        );
+      });
       return { success: true };
     }
 
@@ -339,13 +392,15 @@ async function handleMessage(
     case 'getReasoning': {
       await loadCache();
       const cacheKey = generateCacheKey(message.post);
-      if (evaluationCache.has(cacheKey)) {
-        const cached = evaluationCache.get(cacheKey)!;
+      const cached = await readCachedEvaluation(cacheKey);
+      if (cached) {
         return {
           found: true,
           shouldHide: cached.shouldHide,
           reasoning: cached.reasoning || 'No reasoning available',
           category: cached.category || null,
+          ...(cached.matches !== undefined && { matches: cached.matches }),
+          ...(cached.userOverride !== undefined && { userOverride: cached.userOverride }),
           rawResponse: cached.rawResponse || null
         };
       }
@@ -480,7 +535,10 @@ chrome.runtime.onMessage.addListener((message: ContentToBackgroundMessage, sende
         sendResponse({ error, statuses: null, webgpuSupported: !!navigator.gpu });
       } else if (message.type === 'initializeLocalModel'
           || message.type === 'cancelLocalModelDownload'
-          || message.type === 'deleteLocalModel') {
+          || message.type === 'deleteLocalModel'
+          || message.type === 'bouncePost'
+          || message.type === 'overrideCacheEntry'
+          || message.type === 'clearSinglePost') {
         sendResponse({ success: false, error });
       } else {
         sendResponse({ error });
@@ -494,6 +552,8 @@ chrome.runtime.onMessage.addListener((message: ContentToBackgroundMessage, sende
 // ==================== Storage change listener ====================
 
 chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'local' && !filtersInitialized && !changes.gemmaOnlySchemaVersion
+      && changes.descriptions_twitter) startupFiltersChanged = true;
   (async () => {
     if (areaName !== 'local') return;
     await startupReady;
@@ -531,7 +591,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
       key => key.startsWith('descriptions_')
     );
     if (filtersChanged) {
-      await handleFilterPackChange();
+      await runFilterAction(synchronizeFilters);
     }
   })().catch(err => console.error('[Background] Storage change handler error:', err));
 });

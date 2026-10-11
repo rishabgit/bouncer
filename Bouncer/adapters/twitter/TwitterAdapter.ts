@@ -26,6 +26,11 @@ interface StoreResult {
   error?: string;
 }
 
+interface FilteredCellPost {
+  article: HTMLElement;
+  identity: string;
+}
+
 window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
   siteId = 'twitter' as const;
 
@@ -42,6 +47,7 @@ window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
 
   private _fiberExtractorReady = false;
   private _pendingStoreRequests = new Map<string, (result: StoreResult) => void>();
+  private _filteredCellPosts = new WeakMap<HTMLElement, FilteredCellPost>();
 
   constructor() {
     // Eagerly inject the fiber extractor so it's ready before the first post is processed
@@ -57,6 +63,13 @@ window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
       const marked = document.querySelectorAll('[data-filtered-by-extension="true"]');
       for (const el of marked) {
         if (!(el instanceof HTMLElement)) continue;
+        const filteredPost = this._filteredCellPosts.get(el);
+        if (!filteredPost) continue;
+        const isCurrentPost = () => this._isFilteredCellPostCurrent(el, filteredPost);
+        if (!isCurrentPost()) {
+          this._restoreOwnedCell(el);
+          continue;
+        }
         if (el.style.display === 'none' || fadingOut.has(el)) continue;
         const rect = el.getBoundingClientRect();
         if (rect.top >= 100) {
@@ -64,14 +77,19 @@ window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
           el.style.transition = 'opacity 0.3s ease';
           el.style.opacity = '0';
           setTimeout(() => {
-            // Reply filtering may have been disabled while the fade was in
-            // flight. Restoration removes our marker; a stale timer must not
-            // hide the cell again afterward.
-            if (el.dataset.filteredByExtension === 'true') {
+            // Restoration or X cell recycling can happen during the fade.
+            // An older timer may only hide the post it was scheduled for.
+            const ownsMarker = this._filteredCellPosts.get(el) === filteredPost;
+            const postIsCurrent = isCurrentPost();
+            if (ownsMarker && postIsCurrent && el.dataset.filteredByExtension === 'true') {
               el.style.display = 'none';
             } else {
               el.style.opacity = '';
               el.style.transition = '';
+              if (ownsMarker) {
+                if (!postIsCurrent) this._restoreOwnedCell(el);
+                else this._filteredCellPosts.delete(el);
+              }
             }
             fadingOut.delete(el);
           }, 300);
@@ -269,25 +287,55 @@ window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
     if (!this.isPermalinkView()) {
       return false;
     }
-    const conversationTimeline = document.querySelector('div[aria-label="Timeline: Conversation"]');
-    if (conversationTimeline) {
-      const firstArticle = conversationTimeline.querySelector(this.selectors.post);
-      return firstArticle === article;
-    }
 
-    // X localizes the conversation timeline's aria-label. Fall back to the
-    // status id: the main post either has no self-link on the detail view or
-    // links to the page's status id; replies link to their own status ids.
+    // Ancestors can precede the opened reply, in every locale. Identify the
+    // opened post by its own timestamp, never a nested quoted timestamp.
     const pageStatusId = window.location.pathname.match(/\/status\/(\d+)/)?.[1];
     if (!pageStatusId) return false;
     const postUrl = this.getPostUrl(article);
+    // Some detail layouts render the opened post's timestamp without a
+    // self-link. Keep that post visible when no own status URL is available;
+    // a quoted post's link must not defeat this protective fallback.
     if (!postUrl) return true;
-    return postUrl.match(/\/status\/(\d+)/)?.[1] === pageStatusId;
+    return this._getStatusId(postUrl) === pageStatusId;
+  }
+
+  private _isOwnPostElement(article: HTMLElement, element: Element): boolean {
+    if (element.closest(this.selectors.post) !== article) return false;
+    // X's quote card is a non-anchor role=link container. Media, link cards,
+    // and tweet text may also contain controls or timestamps unrelated to
+    // the containing post. Walk only within this article.
+    for (let parent: Element | null = element; parent && parent !== article; parent = parent.parentElement) {
+      if (parent.matches('[role="link"]:not(a), [data-testid="tweetText"], [data-testid="tweetPhoto"], [data-testid="videoPlayer"], [data-testid="card.wrapper"]')) {
+        return false;
+      }
+      // Also handle an anchor wrapping a whole quote card, rather than just
+      // the timestamp link used by the containing post.
+      if (parent.matches('a') && parent.querySelector('[data-testid="tweetText"]')) return false;
+    }
+    return true;
+  }
+
+  private _getStatusId(href: string): string | null {
+    try {
+      const url = new URL(href, window.location.href);
+      if (!/(^|\.)(x|twitter)\.com$/i.test(url.hostname)) return null;
+      return url.pathname.match(/^\/(?:[^/]+|i\/web)\/status\/(\d+)(?:\/|$)/)?.[1] || null;
+    } catch {
+      return null;
+    }
   }
 
   getPostUrl(article: HTMLElement) {
-    const timeLink = article.querySelector('time')?.closest('a');
-    return (timeLink as HTMLAnchorElement | null)?.href || null;
+    for (const time of article.querySelectorAll('time')) {
+      if (!this._isOwnPostElement(article, time)) continue;
+      const group = time.closest('[role="group"]');
+      if (group && article.contains(group)) continue;
+      const timeLink = time.closest('a');
+      if (!timeLink || !article.contains(timeLink)) continue;
+      if (this._getStatusId(timeLink.href)) return timeLink.href;
+    }
+    return null;
   }
 
   getPostContentKey(article: HTMLElement) {
@@ -298,9 +346,10 @@ window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
     return article.closest<HTMLElement>('[data-testid="cellInnerDiv"]') || article;
   }
 
-  hidePost(article: HTMLElement) {
+  hidePost(article: HTMLElement, includeThread = true) {
     const element = this.getPostContainer(article);
     this._hideCell(element);
+    if (!includeThread) return;
 
     // Also hide threaded replies that follow this tweet
     let sibling = element.nextElementSibling as HTMLElement | null;
@@ -312,7 +361,12 @@ window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
   }
 
   _hideCell(element: HTMLElement) {
+    const article = this._primaryCellArticle(element);
+    if (article) this.restoreRecycledPost(article);
     const rect = element.getBoundingClientRect();
+    if (article) {
+      this._filteredCellPosts.set(element, { article, identity: this._scrollFadeIdentity(article) });
+    }
     element.dataset.filteredByExtension = 'true';
     if (rect.bottom > 0) {
       // Overlaps the viewport or is below it — hide immediately
@@ -320,6 +374,43 @@ window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
     }
     // If entirely above viewport, just mark it; the scroll handler will hide it
     // once its top is 100px below the top of the viewport
+  }
+
+  restoreRecycledPost(article: HTMLElement): boolean {
+    const element = this.getPostContainer(article);
+    const filteredPost = this._filteredCellPosts.get(element);
+    // A nested quoted article cannot revoke ownership of its containing
+    // post. Native hidden state and already-restored cells are not ours.
+    if (!article.isConnected || this._primaryCellArticle(element) !== article
+        || !filteredPost || element.dataset.filteredByExtension !== 'true'
+        || this._isFilteredCellPostCurrent(element, filteredPost)) return false;
+    this._restoreOwnedCell(element);
+    return true;
+  }
+
+  private _primaryCellArticle(element: HTMLElement): HTMLElement | null {
+    return element.matches(this.selectors.post)
+      ? element : element.querySelector<HTMLElement>(this.selectors.post);
+  }
+
+  private _isFilteredCellPostCurrent(element: HTMLElement, filteredPost: FilteredCellPost): boolean {
+    return element.isConnected && filteredPost.article.isConnected
+      && this._primaryCellArticle(element) === filteredPost.article
+      && this.getPostContainer(filteredPost.article) === element
+      && this._scrollFadeIdentity(filteredPost.article) === filteredPost.identity;
+  }
+
+  private _restoreOwnedCell(element: HTMLElement): void {
+    element.style.display = '';
+    element.style.opacity = '';
+    element.style.transition = '';
+    delete element.dataset.filteredByExtension;
+    this._filteredCellPosts.delete(element);
+  }
+
+  private _scrollFadeIdentity(article: HTMLElement): string {
+    const content = this.extractPostContent(article);
+    return JSON.stringify([this.getPostContentKey(article), content.author, content.handle, content.text]);
   }
 
   /**
@@ -547,21 +638,43 @@ window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
   }
 
   getShareButton(article: HTMLElement): HTMLElement | null {
-    return article.querySelector('button[aria-label="Share post"]');
+    // Keep the English fast path, scoped away from nested quoted/media UI.
+    const byLabel = Array.from(article.querySelectorAll<HTMLElement>('button[aria-label="Share post"]'))
+      .find(button => this._isOwnPostElement(article, button));
+    if (byLabel) return byLabel;
+
+    // The native share button has no data-testid and is last in the action
+    // bar. Anchor that bar through this post's reply button so unrelated
+    // role=group widgets cannot attract the Bounce action.
+    const reply = Array.from(article.querySelectorAll('[data-testid="reply"]'))
+      .find(button => this._isOwnPostElement(article, button));
+    const group = reply?.closest('[role="group"]');
+    if (!group || !article.contains(group)) return null;
+    const buttons = Array.from(group.querySelectorAll<HTMLButtonElement>('button'))
+      .filter(button => button.closest('[role="group"]') === group && this._isOwnPostElement(article, button));
+    const untagged = buttons.filter(button => !button.dataset.testid);
+    return untagged[untagged.length - 1] || null;
   }
 
   insertActionButton(article: HTMLElement, button: HTMLElement): void {
     const shareBtn = this.getShareButton(article);
     if (!shareBtn) return;
 
-    if (shareBtn.closest('[role="group"], [data-testid="tweet"]')) {
-      shareBtn.parentElement?.parentElement?.insertAdjacentElement('afterend', button);
-    } else {
-      shareBtn.insertAdjacentElement('afterend', button);
+    const group = shareBtn.closest('[role="group"]');
+    if (group && article.contains(group)) {
+      // X varies the number of wrappers around each action. Insert after
+      // the share action's direct child of the bar, keeping Bounce in it.
+      let action: HTMLElement = shareBtn;
+      while (action.parentElement && action.parentElement !== group) {
+        action = action.parentElement;
+      }
+      action.insertAdjacentElement('afterend', button);
+      return;
     }
+    shareBtn.insertAdjacentElement('afterend', button);
   }
 
   getSearchForm(): HTMLElement | null {
-    return document.querySelector('form[aria-label="Search"]');
+    return document.querySelector('form[role="search"]') || document.querySelector('form[aria-label="Search"]');
   }
 };

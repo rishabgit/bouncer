@@ -11,8 +11,11 @@ export function scheduleFilteredHide(
 ): void {
   cancelScheduledFilteredHide(article);
   const timer = setTimeout(() => {
-    pendingFilteredHides.delete(article);
-    hide();
+    try {
+      hide();
+    } finally {
+      if (pendingFilteredHides.get(article) === timer) pendingFilteredHides.delete(article);
+    }
   }, delayMs);
   pendingFilteredHides.set(article, timer);
 }
@@ -25,6 +28,10 @@ export function cancelScheduledFilteredHide(article: HTMLElement): boolean {
   return true;
 }
 
+export function hasScheduledFilteredHide(article: HTMLElement): boolean {
+  return pendingFilteredHides.has(article);
+}
+
 /** Restore only state that Bouncer itself applied to an automatically hidden post. */
 export function restoreFilteredContainer(
   container: HTMLElement,
@@ -34,10 +41,12 @@ export function restoreFilteredContainer(
   const wasFiltered = container.dataset.filteredByExtension === 'true';
   if (!wasFiltered && !cancelledPendingHide) return false;
 
-  container.style.display = '';
-  container.style.opacity = '';
-  container.style.transition = '';
-  delete container.dataset.filteredByExtension;
+  if (wasFiltered) {
+    container.style.display = '';
+    container.style.opacity = '';
+    container.style.transition = '';
+    delete container.dataset.filteredByExtension;
+  }
   if (article) {
     article.style.opacity = '';
     article.style.transition = '';

@@ -9,6 +9,9 @@ const isWatch = process.argv.includes('--watch');
 const env = process.argv.includes('--dev') ? 'dev' : 'prod';
 const targetArg = process.argv.find((a) => a.startsWith('--target='));
 const target = targetArg ? targetArg.split('=')[1] : 'chrome';
+const litertlmVersion = JSON.parse(fs.readFileSync(
+  path.join(__dirname, 'node_modules/@litert-lm/core/package.json'), 'utf8',
+)).version;
 
 // This is a local-only fork: all cloud/remote backends were removed, so there
 // are no build-time secrets. NODE_ENV is the only define the vendored deps read.
@@ -17,6 +20,7 @@ const define = {
   // Dev-only flag: gates the latency-benchmark surface so it's stripped from prod
   // bundles (the `if (__DEV__)` branch in background/index.ts becomes `if(false)`).
   '__DEV__': String(env === 'dev'),
+  '__LITERTLM_VERSION__': JSON.stringify(litertlmVersion),
 };
 
 const adapterTsPath = path.join(__dirname, 'adapters/twitter/TwitterAdapter.ts');

@@ -26,6 +26,7 @@ export interface DetectorResult {
   shouldHide: boolean;
   reasoning: string;
   category?: string | null;
+  matches?: string[];
   rawResponse?: string | null;
   inferenceTime?: number;
 }

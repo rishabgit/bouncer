@@ -12,6 +12,8 @@ export interface DetectorSnapshot {
   shouldHide?: boolean;
   reasoning?: string;
   category?: string | null;
+  /** Exact matched phrases when known; legacy cache entries may omit them. */
+  matches?: string[];
   error?: string;
   /** Either pre-run skip reason or post-race "aborted because other detector
    *  hid first" — both render the same way in the popup. */
@@ -23,12 +25,16 @@ export interface EvaluationResult {
   shouldHide: boolean;
   reasoning: string;
   category?: string | null;
+  /** Exact matched phrases when known; legacy cache entries may omit them. */
+  matches?: string[];
   rawResponse?: string | null;
   timestamp?: number;
   /** Which model produced this evaluation. */
   model?: string;
   /** Set by the background when the result came from the evaluation cache. */
   cached?: boolean;
+  /** Explicit local Bounce/Restore decision, preserved across DOM updates. */
+  userOverride?: boolean;
   /** Per-detector snapshots so a cache hit can rebuild the same tab UI. */
   detectorStates?: { names: string[]; map: Record<string, DetectorSnapshot> };
 }
@@ -92,6 +98,8 @@ export interface FilteredPost {
   reasoning: string;
   rawResponse: string;
   category: string | null;
+  matches?: string[];
+  userOverride?: boolean;
   timestamp: number;
 }
 
@@ -170,7 +178,9 @@ export interface PlatformAdapter {
   getPostUrl(article: HTMLElement): string | null;
   getPostContentKey(article: HTMLElement): string;
   getPostContainer(article: HTMLElement): HTMLElement;
-  hidePost(article: HTMLElement): void;
+  hidePost(article: HTMLElement, includeThread?: boolean): void;
+  /** Restore stale Bouncer cell state when X mounts different content in it. */
+  restoreRecycledPost(article: HTMLElement): boolean;
   getThemeMode(): 'light' | 'dim' | 'dark';
   extractPostContentFromStore(article: HTMLElement): Promise<PostContent | null>;
   cleanupFilteredPostHtml(tweetContent: HTMLElement, imageUrls: string[]): void;
@@ -213,6 +223,7 @@ export type ContentToBackgroundMessage =
   | { type: 'suggestAnnoyingReasons'; post: string; siteId?: SiteId }
   | { type: 'clearCache' }
   | { type: 'clearSinglePost'; post: string }
+  | { type: 'bouncePost'; post: string; phrase?: string; reasoning?: string; siteId: SiteId }
   | { type: 'getStats' }
   | { type: 'getReasoning'; post: string }
   | { type: 'getErrorStatus' }
@@ -233,7 +244,7 @@ export type BackgroundToContentMessage =
   | { type: 'processingPost'; postUrl: string }
   | { type: 'annoyingProgress'; verified: number; total: number }
   | { type: 'evaluationStarted'; evaluationId: string; detectorNames: string[] }
-  | { type: 'detectorResponse'; evaluationId: string; detectorName: string; shouldHide?: boolean; reasoning?: string; category?: string | null; error?: string; skipped?: boolean; skipReason?: string };
+  | { type: 'detectorResponse'; evaluationId: string; detectorName: string; shouldHide?: boolean; reasoning?: string; category?: string | null; matches?: string[]; error?: string; skipped?: boolean; skipReason?: string };
 
 // ==================== Dependency Injection ====================
 
@@ -261,7 +272,7 @@ export interface PostOperations {
 
 export interface PostState {
   processedPosts: WeakSet<HTMLElement>;
-  postReasonings: WeakMap<HTMLElement, { shouldHide: boolean; reasoning: string; rawResponse?: string | null; isModelError?: boolean }>;
+  postReasonings: WeakMap<HTMLElement, { shouldHide: boolean; reasoning: string; rawResponse?: string | null; isModelError?: boolean; category?: string | null; matches?: string[]; userOverride?: boolean }>;
   pendingPosts: Set<HTMLElement>;
 }
 

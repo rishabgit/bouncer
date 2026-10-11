@@ -1,11 +1,12 @@
 // Bouncer - Content Script
 // Entry point: post processing, observers, init, storage/message listeners
 
-import type { PlatformAdapter, PostContent, PipelineResponse, BackgroundToContentMessage, DescriptionKey } from '../types';
+import type { PlatformAdapter, PostContent, PostState, PipelineResponse, BackgroundToContentMessage, DescriptionKey } from '../types';
 import { getStorage, removeStorage, getDescriptions, setDescriptions } from '../shared/storage';
 import { FILTER_PACK_CODE_PREFIX } from '../shared/share-encoding';
 import { postViewportPriority } from './geometry';
-import { restoreFilteredContainer, scheduleFilteredHide } from './dom-state';
+import { hasScheduledFilteredHide, restoreFilteredContainer, scheduleFilteredHide } from './dom-state';
+import { currentPostDecision, forgetPostDecision, isPostIdentityCurrent, postIdentity, rememberPostDecision } from './filter-actions';
 
 // iOS support was removed from this local-only fork (WKWebView has no WebGPU),
 // so these are desktop no-ops that keep the shared UI module's shape stable.
@@ -35,6 +36,10 @@ import {
   setupSearchBarHide,
   initDetectorStates,
   updateDetectorState,
+  reconcileFilterChanges,
+  removeFilteredPostForArticle,
+  resetPostForRecycling,
+  clearDetectorStates,
 } from './ui';
 
 import { formatPostForEvaluation } from '../shared/utils';
@@ -84,7 +89,7 @@ import { formatPostForEvaluation } from '../shared/utils';
   // ==================== Core State ====================
 
   const processedPosts = new WeakSet<HTMLElement>();
-  const postReasonings = new WeakMap<HTMLElement, { shouldHide: boolean; reasoning: string; rawResponse?: string | null; isModelError?: boolean }>();
+  const postReasonings: PostState['postReasonings'] = new WeakMap();
   const errorPostUrls = new Set<string>();
   const lastProcessedContent = new WeakMap<HTMLElement, string>();
   const pendingPostReeval = new Map<HTMLElement, ReturnType<typeof setTimeout>>();
@@ -94,6 +99,7 @@ import { formatPostForEvaluation } from '../shared/utils';
   const stuckPostCheckDelay = 5000;
   let isLocalModelActive = false;
   let enabled = true;
+  let filterGeneration = 0;
   // Cached `filterReplies` setting; loaded on init and kept current by the
   // storage-change listener below. Defaults to true so the gate is a no-op
   // until the user explicitly opts out.
@@ -148,18 +154,22 @@ import { formatPostForEvaluation } from '../shared/utils';
   // store URL). Entries auto-expire 30s after the evaluation completes so
   // late-arriving detector responses (e.g. AI taking 14s post-race) still
   // route correctly.
-  const articleByEvaluationId = new Map<string, HTMLElement>();
+  const articleByEvaluationId = new Map<string, { article: HTMLElement; identity: string; generation: number }>();
   const EVALUATION_ID_TTL_MS = 30000;
 
-  function registerEvaluation(id: string, article: HTMLElement) {
-    articleByEvaluationId.set(id, article);
+  function registerEvaluation(id: string, article: HTMLElement, identity: string, generation: number) {
+    articleByEvaluationId.set(id, { article, identity, generation });
   }
   function releaseEvaluation(id: string) {
     setTimeout(() => articleByEvaluationId.delete(id), EVALUATION_ID_TTL_MS);
   }
   function articleForEvaluation(id: string | undefined): HTMLElement | null {
     if (!id) return null;
-    return articleByEvaluationId.get(id) ?? null;
+    const entry = articleByEvaluationId.get(id);
+    return entry && enabled && entry.generation === filterGeneration
+      && isPostIdentityCurrent(adapter, entry.article, entry.identity)
+      && !currentPostDecision(adapter, entry.article)?.userOverride
+      && !replyFilteringIsDisabled(entry.article) ? entry.article : null;
   }
 
   function extractPostContent(article: HTMLElement): PostContent {
@@ -181,8 +191,16 @@ import { formatPostForEvaluation } from '../shared/utils';
     return !filterReplies && adapter.isPermalinkView() && !adapter.isMainPost(article);
   }
 
-  function restoreReplyPost(article: HTMLElement): boolean {
+  function restoreReplyPost(article: HTMLElement, force = false): boolean {
+    const decision = currentPostDecision(adapter, article);
+    // A deliberate single reply Bounce remains available while auto filtering
+    // is disabled. A new toggle-off action still restores every existing reply.
+    if (!force && decision?.userOverride && decision.shouldHide) return false;
     const restored = restoreFilteredContainer(adapter.getPostContainer(article), article);
+    forgetPostDecision(article);
+    removeFilteredPostForArticle(article);
+    postReasonings.set(article, { shouldHide: false, reasoning: 'Reply filtering is disabled.' });
+    clearDetectorStates(article);
     if (article.hasAttribute('data-ff-pending')) {
       // Also cancel the pending-dim timer owned by the UI module. A reply can
       // be mid-evaluation (not yet hidden) when the setting changes.
@@ -194,19 +212,27 @@ import { formatPostForEvaluation } from '../shared/utils';
 
   // Re-evaluate a single post
   async function reEvaluateSinglePost(article: HTMLElement) {
+    const identity = postIdentity(adapter, article);
     // Use store data for cache clearing (same source as evaluatePost)
     let content: PostContent | undefined;
     try {
       content = await adapter.extractPostContentFromStore(article) ?? undefined;
     } catch { /* store not ready */ }
     if (!content) return;
+    if (!isPostIdentityCurrent(adapter, article, identity)) return;
 
     if (!content.text.trim()) return;
 
-    await chrome.runtime.sendMessage({
+    const response: { success?: boolean; error?: string } | undefined = await chrome.runtime.sendMessage({
       type: 'clearSinglePost',
       post: formatPostForEvaluation(content)
     });
+
+    if (!isPostIdentityCurrent(adapter, article, identity)) return;
+    if (!response?.success) throw new Error(response?.error || 'The post cache could not be cleared.');
+    restoreFilteredContainer(adapter.getPostContainer(article), article);
+    removeFilteredPostForArticle(article);
+    forgetPostDecision(article);
 
     postReasonings.delete(article);
     await evaluatePost(article);
@@ -219,6 +245,9 @@ import { formatPostForEvaluation } from '../shared/utils';
 
   // Evaluate a post using the background script
   async function evaluatePost(article: HTMLElement) {
+    if (!enabled || currentPostDecision(adapter, article)?.userOverride) return;
+    const identity = postIdentity(adapter, article);
+    const generation = filterGeneration;
     console.log('[Bouncer] evaluatePost called, isInApp:', isInApp);
     let content: PostContent | undefined;
 
@@ -231,6 +260,9 @@ import { formatPostForEvaluation } from '../shared/utils';
       try {
         content = await adapter.extractPostContentFromStore(article) ?? undefined;
       } catch { /* store not ready */ }
+
+      if (!isPostIdentityCurrent(adapter, article, identity) || generation !== filterGeneration
+          || !enabled || currentPostDecision(adapter, article)?.userOverride) return;
 
       // If store returned nothing, defer for MutationObserver to retry
       if (!content) {
@@ -250,6 +282,9 @@ import { formatPostForEvaluation } from '../shared/utils';
       }
     }
 
+    if (!isPostIdentityCurrent(adapter, article, identity) || generation !== filterGeneration
+        || !enabled || currentPostDecision(adapter, article)?.userOverride) return;
+
     // Clear retry counter on success
     delete article.dataset.ffStoreRetries;
 
@@ -264,7 +299,7 @@ import { formatPostForEvaluation } from '../shared/utils';
     }
 
     const evaluationId = crypto.randomUUID();
-    registerEvaluation(evaluationId, article);
+    registerEvaluation(evaluationId, article, identity, generation);
     try {
       console.log('[Bouncer] Sending evaluatePost message for:', content.text?.substring(0, 60));
       const evaluatePromise = chrome.runtime.sendMessage({
@@ -282,6 +317,9 @@ import { formatPostForEvaluation } from '../shared/utils';
       if (content.postUrl && content.postUrl === currentlyProcessingPostUrl) {
         currentlyProcessingPostUrl = null;
       }
+
+      if (!isPostIdentityCurrent(adapter, article, identity) || generation !== filterGeneration
+          || !enabled || currentPostDecision(adapter, article)?.userOverride) return;
 
       // The setting may have changed while inference was in flight. Do not let
       // a late response fade or hide a reply after the user has opted out.
@@ -309,6 +347,9 @@ import { formatPostForEvaluation } from '../shared/utils';
         if (response.retryAfterMs !== undefined) {
           setTimeout(() => {
             if (article.isConnected
+                && isPostIdentityCurrent(adapter, article, identity)
+                && generation === filterGeneration && enabled
+                && !currentPostDecision(adapter, article)?.userOverride
                 && !article.dataset.filteredByExtension
                 && !processedPosts.has(article)) {
               processPost(article, true);
@@ -339,13 +380,17 @@ import { formatPostForEvaluation } from '../shared/utils';
       // positives are effectively zero. Manual user-flagged hides (in ui.ts)
       // remain unaffected — this only vetoes the AI's automatic decision.
       const containsShareCode = (article.textContent || '').includes(FILTER_PACK_CODE_PREFIX);
-      const effectiveShouldHide = response.shouldHide && !containsShareCode;
+      const effectiveShouldHide = response.shouldHide && (response.userOverride || !containsShareCode);
 
       postReasonings.set(article, {
         shouldHide: effectiveShouldHide,
         reasoning: response.reasoning || 'No reasoning available',
-        rawResponse: response.rawResponse || null
+        rawResponse: response.rawResponse || null,
+        category: response.category ?? null,
+        matches: response.matches,
+        userOverride: response.userOverride,
       });
+      rememberPostDecision(article, { identity, shouldHide: effectiveShouldHide, matches: response.matches, userOverride: response.userOverride });
 
       if (effectiveShouldHide) {
         if (content.postUrl) {
@@ -367,7 +412,17 @@ import { formatPostForEvaluation } from '../shared/utils';
         };
 
         // Store in filtered posts list
-        storeFilteredPost(article, mergedContent, response.reasoning, response.rawResponse || '', response.category || null);
+        storeFilteredPost(article, mergedContent, response.reasoning, response.rawResponse || '', response.category || null, response.matches, response.userOverride);
+
+        const hideIfCurrent = () => {
+          const decision = currentPostDecision(adapter, article);
+          if (isPostIdentityCurrent(adapter, article, identity) && generation === filterGeneration
+              && enabled && !replyFilteringIsDisabled(article) && decision?.shouldHide) {
+            hidePost(article);
+          } else if (!decision?.userOverride) {
+            restoreFilteredContainer(adapter.getPostContainer(article), article);
+          }
+        };
 
         const bar = article.querySelector('.post-verification-bar');
         const wasVerified = bar && bar.classList.contains('verified');
@@ -378,19 +433,19 @@ import { formatPostForEvaluation } from '../shared/utils';
         const isAboveViewport = container && container.getBoundingClientRect().bottom <= 0;
 
         if (isAboveViewport) {
-          hidePost(article);
+          hideIfCurrent();
         } else if (wasVerified) {
           article.style.transition = 'opacity 0.3s ease';
           article.style.opacity = '0';
-          scheduleFilteredHide(article, () => hidePost(article));
+          scheduleFilteredHide(article, hideIfCurrent);
         } else if (response.cached) {
           // Instant hide for cache hits (post was already evaluated in a prior scroll)
-          hidePost(article);
+          hideIfCurrent();
         } else {
           // Animated fade-out for fresh evaluations
           article.style.transition = 'opacity 0.3s ease';
           article.style.opacity = '0';
-          scheduleFilteredHide(article, () => hidePost(article));
+          scheduleFilteredHide(article, hideIfCurrent);
         }
       } else {
         if (content.postUrl) {
@@ -401,6 +456,8 @@ import { formatPostForEvaluation } from '../shared/utils';
     } catch (err) {
       console.debug('Post evaluation error:', err);
       releaseEvaluation(evaluationId);
+      if (!isPostIdentityCurrent(adapter, article, identity) || generation !== filterGeneration
+          || !enabled || currentPostDecision(adapter, article)?.userOverride) return;
       postReasonings.set(article, {
         shouldHide: false,
         reasoning: `Error evaluating: ${(err instanceof Error) ? err.message : 'Unknown error'}`
@@ -411,10 +468,15 @@ import { formatPostForEvaluation } from '../shared/utils';
 
   // Process a single post - sends it to background for evaluation
   function processPost(article: HTMLElement, forceForYou = false) {
+    if (adapter.restoreRecycledPost(article)) resetPostForRecycling(article);
+    if (!enabled) return;
     if (getFFPageActive()) { console.log('[Bouncer] processPost: skipped (FF page active)'); return; }
     if (!forceForYou && !adapter.shouldProcessCurrentPage()) { console.log('[Bouncer] processPost: skipped (shouldProcessCurrentPage false, path:', window.location.pathname, ')'); return; }
 
     if (adapter.isMainPost(article)) return;
+
+    addContextMenuHandler(article);
+    addWhyAnnoyingButton(article);
 
     // "Filter replies/comments" toggle: on a permalink page everything
     // below the main post is a reply. The main-timeline filter is
@@ -433,14 +495,8 @@ import { formatPostForEvaluation } from '../shared/utils';
 
     processedPosts.add(article);
 
-    // Track post identity via URL (lightweight - avoids full DOM extraction)
-    const contentKey = adapter.getPostContentKey(article);
+    const contentKey = postIdentity(adapter, article);
     lastProcessedContent.set(article, contentKey);
-
-    addContextMenuHandler(article);
-
-    // Add inline "why annoying" trash-can button next to Share
-    addWhyAnnoyingButton(article);
 
     if (forceForYou || adapter.shouldProcessCurrentPage()) {
       evaluatePost(article).catch(err => console.error('[Bouncer] evaluatePost failed:', err));
@@ -461,6 +517,7 @@ import { formatPostForEvaluation } from '../shared/utils';
       }
       if (adapter.isMainPost(article)) return;
       if (skipReplies) return;
+      if (currentPostDecision(adapter, article)?.userOverride) return;
 
       processedPosts.delete(article);
 
@@ -470,7 +527,7 @@ import { formatPostForEvaluation } from '../shared/utils';
       // fires, the post never goes through the pending UI; true cache misses
       // still show pending after the short delay.
       const pendingTimer = setTimeout(() => {
-        if (!replyFilteringIsDisabled(article)) markPostPending(article);
+        if (enabled && !replyFilteringIsDisabled(article) && !currentPostDecision(adapter, article)?.userOverride) markPostPending(article);
       }, 120);
       evaluatePost(article)
         .catch(err => console.error('[Bouncer] evaluatePost failed:', err))
@@ -482,9 +539,6 @@ import { formatPostForEvaluation } from '../shared/utils';
 
   function schedulePostReeval(article: HTMLElement) {
     if (!article.isConnected) return;
-    if (adapter.isMainPost(article)) return;
-    if (!filterReplies && adapter.isPermalinkView()) return;
-    if (adapter.getPostContainer(article).dataset.filteredByExtension) return;
 
     if (pendingPostReeval.has(article)) {
       clearTimeout(pendingPostReeval.get(article));
@@ -496,20 +550,16 @@ import { formatPostForEvaluation } from '../shared/utils';
       if (!article.isConnected) return;
 
       // Lightweight content key to detect DOM recycling
-      const contentKey = adapter.getPostContentKey(article);
+      const contentKey = postIdentity(adapter, article);
 
       const previousKey = lastProcessedContent.get(article);
       if (previousKey === contentKey) {
         return;
       }
 
-      processedPosts.delete(article);
-      postReasonings.delete(article);
-      const oldBar = article.querySelector('.post-verification-bar');
-      if (oldBar) oldBar.remove();
-
       lastProcessedContent.set(article, contentKey);
-
+      if (currentPostDecision(adapter, article)?.userOverride) return;
+      resetPostForRecycling(article);
       processPost(article, true);
     }, POST_REEVAL_DELAY);
 
@@ -554,6 +604,9 @@ import { formatPostForEvaluation } from '../shared/utils';
       if (getFilteredTabActive() || getFFPageActive()) return;
 
       for (const mutation of mutations) {
+        const target = mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;
+        const changedArticle = target?.closest<HTMLElement>(adapter.selectors.post);
+        if (changedArticle) schedulePostReeval(changedArticle);
         for (const node of mutation.addedNodes) {
           if (node.nodeType !== Node.ELEMENT_NODE) continue;
           const el = node as HTMLElement;
@@ -579,6 +632,9 @@ import { formatPostForEvaluation } from '../shared/utils';
 
     observer.observe(document.body, {
       childList: true,
+      characterData: true,
+      attributes: true,
+      attributeFilter: ['href'],
       subtree: true
     });
   }
@@ -638,10 +694,21 @@ import { formatPostForEvaluation } from '../shared/utils';
     // Listen for settings changes
     chrome.storage.onChanged.addListener((changes) => {
       if (changes.enabled) {
+        filterGeneration++;
         enabled = changes.enabled.newValue as boolean;
         if (enabled) {
           observePosts();
           processExistingPosts();
+        } else {
+          findPosts().forEach(article => {
+            if (currentPostDecision(adapter, article)?.userOverride) return;
+            if (hasScheduledFilteredHide(article) || pendingPosts.has(article)) {
+              resetPostForRecycling(article);
+            } else if (adapter.getPostContainer(article).dataset.filteredByExtension !== 'true') {
+              // Release visible/in-flight posts so re-enabling can process them.
+              processedPosts.delete(article);
+            }
+          });
         }
       }
       if (changes.selectedModel) {
@@ -652,8 +719,9 @@ import { formatPostForEvaluation } from '../shared/utils';
         syncFilterPhrases();
         const oldDescs = (changes[descriptionsKey].oldValue as string[] | undefined) || [];
         const newDescs = (changes[descriptionsKey].newValue as string[] | undefined) || [];
-        // Only re-evaluate when a phrase was added, not removed
-        if (newDescs.length > oldDescs.length) {
+        if (oldDescs.length !== newDescs.length || oldDescs.some((phrase, index) => phrase !== newDescs[index])) {
+          filterGeneration++;
+          reconcileFilterChanges(newDescs, false);
           reEvaluateAllPosts();
         }
       }
@@ -670,7 +738,7 @@ import { formatPostForEvaluation } from '../shared/utils';
           // home-timeline filtering is unaffected by this setting.
           findPosts().forEach(article => {
             if (adapter.isMainPost(article)) return;
-            restoreReplyPost(article);
+            restoreReplyPost(article, true);
             processedPosts.delete(article);
           });
         }
@@ -803,6 +871,7 @@ import { formatPostForEvaluation } from '../shared/utils';
             shouldHide: message.shouldHide,
             reasoning: message.reasoning,
             category: message.category ?? null,
+            matches: message.matches,
             error: message.error,
             skipReason: message.skipReason,
           });

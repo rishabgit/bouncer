@@ -9,6 +9,10 @@ harness.
 This is a one-model product, not a permanent two-model pipeline. E4B is neither
 shown in the popup nor loaded by normal filtering.
 
+The model decision remains in force. The later
+[2026-10-11 runtime/prefix-cache verification](runtime-upgrade.md) records the
+LiteRT-LM 0.17.0 upgrade using the same pinned E2B artifact and strict contract.
+
 ## Why this question existed
 
 Upstream Bouncer had already replaced WebLLM/Qwen in its desktop local path

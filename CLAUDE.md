@@ -80,6 +80,12 @@ recent automatic cache hits, which can be recomputed.
 ### Production model: Gemma 4 E2B through LiteRT-LM
 
 The production catalog has one text-only model: revision-pinned Gemma 4 E2B.
+The runtime is pinned to LiteRT-LM 0.17.0. It caches a prefilled base by exact
+preface and output ceiling, clones it per request, and delays disposal of the
+previous clone until its successor exists. Cancellation epochs invalidate
+queued and setup work before decode. Keep these boundaries when changing
+prefill or cleanup; never accumulate post history in the cached base. See
+`docs/benchmarks/runtime-upgrade.md` for current quality and latency evidence.
 `LocalEngine` uses the shared `table_yesno` request and strict parser for
 classification. Multi-category output may be either ordered yes/no rows or
 category-labeled rows, but labeled output is accepted only when all requested

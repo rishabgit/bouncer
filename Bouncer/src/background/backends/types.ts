@@ -1,48 +1,23 @@
-// Common boundary between the model lifecycle orchestrator and LiteRT-LM.
-// Keeping this seam makes the runtime testable without carrying multiple
-// product backends.
+import type { ChatMessage } from '../../types';
 
-import type { LocalModelDef, ChatMessage } from '../../types';
-
-export interface InitProgress {
-  progress: number;   // 0..1
-  text: string;
+export interface NativeReadiness {
+  version: string;
+  modelDigest: string;
+  resident: boolean;
+  otherModelResident: boolean;
 }
 
+export interface NativeGenerationHooks {
+  /** Persist the durable lease and recheck cancellation before any POST. */
+  beforeSubmit(readiness: NativeReadiness): Promise<void>;
+  /** Final synchronous epoch check immediately before fetch invocation. */
+  assertCanSubmit(): void;
+  /** Called only for a terminal, local response, even after caller timeout. */
+  onTerminal(): Promise<void>;
+}
+
+/** Narrow boundary for the sole fixed native classifier. */
 export interface LocalBackend {
-  // True when this backend owns an isolated runtime and can safely unload a
-  // late engine after its initialization was superseded. Chrome LiteRT uses a
-  // shared offscreen host, so its proxy leaves this false.
-  unloadAfterSuperseded?: boolean;
-
-  // Load weights, tokenizer, and the GPU context. Resolves once the backend is
-  // ready to accept generate() calls. Should honor abortSignal during downloads.
-  initialize(
-    modelDef: LocalModelDef,
-    onProgress: (p: InitProgress) => void,
-    abortSignal: AbortSignal,
-  ): Promise<void>;
-
-  // Free GPU memory and tokenizer state.
-  unload(): Promise<void>;
-
-  // Run a single completion and return trimmed text with think blocks removed.
-  generate(
-    messages: ChatMessage[],
-    maxTokens: number,
-  ): Promise<string>;
-
-  // Cancel an in-flight generate(). Should be cheap to call when idle.
-  interrupt(): Promise<void>;
-
-  // Tokenizer helpers used by the post-evaluation orchestration to fit prompts
-  // inside the context window.
-  countTokens(text: string): Promise<number>;
-  truncateText(text: string, maxTokens: number): Promise<string>;
-
+  check(): Promise<NativeReadiness>;
+  generate(messages: ChatMessage[], maxTokens: number, hooks: NativeGenerationHooks): Promise<string>;
 }
-
-// Backend-level static cache check — answered without an initialized engine.
-// A standalone function (not a method) because the orchestrator probes cache
-// state for models that aren't currently loaded.
-export type IsCachedFn = (modelDef: LocalModelDef) => Promise<boolean>;

@@ -169,7 +169,7 @@ section + section {
   white-space: nowrap;
 }
 
-.status-badge.downloading {
+.status-badge.busy {
   background: var(--warning-bg);
   color: var(--warning-text);
 }
@@ -203,106 +203,32 @@ button:disabled {
   opacity: 0.55;
 }
 
-.local-model-download-btn {
+.local-model-actions {
   display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.local-model-connect-btn,
+.local-model-retry-btn {
   margin-top: 10px;
-  padding: 10px 16px;
-  border: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-  color: #ffffff;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 650;
-}
-
-.local-model-download-btn:not(:disabled):hover {
-  filter: brightness(0.95);
-}
-
-.download-icon {
-  font-size: 16px;
-}
-
-.local-model-progress {
-  width: 100%;
-  height: 8px;
-  margin: 8px 0;
-  overflow: hidden;
-  border-radius: 999px;
-  background: var(--border);
-}
-
-.local-model-progress-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #10b981 0%, #059669 100%);
-  transition: width 0.25s ease;
-}
-
-.local-model-progress-fill.indeterminate {
-  width: 35% !important;
-  animation: model-progress 1.2s ease-in-out infinite alternate;
-}
-
-@keyframes model-progress {
-  from { transform: translateX(-20%); }
-  to { transform: translateX(210%); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .local-model-progress-fill.indeterminate {
-    animation: none;
-    width: 100% !important;
-  }
-}
-
-.local-model-download-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.local-model-download-row .hint {
-  flex: 1;
-}
-
-.local-model-cancel-btn {
-  display: inline-flex;
-  width: 24px;
-  height: 24px;
-  flex-shrink: 0;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 50%;
   background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 11px;
-}
-
-.local-model-cancel-btn:not(:disabled):hover {
-  border-color: var(--error);
-  background: var(--error-bg);
-  color: var(--error);
-}
-
-.local-model-retry-btn,
-.local-model-delete-btn {
-  margin-top: 9px;
-  padding: 7px 11px;
-  border: 1px solid var(--border);
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-muted);
+  color: var(--text);
   cursor: pointer;
   font-size: 12px;
+}
+
+.local-model-connect-btn {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.local-model-connect-btn:not(:disabled):hover {
+  background: var(--accent-hover);
 }
 
 .local-model-retry-btn:not(:disabled):hover {
@@ -310,19 +236,25 @@ button:disabled {
   color: var(--accent);
 }
 
-.local-model-delete-btn:not(:disabled):hover {
-  border-color: var(--error);
-  background: var(--error-bg);
+.local-model-setup-help {
+  margin-top: 10px;
+  overflow-wrap: anywhere;
+}
+
+.local-model-setup-help summary {
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.local-model-setup-help p {
+  margin-top: 8px;
+}
+
+.local-model-action-error {
   color: var(--error);
 }
 
-.local-model-error-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.local-model-error-text,
 .local-model-action-error {
   color: var(--error);
 }

@@ -1,10 +1,8 @@
-// Dev-only latency-benchmark worker. Each call runs ONE bounded operation; the
-// page (src/benchmark/index.ts) owns the run loop. Reachable only in --dev
-// builds — the benchmark page isn't built in prod and the index.ts dispatch is
-// __DEV__-guarded, so this code is unreachable (and tree-shaken) in production.
+// Development-only actual-extension checks. Each message owns one bounded
+// operation through the fixed classifier and the normal native lease.
 
 import { localEngine, callLocalInference } from './local-model';
-import { PREDEFINED_MODELS } from '../shared/models';
+import { PRIMARY_LOCAL_MODEL, PRIMARY_LOCAL_MODEL_ID } from '../shared/models';
 import type {
   BenchmarkOp, BenchmarkPost, BenchmarkPromptMode,
   BenchmarkInferResult, BenchmarkLoadResult,
@@ -12,66 +10,53 @@ import type {
 
 export interface BenchmarkRequest {
   op: BenchmarkOp;
-  modelId?: string;
   post?: BenchmarkPost;
   categories?: string[];
   promptMode?: BenchmarkPromptMode;
 }
 
 export async function handleBenchmark(req: BenchmarkRequest): Promise<unknown> {
-  // Dev-only guard. The driving page isn't built in prod, but this also blocks
-  // any same-extension caller (e.g. an injected content script) from kicking off
-  // inference in a production build.
   if (!__DEV__) return { error: 'Benchmark is disabled in production builds' };
-
+  if ('modelId' in req || 'endpoint' in req || 'model' in req) {
+    throw new Error('The benchmark uses only the fixed native classifier.');
+  }
   switch (req.op) {
     case 'load': {
-      const modelId = req.modelId;
-      if (!modelId) throw new Error('benchmark load: modelId required');
-      // reset() first (untimed): ensureLoaded would otherwise unload any prior
-      // model inside the timed call, polluting the cold-load number. Then time
-      // pure cache→VRAM + WebGPU compile.
-      await localEngine.reset();
-      const t0 = performance.now();
-      await localEngine.ensureLoaded(modelId);
-      return { loadMs: performance.now() - t0 } satisfies BenchmarkLoadResult;
+      // Metadata readiness does not warm native weights. First-inference time
+      // includes a native load only if Ollama has actually expired its runner.
+      const started = performance.now();
+      await localEngine.ensureLoaded();
+      return { loadMs: performance.now() - started } satisfies BenchmarkLoadResult;
     }
-
     case 'infer': {
-      const modelId = req.modelId;
-      if (!modelId || !req.post || !req.categories) {
-        throw new Error('benchmark infer: modelId, post, and categories required');
+      if (typeof req.post?.text !== 'string' || !Array.isArray(req.categories)
+          || !req.categories.length || req.categories.length > 10
+          || req.categories.some(value => typeof value !== 'string' || !value.trim())
+          || (req.promptMode !== undefined && !['baseline', 'intent'].includes(req.promptMode))) {
+        throw new Error('Benchmark inference requires bounded post text and filter phrases.');
       }
-      const cfg = PREDEFINED_MODELS.local.find(m => m.name === modelId) ?? null;
-      const t0 = performance.now();
-      // Real per-classification path: builds the table_yesno prompt,
-      // truncates, and times generation.
+      const started = performance.now();
       const result = await callLocalInference(
-        { text: req.post.text },
-        req.categories,
-        cfg,
-        modelId,
+        { text: req.post.text }, req.categories, PRIMARY_LOCAL_MODEL, PRIMARY_LOCAL_MODEL_ID,
         { promptMode: req.promptMode },
       );
-      const wallMs = performance.now() - t0;
+      if (result.malformed) throw new Error('Malformed benchmark classification.');
       return {
         inferenceTime: result.inferenceTime ?? 0,
-        wallMs,
+        wallMs: performance.now() - started,
         shouldHide: result.shouldHide,
         reasoning: result.reasoning,
         rawResponse: result.rawResponse ?? null,
         completionChars: (result.rawResponse ?? '').length,
-        // LiteRT-LM does not expose token-level timing through its JS API.
         usage: null,
       } satisfies BenchmarkInferResult;
     }
-
     case 'unload': {
-      await localEngine.reset();
+      // Retire only extension work. Never unload a shared native runner.
+      await localEngine.drainQueue(() => Promise.resolve(undefined));
       return { ok: true };
     }
-
     default:
-      throw new Error(`benchmark: unknown op ${String((req as { op: unknown }).op)}`);
+      throw new Error(`Unknown benchmark operation: ${String(req.op)}`);
   }
 }

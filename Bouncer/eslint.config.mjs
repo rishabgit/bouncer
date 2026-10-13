@@ -130,7 +130,6 @@ export default tseslint.config(
       'node_modules/',
       'vendor/',
       'dompurify.js',
-      'browser-polyfill.js',
     ],
   },
 );

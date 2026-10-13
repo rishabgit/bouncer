@@ -5,8 +5,8 @@ export type LocalPromptMode = 'baseline' | 'intent';
 // Table-yesno prompt ported from imbue-ai/bouncer-evals-and-results
 // (src/prompts/table_yesno.py). The model emits one pipe-delimited row of
 // `yes`/`no` verdicts — one per category, in the order given. Far fewer output
-// tokens than a reasoning sentence, which dominates wall-clock for a 4B model
-// decoding on consumer WebGPU. Used by the LiteRT-LM/Gemma path; callers parse
+// tokens than a reasoning sentence. The fixed Gemma classifier uses this
+// shared request contract; callers parse
 // known formatting shapes with strict arity and fall back to SHOW on malformed output.
 export const TABLE_YESNO_SYSTEM_PROMPT = `You will see a social media post and a list of candidate categories. For each category, decide whether the post matches that category.
 

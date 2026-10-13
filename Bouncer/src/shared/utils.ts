@@ -28,35 +28,6 @@ export function generateCacheKey(post: string): string {
   return `${normalizedPost.length}:${fingerprint}:${normalizedPost.slice(0, 120)}`;
 }
 
-// Helper to detect GPU device lost or OOM errors
-export function isGPUDeviceLostError(errorMessage: string): boolean {
-  if (!errorMessage) return false;
-  const lowerError = errorMessage.toLowerCase();
-  return (lowerError.includes('device') && (lowerError.includes('lost') || lowerError.includes('destroyed'))) ||
-         (lowerError.includes('out of memory') || lowerError.includes('oom')) ||
-         lowerError.includes('resource_exhausted') ||
-         lowerError.includes('gpu') && lowerError.includes('memory');
-}
-
-// Helper to detect network/download errors that are retryable
-export function isNetworkError(errorMessage: string): boolean {
-  if (!errorMessage) return false;
-  const lowerError = errorMessage.toLowerCase();
-  return lowerError.includes('fetch') ||
-         lowerError.includes('network') ||
-         lowerError.includes('failed to load') ||
-         lowerError.includes('connection') ||
-         lowerError.includes('timeout') && !lowerError.includes('inference');
-}
-
-// Format a parsed local-inference result for the evaluation pipeline.
-export function formatLocalInferenceResult(reasoning: string, shouldHide: boolean): { shouldHide: boolean; reasoning: string } {
-  return {
-    shouldHide: shouldHide,
-    reasoning: reasoning || 'No reasoning provided'
-  };
-}
-
 // Clean reasoning string by removing "category n: " prefixes and "|" separators
 export function cleanReasoning(reasoning: string | null | undefined): string | null | undefined {
   if (!reasoning) return reasoning;

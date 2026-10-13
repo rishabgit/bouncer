@@ -31,6 +31,8 @@ interface FilteredCellPost {
   identity: string;
 }
 
+const FIBER_EXTRACTOR_LOAD_TIMEOUT_MS = 2_000;
+
 window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
   siteId = 'twitter' as const;
 
@@ -46,12 +48,14 @@ window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
   };
 
   private _fiberExtractorReady = false;
+  private _fiberExtractorLoading: Promise<boolean> | null = null;
+  private _fiberExtractorResultListenerAttached = false;
   private _pendingStoreRequests = new Map<string, (result: StoreResult) => void>();
   private _filteredCellPosts = new WeakMap<HTMLElement, FilteredCellPost>();
 
   constructor() {
-    // Eagerly inject the fiber extractor so it's ready before the first post is processed
-    this.initFiberExtractor();
+    // Start loading eagerly; initial posts must still await its real load event.
+    void this.initFiberExtractor();
     this._initFilteredPostObserver();
   }
 
@@ -448,29 +452,69 @@ window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
    * Content scripts run in an isolated world and can't access __reactFiber$ or the store,
    * so we inject into the page context and communicate via CustomEvent.
    */
-  private initFiberExtractor() {
-    if (this._fiberExtractorReady) return;
-    this._fiberExtractorReady = true;
+  private initFiberExtractor(): Promise<boolean> {
+    if (this._fiberExtractorReady) return Promise.resolve(true);
+    if (this._fiberExtractorLoading) return this._fiberExtractorLoading;
+
+    // Install the response listener before the script can run, including on a
+    // retry after a failed load. There must only be one listener per adapter.
+    if (!this._fiberExtractorResultListenerAttached) {
+      this._fiberExtractorResultListenerAttached = true;
+      document.addEventListener('ff-tweet-data-result', (e) => {
+        try {
+          const detail = (e as CustomEvent).detail as string;
+          const result: StoreResult = JSON.parse(detail) as StoreResult;
+          const resolve = this._pendingStoreRequests.get(result.requestId);
+          if (resolve) {
+            this._pendingStoreRequests.delete(result.requestId);
+            resolve(result);
+          }
+        } catch (err) {
+          console.log('[Bouncer][Store] Parse error:', err);
+        }
+      });
+    }
 
     const script = document.createElement('script');
-    script.src = chrome.runtime.getURL('adapters/twitter/fiber-extractor.js');
-    (document.head || document.documentElement).appendChild(script);
-    script.onload = () => script.remove();
-
-    // Listen for store data results
-    document.addEventListener('ff-tweet-data-result', (e) => {
-      try {
-        const detail = (e as CustomEvent).detail as string;
-        const result: StoreResult = JSON.parse(detail) as StoreResult;
-        const resolve = this._pendingStoreRequests.get(result.requestId);
-        if (resolve) {
-          this._pendingStoreRequests.delete(result.requestId);
-          resolve(result);
-        }
-      } catch (err) {
-        console.log('[Bouncer][Store] Parse error:', err);
-      }
+    let resolveLoad!: (ready: boolean) => void;
+    const loading = new Promise<boolean>(resolve => {
+      resolveLoad = resolve;
     });
+    this._fiberExtractorLoading = loading;
+    const timeout = setTimeout(() => {
+      console.log('[Bouncer][Store] Extractor load timed out');
+      // Keep this in-flight script rather than injecting duplicate listeners.
+      // Timed-out callers finish with null; a genuine late load can still make
+      // the bridge available to future operations.
+      resolveLoad(false);
+    }, FIBER_EXTRACTOR_LOAD_TIMEOUT_MS);
+
+    script.onload = () => {
+      clearTimeout(timeout);
+      this._fiberExtractorReady = true;
+      this._fiberExtractorLoading = null;
+      script.remove();
+      script.onload = null;
+      script.onerror = null;
+      resolveLoad(true);
+    };
+    const failLoad = () => {
+      clearTimeout(timeout);
+      this._fiberExtractorLoading = null;
+      script.remove();
+      script.onload = null;
+      script.onerror = null;
+      console.log('[Bouncer][Store] Extractor load failed');
+      resolveLoad(false);
+    };
+    script.onerror = failLoad;
+    try {
+      script.src = chrome.runtime.getURL('adapters/twitter/fiber-extractor.js');
+      (document.head || document.documentElement).appendChild(script);
+    } catch {
+      failLoad();
+    }
+    return loading;
   }
 
   /**
@@ -487,19 +531,28 @@ window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
    * Extract tweet data from Twitter's Redux store via the injected main-world script.
    * Returns a Promise that resolves to store data or null (on timeout/error).
    */
-  private _extractTweetDataFromStore(article: HTMLElement): Promise<unknown> {
+  private async _extractTweetDataFromStore(article: HTMLElement): Promise<unknown> {
+    if (!await this.initFiberExtractor()) return null;
+
     const cellInnerDiv = article.closest<HTMLElement>('[data-testid="cellInnerDiv"]') || article;
     const requestId = 'ff-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
 
     return new Promise((resolve) => {
       const timeout = setTimeout(() => {
-        this._pendingStoreRequests.delete(requestId);
+        cleanup();
         console.log('[Bouncer][Store] Request timed out for', requestId);
         resolve(null);
       }, 200);
+      const cleanup = () => {
+        clearTimeout(timeout);
+        this._pendingStoreRequests.delete(requestId);
+        if (cellInnerDiv.getAttribute('data-ff-request') === requestId) {
+          cellInnerDiv.removeAttribute('data-ff-request');
+        }
+      };
 
       this._pendingStoreRequests.set(requestId, (result) => {
-        clearTimeout(timeout);
+        cleanup();
         if (result.success && result.data) {
           resolve(result.data);
         } else {

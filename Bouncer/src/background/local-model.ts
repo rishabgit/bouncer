@@ -1,1026 +1,504 @@
-// Local model orchestrator: lifecycle, status, queue, keep-alive, preemption.
-// Model-specific calls are delegated to a pluggable LocalBackend.
-
-import type { LocalModelDef, LocalModelStatus, EvaluationPostData, ChatMessage } from '../types';
-import { PREDEFINED_MODELS } from '../shared/models';
-import { isGPUDeviceLostError, isNetworkError, formatLocalInferenceResult } from '../shared/utils';
+// One serial native inference lease. Ollama owns loading and idle residency;
+// Bouncer owns eligibility, cancellation epochs and a durable content-free fence.
+import type {
+  ChatMessage,
+  EvaluationPostData,
+  LocalModelDef,
+  LocalModelStatus,
+  NativeOperationFence,
+} from '../types';
+import {
+  CONCURRENT_NATIVE_MODELS_QUALIFIED,
+  NATIVE_CLASSIFIER_FINGERPRINT,
+  NATIVE_CONTEXT_TOKENS,
+  OPERATOR_RESTART_RECOVERY_QUALIFIED,
+  PRIMARY_LOCAL_MODEL,
+  PRIMARY_LOCAL_MODEL_ID,
+} from '../shared/models';
+import {
+  NativeModelError,
+  NATIVE_METADATA_RETRY_MS,
+  OLLAMA_HOST_PERMISSION,
+  acceptedDigest,
+  nativeFailureStatus,
+  record,
+} from '../shared/ollama-contract';
 import type { LocalPromptMode } from '../shared/prompts';
 import { parseTableYesnoResponse } from '../shared/table-yesno';
-import { buildTableYesnoRequest } from '../shared/table-yesno-request';
+import { buildNativeTableYesnoRequest } from '../shared/table-yesno-request';
+import { getStorage, removeStorage, setStorage } from '../shared/storage';
 import { inferenceQueue } from './inference-queue';
-import { getStorage, setStorage } from '../shared/storage';
-import type { LocalBackend } from './backends/types';
-import {
-  LitertlmBackend,
-  isLitertlmCached,
-  deleteLitertlmCache,
-  forceCloseLitertlmOffscreen,
-} from './backends/litertlm-backend';
+import type { LocalBackend, NativeReadiness } from './backends/types';
+import { OllamaBackend } from './backends/ollama-backend';
 
 export { parseTableYesnoResponse } from '../shared/table-yesno';
-
-declare global {
-  interface Navigator {
-    gpu?: unknown;
-  }
-}
-
-// ==================== Constants ====================
-
-const KEEP_ALIVE_INTERVAL_MS = 5000;
-// Chrome MV3 and Firefox event pages can suspend during long local-model
-// downloads unless an extension API is touched more frequently than their
-// ~30s idle ceilings. Keep this comfortably below that boundary.
-const DOWNLOAD_KEEP_ALIVE_MS = 5000;
-const IDLE_TIMEOUT_MS = 60000;
-// Cold LiteRT-LM inference (first call after load) compiles WebGPU shaders,
-// prefills, and decodes — easily 30–60 s on a 4B model before the first token.
-const LITERTLM_INFERENCE_TIMEOUT_MS = 90000;
-const DOWNLOAD_MAX_RETRIES = 3;
-const DOWNLOAD_RETRY_DELAY_MS = 2000;
-const CANCEL_SETTLE_TIMEOUT_MS = 3000;
 export const MODEL_MAINTENANCE_ERROR = 'Local model maintenance in progress';
 
+type StatusUpdate = Omit<LocalModelStatus, 'revision'>;
 interface InferenceBackendLease {
   countTokens(text: string): Promise<number>;
   truncateText(text: string, maxTokens: number): Promise<string>;
   generate(messages: ChatMessage[], maxTokens: number): Promise<string>;
 }
 
-// ==================== Pure helpers ====================
-
-function resolveModel(modelId: string): LocalModelDef {
-  const modelDef = PREDEFINED_MODELS.local.find(model => model.name === modelId);
-  if (!modelDef) throw new Error(`Unknown local model: ${modelId}`);
-  return modelDef;
+function assertFixedModel(modelId: string): void {
+  if (modelId !== PRIMARY_LOCAL_MODEL_ID) {
+    throw new NativeModelError('model_identity_changed', 'Bouncer supports only its fixed native classifier.');
+  }
 }
 
-// Probe whether a model's weights are already on disk, without loading them.
-async function backendIsCached(modelDef: LocalModelDef): Promise<boolean> {
-  return isLitertlmCached(modelDef);
+function sameFence(value: unknown, operationId: string): boolean {
+  return record(value).operationId === operationId;
 }
-
-// ==================== LocalEngine ====================
 
 export class LocalEngine {
-  // The active backend. Null when no model is loaded. Named `engine` for
-  // backward compatibility with call sites that check it for truthiness.
-  engine: LocalBackend | null;
-  loadedModel: string | null;
-  _modelConfig: LocalModelDef | null;
+  private readonly _backend: LocalBackend;
+  private _epoch = 0;
+  private _maintenance = false;
+  private _maintenanceGeneration = 0;
+  private _statusWriteChain: Promise<void> = Promise.resolve();
+  private _fenceWriteChain: Promise<void> = Promise.resolve();
+  private _readinessPromise: Promise<NativeReadiness> | null = null;
+  private _activeOperationId: string | null = null;
+  private _retryRequired = false;
+  private _lastMetadataFailure: { at: number; error: unknown } | null = null;
+  private _readiness: NativeReadiness | null = null;
 
-  // Initialization tracking
-  _initializingModel: string | null;
-  _initPromise: Promise<LocalBackend | null> | null;
-  _initPromiseResolve: ((backend: LocalBackend | null) => void) | null;
-  _initAbortController: AbortController | null;
-  _initGeneration: number;
-  _activeInitGeneration: number | null;
-  _initSettledGeneration: number | null;
-  _initSettledPromise: Promise<void> | null;
-  _initSettledResolve: (() => void) | null;
-  _statusWriteChain: Promise<void>;
+  constructor(backend: LocalBackend = new OllamaBackend()) { this._backend = backend; }
 
-  // Keep-alive and idle timeout
-  _keepAliveInterval: ReturnType<typeof setInterval> | null;
-  _downloadKeepAliveInterval: ReturnType<typeof setInterval> | null;
-  _idleTimeoutId: ReturnType<typeof setTimeout> | null;
-
-  // Preemption state
-  _preempted: boolean;
-  _interruptSettledPromise: Promise<void> | null;
-  _maintenance: boolean;
-  _maintenanceGeneration: number;
-  // Includes prompt preparation (token counting/truncation), not only decode.
-  // Maintenance and the idle timer must treat the whole backend interaction as
-  // one operation because LiteRT cannot be unloaded between those steps.
-  _activeModelOperations: number;
-  _activityGeneration: number;
-  _terminalErrorModels: Set<string>;
-
-  constructor() {
-    this.engine = null;
-    this.loadedModel = null;
-    this._modelConfig = null;
-
-    this._initializingModel = null;
-    this._initPromise = null;
-    this._initPromiseResolve = null;
-    this._initAbortController = null;
-    this._initGeneration = 0;
-    this._activeInitGeneration = null;
-    this._initSettledGeneration = null;
-    this._initSettledPromise = null;
-    this._initSettledResolve = null;
-    this._statusWriteChain = Promise.resolve();
-
-    this._keepAliveInterval = null;
-    this._downloadKeepAliveInterval = null;
-    this._idleTimeoutId = null;
-
-    this._preempted = false;
-    this._interruptSettledPromise = null;
-    this._maintenance = false;
-    this._maintenanceGeneration = 0;
-    this._activeModelOperations = 0;
-    this._activityGeneration = 0;
-    this._terminalErrorModels = new Set();
-  }
-
-  // ---- State queries ----
-
-  isInitializing(): boolean { return this._initializingModel !== null; }
-  isModelLoaded(modelId: string): boolean { return this.engine !== null && this.loadedModel === modelId; }
-  isInitializingModel(modelId: string): boolean { return this._initializingModel === modelId; }
+  get operationEpoch(): number { return this._epoch; }
   isMaintaining(): boolean { return this._maintenance; }
 
-  async runMaintenance<T>(fn: () => Promise<T>, prepare?: () => void): Promise<T> {
-    if (this._maintenance) throw new Error(MODEL_MAINTENANCE_ERROR);
-    this._maintenanceGeneration++;
-    this._activityGeneration++;
-    this._maintenance = true;
-    this._stopIdleTimeout();
-    this.preempt();
+  assertOperationEpoch(expected: number): void {
+    if (this._epoch !== expected) {
+      throw new NativeModelError('inference_preempted', 'Inference preempted');
+    }
+  }
+
+  private _assertMaintenanceGeneration(expected: number): void {
+    if (this._maintenance || this._maintenanceGeneration !== expected) throw new Error(MODEL_MAINTENANCE_ERROR);
+  }
+
+  private _recoveryStatus(): StatusUpdate {
+    return {
+      state: 'recovery_required',
+      message: 'A native request may still be running. Restart Ollama before resuming filtering.',
+      reason: 'recovery_required',
+      recoveryQualified: OPERATOR_RESTART_RECOVERY_QUALIFIED,
+    };
+  }
+
+  /** Snapshot only. Popup opens and healthy idle never poll or preload weights. */
+  getStatus(): Promise<LocalModelStatus> {
+    const snapshot = this._statusWriteChain.catch(() => undefined).then(async () => {
+      let permitted = false;
+      try { permitted = await chrome.permissions.contains({ origins: [OLLAMA_HOST_PERMISSION] }); } catch { /* fail closed */ }
+      const data = await getStorage(['nativeModelStatus', 'nativeOperationFence']);
+      if (!permitted) {
+        return this._writeStatus({ state: 'not_connected', message: 'Connect to Ollama to allow local filtering.', reason: 'permission_required' }, data.nativeModelStatus);
+      }
+      if (data.nativeOperationFence !== undefined
+          && !sameFence(data.nativeOperationFence, this._activeOperationId ?? '')) {
+        this._retryRequired = true;
+        return this._writeStatus(this._recoveryStatus(), data.nativeModelStatus);
+      }
+      const status = data.nativeModelStatus;
+      if (status && typeof status.revision === 'number') {
+        if ((status.state === 'error' && status.reason !== 'service_unreachable')
+            || ['recovery_required', 'blocked', 'missing_model'].includes(status.state)) this._retryRequired = true;
+        // A restarted worker has no active lease. Stale busy UI is healthy
+        // idle; an unresolved durable fence above takes precedence.
+        if ((status.state === 'loading' || status.state === 'filtering') && !this._activeOperationId) {
+          return this._writeStatus({ state: 'ready', message: 'Ready — loads when needed' }, status);
+        }
+        return status;
+      }
+      return { state: 'not_connected' as const, message: 'Connect to Ollama', revision: 0 };
+    });
+    this._statusWriteChain = snapshot.then(() => undefined, () => undefined);
+    return snapshot;
+  }
+
+  async syncAllStatuses(): Promise<void> { await this.getStatus(); }
+
+  /** Metadata Retry cannot clear a durable native-work fence. */
+  async retry(): Promise<LocalModelStatus> {
+    if (this._activeOperationId) return this.getStatus();
+    const epoch = this._epoch;
+    const maintenance = this._maintenanceGeneration;
+    this._assertMaintenanceGeneration(maintenance);
     try {
-      prepare?.();
-      return await this.drainQueue(fn);
-    } finally {
-      this._maintenance = false;
-      if (this.engine && this._activeModelOperations === 0) {
-        this._resetIdleTimeout();
+      await this._checkReadiness(true);
+      this._assertMaintenanceGeneration(maintenance);
+      this.assertOperationEpoch(epoch);
+      const data = await getStorage(['nativeOperationFence']);
+      this.assertOperationEpoch(epoch);
+      if (data.nativeOperationFence !== undefined) {
+        this._retryRequired = true;
+        return this.updateStatus(this._recoveryStatus());
       }
-    }
-  }
-
-  // ---- Lifecycle ----
-
-  async ensureLoaded(modelId: string): Promise<void> {
-    const maintenanceGeneration = this._maintenanceGeneration;
-    this._assertMaintenanceGeneration(maintenanceGeneration);
-    await this.syncStatus(modelId);
-    this._assertMaintenanceGeneration(maintenanceGeneration);
-    if (this._terminalErrorModels.has(modelId)) {
-      throw new Error('Local model requires an explicit Retry from the Bouncer popup.');
-    }
-    if (!this.isModelLoaded(modelId)) {
-      const backend = await this.initialize(modelId, maintenanceGeneration, false);
-      this._assertMaintenanceGeneration(maintenanceGeneration);
-      if (!backend) {
-        throw new Error('Local model not available. WebGPU may not be supported or model not downloaded.');
-      }
-    }
-  }
-
-  async initialize(
-    modelId: string,
-    expectedMaintenanceGeneration = this._maintenanceGeneration,
-    explicitRetry = true,
-  ): Promise<LocalBackend | null> {
-    if (!modelId) {
-      console.error('[LocalEngine] No model ID provided');
-      return null;
-    }
-
-    this._assertMaintenanceGeneration(expectedMaintenanceGeneration);
-
-    // Startup reconciliation may be in flight when the popup sends Retry.
-    // Wait for that existing status transaction before observing the fence;
-    // do not independently promote a transient same-worker UI error into one.
-    if (explicitRetry) {
-      await this._statusWriteChain;
-      this._assertMaintenanceGeneration(expectedMaintenanceGeneration);
-    }
-
-    if (!explicitRetry && this._terminalErrorModels.has(modelId)) {
-      throw new Error('Local model requires an explicit Retry from the Bouncer popup.');
-    }
-    const retryingTerminalError = explicitRetry && this._terminalErrorModels.delete(modelId);
-
-    if (this.isInitializingModel(modelId)) {
-      return this._initPromise;
-    }
-
-    // Only one backend may initialize at a time. If a different model was
-    // requested, supersede the old operation but let its own context settle
-    // before starting this one. Re-check in a loop because several model
-    // switches can arrive while the first operation is winding down.
-    while (this._initSettledPromise) {
-      const previousInit = this._initSettledPromise;
-      this._initAbortController?.abort();
-      await previousInit;
-      this._assertMaintenanceGeneration(expectedMaintenanceGeneration);
-      if (this.isInitializingModel(modelId)) return this._initPromise;
-    }
-
-    // A terminal error can leave a logically loaded proxy whose offscreen
-    // engine has disappeared. Retry must rebuild the physical engine instead
-    // of publishing that stale proxy as ready again.
-    if (retryingTerminalError && this.isModelLoaded(modelId)) {
-      await this.reset();
-      this._assertMaintenanceGeneration(expectedMaintenanceGeneration);
-    }
-
-    if (this.isModelLoaded(modelId)) {
-      // An explicit popup retry may be recovering a terminal inference status
-      // while the interrupted engine is still usable. Publish a genuine ready
-      // transition so error posts are released exactly once.
-      await this.updateStatus(modelId, { state: 'ready' });
-      return this.engine;
-    }
-
-    if (!navigator.gpu) {
-      await this.updateStatus(modelId, { state: 'unsupported', reason: 'WebGPU not supported' });
-      return null;
-    }
-
-    const modelDef = resolveModel(modelId);
-    this._assertMaintenanceGeneration(expectedMaintenanceGeneration);
-
-    // Start tracking initialization BEFORE any async work so concurrent callers
-    // see isInitializingModel() and wait on _initPromise.
-    const initGeneration = this._startInit(modelId);
-    const abortSignal = this._initAbortController!.signal;
-    this._startDownloadKeepAlive();
-
-    let attemptedBackend: LocalBackend | null = null;
-    try {
-      // If a different model is loaded, unload it first to free GPU memory.
-      // Drain the inference queue so any in-flight task finishes before we dispose the engine.
-      if (this.engine && this.loadedModel !== modelId) {
-        await this.drainQueue(async () => {
-          if (this.engine) {
-            try {
-              await this.engine.unload();
-            } catch (e) {
-              console.error('[LocalEngine] Error unloading engine:', e);
-            }
-          }
-          this.engine = null;
-          this.loadedModel = null;
-          this._modelConfig = null;
-          this._stopKeepAlive();
-        });
-      }
-
-      const backend = new LitertlmBackend();
-      attemptedBackend = backend;
-
-      // Retry loop for network errors
-      let retryCount = 0;
-      while (true) {
-        if (abortSignal.aborted) {
-          this._completeInit(null, initGeneration);
-          return null;
-        }
-
-        try {
-          await this.updateStatus(modelId, { state: 'initializing', progress: 0, text: retryCount > 0 ? `Retrying (${retryCount}/${DOWNLOAD_MAX_RETRIES})...` : 'Starting...' });
-
-          let lastProgressWrite = 0;
-          this._assertMaintenanceGeneration(expectedMaintenanceGeneration);
-          await backend.initialize(modelDef, (progress) => {
-            if (abortSignal.aborted) return;
-            const now = Date.now();
-            if (progress.progress < 1 && now - lastProgressWrite < 250) return;
-            lastProgressWrite = now;
-            this.updateStatus(modelId, {
-              // Once bytes reach 100%, the remaining work is cache/GPU startup;
-              // do not leave the UI claiming a completed download is in flight.
-              state: progress.progress >= 1 ? 'initializing' : 'downloading',
-              progress: progress.progress,
-              text: progress.text,
-            }).catch(err => console.error('[LocalEngine] Failed to update download status:', err));
-          }, abortSignal);
-
-          if (abortSignal.aborted) {
-            // A force-closed LiteRT host may already have been replaced. Its
-            // proxy unload is host-global, so never let a stale generation tear
-            // down the replacement document.
-            if (backend.unloadAfterSuperseded
-                || this._activeInitGeneration === initGeneration) {
-              try { await backend.unload(); } catch { /* ignore */ }
-            }
-            this._completeInit(null, initGeneration);
-            return null;
-          }
-
-          this.engine = backend;
-          this.loadedModel = modelId;
-          this._modelConfig = modelDef;
-
-          await this.updateStatus(modelId, { state: 'ready' });
-          if (retryingTerminalError) this._terminalErrorModels.delete(modelId);
-
-          // Cancellation can arrive while the serialized storage write above
-          // is pending. Do not let that stale operation restart timers or
-          // publish an engine after cancel/replacement has won.
-          if (abortSignal.aborted || this._activeInitGeneration !== initGeneration) {
-            if (this.engine === backend) {
-              this.engine = null;
-              this.loadedModel = null;
-              this._modelConfig = null;
-            }
-            if (backend.unloadAfterSuperseded
-                || this._activeInitGeneration === initGeneration) {
-              try { await backend.unload(); } catch { /* ignore */ }
-            }
-            this._completeInit(null, initGeneration);
-            return null;
-          }
-
-          this._startKeepAlive();
-          this._resetIdleTimeout();
-          this._completeInit(this.engine, initGeneration);
-
-          return this.engine;
-        } catch (error) {
-          const errorMsg = (error as Error).message;
-
-          if (abortSignal.aborted || errorMsg === 'aborted') {
-            this._completeInit(null, initGeneration);
-            return null;
-          }
-
-          if (errorMsg === MODEL_MAINTENANCE_ERROR) {
-            this._completeInit(null, initGeneration);
-            return null;
-          }
-
-          console.error('[LocalEngine] Initialization failed:', error);
-
-          if (isNetworkError(errorMsg) && retryCount < DOWNLOAD_MAX_RETRIES) {
-            retryCount++;
-            const delay = DOWNLOAD_RETRY_DELAY_MS * Math.pow(2, retryCount - 1);
-
-            await this.updateStatus(modelId, {
-              state: 'downloading',
-              progress: 0,
-              text: `Retrying download (${retryCount}/${DOWNLOAD_MAX_RETRIES})...`
-            });
-
-            await new Promise(resolve => setTimeout(resolve, delay));
-            if (abortSignal.aborted) {
-              this._completeInit(null, initGeneration);
-              return null;
-            }
-            continue;
-          }
-
-          let errorMessage = errorMsg;
-          if (isGPUDeviceLostError(errorMsg)) {
-            errorMessage = 'GPU memory exhausted. Close other GPU-intensive tabs and retry.';
-          } else if (isNetworkError(errorMsg)) {
-            errorMessage = 'Download failed after multiple retries. Check your internet connection.';
-          }
-
-          this._terminalErrorModels.add(modelId);
-          await this.updateStatus(modelId, { state: 'error', error: errorMessage });
-          if (this.engine !== backend) {
-            try { await backend.unload(); } catch { /* best effort */ }
-          }
-          await this.reset();
-          return null;
-        }
-      }
-    } finally {
-      // A storage/status failure can escape from inside either the success or
-      // recovery path. Always release logical init state, and dispose any
-      // backend that was never successfully published, before allowing Retry.
-      if (this._activeInitGeneration === initGeneration) {
-        if (attemptedBackend && this.engine === attemptedBackend) {
-          this.engine = null;
-          this.loadedModel = null;
-          this._modelConfig = null;
-        }
-        if (attemptedBackend) {
-          try { await attemptedBackend.unload(); } catch { /* best effort */ }
-        }
-        this._completeInit(null, initGeneration);
-      }
-      this._settleInitOperation(initGeneration);
-    }
-  }
-
-  async cancelDownload(modelId: string): Promise<boolean> {
-    if (!this.isInitializingModel(modelId)) {
-      return false;
-    }
-    const inFlight = this._initPromise;
-    if (this._initAbortController) {
-      this._initAbortController.abort();
-    }
-
-    // LiteRT owns an offscreen init request that can still emit progress after
-    // abort. Give it a bounded window to settle before the terminal status is
-    // written.
-    resolveModel(modelId);
-    if (inFlight) {
-      let settled = false;
-      let settleTimeout: ReturnType<typeof setTimeout> | null = null;
-      try {
-        await Promise.race([
-          inFlight.then(() => { settled = true; }),
-          new Promise(resolve => {
-            settleTimeout = setTimeout(resolve, CANCEL_SETTLE_TIMEOUT_MS);
-          }),
-        ]);
-      } finally {
-        if (settleTimeout !== null) clearTimeout(settleTimeout);
-      }
-      if (!settled) {
-        const hostWasClosed = await forceCloseLitertlmOffscreen();
-        // Closing Chrome's offscreen document terminates the physical engine
-        // factory, so a replacement may safely start. Firefox/Safari run the
-        // factory in-page; if it cannot be force-closed, keep the physical
-        // settlement barrier until that factory actually returns.
-        if (hostWasClosed) this._settleInitOperation(this._activeInitGeneration);
-      }
-    }
-
-    await this.reset();
-
-    const cached = await this.checkCached(modelId);
-    await this.updateStatus(modelId, { state: cached ? 'cached' : 'not_downloaded' });
-    return true;
-  }
-
-  // Delete one model's cached weights from the browser Cache API. Frees the
-  // model before wiping it (abort an in-flight download, or unload the engine
-  // if this exact model is loaded); a different loaded model keeps running. The
-  // actual cache wipe is delegated to the backend; on failure we re-sync status
-  // to whatever actually remains in cache.
-  async deleteModelCache(modelId: string): Promise<{ success: boolean; error?: string }> {
-    if (!modelId) return { success: false, error: 'No model ID provided' };
-    let modelDef: LocalModelDef;
-    try {
-      modelDef = resolveModel(modelId);
+      this._retryRequired = false;
+      return this._publishReadiness();
     } catch (error) {
-      return { success: false, error: (error as Error).message };
-    }
-
-    if (this.isInitializingModel(modelId)) {
-      await this.cancelDownload(modelId);
-      // Wait for the physical worker before deleting, otherwise its late cache
-      // writes can resurrect a model immediately after a successful deletion.
-      await this._initSettledPromise;
-    } else if (this.isModelLoaded(modelId)) {
-      await this.reset();
-    }
-
-    try {
-      await deleteLitertlmCache(modelDef);
-      await this.updateStatus(modelId, { state: 'not_downloaded' });
-      return { success: true };
-    } catch (e) {
-      console.error('[LocalEngine] Error deleting model cache for', modelId, ':', e);
-      const cached = await this.checkCached(modelId);
-      await this.updateStatus(modelId, { state: cached ? 'cached' : 'not_downloaded' });
-      return { success: false, error: (e as Error).message };
+      if (error instanceof NativeModelError && error.reason === 'inference_preempted') throw error;
+      await this.reportFailure(error);
+      return this.getStatus();
     }
   }
 
-  // Synchronous teardown for service worker onSuspend: stop timers and null out
-  // references without async unload (Chrome kills the worker before it completes).
-  teardown(): void {
-    this._stopIdleTimeout();
-    this._stopKeepAlive();
-    this._stopDownloadKeepAlive();
-    this.engine = null;
-    this.loadedModel = null;
-    this._modelConfig = null;
-    this._maintenance = false;
-  }
-
-  async reset(): Promise<void> {
-    this._initAbortController?.abort();
-    this._stopIdleTimeout();
-    this._stopKeepAlive();
-    if (this.engine) {
+  async ensureLoaded(modelId = PRIMARY_LOCAL_MODEL_ID): Promise<void> {
+    assertFixedModel(modelId);
+    const epoch = this._epoch;
+    const maintenance = this._maintenanceGeneration;
+    this._assertMaintenanceGeneration(maintenance);
+    const status = await this.getStatus();
+    this._assertMaintenanceGeneration(maintenance);
+    this.assertOperationEpoch(epoch);
+    if (status.state === 'not_connected' && status.reason === 'permission_required') {
+      throw new NativeModelError('permission_required', status.message);
+    }
+    if (status.state === 'recovery_required') {
+      throw new NativeModelError('recovery_required', status.message, 'uncertain');
+    }
+    if (this._retryRequired) {
+      throw new NativeModelError('response_invalid', 'Retry from the Bouncer popup before filtering resumes.');
+    }
+    if (!this._readiness) {
       try {
-        await this.engine.unload();
-      } catch (e) {
-        console.error('[LocalEngine] Error unloading engine:', e);
+        await this._checkReadiness(false);
+        this._assertMaintenanceGeneration(maintenance);
+        this.assertOperationEpoch(epoch);
+        await this._publishReadiness();
+      } catch (error) {
+        if (!(error instanceof NativeModelError && error.reason === 'inference_preempted')
+            && !(error instanceof Error && error.message === MODEL_MAINTENANCE_ERROR)) await this.reportFailure(error);
+        throw error;
       }
     }
-    this.engine = null;
-    this.loadedModel = null;
-    this._modelConfig = null;
-    this._initializingModel = null;
-    this._initAbortController = null;
-    this._preempted = false;
-    this._interruptSettledPromise = null;
-    this._completeInit(null);
-    // reset() is the logical teardown boundary. Do not resolve the separate
-    // physical-init barrier here: LiteRT Engine.create cannot always be
-    // interrupted, and a replacement must not allocate a second GPU engine
-    // until the old factory actually returns. Chrome can force-close the
-    // offscreen host in cancelDownload when the bounded wait expires.
   }
 
-  // ---- Inference ----
+  private async _checkReadiness(explicit: boolean): Promise<NativeReadiness> {
+    if (!explicit && this._lastMetadataFailure
+        && Date.now() - this._lastMetadataFailure.at < NATIVE_METADATA_RETRY_MS) {
+      throw this._lastMetadataFailure.error;
+    }
+    if (this._readinessPromise) return this._readinessPromise;
+    const check = this._backend.check();
+    this._readinessPromise = check;
+    try {
+      const readiness = await check;
+      this._readiness = readiness;
+      this._lastMetadataFailure = null;
+      return readiness;
+    } catch (error) {
+      this._lastMetadataFailure = { at: Date.now(), error };
+      throw error;
+    } finally {
+      if (this._readinessPromise === check) this._readinessPromise = null;
+    }
+  }
 
-  // Run a completion: queue, handle preemption, timeout, strip think blocks.
-  // The model-specific call (reset, request shape, think-strip) lives in the
-  // backend; this method owns the queue, preemption, timeout, and idle reset.
+  private async _publishReadiness(): Promise<LocalModelStatus> {
+    if (this._readiness?.otherModelResident && !CONCURRENT_NATIVE_MODELS_QUALIFIED) {
+      return this.updateStatus({ state: 'paused', message: 'Filtering paused while another local model is loaded.', reason: 'other_model_resident' });
+    }
+    return this.updateStatus({ state: 'ready', message: 'Ready — loads when needed' });
+  }
+
+  /** Explicit, qualified operator procedure; user confirmation is the trust boundary. */
+  async recoverAfterOperatorRestart(operatorRestartConfirmed: boolean): Promise<LocalModelStatus> {
+    if (!OPERATOR_RESTART_RECOVERY_QUALIFIED || operatorRestartConfirmed !== true) {
+      throw new NativeModelError('recovery_required', 'Restart recovery has not been qualified. Metadata Retry cannot settle native work.', 'uncertain');
+    }
+    return this.runMaintenance(async () => {
+      const before = await getStorage(['nativeOperationFence']);
+      if (before.nativeOperationFence === undefined) {
+        this._retryRequired = false;
+        await this._checkReadiness(true);
+        return this._publishReadiness();
+      }
+      const identity = JSON.stringify(before.nativeOperationFence);
+      await this._checkReadiness(true);
+      await this._serializeFenceWrite(async () => {
+        const current = await getStorage(['nativeOperationFence']);
+        if (JSON.stringify(current.nativeOperationFence) !== identity) {
+          throw new NativeModelError('recovery_required', 'The native operation changed during recovery. Retry the recovery procedure.', 'uncertain');
+        }
+        await removeStorage('nativeOperationFence');
+        const verified = await getStorage(['nativeOperationFence']);
+        if (verified.nativeOperationFence !== undefined) {
+          throw new NativeModelError('storage_failed', 'Could not persist native recovery. Filtering remains paused.', 'uncertain');
+        }
+      });
+      this._retryRequired = false;
+      return this._publishReadiness();
+    });
+  }
+
   async generate(
-    messages: ChatMessage[],
-    maxTokens: number,
-    { priority = 0, onStart }: { priority?: number; onStart?: () => void } = {}
+    messages: ChatMessage[], maxTokens: number,
+    { priority = 0, onStart }: { priority?: number; onStart?: () => void } = {},
   ): Promise<string> {
     return this.runInferenceOperation(async lease => {
-      if (onStart) onStart();
+      onStart?.();
       return lease.generate(messages, maxTokens);
     }, { priority });
   }
 
-  // Serialize every interaction with one physical LiteRT backend. Keeping
-  // prompt preparation and decode under the same queue lease prevents model
-  // deletion/idle unload from disposing the backend between countTokens,
-  // truncateText, and generate.
   async runInferenceOperation<T>(
     operation: (lease: InferenceBackendLease) => Promise<T>,
-    { priority = 0 }: { priority?: number } = {},
+    { priority = 0, assertCurrent }: { priority?: number; assertCurrent?: () => void } = {},
   ): Promise<T> {
-    const maintenanceGeneration = this._maintenanceGeneration;
-    this._assertMaintenanceGeneration(maintenanceGeneration);
-    const backend = this.engine;
-    if (!backend) throw new Error('Engine not loaded');
-
-    this._activeModelOperations++;
-    this._activityGeneration++;
-    this._stopIdleTimeout();
-    try {
-      return await inferenceQueue.enqueue(async () => {
-        // Wait for any previous interrupt() to settle
-        if (this._interruptSettledPromise) {
-          await this._interruptSettledPromise;
-          this._interruptSettledPromise = null;
-        }
-
-        this._assertMaintenanceGeneration(maintenanceGeneration);
-        if (this.engine !== backend) throw new Error(MODEL_MAINTENANCE_ERROR);
-        this._preempted = false;
-
-        const assertLeaseActive = (): void => {
-          this._assertMaintenanceGeneration(maintenanceGeneration);
-          if (this.engine !== backend) throw new Error(MODEL_MAINTENANCE_ERROR);
-          if (this._preempted) throw new Error('Inference preempted');
-        };
-
-        const lease: InferenceBackendLease = {
-          countTokens: async (text: string) => {
-            assertLeaseActive();
-            const result = await backend.countTokens(text);
-            assertLeaseActive();
-            return result;
-          },
-          truncateText: async (text: string, maxTokens: number) => {
-            assertLeaseActive();
-            const result = await backend.truncateText(text, maxTokens);
-            assertLeaseActive();
-            return result;
-          },
-          generate: async (leaseMessages: ChatMessage[], leaseMaxTokens: number) => {
-            assertLeaseActive();
-            const result = await this._callWithTimeout(
-              backend,
-              leaseMessages,
-              leaseMaxTokens,
-            );
-            assertLeaseActive();
-            return result;
-          },
-        };
-
-        try {
-          return await operation(lease);
-        } catch (error) {
-          if ((error as Error).message === MODEL_MAINTENANCE_ERROR) throw error;
-          if ((error as Error).message === 'Inference preempted') throw error;
-          if (this._preempted) {
-            throw new Error('Inference preempted', { cause: error });
-          }
-
-          if (isGPUDeviceLostError((error as Error).message)) {
-            console.error('[LocalEngine] GPU device lost during inference, resetting engine...');
-            const modelId = this.loadedModel;
-            if (modelId) this._terminalErrorModels.add(modelId);
-            await this.reset();
-            await this.updateStatus(modelId!, {
-              state: 'error',
-              error: 'GPU memory exhausted during inference. Close other GPU-intensive tabs and retry.'
-            });
-          } else if ((error as Error).message.toLowerCase().includes('inference timeout')) {
-            // Do not await LiteRT interrupt/unload here: a stuck prefill is the
-            // reason the deadline fired, and both operations can wait on that
-            // same executor chain. Fence this backend synchronously and close
-            // Chrome's offscreen host out of band so the caller receives the
-            // timeout at the promised deadline and Retry starts fresh.
-            const modelId = this.loadedModel;
-            if (modelId) this._terminalErrorModels.add(modelId);
-            if (this.engine === backend) {
-              this.engine = null;
-              this.loadedModel = null;
-              this._modelConfig = null;
-              this._stopKeepAlive();
-              this._stopIdleTimeout();
-            }
-            void forceCloseLitertlmOffscreen().catch(closeError =>
-              console.error('[LocalEngine] Failed to close timed-out LiteRT host:', closeError)
-            );
-            if (modelId) {
-              void this.updateStatus(modelId, {
-                state: 'error',
-                error: 'Local inference timed out. Retry from the Bouncer popup.',
-              });
-            }
-          }
-
+    // Captured at call time, before queue and prompt-preparation awaits.
+    const epoch = this._epoch;
+    const maintenance = this._maintenanceGeneration;
+    this._assertMaintenanceGeneration(maintenance);
+    assertCurrent?.();
+    return inferenceQueue.enqueue(async () => {
+      let leaseOpen = true;
+      let callerRetired = false;
+      let callerFailure: unknown;
+      const assertActive = (): void => {
+        if (!leaseOpen) throw new NativeModelError('inference_preempted', 'Inference lease ended');
+        this._assertMaintenanceGeneration(maintenance);
+        this.assertOperationEpoch(epoch);
+        if (callerRetired) throw callerFailure;
+        try { assertCurrent?.(); } catch (error) {
+          callerRetired = true;
+          callerFailure = error;
           throw error;
         }
-      }, { priority });
-    } finally {
-      this._activeModelOperations--;
-      if (this._activeModelOperations === 0 && this.engine && !this._maintenance) {
-        this._resetIdleTimeout();
-      }
-    }
+      };
+      assertActive();
+      await this.ensureLoaded();
+      assertActive();
+      const lease: InferenceBackendLease = {
+        countTokens: (text: string) => {
+          assertActive();
+          return Promise.resolve(Math.ceil(text.length / 3)).then(count => { assertActive(); return count; });
+        },
+        truncateText: (text: string, maxTokens: number) => {
+          assertActive();
+          if (!Number.isInteger(maxTokens) || maxTokens < 0) throw new NativeModelError('input_budget', 'Invalid native input budget.');
+          let bounded = text.slice(0, maxTokens * 3);
+          // Avoid cutting one UTF-16 surrogate pair in half.
+          if (/[\uD800-\uDBFF]$/.test(bounded)) bounded = bounded.slice(0, -1);
+          return Promise.resolve(bounded).then(result => { assertActive(); return result; });
+        },
+        generate: async (messages: ChatMessage[], maxTokens: number) => {
+          assertActive();
+          const pending = await getStorage(['nativeOperationFence']);
+          assertActive();
+          if (pending.nativeOperationFence !== undefined) {
+            throw new NativeModelError('recovery_required', this._recoveryStatus().message, 'uncertain');
+          }
+          const operationId = crypto.randomUUID();
+          let fenceWritten = false;
+          let submitted = false;
+          try {
+            const result = await this._backend.generate(messages, maxTokens, {
+              beforeSubmit: async readiness => {
+                assertActive();
+                this._readiness = readiness;
+                await this.updateStatus({ state: readiness.resident ? 'filtering' : 'loading', message: readiness.resident ? 'Filtering' : 'Loading model…' });
+                assertActive();
+                const fence: NativeOperationFence = {
+                  schemaVersion: 1,
+                  operationId,
+                  epoch,
+                  startedAt: Date.now(),
+                  modelDigest: acceptedDigest(),
+                };
+                await this._serializeFenceWrite(async () => {
+                  assertActive();
+                  const current = await getStorage(['nativeOperationFence']);
+                  assertActive();
+                  if (current.nativeOperationFence !== undefined) {
+                    throw new NativeModelError('recovery_required', this._recoveryStatus().message, 'uncertain');
+                  }
+                  // Once set starts, a partial persistence failure is treated
+                  // conservatively; only proved pre-submission cleanup is safe.
+                  fenceWritten = true;
+                  // Snapshot readers must recognize this worker's active
+                  // lease even between persistence and readback awaits.
+                  this._activeOperationId = operationId;
+                  await setStorage({ nativeOperationFence: fence });
+                  const verified = await getStorage(['nativeOperationFence']);
+                  if (!sameFence(verified.nativeOperationFence, operationId)) {
+                    throw new NativeModelError('storage_failed', 'Could not persist the native operation fence.');
+                  }
+                });
+                assertActive();
+              },
+              assertCanSubmit: () => { assertActive(); submitted = true; },
+              onTerminal: async () => {
+                await this._clearOwnedFence(operationId);
+                fenceWritten = false;
+                if (this._activeOperationId === operationId) this._activeOperationId = null;
+              },
+            });
+            assertActive();
+            this._readiness = this._readiness ? { ...this._readiness, resident: true } : this._readiness;
+            await this.updateStatus({ state: 'ready', message: 'Ready — loads when needed' });
+            assertActive();
+            return result;
+          } catch (error) {
+            if (!submitted && fenceWritten) {
+              // The backend did not pass its final beforeSubmit hook, so no
+              // fetch can exist for this id. This is not uncertain cancellation.
+              try { await this._clearOwnedFence(operationId); } catch { /* retain the durable fence */ }
+            }
+            if (this._activeOperationId === operationId) this._activeOperationId = null;
+            const nativeError = error instanceof NativeModelError ? error : null;
+            // Caller ownership expiry is cancellation, not a native model
+            // fault. The finite response above still settles its own fence.
+            if (callerRetired) throw error;
+            if (nativeError?.reason === 'inference_preempted' || (error instanceof Error && error.message === MODEL_MAINTENANCE_ERROR)) throw error;
+            if (nativeError?.submission === 'uncertain' || (submitted && fenceWritten)) {
+              this._retryRequired = true;
+              // The caller's transport deadline must not wait for cleanup or a
+              // delayed storage/status write. The durable fence already exists.
+              void this.updateStatus(this._recoveryStatus()).catch(() => undefined);
+            } else {
+              await this.reportFailure(error);
+            }
+            throw error;
+          }
+        },
+      };
+      try { return await operation(lease); } finally { leaseOpen = false; }
+    }, { priority });
   }
 
-  preempt(): void {
-    if (this._preempted) return;
-    this._preempted = true;
-    if (this.engine) {
-      this._interruptSettledPromise = this.engine.interrupt().catch(e =>
-        console.error('[Preempt] Failed to interrupt generation:', e)
-      );
-    }
-  }
-
-  // ---- Token counting ----
-
-  async countTokens(text: string): Promise<number> {
-    return this.runInferenceOperation(lease => lease.countTokens(text));
-  }
-
-  async truncateText(text: string, maxTokens: number): Promise<string> {
-    return this.runInferenceOperation(lease => lease.truncateText(text, maxTokens));
-  }
-
-  // ---- Queue operations ----
-
-  clearQueue(): void { inferenceQueue.clear(); }
-  drainQueue<T>(fn: () => Promise<T>): Promise<T> { return inferenceQueue.drain(fn); }
-
-  // ---- Status helpers ----
-
-  async updateStatus(modelId: string, status: LocalModelStatus): Promise<void> {
-    const write = this._statusWriteChain.catch(() => undefined).then(async () => {
-      const data = await getStorage(['localModelStatuses']);
-      const statuses: Record<string, LocalModelStatus> = { ...(data.localModelStatuses ?? {}) };
-      statuses[modelId] = status;
-      await setStorage({ localModelStatuses: statuses });
-
-    });
-    this._statusWriteChain = write.catch(() => undefined);
+  private _serializeFenceWrite<T>(fn: () => Promise<T>): Promise<T> {
+    const write = this._fenceWriteChain.catch(() => undefined).then(fn);
+    this._fenceWriteChain = write.then(() => undefined, () => undefined);
     return write;
   }
 
+  private async _clearOwnedFence(operationId: string): Promise<void> {
+    await this._serializeFenceWrite(async () => {
+      const current = await getStorage(['nativeOperationFence']);
+      if (!sameFence(current.nativeOperationFence, operationId)) {
+        throw new NativeModelError('recovery_required', 'The native operation fence changed. Filtering remains paused.', 'uncertain');
+      }
+      await removeStorage('nativeOperationFence');
+      const verified = await getStorage(['nativeOperationFence']);
+      if (verified.nativeOperationFence !== undefined) {
+        throw new NativeModelError('storage_failed', 'Could not settle the native operation fence.', 'uncertain');
+      }
+    });
+  }
+
+  preempt(): void {
+    this._epoch++;
+    inferenceQueue.clear();
+    // Active HTTP work drains until its terminal response/deadline. Aborting
+    // would not prove native compute stopped and could create overlapping work.
+  }
+  clearQueue(): void { inferenceQueue.clear(); }
+  drainQueue<T>(fn: () => Promise<T>): Promise<T> { return inferenceQueue.drain(fn); }
+
+  async runMaintenance<T>(fn: () => Promise<T>, prepare?: () => void): Promise<T> {
+    if (this._maintenance) throw new Error(MODEL_MAINTENANCE_ERROR);
+    this._maintenance = true;
+    this._maintenanceGeneration++;
+    this.preempt();
+    try { prepare?.(); return await this.drainQueue(fn); } finally { this._maintenance = false; }
+  }
+
+  teardown(): void {
+    this.preempt();
+    this._readiness = null;
+    // Never delete a fence, unload a runner, or alter shared retention here.
+  }
+
+  async updateStatus(status: StatusUpdate): Promise<LocalModelStatus> {
+    const write = this._statusWriteChain.catch(() => undefined).then(async () => {
+      const data = await getStorage(['nativeModelStatus']);
+      return this._writeStatus(status, data.nativeModelStatus);
+    });
+    this._statusWriteChain = write.then(() => undefined, () => undefined);
+    return write;
+  }
+
+  private async _writeStatus(status: StatusUpdate, previous?: LocalModelStatus): Promise<LocalModelStatus> {
+    if (previous && previous.state === status.state && previous.message === status.message
+        && previous.reason === status.reason && previous.recoveryQualified === status.recoveryQualified) return previous;
+    const revision = previous && Number.isSafeInteger(previous.revision) && previous.revision >= 0 ? previous.revision + 1 : 1;
+    const next = { ...status, revision };
+    await setStorage({ nativeModelStatus: next });
+    return next;
+  }
+
+  async reportFailure(error: unknown): Promise<void> {
+    const status = nativeFailureStatus(error);
+    if ((status.state === 'error' && status.reason !== 'service_unreachable')
+        || ['recovery_required', 'blocked', 'missing_model'].includes(status.state)) this._retryRequired = true;
+    await this.updateStatus(status.state === 'recovery_required' ? this._recoveryStatus() : status);
+  }
+
   async markTerminalError(modelId: string, error: string): Promise<void> {
-    this._terminalErrorModels.add(modelId);
-    await this.updateStatus(modelId, { state: 'error', error });
-  }
-
-  async checkCached(modelId: string): Promise<boolean> {
-    return backendIsCached(resolveModel(modelId));
-  }
-
-  async syncStatus(modelId: string): Promise<LocalModelStatus | undefined> {
-    const sync = this._statusWriteChain.catch(() => undefined).then(async () => {
-      const data = await getStorage(['localModelStatuses']);
-      const statuses: Record<string, LocalModelStatus> = { ...(data.localModelStatuses ?? {}) };
-      const storedStatus = statuses[modelId];
-
-      if (!storedStatus) return storedStatus;
-
-      let needsUpdate = false;
-
-      if (storedStatus.state === 'ready' && !this.isModelLoaded(modelId)) {
-        const cached = await this.checkCached(modelId);
-        if (!cached) {
-          statuses[modelId] = { state: 'not_downloaded' };
-          needsUpdate = true;
-        } else {
-          statuses[modelId] = { state: 'cached' };
-          needsUpdate = true;
-        }
-      }
-
-      if ((storedStatus.state === 'downloading' || storedStatus.state === 'initializing') &&
-          !this.isInitializing()) {
-        const cached = await this.checkCached(modelId);
-        statuses[modelId] = { state: cached ? 'cached' : 'not_downloaded' };
-        needsUpdate = true;
-      }
-
-      // Error is a durable explicit-Retry fence, not merely a UI snapshot. An
-      // MV3 service worker can restart after a timeout/GPU failure and lose all
-      // in-memory state while the model remains cached. Rehydrate the fence
-      // from storage so the next post cannot silently reload the same model.
-      const reconciledStatus = statuses[modelId];
-      if (reconciledStatus.state === 'error') {
-        this._terminalErrorModels.add(modelId);
-      }
-
-      if (needsUpdate) {
-        await setStorage({ localModelStatuses: statuses });
-      }
-
-      return reconciledStatus;
-    });
-    this._statusWriteChain = sync.then(() => undefined, () => undefined);
-    return sync;
-  }
-
-  async syncAllStatuses(): Promise<void> {
-    for (const model of PREDEFINED_MODELS.local) {
-      await this.syncStatus(model.name);
-    }
-  }
-
-  // ---- Private: initialization tracking ----
-
-  _assertMaintenanceGeneration(expected: number): void {
-    if (this._maintenance || this._maintenanceGeneration !== expected) {
-      throw new Error(MODEL_MAINTENANCE_ERROR);
-    }
-  }
-
-  _startInit(modelId: string): number {
-    const generation = ++this._initGeneration;
-    this._activeInitGeneration = generation;
-    this._initSettledGeneration = generation;
-    this._initSettledPromise = new Promise<void>(resolve => {
-      this._initSettledResolve = resolve;
-    });
-    this._initializingModel = modelId;
-    this._initAbortController = new AbortController();
-    this._initPromise = new Promise<LocalBackend | null>(resolve => {
-      this._initPromiseResolve = resolve;
-    });
-    return generation;
-  }
-
-  _completeInit(backend: LocalBackend | null, generation = this._activeInitGeneration): void {
-    // A canceled, unabortable backend may finish after a replacement init has
-    // started. Only the operation that owns the current generation may clear
-    // its promise/controller; stale completions are local cleanup only.
-    if (generation === null || generation !== this._activeInitGeneration) return;
-    this._initializingModel = null;
-    this._initAbortController = null;
-    this._activeInitGeneration = null;
-    this._stopDownloadKeepAlive();
-    if (this._initPromiseResolve) {
-      this._initPromiseResolve(backend);
-      this._initPromiseResolve = null;
-    }
-    this._initPromise = null;
-  }
-
-  _settleInitOperation(generation: number | null): void {
-    if (generation === null || generation !== this._initSettledGeneration) return;
-    this._initSettledResolve?.();
-    this._initSettledResolve = null;
-    this._initSettledPromise = null;
-    this._initSettledGeneration = null;
-  }
-
-  // ---- Private: keep-alive ----
-
-  _startKeepAlive(): void {
-    if (this._keepAliveInterval) return;
-    this._keepAliveInterval = setInterval(() => {
-      // Chrome MV3 only resets the service-worker idle timer on extension API
-      // calls; touching local state is not enough.
-      void chrome.storage.local.get('_keepAlive');
-    }, KEEP_ALIVE_INTERVAL_MS);
-  }
-
-  _stopKeepAlive(): void {
-    if (this._keepAliveInterval) {
-      clearInterval(this._keepAliveInterval);
-      this._keepAliveInterval = null;
-    }
-  }
-
-  // Prevent Firefox from suspending the event page during long model downloads.
-  // Firefox kills event pages after 30 s of no extension-API activity; plain
-  // fetch() doesn't count.  A periodic chrome.storage read resets the timer.
-  _startDownloadKeepAlive(): void {
-    if (this._downloadKeepAliveInterval) return;
-    this._downloadKeepAliveInterval = setInterval(() => {
-      void chrome.storage.local.get('_keepAlive');
-    }, DOWNLOAD_KEEP_ALIVE_MS);
-  }
-
-  _stopDownloadKeepAlive(): void {
-    if (this._downloadKeepAliveInterval) {
-      clearInterval(this._downloadKeepAliveInterval);
-      this._downloadKeepAliveInterval = null;
-    }
-  }
-
-  // ---- Private: idle timeout ----
-
-  _resetIdleTimeout(): void {
-    if (this._idleTimeoutId !== null) {
-      clearTimeout(this._idleTimeoutId);
-    }
-    // Give every armed deadline its own lease. This also distinguishes a new
-    // timer from an older callback that was already queued before clearTimeout.
-    const activityGeneration = ++this._activityGeneration;
-    this._idleTimeoutId = setTimeout(
-      () => { void this._onIdleTimeout(activityGeneration); },
-      IDLE_TIMEOUT_MS,
-    );
-  }
-
-  _stopIdleTimeout(): void {
-    if (this._idleTimeoutId !== null) {
-      clearTimeout(this._idleTimeoutId);
-      this._idleTimeoutId = null;
-    }
-  }
-
-  async _onIdleTimeout(activityGeneration: number): Promise<void> {
-    // A callback that was already queued before clearTimeout() can run after a
-    // newer deadline is armed. Do not let that stale callback erase the newer
-    // timer handle.
-    if (activityGeneration !== this._activityGeneration) return;
-    this._idleTimeoutId = null;
-    if (this._activeModelOperations > 0
-        || !this.engine
-        || this._maintenance) return;
-
-    try {
-      await this.runMaintenance(async () => {
-        // runMaintenance blocks new leases before it owns the queue. The active
-        // operation check protects against a stale callback defensively.
-        if (this._activeModelOperations > 0 || !this.engine) return;
-        const modelId = this.loadedModel;
-        try {
-          await this.engine.unload();
-        } catch (e) {
-          console.error('[LocalEngine] Error during idle unload:', e);
-        }
-        this.engine = null;
-        this.loadedModel = null;
-        this._modelConfig = null;
-        this._stopKeepAlive();
-        if (modelId) {
-          await this.updateStatus(modelId, { state: 'cached' });
-        }
-      });
-    } catch (e) {
-      // A timer callback may already be queued when another maintenance starts.
-      // That maintenance owns the lifecycle and will re-arm the idle deadline
-      // in its finally block if it leaves the engine loaded.
-      if ((e as Error).message !== MODEL_MAINTENANCE_ERROR) {
-        console.error('[LocalEngine] Error during idle maintenance:', e);
-      }
-    }
-  }
-
-  // ---- Private: inference timeout ----
-
-  _callWithTimeout(
-    backend: LocalBackend,
-    messages: ChatMessage[],
-    maxTokens: number,
-    timeoutMs?: number,
-  ): Promise<string> {
-    const ceiling = timeoutMs ?? LITERTLM_INFERENCE_TIMEOUT_MS;
-    return new Promise((resolve, reject) => {
-      let completed = false;
-
-      const onTimeout = (): void => {
-        if (completed) return;
-        completed = true;
-        console.warn(`[LocalEngine] Inference timeout after ${ceiling}ms, interrupting...`);
-        reject(new Error('Inference timeout - model took too long to respond'));
-        // Cleanup is best effort and deliberately detached. LiteRT's interrupt
-        // waits for its executor chain, which is allowed to be the stuck work.
-        void backend.interrupt().catch(e => {
-          console.error('[LocalEngine] Failed to interrupt generation:', e);
-        });
-      };
-      const timeoutId = setTimeout(() => { void onTimeout(); }, ceiling);
-
-      backend.generate(messages, maxTokens)
-        .then(result => {
-          if (completed) return;
-          completed = true;
-          clearTimeout(timeoutId);
-          resolve(result);
-        })
-        .catch(error => {
-          if (completed) return;
-          completed = true;
-          clearTimeout(timeoutId);
-          reject(error instanceof Error ? error : new Error(String(error)));
-        });
-    });
+    assertFixedModel(modelId);
+    this._retryRequired = true;
+    const status = await this.getStatus();
+    if (['blocked', 'paused', 'recovery_required', 'not_connected', 'missing_model'].includes(status.state)) return;
+    await this.updateStatus({ state: 'error', message: error, reason: 'response_invalid' });
   }
 }
-
-// ==================== Singleton & exports ====================
 
 export const localEngine = new LocalEngine();
 
-// ==================== Post inference orchestration ====================
-
-// Orchestrates local inference for a single post: builds the prompt, calls
-// generate, and parses the response. This is the post-filtering-specific
-// wrapper around localEngine.generate().
 export async function callLocalInference(
   postData: EvaluationPostData,
   bannedCategories: string[],
-  modelConfig: LocalModelDef | null,
-  modelId: string,
-  { priority = 0, onInferenceStart, promptMode = 'baseline' }: {
-    priority?: number;
-    onInferenceStart?: () => void;
-    promptMode?: LocalPromptMode;
-  } = {}
-): Promise<{ shouldHide: boolean; reasoning: string; category?: string | null; matches?: string[]; rawResponse?: string | null; inferenceTime?: number }> {
-  await localEngine.ensureLoaded(modelId);
-  const resolved = modelConfig ?? resolveModel(modelId);
-  if (resolved.name !== modelId) throw new Error(`Model config mismatch: ${modelId}`);
-  return callTableYesnoInference(
-    postData,
-    bannedCategories,
-    resolved,
-    { priority, onInferenceStart, promptMode },
-  );
-}
-
-// table_yesno path (LiteRT-LM/Gemma): one pipe-delimited yes/no row per
-// category — far fewer output tokens than a reasoning sentence. Exact matched
-// phrases are returned separately from the legacy comma-joined category label.
-async function callTableYesnoInference(
-  postData: EvaluationPostData,
-  bannedCategories: string[],
-  modelConfig: LocalModelDef,
-  { priority = 0, onInferenceStart, promptMode = 'baseline' }: {
-    priority?: number;
-    onInferenceStart?: () => void;
-    promptMode?: LocalPromptMode;
-  } = {}
-): Promise<{ shouldHide: boolean; reasoning: string; category?: string | null; matches?: string[]; rawResponse?: string | null; inferenceTime?: number }> {
-  const contextWindowSize = modelConfig.litertlmConfig?.maxTokens ?? 1024;
-  const buildRequest = (postText: string) =>
-    buildTableYesnoRequest(postText, bannedCategories, promptMode);
-  // Leave room for Gemma's occasional markdown/newline drift; the runtime
-  // enforces this budget through sessionConfig.maxOutputTokens.
-  const maxGenerationTokens = buildRequest('').maxOutputTokens;
-
-  let inferenceStart: number;
-  const onStart = (): void => {
-    if (onInferenceStart) onInferenceStart();
-    inferenceStart = Date.now();
-  };
-
-  const rawResponse = await localEngine.runInferenceOperation(async lease => {
-    const overheadText = buildRequest('').messages
-      .map(message => message.content)
-      .join('\n');
-    const overheadTokens = await lease.countTokens(overheadText);
-    const postTextBudget = contextWindowSize - overheadTokens - maxGenerationTokens;
-    const postText = postTextBudget > 0
-      ? await lease.truncateText(postData.text, postTextBudget)
-      : '';
-
-    onStart();
-    return lease.generate(
-      buildRequest(postText).messages,
-      maxGenerationTokens,
-    );
-  }, { priority });
-
-  const inferenceTime = ((Date.now() - inferenceStart!) / 1000).toFixed(2);
-
-  if (!rawResponse) {
-    console.warn('[LocalEngine] Empty response from model');
+  modelConfig: LocalModelDef | null = PRIMARY_LOCAL_MODEL,
+  modelId = PRIMARY_LOCAL_MODEL_ID,
+  { priority = 0, onInferenceStart, promptMode = 'baseline', assertCurrent }: {
+    priority?: number; onInferenceStart?: () => void; promptMode?: LocalPromptMode; assertCurrent?: () => void;
+  } = {},
+): Promise<{
+  shouldHide: boolean; reasoning: string; category: string | null; matches: string[];
+  rawResponse: string; inferenceTime: number; malformed: boolean; classifierFingerprint: string;
+}> {
+  assertCurrent?.();
+  assertFixedModel(modelId);
+  if (modelConfig && modelConfig.name !== PRIMARY_LOCAL_MODEL_ID) {
+    throw new NativeModelError('model_identity_changed', 'The native classifier configuration changed.');
   }
-
-  const { shouldHide, reasoning, matches } = parseTableYesnoResponse(rawResponse, bannedCategories);
-  const formatted = formatLocalInferenceResult(reasoning, shouldHide);
+  if (!postData.text.trim() || bannedCategories.length === 0
+      || bannedCategories.some(category => typeof category !== 'string' || !category.trim())) {
+    throw new NativeModelError('input_budget', 'A real post and nonempty filter phrases are required.');
+  }
+  const epoch = localEngine.operationEpoch;
+  await localEngine.ensureLoaded(modelId);
+  assertCurrent?.();
+  localEngine.assertOperationEpoch(epoch);
+  const empty = buildNativeTableYesnoRequest('', bannedCategories, promptMode);
+  const overhead = Math.ceil(empty.messages.map(message => message.content).join('\n').length / 3);
+  const budget = NATIVE_CONTEXT_TOKENS - overhead - empty.maxOutputTokens;
+  if (budget <= 0) throw new NativeModelError('input_budget', 'The filter phrases exceed the native input budget.');
+  let inferenceStart = Date.now();
+  const rawResponse = await localEngine.runInferenceOperation(async lease => {
+    const postText = await lease.truncateText(postData.text, budget);
+    onInferenceStart?.();
+    inferenceStart = Date.now();
+    const request = buildNativeTableYesnoRequest(postText, bannedCategories, promptMode);
+    return lease.generate(request.messages, request.maxOutputTokens);
+  }, { priority, assertCurrent });
+  assertCurrent?.();
+  const parsed = parseTableYesnoResponse(rawResponse, bannedCategories);
+  if (parsed.malformed && priority === 0) {
+    await localEngine.reportFailure(new NativeModelError('response_invalid', 'The classifier returned malformed verdicts. Retry from the popup.', 'terminal'));
+  }
+  assertCurrent?.();
   return {
-    shouldHide: formatted.shouldHide,
-    reasoning: formatted.reasoning,
-    category: matches.length > 0 ? matches.join(', ') : null,
-    matches,
+    ...parsed,
+    // Persistent diagnostics never contain malformed model output.
+    reasoning: parsed.malformed ? 'Malformed classifier response' : parsed.reasoning,
+    category: parsed.matches.length > 0 ? parsed.matches.join(', ') : null,
     rawResponse,
-    inferenceTime: parseFloat(inferenceTime),
+    inferenceTime: (Date.now() - inferenceStart) / 1000,
+    classifierFingerprint: NATIVE_CLASSIFIER_FINGERPRINT,
   };
 }

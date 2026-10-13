@@ -17,49 +17,24 @@
     <section id="localModelSection" class="local-model-section" aria-labelledby="localModelTitle">
       <div class="local-model-header">
         <div>
-          <h2 id="localModelTitle" class="local-model-title">Gemma 4 E2B <span aria-hidden="true">·</span> on device</h2>
-          <p class="local-model-meta">~2 GB one-time download</p>
+          <h2 id="localModelTitle" class="local-model-title">Gemma 4 E2B <span aria-hidden="true">·</span> Ollama</h2>
+          <p class="local-model-meta">Local service on this Mac</p>
         </div>
         <span id="localModelStatusBadge" class="status-badge" aria-live="polite">Checking…</span>
       </div>
-      <p class="hint local-model-resource-hint">Bouncer filters posts locally with WebGPU. Post content never leaves your browser.</p>
+      <p class="hint local-model-resource-hint">Post text and filter phrases stay on this Mac, using your local Ollama service.</p>
       <p class="hint local-model-no-image-warning"><strong>Text only.</strong> Posts with images or videos are judged using their written text.</p>
-      <div id="localModelContent">
-        <div id="localModelChecking" class="model-state">
-          <p class="hint">Checking the local model…</p>
-        </div>
-        <div id="localModelUnsupported" class="model-state" hidden>
-          <p class="hint">WebGPU is unavailable. Bouncer needs a browser with WebGPU enabled to run its local model.</p>
-        </div>
-        <div id="localModelNotDownloaded" class="model-state" hidden>
-          <p class="hint">Download Gemma once to start filtering. The model stays in this browser.</p>
-          <button id="downloadLocalModel" class="local-model-download-btn">
-            <span class="download-icon">&#8595;</span>
-            Download Gemma
-          </button>
-        </div>
-        <div id="localModelDownloading" class="model-state" hidden>
-          <div class="local-model-progress">
-            <div id="localProgressFill" class="local-model-progress-fill" style="width: 0%"></div>
-          </div>
-          <div class="local-model-download-row">
-            <span id="localProgressText" class="hint">Starting…</span>
-            <button id="cancelLocalModelDownload" class="local-model-cancel-btn" title="Cancel download" aria-label="Cancel model download">✕</button>
-          </div>
-        </div>
-        <div id="localModelReady" class="model-state" hidden>
-          <p class="hint" id="localModelReadyHint">Model ready for local inference.</p>
-          <button id="deleteLocalModel" class="local-model-delete-btn">Delete model</button>
-        </div>
-        <div id="localModelError" class="model-state" hidden>
-          <p class="hint local-model-error-text" id="localModelErrorText">An error occurred.</p>
-          <div class="local-model-error-actions">
-            <button id="retryLocalModel" class="local-model-retry-btn">Retry</button>
-            <button id="deleteLocalModelAfterError" class="local-model-delete-btn">Delete model data</button>
-          </div>
-        </div>
-        <p id="localModelActionError" class="local-model-action-error" role="alert" hidden></p>
+      <p id="nativeStatusText" class="hint" aria-live="polite">Checking the local service…</p>
+      <div class="local-model-actions">
+        <button id="connectNativeModel" class="local-model-connect-btn" hidden>Connect to Ollama</button>
+        <button id="retryNativeModel" class="local-model-retry-btn" hidden>Retry</button>
+        <button id="recoverNativeModel" class="local-model-retry-btn" hidden>Resume after restarting Ollama</button>
       </div>
+      <details id="nativeSetupHelp" class="local-model-setup-help" hidden>
+        <summary>Setup help</summary>
+        <p id="nativeSetupHelpText" class="hint"></p>
+      </details>
+      <p id="localModelActionError" class="local-model-action-error" role="alert" hidden></p>
     </section>
 
     <section>
@@ -72,7 +47,6 @@
     </section>
   </div>
 
-  <script src="browser-polyfill.js"></script>
   <script src="dist/popup.js" type="module"></script>
 </body>
 </html>

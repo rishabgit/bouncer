@@ -3,10 +3,11 @@
 // The PAGE owns the run loop and drives a thin background worker
 // (src/background/benchmark.ts) one bounded op at a time, so the MV3 service
 // worker is never asked to hold a response open for a whole run. Headline metric
-// is `inferenceTime` (generate-only seconds from the app's inference wrapper).
-// LiteRT-LM reports wall-clock only. See the benchmark docs for rationale.
+// is `inferenceTime` (generation-call seconds from the app's inference wrapper).
+// Native wall time includes loopback transport and the shared serial lease.
 
-import { PREDEFINED_MODELS } from '../shared/models';
+import { PRIMARY_LOCAL_MODEL, PRIMARY_LOCAL_MODEL_ID } from '../shared/models';
+import type { LocalModelStatus } from '../types';
 import { POSTS, categories, type CorpusPost } from '../shared/benchmark-corpus';
 import { summarize, mean, type LatencyStats } from '../shared/benchmark-stats';
 import type { BenchmarkInferResult, BenchmarkLoadResult, BenchmarkPost, BenchmarkPromptMode } from '../shared/benchmark-types';
@@ -26,7 +27,7 @@ interface ModelResult {
   modelId: string; display: string; backend: string; sizeGB?: number;
   loadMs: number; firstInferMs: number; cells: CellResult[];
 }
-interface EnvInfo { userAgent: string; gpu: string; date: string }
+interface EnvInfo { userAgent: string; nativeModel: string; classifierDigest: string | null; date: string }
 interface Report {
   startedAt: string; env: EnvInfo; config: { warmup: number; timed: number }; models: ModelResult[];
 }
@@ -84,7 +85,7 @@ let running = false;
 let cancelled = false;
 let lastReport: Report | null = null;
 let lastEvalReport: EvalReport | null = null;
-const modelChecks: { modelId: string; checkbox: HTMLInputElement; badge: HTMLElement }[] = [];
+let modelBadge: HTMLElement | null = null;
 
 // ---- DOM helpers -----------------------------------------------------------
 
@@ -119,36 +120,17 @@ function makeCell(postId: CorpusPost['id'], nCats: number): MadeCell {
   };
 }
 
-async function infer(modelId: string, cell: MadeCell): Promise<BenchmarkInferResult> {
+async function infer(_modelId: string, cell: MadeCell): Promise<BenchmarkInferResult> {
   return (await send({
-    type: 'benchmark', op: 'infer', modelId, post: cell.post, categories: cell.categories, promptMode: cell.promptMode,
+    type: 'benchmark', op: 'infer', post: cell.post, categories: cell.categories, promptMode: cell.promptMode,
   })) as unknown as BenchmarkInferResult;
 }
 
 // ---- Environment -----------------------------------------------------------
 
-interface AdapterInfoLike { vendor?: string; architecture?: string; device?: string; description?: string }
-interface AdapterLike { info?: AdapterInfoLike; requestAdapterInfo?: () => Promise<AdapterInfoLike> }
-interface GpuLike { requestAdapter?: () => Promise<AdapterLike | null> }
-
-async function describeGpu(): Promise<string> {
-  try {
-    const g = (navigator as unknown as { gpu?: GpuLike }).gpu;
-    if (!g?.requestAdapter) return 'no navigator.gpu';
-    const adapter = await g.requestAdapter();
-    let info = adapter?.info;
-    if (!info && adapter?.requestAdapterInfo) info = await adapter.requestAdapterInfo();
-    if (info) {
-      return [info.vendor, info.architecture, info.device, info.description].filter(Boolean).join(' / ') || 'webgpu';
-    }
-    return adapter ? 'webgpu (adapter info unavailable)' : 'no adapter';
-  } catch (e) {
-    return 'error: ' + (e as Error).message;
-  }
-}
-
-async function captureEnv(): Promise<EnvInfo> {
-  return { userAgent: navigator.userAgent, gpu: await describeGpu(), date: new Date().toISOString() };
+function captureEnv(): Promise<EnvInfo> {
+  return Promise.resolve({ userAgent: navigator.userAgent, nativeModel: PRIMARY_LOCAL_MODEL_ID,
+    classifierDigest: PRIMARY_LOCAL_MODEL.manifestDigest, date: new Date().toISOString() });
 }
 
 // ---- Status / buttons ------------------------------------------------------
@@ -168,75 +150,36 @@ function updateButtons(): void {
   need<HTMLButtonElement>('exportEvalJson').disabled = !lastEvalReport;
 }
 
-// ---- Model picker ----------------------------------------------------------
+// ---- Fixed native classifier -----------------------------------------------
 
 function buildModelChecks(): void {
   const container = need('models');
-  container.replaceChildren();
-  for (const m of PREDEFINED_MODELS.local) {
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = true;
-
-    const badge = document.createElement('span');
-    badge.className = 'badge badge-unknown';
-    badge.textContent = '…';
-
-    const label = document.createElement('label');
-    label.className = 'model-row';
-    const name = document.createElement('span');
-    name.textContent = `${m.display}  `;
-    const meta = document.createElement('span');
-    meta.className = 'muted';
-    meta.textContent = `(${m.backend}, ${m.sizeGB ?? '?'} GB)`;
-    label.append(checkbox, name, meta, badge);
-    container.append(label);
-
-    modelChecks.push({ modelId: m.name, checkbox, badge });
-  }
+  const label = document.createElement('span');
+  label.textContent = `${PRIMARY_LOCAL_MODEL.display} · Ollama on this Mac`;
+  modelBadge = document.createElement('span');
+  modelBadge.className = 'badge badge-unknown';
+  modelBadge.textContent = '…';
+  container.replaceChildren(label, modelBadge);
 }
 
 async function refreshStatuses(): Promise<void> {
   try {
-    const res = (await send({ type: 'getAllLocalModelStatuses' })) as unknown as {
-      statuses: Record<string, { state: string }>; webgpuSupported: boolean;
-    };
-    for (const { modelId, checkbox, badge } of modelChecks) {
-      const state = res.statuses?.[modelId]?.state ?? 'unknown';
-      const ready = state === 'cached' || state === 'ready';
-      badge.textContent = state;
-      badge.className = `badge badge-${ready ? 'ok' : 'warn'}`;
-      if (!res.webgpuSupported) {
-        checkbox.checked = false;
-        checkbox.disabled = true;
-        badge.textContent = 'WebGPU unavailable';
-      }
-    }
-  } catch (e) {
-    setStatus('Could not read model statuses: ' + (e as Error).message, 'error');
+    const response = await send({ type: 'getNativeModelStatus' }) as unknown as { status: LocalModelStatus };
+    if (!modelBadge) return;
+    modelBadge.textContent = response.status?.state ?? 'unknown';
+    modelBadge.className = `badge badge-${response.status?.state === 'ready' ? 'ok' : 'warn'}`;
+  } catch (error) {
+    setStatus(`Could not read native status: ${(error as Error).message}`, 'error');
   }
 }
 
-// ---- Run -------------------------------------------------------------------
-
-// Resolve the checkbox selection to the subset that's actually downloaded
-// (cached/ready). ensureLoaded would otherwise DOWNLOAD a multi-GB model inside
-// a timed/inference path, so we only ever run already-present models. Returns
-// null (after setting a status) when there's nothing runnable. Shared by the
-// latency run and the accuracy eval.
 async function resolveReady(): Promise<{ ready: string[]; skipped: string[] } | null> {
-  const selected = modelChecks.filter(c => c.checkbox.checked).map(c => c.modelId);
-  if (!selected.length) { setStatus('Select at least one model.', 'warn'); return null; }
-  const statusRes = (await send({ type: 'getAllLocalModelStatuses' })) as unknown as {
-    statuses: Record<string, { state: string }>;
-  };
-  const ready = selected.filter(id => ['cached', 'ready'].includes(statusRes.statuses?.[id]?.state));
-  const skipped = selected.filter(id => !ready.includes(id));
-  if (!ready.length) {
-    setStatus('No selected model is downloaded. Download one from the popup first, then retry.', 'error');
+  const response = await send({ type: 'getNativeModelStatus' }) as unknown as { status: LocalModelStatus };
+  if (response.status?.state !== 'ready') {
+    setStatus(response.status?.message || 'Connect to Ollama from the Bouncer popup, then retry.', 'error');
     return null;
   }
-  return { ready, skipped };
+  return { ready: [PRIMARY_LOCAL_MODEL_ID], skipped: [] };
 }
 
 async function run(): Promise<void> {
@@ -254,21 +197,21 @@ async function run(): Promise<void> {
 
   const env = await captureEnv();
   renderEnv(env);
-  if (skipped.length) setStatus(`Skipping (not downloaded): ${skipped.join(', ')}. Continuing with the rest.`, 'warn');
+  if (skipped.length) setStatus(`Skipping (unavailable): ${skipped.join(', ')}. Continuing with the rest.`, 'warn');
 
   const report: Report = { startedAt: new Date().toISOString(), env, config: { warmup, timed }, models: [] };
 
   try {
     for (const modelId of ready) {
       if (cancelled) break;
-      const mdef = PREDEFINED_MODELS.local.find(m => m.name === modelId);
+      const mdef = PRIMARY_LOCAL_MODEL;
       if (!mdef) continue;
 
-      setStatus(`Loading ${mdef.display} (cold)…`);
-      const loadRes = (await send({ type: 'benchmark', op: 'load', modelId })) as unknown as BenchmarkLoadResult;
+      setStatus(`Checking ${mdef.display} readiness…`);
+      const loadRes = (await send({ type: 'benchmark', op: 'load' })) as unknown as BenchmarkLoadResult;
 
-      // First inference after load: shader-compile / prefill warmup outlier.
-      setStatus(`${mdef.display}: first inference (cold)…`);
+      // First real request may include native model load if it has expired.
+      setStatus(`${mdef.display}: first inference…`);
       const first = await infer(modelId, makeCell('medium', 3));
       const firstInferMs = first.inferenceTime * 1000;
 
@@ -293,9 +236,9 @@ async function run(): Promise<void> {
         cells.push({ postId: cell.postId, postLabel: POSTS[cell.postId].label, nCats: cell.nCats, samples });
       }
 
-      await send({ type: 'benchmark', op: 'unload', modelId });
+      await send({ type: 'benchmark', op: 'unload' });
       report.models.push({
-        modelId, display: mdef.display, backend: mdef.backend ?? '?', sizeGB: mdef.sizeGB,
+        modelId, display: mdef.display, backend: mdef.backend ?? '?',
         loadMs: loadRes.loadMs, firstInferMs, cells,
       });
       lastReport = report;
@@ -308,7 +251,7 @@ async function run(): Promise<void> {
   } finally {
     running = false;
     updateButtons();
-    // Best-effort: free GPU memory if a run errored mid-flight.
+    // Settle extension work; native request retention owns residency.
     try { await send({ type: 'benchmark', op: 'unload' }); } catch { /* ignore */ }
   }
 }
@@ -320,7 +263,7 @@ function nums(samples: Sample[], pick: (s: Sample) => number | undefined): numbe
 }
 
 function renderEnv(env: EnvInfo): void {
-  need('env').textContent = `GPU: ${env.gpu}  ·  ${env.date}  ·  ${env.userAgent}`;
+  need('env').textContent = `Native: ${env.nativeModel} · digest ${env.classifierDigest ?? "unqualified"} · ${env.date} · ${env.userAgent}`;
 }
 
 function th(text: string): HTMLTableCellElement {
@@ -340,10 +283,10 @@ function renderResults(report: Report): void {
 
   for (const model of report.models) {
     const header = document.createElement('h3');
-    header.textContent = `${model.display} — ${model.backend}, ${model.sizeGB ?? '?'} GB`;
+    header.textContent = `${model.display} — ${model.backend}`;
     const sub = document.createElement('div');
     sub.className = 'muted';
-    sub.textContent = `cold-load ${fmt(model.loadMs, 0)} ms · first-inference ${fmt(model.firstInferMs, 0)} ms · warm: median inferenceTime (generate-only)`;
+    sub.textContent = `metadata readiness ${fmt(model.loadMs, 0)} ms · first-inference ${fmt(model.firstInferMs, 0)} ms · warm: median inferenceTime (generation call)`;
     root.append(header, sub);
 
     const table = document.createElement('table');
@@ -400,7 +343,7 @@ function exportJson(): void {
 function exportCsv(): void {
   if (!lastReport) return;
   const cols = [
-    'model', 'backend', 'sizeGB', 'cold_load_ms', 'first_infer_ms',
+    'model', 'backend', 'sizeGB', 'metadata_readiness_ms', 'first_infer_ms',
     'post', 'n_filters', 'n', 'inf_median_ms', 'inf_mean_ms', 'inf_p90_ms', 'inf_p95_ms',
     'inf_min_ms', 'inf_max_ms', 'inf_stddev_ms', 'wall_median_ms', 'out_chars_mean',
     'completion_tokens_mean', 'ttft_ms_mean', 'tpot_ms_mean', 'decode_tps_mean', 'prefill_tps_mean',
@@ -432,7 +375,7 @@ function exportCsv(): void {
 
 // ==== Accuracy eval =========================================================
 // Reuses the latency harness's plumbing — resolveReady / load / infer / unload,
-// the model checkboxes, the running+cancelled flags, and the DOM helpers. Each
+// the fixed native classifier, the running+cancelled flags, and the DOM helpers. Each
 // post is classified RUNS times against EVAL_FILTERS and majority-voted.
 
 async function runEval(): Promise<void> {
@@ -447,7 +390,7 @@ async function runEval(): Promise<void> {
 
   const env = await captureEnv();
   renderEnv(env);
-  if (skipped.length) setStatus(`Skipping (not downloaded): ${skipped.join(', ')}. Continuing with the rest.`, 'warn');
+  if (skipped.length) setStatus(`Skipping (unavailable): ${skipped.join(', ')}. Continuing with the rest.`, 'warn');
 
   const report: EvalReport = {
     startedAt: new Date().toISOString(), env, runs: RUNS, variants: EVAL_VARIANTS, models: [],
@@ -456,11 +399,11 @@ async function runEval(): Promise<void> {
   try {
     for (const modelId of ready) {
       if (cancelled) break;
-      const mdef = PREDEFINED_MODELS.local.find(m => m.name === modelId);
+      const mdef = PRIMARY_LOCAL_MODEL;
       if (!mdef) continue;
 
-      setStatus(`Loading ${mdef.display}…`);
-      await send({ type: 'benchmark', op: 'load', modelId });
+      setStatus(`Checking ${mdef.display} readiness…`);
+      await send({ type: 'benchmark', op: 'load' });
 
       const variantResults: EvalVariantResult[] = [];
       for (const variant of EVAL_VARIANTS) {
@@ -506,7 +449,7 @@ async function runEval(): Promise<void> {
         renderEval({ ...report, models: [...report.models, { modelId, display: mdef.display, backend: mdef.backend ?? '?', variants: variantResults }] });
       }
 
-      await send({ type: 'benchmark', op: 'unload', modelId });
+      await send({ type: 'benchmark', op: 'unload' });
       report.models.push({ modelId, display: mdef.display, backend: mdef.backend ?? '?', variants: variantResults });
       lastEvalReport = report;
       renderEval(report);
@@ -518,7 +461,7 @@ async function runEval(): Promise<void> {
   } finally {
     running = false;
     updateButtons();
-    // Best-effort: free GPU memory if the eval errored mid-flight.
+    // Settle extension work; native request retention owns residency.
     try { await send({ type: 'benchmark', op: 'unload' }); } catch { /* ignore */ }
   }
 }

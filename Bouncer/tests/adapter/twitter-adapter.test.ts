@@ -1,12 +1,13 @@
 /**
  * @vitest-environment happy-dom
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { loadTwitterFixture } from '../fixtures/twitter-dom';
 import { formatPostForEvaluation } from '../../src/shared/utils';
 import type { PlatformAdapter } from '../../src/types';
 
 let TwitterAdapter: new () => PlatformAdapter;
+let onFiberExtractorAppend: (script: HTMLScriptElement) => void;
 
 beforeEach(async () => {
   // Mock IntersectionObserver (not available in happy-dom)
@@ -30,12 +31,16 @@ beforeEach(async () => {
     } as unknown as typeof chrome.runtime,
   } as typeof chrome;
 
+  onFiberExtractorAppend = script => {
+    setTimeout(() => script.onload?.(new Event('load')), 0);
+  };
+
   // Stub head.appendChild to prevent happy-dom from rejecting chrome-extension:// script loads
   const origAppendChild = document.head.appendChild.bind(document.head);
   document.head.appendChild = function <T extends Node>(node: T): T {
     if (node instanceof HTMLScriptElement && node.src?.startsWith('chrome-extension://')) {
-      // Simulate successful load without actually loading
-      setTimeout(() => node.onload?.(new Event('load')), 0);
+      // Each test can control when the main-world listener becomes available.
+      onFiberExtractorAppend(node);
       return node;
     }
     return origAppendChild(node);
@@ -43,6 +48,221 @@ beforeEach(async () => {
 
   await import('../../adapters/twitter/TwitterAdapter.js');
   TwitterAdapter = window.BouncerAdapter;
+});
+
+describe('canonical store bridge startup', () => {
+  let scripts: HTMLScriptElement[];
+  let eventListeners: Array<[string, EventListener]>;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    document.body.innerHTML = '';
+    scripts = [];
+    eventListeners = [];
+    onFiberExtractorAppend = script => { scripts.push(script); };
+  });
+
+  afterEach(() => {
+    for (const [type, listener] of eventListeners) document.removeEventListener(type, listener);
+    vi.clearAllTimers();
+    vi.useRealTimers();
+  });
+
+  function listen(type: string, listener: EventListener) {
+    eventListeners.push([type, listener]);
+    document.addEventListener(type, listener);
+  }
+
+  function initialPost(id = '1') {
+    const cell = document.createElement('div');
+    cell.dataset.testid = 'cellInnerDiv';
+    const article = document.createElement('article');
+    article.dataset.testid = 'tweet';
+    article.innerHTML = `<a href="/synthetic/status/${id}"><time>now</time></a><div data-testid="tweetText">Unchanged synthetic DOM post ${id}</div>`;
+    cell.appendChild(article);
+    document.body.appendChild(cell);
+    return { article, cell };
+  }
+
+  function storeResult(requestId: string, id = '1') {
+    return {
+      requestId,
+      success: true,
+      data: {
+        fullText: `Canonical synthetic post ${id}`,
+        userName: 'Synthetic Author',
+        userHandle: '@synthetic',
+        userAvatarUrl: null,
+        postUrl: `https://x.com/synthetic/status/${id}`,
+        imageUrls: [],
+        videoThumbnailUrls: [],
+      },
+    };
+  }
+
+  function respond(requestId: string, id = '1') {
+    document.dispatchEvent(new CustomEvent('ff-tweet-data-result', {
+      detail: JSON.stringify(storeResult(requestId, id)),
+    }));
+  }
+
+  function installExtractor() {
+    listen('ff-extract-tweet-data', () => {
+      for (const cell of document.querySelectorAll<HTMLElement>('[data-ff-request]')) {
+        const requestId = cell.getAttribute('data-ff-request')!;
+        cell.removeAttribute('data-ff-request');
+        const id = cell.querySelector('a')!.getAttribute('href')!.split('/').pop();
+        respond(requestId, id);
+      }
+    });
+  }
+
+  it('waits for delayed script load before dispatching the first unchanged DOM post', async () => {
+    const { article, cell } = initialPost();
+    const originalHtml = article.innerHTML;
+    const dispatches = vi.fn();
+    listen('ff-extract-tweet-data', dispatches);
+    const adapter = new TwitterAdapter();
+    const settled = vi.fn();
+    const pending = adapter.extractPostContentFromStore(article).then(result => {
+      settled(result);
+      return result;
+    });
+
+    // The old implementation loses this event before the listener exists and
+    // exhausts its 200 ms RPC deadline while the script is still loading.
+    await vi.advanceTimersByTimeAsync(250);
+    expect(dispatches).not.toHaveBeenCalled();
+    expect(settled).not.toHaveBeenCalled();
+    expect(cell.hasAttribute('data-ff-request')).toBe(false);
+    installExtractor();
+    scripts[0].onload?.(new Event('load'));
+
+    expect(await pending).toMatchObject({
+      text: 'Canonical synthetic post 1',
+      postUrl: 'https://x.com/synthetic/status/1',
+      fromStore: true,
+    });
+    expect(dispatches).toHaveBeenCalledTimes(1);
+    expect(article.innerHTML).toBe(originalHtml);
+  });
+
+  it('installs load handlers before appending a script that can load immediately', async () => {
+    const { article } = initialPost();
+    onFiberExtractorAppend = script => {
+      scripts.push(script);
+      installExtractor();
+      expect(script.onload).toBeTypeOf('function');
+      expect(script.onerror).toBeTypeOf('function');
+      script.onload?.(new Event('load'));
+    };
+    const adapter = new TwitterAdapter();
+    expect(await adapter.extractPostContentFromStore(article)).toMatchObject({ fromStore: true });
+  });
+
+  it('shares one script load across simultaneous first post requests', async () => {
+    const first = initialPost('1');
+    const second = initialPost('2');
+    const adapter = new TwitterAdapter();
+    const dispatches = vi.fn();
+    listen('ff-extract-tweet-data', dispatches);
+    const firstRequest = adapter.extractPostContentFromStore(first.article);
+    const secondRequest = adapter.extractPostContentFromStore(second.article);
+    await vi.advanceTimersByTimeAsync(750);
+    expect(scripts).toHaveLength(1);
+    expect(dispatches).not.toHaveBeenCalled();
+
+    installExtractor();
+    scripts[0].onload?.(new Event('load'));
+    expect(await Promise.all([firstRequest, secondRequest])).toEqual([
+      expect.objectContaining({ text: 'Canonical synthetic post 1', fromStore: true }),
+      expect.objectContaining({ text: 'Canonical synthetic post 2', fromStore: true }),
+    ]);
+    expect(dispatches).toHaveBeenCalledTimes(2);
+    expect(document.querySelector('[data-ff-request]')).toBeNull();
+  });
+
+  it('resolves script load failure as null and permits a later operation to load again', async () => {
+    const { article, cell } = initialPost();
+    const adapter = new TwitterAdapter();
+    const dispatches = vi.fn();
+    listen('ff-extract-tweet-data', dispatches);
+    const failedRequest = adapter.extractPostContentFromStore(article);
+    scripts[0].onerror?.(new Event('error'));
+    expect(await failedRequest).toBeNull();
+    expect(dispatches).not.toHaveBeenCalled();
+    expect(cell.hasAttribute('data-ff-request')).toBe(false);
+
+    const nextRequest = adapter.extractPostContentFromStore(article);
+    expect(scripts).toHaveLength(2);
+    installExtractor();
+    scripts[1].onload?.(new Event('load'));
+    expect(await nextRequest).toMatchObject({ fromStore: true });
+    expect(dispatches).toHaveBeenCalledTimes(1);
+  });
+
+  it('bounds readiness waiting and lets a genuine late load serve future operations', async () => {
+    const { article, cell } = initialPost();
+    const adapter = new TwitterAdapter();
+    const dispatches = vi.fn();
+    listen('ff-extract-tweet-data', dispatches);
+    const settled = vi.fn();
+    const timedOutRequest = adapter.extractPostContentFromStore(article).then(result => {
+      settled(result);
+      return result;
+    });
+    await vi.advanceTimersByTimeAsync(1999);
+    expect(settled).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await timedOutRequest).toBeNull();
+    expect(dispatches).not.toHaveBeenCalled();
+    expect(cell.hasAttribute('data-ff-request')).toBe(false);
+
+    installExtractor();
+    scripts[0].onload?.(new Event('load'));
+    expect(await adapter.extractPostContentFromStore(article)).toMatchObject({ fromStore: true });
+    expect(settled).toHaveBeenCalledExactlyOnceWith(null);
+    expect(dispatches).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts the 200 ms RPC deadline after readiness and ignores results from timed out requests', async () => {
+    const { article, cell } = initialPost();
+    const adapter = new TwitterAdapter();
+    const requestIds: string[] = [];
+    listen('ff-extract-tweet-data', () => {
+      requestIds.push(cell.getAttribute('data-ff-request')!);
+    });
+    const settled = vi.fn();
+    const firstRequest = adapter.extractPostContentFromStore(article).then(result => {
+      settled(result);
+      return result;
+    });
+    await vi.advanceTimersByTimeAsync(750);
+    expect(settled).not.toHaveBeenCalled();
+    scripts[0].onload?.(new Event('load'));
+    await vi.advanceTimersByTimeAsync(199);
+    expect(settled).not.toHaveBeenCalled();
+    expect(requestIds).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(await firstRequest).toBeNull();
+    expect(cell.hasAttribute('data-ff-request')).toBe(false);
+
+    const secondSettled = vi.fn();
+    const secondRequest = adapter.extractPostContentFromStore(article).then(result => {
+      secondSettled(result);
+      return result;
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(requestIds).toHaveLength(2);
+    respond(requestIds[0]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(settled).toHaveBeenCalledExactlyOnceWith(null);
+    expect(secondSettled).not.toHaveBeenCalled();
+    expect(cell.getAttribute('data-ff-request')).toBe(requestIds[1]);
+    respond(requestIds[1]);
+    expect(await secondRequest).toMatchObject({ fromStore: true });
+    expect(cell.hasAttribute('data-ff-request')).toBe(false);
+  });
 });
 
 // ==================== finding tweets ====================

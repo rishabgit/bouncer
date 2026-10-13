@@ -3,7 +3,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import DOMPurify from 'dompurify';
-import type { BackgroundToContentMessage, EvaluationResult, PlatformAdapter, PostContent } from '../../src/types.js';
+import type { BackgroundToContentMessage, EvaluationResult, PipelineResponse, PlatformAdapter, PostContent } from '../../src/types.js';
+import { generateCacheKey } from '../../src/shared/utils.js';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -18,7 +19,7 @@ describe('live content filter actions', () => {
   let storage: Record<string, unknown>;
   let storageListeners: Array<(changes: Record<string, chrome.storage.StorageChange>) => void>;
   let messageListeners: Array<(message: BackgroundToContentMessage, sender: object, respond: () => void) => void>;
-  let evaluations: Array<{ message: { evaluationId: string; post: string }; resolve: (value: EvaluationResult) => void }>;
+  let evaluations: Array<{ message: { evaluationId: string; post: string }; resolve: (value: PipelineResponse) => void }>;
   let sendMessage: ReturnType<typeof vi.fn>;
   let permalink: boolean;
   let mutationObservers: Array<{ callback: MutationCallback; options?: MutationObserverInit }>;
@@ -85,7 +86,7 @@ describe('live content filter actions', () => {
     observer.callback([{ target: adapter.getPostContainer(article), addedNodes: [article] } as unknown as MutationRecord], {} as MutationObserver);
   }
 
-  async function useRealTwitterAdapter(): Promise<void> {
+  async function useRealTwitterAdapter(storeContent?: PostContent): Promise<void> {
     const append = document.head.appendChild.bind(document.head);
     vi.spyOn(document.head, 'appendChild').mockImplementation(node => node instanceof HTMLScriptElement ? node : append(node));
     await import('../../adapters/twitter/TwitterAdapter.js');
@@ -93,9 +94,31 @@ describe('live content filter actions', () => {
     vi.spyOn(TwitterAdapter.prototype, 'shouldProcessCurrentPage').mockReturnValue(true);
     vi.spyOn(TwitterAdapter.prototype, 'isMainPost').mockReturnValue(false);
     vi.spyOn(TwitterAdapter.prototype, 'isPermalinkView').mockReturnValue(false);
-    vi.spyOn(TwitterAdapter.prototype, 'extractPostContentFromStore').mockImplementation(async article => adapter.extractPostContent(article));
+    vi.spyOn(TwitterAdapter.prototype, 'extractPostContentFromStore').mockImplementation(async article => storeContent || adapter.extractPostContent(article));
     vi.spyOn(TwitterAdapter.prototype, 'hidePost');
     vi.stubGlobal('BouncerAdapter', class { constructor() { adapter = new TwitterAdapter(); return adapter; } });
+  }
+
+  function realXPost(id: string, time = '2h'): HTMLElement {
+    const article = post(id, 'A formatted excerpt…');
+    article.querySelector('[data-text]')!.innerHTML = 'A <a href="https://example.com/synthetic">formatted</a> excerpt…';
+    const author = document.createElement('div');
+    author.dataset.testid = 'User-Name';
+    author.innerHTML = '<a role="link" href="/synthetic">Synthetic Ada</a><a role="link" href="/synthetic">@synthetic</a><span>·</span>';
+    const timestamp = article.querySelector<HTMLAnchorElement>('a:has(time)')!;
+    timestamp.querySelector('time')!.textContent = time;
+    author.appendChild(timestamp);
+    article.prepend(author);
+    return article;
+  }
+
+  function canonicalXContent(id = '1'): PostContent {
+    return {
+      text: 'A formatted excerpt with the complete store-only continuation. [Quoted: Complete synthetic quote.]',
+      author: 'Synthetic Ada', handle: '@synthetic', avatarUrl: null, timeText: null,
+      textHtml: '', quote: null, postUrl: `https://x.com/synthetic/status/${id}`,
+      imageUrls: [], hasMediaContainer: false, fromStore: true,
+    };
   }
 
   function renderRestorePanel(): HTMLButtonElement {
@@ -206,7 +229,7 @@ describe('live content filter actions', () => {
 
     sendMessage = vi.fn(async (message: { type: string; evaluationId: string; post: string; phrase?: string }) => {
       if (message.type === 'evaluatePost') {
-        const evaluation = deferred<EvaluationResult>();
+        const evaluation = deferred<PipelineResponse>();
         evaluations.push({ message, resolve: evaluation.resolve });
         return evaluation.promise;
       }
@@ -240,6 +263,95 @@ describe('live content filter actions', () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it('submits a fresh evaluation for an unchanged queued article after SPA queue cancellation', async () => {
+    const article = post('1');
+    await start();
+    const cancelled = evaluations[0];
+    // clearTabQueue resolves pending work with null on receipt of loading.
+    cancelled.resolve(null);
+    await flush();
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(evaluations).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(evaluations).toHaveLength(2);
+    expect(evaluations[1].message.post).toBe(cancelled.message.post);
+    expect(evaluations[1].message.evaluationId).not.toBe(cancelled.message.evaluationId);
+    evaluations[1].resolve({ shouldHide: false, reasoning: 'Fresh surviving document verdict' });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(evaluations).toHaveLength(2);
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+  });
+
+  it.each(['manual Bounce', 'filter edit', 'disable', 'recycle', 'detach', 'reply filtering off'] as const)('does not retry a cancelled article after a newer %s takes ownership', async boundary => {
+      const article = post('1');
+      await start();
+      evaluations[0].resolve(null);
+      await flush();
+      if (boundary === 'manual Bounce') await ui.bouncePost(article, adapter.extractPostContent(article), 'rage');
+      else if (boundary === 'filter edit') change('descriptions_twitter', ['replacement']);
+      else if (boundary === 'disable') change('enabled', false);
+      else if (boundary === 'recycle') recycle(article, '2');
+      else if (boundary === 'detach') article.remove();
+      else {
+        permalink = true;
+        change('filterReplies', false);
+      }
+      await flush();
+      const freshBoundaryEvaluations = boundary === 'filter edit' ? 2 : 1;
+      expect(evaluations).toHaveLength(freshBoundaryEvaluations);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(evaluations).toHaveLength(freshBoundaryEvaluations);
+      if (boundary === 'manual Bounce') expect(adapter.getPostContainer(article).style.display).toBe('none');
+    });
+
+  it.each(['cancelled queue', 'retryable request'] as const)('keeps a %s retry within the adapter page scope', async outcome => {
+    const article = post('1');
+    await start();
+    evaluations[0].resolve(outcome === 'cancelled queue'
+      ? null : { retry: true, reasoning: 'Retired originating document', retryAfterMs: 1000 });
+    await flush();
+    const pageScope = vi.spyOn(adapter, 'shouldProcessCurrentPage').mockReturnValue(false);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(evaluations).toHaveLength(1);
+    // Returning to an eligible route can process the same surviving article.
+    pageScope.mockReturnValue(true);
+    notifyMountedArticle(article);
+    await flush();
+    expect(evaluations).toHaveLength(2);
+  });
+
+  it('does not duplicate fresh observer work before a cancellation retry fires', async () => {
+    const article = post('1');
+    await start();
+    evaluations[0].resolve(null);
+    await flush();
+    notifyMountedArticle(article);
+    await flush();
+    expect(evaluations).toHaveLength(2);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(evaluations).toHaveLength(2);
+  });
+
+  it('rechecks the adapter page scope after a cancellation retry waits for the store', async () => {
+    const article = post('1');
+    await start();
+    evaluations[0].resolve(null);
+    await flush();
+    const storeLookup = deferred<PostContent | null>();
+    const extract = vi.spyOn(adapter, 'extractPostContentFromStore').mockReturnValueOnce(storeLookup.promise);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(extract).toHaveBeenCalledOnce();
+    const pageScope = vi.spyOn(adapter, 'shouldProcessCurrentPage').mockReturnValue(false);
+    storeLookup.resolve(adapter.extractPostContent(article));
+    await flush();
+    expect(evaluations).toHaveLength(1);
+    pageScope.mockReturnValue(true);
+    notifyMountedArticle(article);
+    await flush();
+    expect(evaluations).toHaveLength(2);
   });
 
   it('restores a sole-rule parent and collateral thread reply after panel eviction', async () => {
@@ -734,6 +846,548 @@ describe('live content filter actions', () => {
     expect(ui.getFilteredPosts()).toHaveLength(0);
   });
 
+  it('uses the full canonical X input for Bounce and Restore while retaining the DOM display snapshot', async () => {
+    const canonical = canonicalXContent();
+    await useRealTwitterAdapter(canonical);
+    const article = realXPost('1');
+    await start();
+    const display = adapter.extractPostContent(article);
+    expect(display.author).toBe('Synthetic Ada@synthetic·2h');
+    expect(display.text).toBe('A formatted excerpt…');
+    expect(evaluations[0].message.post).toBe(`Synthetic Ada: ${canonical.text}`);
+
+    await ui.bouncePost(article, display, 'rage');
+    await vi.advanceTimersByTimeAsync(300);
+    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'bouncePost', post: evaluations[0].message.post }));
+    expect(ui.getFilteredPosts()[0].post).toBe(display);
+    expect(ui.getFilteredPosts()[0].evaluationText).toBe(evaluations[0].message.post);
+    expect(ui.getFilteredPosts()[0].post.textHtml).toContain('href="https://example.com/synthetic"');
+
+    renderRestorePanel().click();
+    await flush();
+    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'overrideCacheEntry', post: evaluations[0].message.post, shouldHide: false }));
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+  });
+
+  it('reads the same durable manual hide and restore after page reloads with changed X timestamps and no native service', async () => {
+    const canonical = canonicalXContent();
+    await useRealTwitterAdapter(canonical);
+    const cache = new Map<string, EvaluationResult>();
+    let uncachedEvaluations = 0;
+    sendMessage.mockImplementation(async (message: { type: string; post: string; phrase?: string }) => {
+      const key = generateCacheKey(message.post || '');
+      if (message.type === 'evaluatePost') {
+        const result = cache.get(key);
+        if (result) return { ...result, cached: true };
+        uncachedEvaluations++;
+        return { retry: true, reasoning: 'Synthetic local service is unavailable.' };
+      }
+      if (message.type === 'bouncePost' || message.type === 'overrideCacheEntry') {
+        cache.set(key, {
+          shouldHide: message.type === 'bouncePost', reasoning: 'Synthetic persisted manual decision',
+          userOverride: true, matches: message.phrase ? [message.phrase] : undefined,
+        });
+      }
+      return { success: true };
+    });
+    const article = realXPost('1');
+    await start();
+    await ui.bouncePost(article, adapter.extractPostContent(article), 'rage');
+    await vi.advanceTimersByTimeAsync(300);
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+
+    const reload = async (time: string) => {
+      vi.clearAllTimers();
+      vi.resetModules();
+      document.body.replaceChildren();
+      storageListeners = [];
+      messageListeners = [];
+      mutationObservers = [];
+      delete (window as Window & { __bouncerContentScriptLoaded?: boolean }).__bouncerContentScriptLoaded;
+      const reloadedArticle = realXPost('1', time);
+      await start();
+      return reloadedArticle;
+    };
+
+    const hiddenReload = await reload('1d');
+    expect(adapter.getPostContainer(hiddenReload).style.display).toBe('none');
+    expect(ui.getFilteredPosts()[0].userOverride).toBe(true);
+    renderRestorePanel().click();
+    await flush();
+    expect(adapter.getPostContainer(hiddenReload).style.display).toBe('');
+    const restoredReload = await reload('2d');
+    expect(adapter.getPostContainer(restoredReload).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+    expect(cache.size).toBe(1);
+    expect(uncachedEvaluations).toBe(1);
+  });
+
+  it('replaces a duplicate URL snapshot key with the canonical manual input', async () => {
+    const canonical = canonicalXContent();
+    await useRealTwitterAdapter(canonical);
+    const article = realXPost('1');
+    await start();
+    const display = adapter.extractPostContent(article);
+    ui.storeFilteredPost(article, display, 'Synthetic legacy snapshot', '', 'rage', ['rage']);
+    expect(ui.getFilteredPosts()[0].evaluationText).toBe('Synthetic Ada@synthetic·2h: A formatted excerpt…');
+
+    await ui.bouncePost(article, display, 'rage');
+    expect(ui.getFilteredPosts()).toHaveLength(1);
+    expect(ui.getFilteredPosts()[0].evaluationText).toBe(`Synthetic Ada: ${canonical.text}`);
+    renderRestorePanel().click();
+    await flush();
+    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'overrideCacheEntry', post: `Synthetic Ada: ${canonical.text}` }));
+  });
+
+  it('lets Restore preempt an older canonical Bounce lookup without persisting or republishing its hide', async () => {
+    const canonical = canonicalXContent();
+    await useRealTwitterAdapter(canonical);
+    const article = realXPost('1');
+    await start();
+    await verdict(0, ['rage']);
+    const lookup = deferred<PostContent | null>();
+    vi.spyOn(adapter, 'extractPostContentFromStore').mockReturnValueOnce(lookup.promise);
+    const action = ui.bouncePost(article, adapter.extractPostContent(article), 'new phrase');
+    renderRestorePanel().click();
+    await flush();
+    lookup.resolve(canonical);
+    await expect(action).resolves.toBe(false);
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(sendMessage.mock.calls.some(([message]) => message.type === 'bouncePost')).toBe(false);
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+  });
+
+  it.each([true, false])('gives a pending Restore ownership before an older canonical Bounce lookup resolves (success=%s)', async success => {
+    const canonical = canonicalXContent();
+    await useRealTwitterAdapter(canonical);
+    const article = realXPost('1');
+    await start();
+    await verdict(0, ['rage']);
+    const lookup = deferred<PostContent | null>();
+    vi.spyOn(adapter, 'extractPostContentFromStore').mockReturnValueOnce(lookup.promise);
+    const oldAction = ui.bouncePost(article, adapter.extractPostContent(article), 'new phrase');
+    restoreResponse = deferred();
+    const button = renderRestorePanel();
+    button.click();
+    await flush();
+    lookup.resolve(canonical);
+    await expect(oldAction).resolves.toBe(false);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(sendMessage.mock.calls.some(([message]) => message.type === 'bouncePost')).toBe(false);
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    expect(button.textContent).toBe('Restoring…');
+
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    restoreResponse.resolve({ success, error: success ? undefined : 'Synthetic Restore failure' });
+    await flush();
+    expect(adapter.getPostContainer(article).style.display).toBe(success ? '' : 'none');
+    expect(ui.getFilteredPosts()).toHaveLength(success ? 0 : 1);
+    if (!success) {
+      expect(button.textContent).toBe('Retry Restore');
+      change('descriptions_twitter', []);
+      await flush();
+      expect(adapter.getPostContainer(article).style.display).toBe('');
+    }
+  });
+
+  it('keeps a newer Bounce after an older Restore reservation fails', async () => {
+    const canonical = canonicalXContent();
+    await useRealTwitterAdapter(canonical);
+    const article = realXPost('1');
+    await start();
+    await verdict(0, ['rage']);
+    restoreResponse = deferred();
+    renderRestorePanel().click();
+    await flush();
+    await ui.bouncePost(article, adapter.extractPostContent(article), 'new phrase');
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    restoreResponse.resolve({ success: false, error: 'Synthetic older Restore failure' });
+    await flush();
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    expect(ui.getFilteredPosts()[0].matches).toEqual(['new phrase']);
+    expect(ui.getFilteredPosts()[0].userOverride).toBe(true);
+    change('descriptions_twitter', []);
+    await flush();
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+  });
+
+  it('preserves an automatic hide when Restore fails before an older Bounce fade timer runs', async () => {
+    const article = post('1');
+    await start();
+    await verdict(0, ['rage']);
+    const lookup = deferred<PostContent | null>();
+    const canonical = adapter.extractPostContent(article);
+    vi.spyOn(adapter, 'extractPostContentFromStore').mockReturnValueOnce(lookup.promise);
+    const action = ui.bouncePost(article, canonical, 'new phrase');
+    restoreResponse = deferred();
+    renderRestorePanel().click();
+    await flush();
+    lookup.resolve(canonical);
+    await expect(action).resolves.toBe(false);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    restoreResponse.resolve({ success: false, error: 'Synthetic Restore failure before fade' });
+    await flush();
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(sendMessage.mock.calls.some(([message]) => message.type === 'bouncePost')).toBe(false);
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    expect(ui.getFilteredPosts()).toHaveLength(1);
+    change('descriptions_twitter', []);
+    await flush();
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+  });
+
+  it('does not reinstate an automatic hide when its rule is removed before Restore fails', async () => {
+    const article = post('1');
+    await start();
+    await verdict(0, ['rage']);
+    restoreResponse = deferred();
+    renderRestorePanel().click();
+    await flush();
+    change('descriptions_twitter', []);
+    await flush();
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    restoreResponse.resolve({ success: false, error: 'Synthetic Restore failure after rule removal' });
+    await flush();
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+  });
+
+  it('rechecks a retained failed Restore outcome after rules change during a later reservation', async () => {
+    const article = post('1');
+    await start();
+    await verdict(0, ['rage']);
+    const firstRestore = deferred<{ success: boolean; error?: string }>();
+    restoreResponse = firstRestore;
+    const button = renderRestorePanel();
+    button.click();
+    await flush();
+    const lookup = deferred<PostContent | null>();
+    const canonical = adapter.extractPostContent(article);
+    vi.spyOn(adapter, 'extractPostContentFromStore').mockReturnValueOnce(lookup.promise);
+    const action = ui.bouncePost(article, canonical, 'new phrase');
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    firstRestore.resolve({ success: false, error: 'Synthetic first Restore failure' });
+    await flush();
+    restoreResponse = deferred();
+    button.click();
+    await flush();
+    change('descriptions_twitter', []);
+    await flush();
+    restoreResponse.resolve({ success: false, error: 'Synthetic retry Restore failure after rule removal' });
+    await flush();
+    lookup.resolve(canonical);
+    await expect(action).resolves.toBe(false);
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(sendMessage.mock.calls.some(([message]) => message.type === 'bouncePost')).toBe(false);
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+  });
+
+  it('retains only surviving automatic matches when a pending Restore fails', async () => {
+    storage.descriptions_twitter = ['rage', 'keep'];
+    const article = post('1');
+    await start();
+    await verdict(0, ['rage', 'keep']);
+    restoreResponse = deferred();
+    renderRestorePanel().click();
+    await flush();
+    change('descriptions_twitter', ['keep']);
+    await flush();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    restoreResponse.resolve({ success: false, error: 'Synthetic Restore failure with surviving rule' });
+    await flush();
+
+    const { currentPostDecision } = await import('../../src/content/filter-actions.js');
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    expect(currentPostDecision(adapter, article)?.matches).toEqual(['keep']);
+    expect(currentPostDecision(adapter, article)?.userOverride).not.toBe(true);
+    expect(ui.getFilteredPosts()[0].matches).toEqual(['keep']);
+    expect(evaluations).toHaveLength(1);
+  });
+
+  it('re-evaluates replacement rules after a failed Restore releases its invalid automatic predecessor', async () => {
+    const article = post('1');
+    await start();
+    await verdict(0, ['rage']);
+    restoreResponse = deferred();
+    renderRestorePanel().click();
+    await flush();
+    change('descriptions_twitter', ['new phrase']);
+    await flush();
+    expect(evaluations).toHaveLength(1);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    restoreResponse.resolve({ success: false, error: 'Synthetic Restore failure after replacement' });
+    await flush();
+
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(evaluations).toHaveLength(2);
+    await verdict(1, ['new phrase']);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    expect(ui.getFilteredPosts()[0].matches).toEqual(['new phrase']);
+  });
+
+  it('preserves a committed manual hide when its phrase is removed before Restore fails', async () => {
+    const article = post('1');
+    await start();
+    await ui.bouncePost(article, adapter.extractPostContent(article), 'rage');
+    await vi.advanceTimersByTimeAsync(300);
+    restoreResponse = deferred();
+    renderRestorePanel().click();
+    await flush();
+    change('descriptions_twitter', []);
+    await flush();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    restoreResponse.resolve({ success: false, error: 'Synthetic Restore failure after manual phrase removal' });
+    await flush();
+
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    expect(ui.getFilteredPosts()[0].userOverride).toBe(true);
+  });
+
+  it('unwinds failed Restore reservations across a canceled Bounce back to the automatic hide', async () => {
+    const article = post('1');
+    await start();
+    await verdict(0, ['rage']);
+    const firstRestore = deferred<{ success: boolean; error?: string }>();
+    restoreResponse = firstRestore;
+    const button = renderRestorePanel();
+    button.click();
+    await flush();
+    const lookup = deferred<PostContent | null>();
+    const canonical = adapter.extractPostContent(article);
+    vi.spyOn(adapter, 'extractPostContentFromStore').mockReturnValueOnce(lookup.promise);
+    const action = ui.bouncePost(article, canonical, 'new phrase');
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    firstRestore.resolve({ success: false, error: 'Synthetic first Restore failure' });
+    await flush();
+    expect(button.textContent).toBe('Retry Restore');
+    restoreResponse = deferred();
+    button.click();
+    await flush();
+    restoreResponse.resolve({ success: false, error: 'Synthetic retry Restore failure' });
+    await flush();
+    lookup.resolve(canonical);
+    await expect(action).resolves.toBe(false);
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(sendMessage.mock.calls.filter(([message]) => message.type === 'overrideCacheEntry')).toHaveLength(2);
+    expect(sendMessage.mock.calls.some(([message]) => message.type === 'bouncePost')).toBe(false);
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    expect(ui.getFilteredPosts()).toHaveLength(1);
+    change('descriptions_twitter', []);
+    await flush();
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+  });
+
+  it.each([true, false])('rolls a failed Restore back to the actual older Bounce write outcome (success=%s)', async success => {
+    const canonical = canonicalXContent();
+    await useRealTwitterAdapter(canonical);
+    const article = realXPost('1');
+    await start();
+    bounceResponse = deferred();
+    const action = ui.bouncePost(article, adapter.extractPostContent(article), 'rage');
+    await flush();
+    restoreResponse = deferred();
+    renderRestorePanel().click();
+    await flush();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    // Even if the Restore failure arrives first, its rollback must settle the
+    // earlier write rather than restore an uncommitted provisional decision.
+    restoreResponse.resolve({ success: false, error: 'Synthetic Restore failure' });
+    await flush();
+    bounceResponse.resolve({ success, error: success ? undefined : 'Synthetic Bounce failure' });
+    await expect(action).resolves.toBe(false);
+    await flush();
+
+    expect(adapter.getPostContainer(article).style.display).toBe(success ? 'none' : '');
+    expect(ui.getFilteredPosts()).toHaveLength(success ? 1 : 0);
+    change('descriptions_twitter', []);
+    await flush();
+    expect(adapter.getPostContainer(article).style.display).toBe(success ? 'none' : '');
+  });
+
+  it('does not roll an older failed Restore over a new Bounce while it waits for previous persistence', async () => {
+    const article = post('1');
+    await start();
+    const olderWrite = deferred<{ success: boolean; error?: string }>();
+    bounceResponse = olderWrite;
+    const olderAction = ui.bouncePost(article, adapter.extractPostContent(article), 'rage');
+    await flush();
+    restoreResponse = deferred();
+    renderRestorePanel().click();
+    await flush();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    restoreResponse.resolve({ success: false, error: 'Synthetic Restore failure' });
+    await flush();
+    bounceResponse = null;
+    await ui.bouncePost(article, adapter.extractPostContent(article), 'new phrase');
+    olderWrite.resolve({ success: false, error: 'Synthetic older Bounce failure' });
+    await expect(olderAction).resolves.toBe(false);
+    await flush();
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    expect(ui.getFilteredPosts()[0].matches).toEqual(['new phrase']);
+    expect(ui.getFilteredPosts()[0].userOverride).toBe(true);
+  });
+
+  it('rolls back a failed canonical Bounce after a later Restore also fails', async () => {
+    const article = post('1');
+    await start();
+    await verdict(0, ['rage']);
+    const lookup = deferred<PostContent | null>();
+    vi.spyOn(adapter, 'extractPostContentFromStore').mockReturnValueOnce(lookup.promise);
+    const action = ui.bouncePost(article, adapter.extractPostContent(article), 'new phrase');
+    restoreResponse = deferred();
+    renderRestorePanel().click();
+    await flush();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    lookup.reject(new Error('Synthetic canonical extraction failure'));
+    await expect(action).resolves.toBe(false);
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    restoreResponse.resolve({ success: false, error: 'Synthetic Restore failure' });
+    await flush();
+
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+    expect(sendMessage.mock.calls.some(([message]) => message.type === 'bouncePost')).toBe(false);
+  });
+
+  it.each(['new Bounce', 'recycled post'])('discards an older canonical Bounce lookup after a %s takes ownership', async replacement => {
+    const canonical = canonicalXContent();
+    await useRealTwitterAdapter(canonical);
+    const article = realXPost('1');
+    await start();
+    const lookup = deferred<PostContent | null>();
+    vi.spyOn(adapter, 'extractPostContentFromStore').mockReturnValueOnce(lookup.promise);
+    const oldAction = ui.bouncePost(article, adapter.extractPostContent(article), 'old phrase');
+    if (replacement === 'recycled post') {
+      recycle(article, '2');
+      vi.spyOn(adapter, 'extractPostContentFromStore').mockResolvedValue(canonicalXContent('2'));
+    }
+    await ui.bouncePost(article, adapter.extractPostContent(article), 'new phrase');
+    lookup.resolve(canonical);
+    await expect(oldAction).resolves.toBe(false);
+    await vi.advanceTimersByTimeAsync(300);
+
+    const bounces = sendMessage.mock.calls.filter(([message]) => message.type === 'bouncePost');
+    expect(bounces).toHaveLength(1);
+    expect(bounces[0][0].phrase).toBe('new phrase');
+    expect(ui.getFilteredPosts()).toHaveLength(1);
+    expect(ui.getFilteredPosts()[0].matches).toEqual(['new phrase']);
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+  });
+
+  it('does not publish an older successful Bounce after Restore owns the same post', async () => {
+    const canonical = canonicalXContent();
+    await useRealTwitterAdapter(canonical);
+    const article = realXPost('1');
+    await start();
+    bounceResponse = deferred();
+    const action = ui.bouncePost(article, adapter.extractPostContent(article), 'rage');
+    await flush();
+    renderRestorePanel().click();
+    await flush();
+    bounceResponse.resolve({ success: true });
+    await expect(action).resolves.toBe(false);
+    await vi.advanceTimersByTimeAsync(300);
+
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+  });
+
+  it.each(['missing', 'rejected'])('rolls back the immediate manual fade when canonical extraction is %s', async failure => {
+    const canonical = canonicalXContent();
+    await useRealTwitterAdapter(canonical);
+    const article = realXPost('1');
+    await start();
+    const lookup = deferred<PostContent | null>();
+    vi.spyOn(adapter, 'extractPostContentFromStore').mockReturnValueOnce(lookup.promise);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const action = ui.bouncePost(article, adapter.extractPostContent(article), 'rage');
+    expect(article.style.opacity).toBe('0');
+    await vi.advanceTimersByTimeAsync(300);
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    if (failure === 'missing') lookup.resolve(null);
+    else lookup.reject(new Error('Synthetic store bridge error'));
+    await expect(action).resolves.toBe(false);
+
+    expect(sendMessage.mock.calls.some(([message]) => message.type === 'bouncePost')).toBe(false);
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+  });
+
+  it('restores a canonical manual snapshot without a post URL using its live article association', async () => {
+    const article = post('1');
+    delete article.dataset.url;
+    const canonical = { ...canonicalXContent(), postUrl: null };
+    vi.spyOn(adapter, 'extractPostContentFromStore').mockResolvedValue(canonical);
+    await start();
+    await ui.bouncePost(article, adapter.extractPostContent(article), 'rage');
+    await vi.advanceTimersByTimeAsync(300);
+    renderRestorePanel().click();
+    await flush();
+
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'overrideCacheEntry', post: `Synthetic Ada: ${canonical.text}` }));
+  });
+
+  it('looks up reasoning by the canonical X author and complete store text', async () => {
+    const canonical = canonicalXContent();
+    await useRealTwitterAdapter(canonical);
+    const article = realXPost('1');
+    await start();
+    const original = sendMessage.getMockImplementation()!;
+    sendMessage.mockImplementation(async message => message.type === 'getReasoning'
+      ? { found: true, shouldHide: false, reasoning: 'Synthetic cached KEEP' }
+      : original(message));
+    article.dispatchEvent(new MouseEvent('contextmenu', { ctrlKey: true }));
+    await flush();
+
+    const lookups = sendMessage.mock.calls.filter(([message]) => message.type === 'getReasoning');
+    expect(lookups).toHaveLength(1);
+    expect(lookups[0][0].post).toBe(evaluations[0].message.post);
+    expect(document.querySelector('.post-filter-reasoning-popup')?.textContent).toContain('KEPT');
+  });
+
+  it.each(['extraction', 'response'])('keeps a later Bounce in charge when a reasoning %s is delayed', async stage => {
+    const canonical = canonicalXContent();
+    await useRealTwitterAdapter(canonical);
+    const article = realXPost('1');
+    await start();
+    const lookup = deferred<PostContent | null>();
+    const response = deferred<{ found: boolean; shouldHide: boolean; reasoning: string }>();
+    if (stage === 'extraction') vi.spyOn(adapter, 'extractPostContentFromStore').mockReturnValueOnce(lookup.promise);
+    const original = sendMessage.getMockImplementation()!;
+    sendMessage.mockImplementation(async message => message.type === 'getReasoning' ? response.promise : original(message));
+    article.dispatchEvent(new MouseEvent('contextmenu', { ctrlKey: true }));
+    await flush();
+    await ui.bouncePost(article, adapter.extractPostContent(article), 'rage');
+    if (stage === 'extraction') lookup.resolve(canonical);
+    else response.resolve({ found: true, shouldHide: false, reasoning: 'Synthetic stale KEEP' });
+    await flush();
+    await vi.advanceTimersByTimeAsync(300);
+
+    if (stage === 'extraction') expect(sendMessage.mock.calls.some(([message]) => message.type === 'getReasoning')).toBe(false);
+    expect(document.querySelector('.post-filter-reasoning-popup')?.textContent).toContain('HIDDEN');
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+  });
+
   it('re-evaluates once through the storage listener when the filter-input path adds a phrase', async () => {
     post('1');
     await start();
@@ -750,6 +1404,8 @@ describe('live content filter actions', () => {
     bounceResponse = deferred();
     await openBounce(article);
     Array.from(document.querySelectorAll<HTMLButtonElement>('.ff-annoying-chip')).find(chip => chip.textContent === phrase)!.click();
+    expect(sendMessage.mock.calls.some(([message]) => message.type === 'bouncePost')).toBe(false);
+    document.querySelector<HTMLButtonElement>('.ff-annoying-bounce')!.click();
     await flush();
     evaluations[0].resolve({ shouldHide: false, reasoning: 'old automatic keep' });
     await vi.advanceTimersByTimeAsync(300);
@@ -764,18 +1420,16 @@ describe('live content filter actions', () => {
     await flush();
   });
 
-  it.each(['custom', 'missed', 'loading missed'])('uses the same atomic chosen-post action for %s', async action => {
+  it.each(['custom', 'without phrase', 'pending suggestions'])('uses the same atomic chosen-post action for %s', async action => {
     const article = post('1');
     await start();
-    if (action === 'loading missed') suggestions = deferred();
+    if (action === 'pending suggestions') suggestions = deferred();
     await openBounce(article);
     if (action === 'custom') {
       const input = document.querySelector<HTMLInputElement>('.ff-annoying-custom-input')!;
       input.value = 'rage';
-      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-    } else {
-      document.querySelector<HTMLElement>('.ff-missed-link')!.click();
     }
+    document.querySelector<HTMLButtonElement>('.ff-annoying-bounce')!.click();
     await vi.advanceTimersByTimeAsync(300);
     expect(adapter.getPostContainer(article).style.display).toBe('none');
     expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'bouncePost', phrase: action === 'custom' ? 'rage' : undefined }));
@@ -790,6 +1444,7 @@ describe('live content filter actions', () => {
     expect(evaluations).toHaveLength(0);
     await openBounce(reply);
     document.querySelector<HTMLElement>('.ff-annoying-chip')!.click();
+    document.querySelector<HTMLButtonElement>('.ff-annoying-bounce')!.click();
     await vi.advanceTimersByTimeAsync(300);
     notifyRecycling(reply);
     await vi.advanceTimersByTimeAsync(50);

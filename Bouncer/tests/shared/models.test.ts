@@ -1,35 +1,41 @@
 import { describe, expect, it } from 'vitest';
 import {
-  DEFAULT_MODEL,
-  PREDEFINED_MODELS,
+  ACCEPTED_NATIVE_MANIFEST_DIGEST,
+  ACCEPTED_NATIVE_WEIGHT_DIGEST,
+  CANDIDATE_NATIVE_MANIFEST_DIGEST,
+  NATIVE_CLASSIFIER_FINGERPRINT,
+  OPERATOR_RESTART_RECOVERY_QUALIFIED,
   PRIMARY_LOCAL_MODEL,
   PRIMARY_LOCAL_MODEL_ID,
-  PRIMARY_LOCAL_MODEL_URL,
 } from '../../src/shared/models.js';
-import {
-  BENCHMARK_E4B_MODEL,
-  GEMMA_BENCHMARK_MODELS,
-} from '../../src/shared/benchmark-models.js';
+import { acceptedModelReference } from '../../src/shared/ollama-contract.js';
 
-describe('production local model catalog', () => {
-  it('ships exactly the canonical Gemma E2B model', () => {
-    expect(PREDEFINED_MODELS.local).toEqual([PRIMARY_LOCAL_MODEL]);
+describe('fixed native model contract', () => {
+  it('has one fixed native classifier and exact measured text weights', () => {
     expect(PRIMARY_LOCAL_MODEL).toMatchObject({
-      name: PRIMARY_LOCAL_MODEL_ID,
-      backend: 'litertlm',
-      litertlmConfig: { modelUrl: PRIMARY_LOCAL_MODEL_URL },
+      name: PRIMARY_LOCAL_MODEL_ID, backend: 'ollama',
+      weightDigest: ACCEPTED_NATIVE_WEIGHT_DIGEST, contextTokens: 1024,
     });
-    expect(DEFAULT_MODEL).toBe(`local:${PRIMARY_LOCAL_MODEL_ID}`);
+    expect(Object.keys(PRIMARY_LOCAL_MODEL)).not.toContain('litertlmConfig');
+    expect(CANDIDATE_NATIVE_MANIFEST_DIGEST).toMatch(/^[a-f0-9]{64}$/);
   });
 
-  it('keeps E4B confined to the benchmark catalog', () => {
-    expect(PREDEFINED_MODELS.local).not.toContainEqual(BENCHMARK_E4B_MODEL);
-    expect(PREDEFINED_MODELS.local.map(model => model.name)).not.toContain(
-      BENCHMARK_E4B_MODEL.name,
-    );
-    expect(GEMMA_BENCHMARK_MODELS.map(model => model.name)).toEqual([
-      PRIMARY_LOCAL_MODEL_ID,
-      'gemma-4-E4B-it-web',
-    ]);
+  it('keeps runtime and operator recovery qualification fail-closed until the root gates pass', () => {
+    if (ACCEPTED_NATIVE_MANIFEST_DIGEST === null) {
+      expect(() => acceptedModelReference()).toThrow('has not been qualified');
+    } else {
+      expect(ACCEPTED_NATIVE_MANIFEST_DIGEST).toMatch(/^[a-f0-9]{64}$/);
+      expect(acceptedModelReference()).toBe(`sha256:${ACCEPTED_NATIVE_MANIFEST_DIGEST}`);
+    }
+    expect(typeof OPERATOR_RESTART_RECOVERY_QUALIFIED).toBe('boolean');
+  });
+
+  it('fingerprints the artifact, numbered prompt, strict parser and effective budgets', () => {
+    expect(NATIVE_CLASSIFIER_FINGERPRINT).toContain(ACCEPTED_NATIVE_MANIFEST_DIGEST ?? 'unqualified');
+    expect(NATIVE_CLASSIFIER_FINGERPRINT).toContain('table_yesno-numbered-v1');
+    expect(NATIVE_CLASSIFIER_FINGERPRINT).toContain('strict-table-parser-v1');
+    expect(NATIVE_CLASSIFIER_FINGERPRINT).toContain('num_ctx:1024');
+    expect(NATIVE_CLASSIFIER_FINGERPRINT).toContain('truncate:false,shift:false');
+    expect(NATIVE_CLASSIFIER_FINGERPRINT).toContain('input:ceil(chars/3)');
   });
 });

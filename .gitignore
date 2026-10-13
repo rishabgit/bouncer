@@ -25,3 +25,9 @@ node_modules/
 .playwright-profile/
 screenshots/
 test-filtered-view.mjs
+
+# Local model preparation, synthetic qualification traces and rollback snapshots
+.native-preparation/
+.native-qualification/
+.native-rollback/
+.macos-ollama-setup-review/

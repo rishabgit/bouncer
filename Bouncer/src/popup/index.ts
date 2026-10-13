@@ -1,94 +1,98 @@
-// Bouncer popup: one on-device Gemma model and its lifecycle.
+// Bouncer popup: the fixed local Ollama connection and ordinary feed settings.
 
 import type { LocalModelStatus } from '../types';
-import { PRIMARY_LOCAL_MODEL, PRIMARY_LOCAL_MODEL_ID } from '../shared/models';
 import { getStorage, setStorage } from '../shared/storage';
 
-type ModelStatuses = Record<string, LocalModelStatus>;
-type BusyAction = 'start' | 'cancel' | 'delete' | null;
+export const OLLAMA_PERMISSION = 'http://127.0.0.1:11434/*';
+const EXTENSION_ORIGIN = 'chrome-extension://bkijmhafoocfloemhancbgadknkgdkcm';
 
-interface ModelActionResponse {
+type NativeAction = 'connectNativeModel' | 'retryNativeModel' | 'recoverNativeModel';
+interface NativeStatusResponse {
+  status?: LocalModelStatus;
   success?: boolean;
   error?: string;
 }
 
-/**
- * Rejects an async snapshot if a newer event arrived while it was in flight.
- * The popup installs the event listener before starting its initial reads, so a
- * storage event can never be replaced by an older get-status response.
- */
+/** An event received during an async read always wins over that read. */
 export class SnapshotRevision {
   private revision = 0;
+  beginSnapshot(): number { return this.revision; }
+  markEvent(): void { this.revision += 1; }
+  isCurrent(snapshotRevision: number): boolean { return snapshotRevision === this.revision; }
+}
 
-  beginSnapshot(): number {
-    return this.revision;
+interface NativeStatusView {
+  badge: string;
+  tone?: 'busy' | 'ready' | 'error';
+  text: string;
+  connect?: boolean;
+  retry?: boolean;
+  recover?: boolean;
+  help?: string;
+}
+
+export function nativeStatusView(status: LocalModelStatus): NativeStatusView {
+  switch (status.state) {
+    case 'not_connected':
+      return { badge: 'Not connected', text: 'Connect Bouncer to the local Ollama service. Posts stay visible while disconnected.', connect: true };
+    case 'ready':
+      return { badge: 'Ready', tone: 'ready', text: 'Loads when needed. Ollama releases the model after idle use.' };
+    case 'loading':
+      return { badge: 'Loading…', tone: 'busy', text: 'Loading Gemma for this request…' };
+    case 'filtering':
+      return { badge: 'Filtering', tone: 'ready', text: 'Filtering with Gemma on this Mac.' };
+    case 'paused':
+      return { badge: 'Paused', text: status.message || 'Filtering paused while another local model is loaded.', retry: true };
+    case 'missing_model':
+      return {
+        badge: 'Setup needed', tone: 'error', text: 'The pinned Bouncer model is missing. Complete the one-time model setup, then Retry.', retry: true,
+        help: 'During setup, run node scripts/prepare-native-model.mjs from the Bouncer repository, then Retry. Follow the Bouncer setup guide (docs/models.md). The extension does not download or install models.',
+      };
+    case 'blocked':
+      return {
+        badge: 'Blocked', tone: 'error', text: status.message || 'Bouncer could not verify the local setup.', retry: true,
+        help: blockedStatusHelp(status.reason),
+      };
+    case 'recovery_required':
+      return {
+        badge: 'Recovery needed', tone: 'error', text: 'Filtering paused after an interrupted local request. Manual Bounce and Restore still work.', retry: true, recover: status.recoveryQualified === true,
+        help: 'Bouncer cannot confirm that the previous native request has stopped. Retry only checks service metadata; it does not clear this recovery pause. Follow the controlled recovery procedure in the Bouncer setup guide.',
+      };
+    case 'error':
+      return {
+        badge: 'Unavailable', tone: 'error',
+        text: status.reason === 'connection' || status.reason === 'unreachable'
+          ? 'Can’t reach Ollama. Open the Ollama app on this Mac, then Retry.'
+          : status.message || 'Can’t reach Ollama. Open the Ollama app on this Mac, then Retry.',
+        retry: true,
+      };
   }
+}
 
-  markEvent(): void {
-    this.revision += 1;
-  }
-
-  isCurrent(snapshotRevision: number): boolean {
-    return snapshotRevision === this.revision;
+function blockedStatusHelp(reason: string | undefined): string {
+  switch (reason) {
+    case 'origin_rejected':
+      return `Add ${EXTENSION_ORIGIN} to the existing OLLAMA_ORIGINS allowed set, preserving its other entries, then restart Ollama and Retry. Keep its loopback binding and cloud-disabled settings.`;
+    case 'model_unqualified':
+      return 'Use a qualified Bouncer build with its accepted Gemma 4 E2B model. Follow the model qualification steps in the Bouncer setup guide (docs/models.md). Retry only checks the current setup.';
+    case 'model_identity_changed':
+      return 'Restore the pinned Bouncer model using the documented setup recipe in docs/models.md, then Retry. Bouncer must verify the accepted local model identity before filtering.';
+    case 'runtime_incompatible':
+      return 'Follow docs/models.md to match this Bouncer build with its qualified Ollama version, then Retry.';
+    case 'metadata_invalid':
+      return 'Repair the fixed local model setup using docs/models.md, then Retry. Bouncer must verify its weights, text-only configuration and metadata before filtering.';
+    default:
+      return 'Resolve the reported setup problem using the Bouncer setup guide (docs/models.md), then Retry.';
   }
 }
 
 const statusRevision = new SnapshotRevision();
 const filterRepliesRevision = new SnapshotRevision();
-
-let localModelStatuses: ModelStatuses = {};
-let webgpuSupported = true;
+let nativeStatus: LocalModelStatus = { state: 'not_connected', message: '', revision: 0 };
 let statusChecking = true;
-let busyAction: BusyAction = null;
+let busyAction = false;
 let actionError: string | null = null;
 let initialized = false;
-
-// The native WebView bridge supplies its own GPU capability path.
-const isInAppMode = typeof chrome !== 'undefined'
-  && Boolean((chrome as unknown as { _polyfilled?: boolean })._polyfilled);
-
-const LOCAL_MODEL_ERROR_MESSAGES: Array<[string, { display: string; hint: string }]> = [
-  ['device lost', {
-    display: 'GPU device was lost.',
-    hint: 'Close other GPU-intensive tabs or restart the browser, then retry.',
-  }],
-  ['device destroyed', {
-    display: 'The GPU became unavailable.',
-    hint: 'Close other GPU-intensive tabs or restart the browser, then retry.',
-  }],
-  ['out of memory', {
-    display: 'There is not enough GPU memory.',
-    hint: 'Close other GPU-intensive tabs or applications, then retry.',
-  }],
-  ['oom', {
-    display: 'GPU memory was exhausted.',
-    hint: 'Close other GPU-intensive tabs or applications, then retry.',
-  }],
-  ['webgpu not', {
-    display: 'WebGPU is unavailable.',
-    hint: 'Enable WebGPU in a supported browser and try again.',
-  }],
-  ['failed to cache model', {
-    display: 'The model could not be saved.',
-    hint: 'Free about 2 GB of disk space and retry.',
-  }],
-  ['network', {
-    display: 'The model download failed.',
-    hint: 'Check the internet connection and retry.',
-  }],
-  ['download failed', {
-    display: 'The model download failed.',
-    hint: 'Check the internet connection and retry.',
-  }],
-  ['fetch', {
-    display: 'The model download failed.',
-    hint: 'Check the internet connection and retry.',
-  }],
-  ['timeout', {
-    display: 'The model took too long to respond.',
-    hint: 'Close other GPU-intensive tabs and retry.',
-  }],
-];
 
 if (typeof document !== 'undefined') {
   document.addEventListener('DOMContentLoaded', () => {
@@ -99,96 +103,94 @@ if (typeof document !== 'undefined') {
 export async function init(): Promise<void> {
   if (initialized) return;
   initialized = true;
-
   setupModalMode();
-
-  // These listeners must be active before either asynchronous snapshot starts.
+  // Install listeners before starting snapshots.
   setupStorageListener();
+  setupPermissionListener();
   setupControlListeners();
-
-  await Promise.all([
-    loadFilterReplies(),
-    refreshLocalModelStatus(),
-  ]);
+  await Promise.all([loadFilterReplies(), refreshNativeStatus()]);
 }
 
 function setupModalMode(): void {
   if (window.self === window.top) return;
-
   document.body.classList.add('modal-mode');
   for (const button of document.querySelectorAll<HTMLButtonElement>('.modal-close-btn')) {
-    button.addEventListener('click', () => {
-      window.parent.postMessage({ type: 'closeSettingsModal' }, '*');
-    });
+    button.addEventListener('click', () => window.parent.postMessage({ type: 'closeSettingsModal' }, '*'));
   }
-
   window.addEventListener('message', event => {
+    if (event.source !== window.parent) return;
     const data = event.data as { type?: string; theme?: string } | null;
     if (data?.type !== 'setTheme' || !['light', 'dim', 'dark'].includes(data.theme || '')) return;
     document.body.classList.remove('light-mode', 'dim-mode', 'dark-mode');
     document.body.classList.add(`${data.theme}-mode`);
   });
-
-  const sendSize = () => {
-    window.parent.postMessage({ type: 'settingsResize', height: document.body.scrollHeight + 2 }, '*');
-  };
-  if (typeof ResizeObserver !== 'undefined') {
-    const resizeObserver = new ResizeObserver(sendSize);
-    resizeObserver.observe(document.body);
-  }
+  const sendSize = () => window.parent.postMessage({ type: 'settingsResize', height: document.body.scrollHeight + 2 }, '*');
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(sendSize).observe(document.body);
   sendSize();
+}
+
+function acceptStatus(status: LocalModelStatus): void {
+  if (status.revision < nativeStatus.revision) return;
+  nativeStatus = status;
 }
 
 function setupStorageListener(): void {
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== 'local') return;
-
-    if (changes.localModelStatuses) {
+    if (changes.nativeModelStatus) {
       statusRevision.markEvent();
-      localModelStatuses = (changes.localModelStatuses.newValue as ModelStatuses | undefined) || {};
+      const status = changes.nativeModelStatus.newValue as LocalModelStatus | undefined;
+      if (status) acceptStatus(status);
       statusChecking = false;
-      renderLocalModel();
+      renderNativeStatus();
     }
-
     if (changes.filterReplies) {
       filterRepliesRevision.markEvent();
-      const checkbox = byId<HTMLInputElement>('enableFilterReplies');
-      checkbox.checked = changes.filterReplies.newValue !== false;
+      byId<HTMLInputElement>('enableFilterReplies').checked = changes.filterReplies.newValue !== false;
     }
+  });
+}
+
+function setupPermissionListener(): void {
+  // Recheck actual permission rather than assuming a permission event's shape.
+  chrome.permissions.onRemoved.addListener(() => {
+    statusRevision.markEvent();
+    void refreshNativeStatus();
+  });
+  chrome.permissions.onAdded.addListener(() => {
+    statusRevision.markEvent();
+    void refreshNativeStatus();
   });
 }
 
 async function loadFilterReplies(): Promise<void> {
   const snapshot = filterRepliesRevision.beginSnapshot();
   const data = await getStorage(['filterReplies']);
-  if (!filterRepliesRevision.isCurrent(snapshot)) return;
-  byId<HTMLInputElement>('enableFilterReplies').checked = data.filterReplies !== false;
+  if (filterRepliesRevision.isCurrent(snapshot)) {
+    byId<HTMLInputElement>('enableFilterReplies').checked = data.filterReplies !== false;
+  }
 }
 
-async function refreshLocalModelStatus(): Promise<void> {
+async function refreshNativeStatus(): Promise<void> {
   const snapshot = statusRevision.beginSnapshot();
   try {
-    const response: {
-      statuses?: ModelStatuses;
-      webgpuSupported?: boolean;
-      error?: string;
-    } = await chrome.runtime.sendMessage({ type: 'getAllLocalModelStatuses' });
+    const granted = await chrome.permissions.contains({ origins: [OLLAMA_PERMISSION] });
     if (!statusRevision.isCurrent(snapshot)) return;
-    if (response?.error) throw new Error(response.error);
-
-    localModelStatuses = response?.statuses || {};
-    webgpuSupported = response?.webgpuSupported !== false;
-    statusChecking = false;
+    if (!granted) {
+      nativeStatus = { state: 'not_connected', message: '', revision: nativeStatus.revision };
+    } else {
+      const response: NativeStatusResponse | undefined = await chrome.runtime.sendMessage({ type: 'getNativeModelStatus' });
+      if (!statusRevision.isCurrent(snapshot)) return;
+      if (response?.error) throw new Error(response.error);
+      if (!response?.status) throw new Error('The local service status was not returned.');
+      acceptStatus(response.status);
+    }
   } catch (err) {
     if (!statusRevision.isCurrent(snapshot)) return;
-    statusChecking = false;
-    const message = `Could not check the local model: ${errorText(err)}`;
-    localModelStatuses = {
-      ...localModelStatuses,
-      [PRIMARY_LOCAL_MODEL_ID]: { state: 'error', error: message },
-    };
+    nativeStatus = { state: 'error', message: `Could not check Ollama: ${errorText(err)}`, revision: nativeStatus.revision };
   }
-  renderLocalModel();
+  statusChecking = false;
+  renderNativeStatus();
 }
 
 function setupControlListeners(): void {
@@ -200,242 +202,71 @@ function setupControlListeners(): void {
       console.error('[Popup] Failed to save filter-replies setting:', err);
     });
   });
-
-  byId<HTMLButtonElement>('downloadLocalModel').addEventListener('click', () => {
-    startModel('download').catch(err => console.error('[Popup] Download action failed:', err));
+  byId<HTMLButtonElement>('connectNativeModel').addEventListener('click', () => {
+    // Calling request directly from the user click preserves Chrome's gesture.
+    void runNativeAction('connectNativeModel');
   });
-  byId<HTMLButtonElement>('retryLocalModel').addEventListener('click', () => {
-    startModel('retry').catch(err => console.error('[Popup] Retry action failed:', err));
+  byId<HTMLButtonElement>('retryNativeModel').addEventListener('click', () => {
+    void runNativeAction('retryNativeModel');
   });
-  byId<HTMLButtonElement>('cancelLocalModelDownload').addEventListener('click', () => {
-    cancelModelDownload().catch(err => console.error('[Popup] Cancel action failed:', err));
+  byId<HTMLButtonElement>('recoverNativeModel').addEventListener('click', () => {
+    if (nativeStatus.recoveryQualified !== true) return;
+    const confirmed = window.confirm('Quit and reopen Ollama first, and leave other local clients idle. Have you restarted Ollama and confirmed that other clients are idle? This resumes filtering after the interrupted request.');
+    if (confirmed) void runNativeAction('recoverNativeModel');
   });
-  for (const id of ['deleteLocalModel', 'deleteLocalModelAfterError']) {
-    byId<HTMLButtonElement>(id).addEventListener('click', () => {
-      deleteModel().catch(err => console.error('[Popup] Delete action failed:', err));
-    });
-  }
 }
 
-async function startModel(action: 'download' | 'retry'): Promise<void> {
+async function runNativeAction(type: NativeAction): Promise<void> {
   if (busyAction) return;
+  busyAction = true;
   actionError = null;
-  busyAction = 'start';
-  renderLocalModel();
-  const snapshot = statusRevision.beginSnapshot();
-
+  renderNativeStatus();
   try {
-    const response = await sendModelAction('initializeLocalModel');
-    assertSuccessful(response, `Could not ${action} Gemma`);
-
-    // The background acknowledges before its first storage write. Show a
-    // short honest starting state, but never replace a newer storage event.
-    if (statusRevision.isCurrent(snapshot)) {
-      localModelStatuses = {
-        ...localModelStatuses,
-        [PRIMARY_LOCAL_MODEL_ID]: { state: 'initializing', text: 'Starting Gemma…' },
-      };
+    if (type === 'connectNativeModel') {
+      const granted = await chrome.permissions.request({ origins: [OLLAMA_PERMISSION] });
+      if (!granted) throw new Error('Connection permission was not granted. You can connect again when ready.');
     }
+    // Connect/Retry checks metadata only. Neither action warms native weights.
+    const response: NativeStatusResponse | undefined = await chrome.runtime.sendMessage(
+      type === 'recoverNativeModel' ? { type, operatorRestartConfirmed: true } : { type },
+    );
+    if (response?.error || response?.success === false) throw new Error(response.error || 'Could not check Ollama.');
+    await refreshNativeStatus();
   } catch (err) {
-    actionError = `${action === 'download' ? 'Download' : 'Retry'} failed: ${errorText(err)}`;
-    await refreshLocalModelStatus();
+    actionError = errorText(err);
+    await refreshNativeStatus();
   } finally {
-    busyAction = null;
-    renderLocalModel();
+    busyAction = false;
+    renderNativeStatus();
   }
 }
 
-async function cancelModelDownload(): Promise<void> {
-  if (busyAction) return;
-  actionError = null;
-  busyAction = 'cancel';
-  renderLocalModel();
-
-  try {
-    const response = await sendModelAction('cancelLocalModelDownload');
-    assertSuccessful(response, 'Could not cancel the model download');
-  } catch (err) {
-    actionError = `Cancel failed: ${errorText(err)}`;
-  } finally {
-    await refreshLocalModelStatus();
-    busyAction = null;
-    renderLocalModel();
-  }
-}
-
-async function deleteModel(): Promise<void> {
-  if (busyAction) return;
-
-  const sizeGB = Math.round(PRIMARY_LOCAL_MODEL.sizeGB || 2);
-  const confirmed = window.confirm(
-    `Delete Gemma 4 E2B from this browser? Downloading it again will use about ${sizeGB} GB of data and disk space.`
-  );
-  if (!confirmed) return;
-
-  actionError = null;
-  busyAction = 'delete';
-  renderLocalModel();
-
-  try {
-    const response = await sendModelAction('deleteLocalModel');
-    assertSuccessful(response, 'Could not delete the model');
-  } catch (err) {
-    // Keep this message across the authoritative status refresh below.
-    actionError = `Delete failed: ${errorText(err)}`;
-  } finally {
-    // Do not re-enable controls until the background has authoritatively
-    // reported what remains in Cache Storage.
-    await refreshLocalModelStatus();
-    busyAction = null;
-    renderLocalModel();
-  }
-}
-
-async function sendModelAction(type: 'initializeLocalModel' | 'cancelLocalModelDownload' | 'deleteLocalModel'):
-Promise<ModelActionResponse> {
-  return chrome.runtime.sendMessage({ type });
-}
-
-function assertSuccessful(response: ModelActionResponse | undefined, fallback: string): void {
-  if (response?.success === true) return;
-  throw new Error(response?.error || fallback);
-}
-
-function renderLocalModel(): void {
-  const panels = document.querySelectorAll<HTMLElement>('.model-state');
-  for (const panel of panels) panel.hidden = true;
-
-  const progressFill = byId<HTMLElement>('localProgressFill');
-  progressFill.classList.remove('indeterminate');
-  progressFill.style.width = '0%';
-  setControlsDisabled(Boolean(busyAction));
-  renderActionError();
-
-  if (busyAction === 'delete') {
-    setBadge('Deleting…', 'downloading');
-    showPanel('localModelReady');
-    byId<HTMLElement>('localModelReadyHint').textContent = 'Removing the downloaded model and checking browser storage…';
-    return;
-  }
-
-  if (statusChecking) {
-    setBadge('Checking…');
-    showPanel('localModelChecking');
-    return;
-  }
-
-  const status = localModelStatuses[PRIMARY_LOCAL_MODEL_ID] || { state: 'not_downloaded' };
-  if ((!webgpuSupported && !isInAppMode) || status.state === 'unsupported') {
-    setBadge('Unsupported', 'error');
-    showPanel('localModelUnsupported');
-    return;
-  }
-
-  switch (status.state) {
-    case 'not_downloaded':
-      setBadge('Not downloaded');
-      showPanel('localModelNotDownloaded');
-      break;
-
-    case 'downloading': {
-      setBadge('Downloading…', 'downloading');
-      showPanel('localModelDownloading');
-      const progress = typeof status.progress === 'number'
-        ? Math.min(1, Math.max(0, status.progress))
-        : null;
-      if (progress === null) {
-        progressFill.classList.add('indeterminate');
-      } else {
-        progressFill.style.width = `${(progress * 100).toFixed(1)}%`;
-      }
-      byId<HTMLElement>('localProgressText').textContent = status.text
-        || (progress === null ? 'Downloading Gemma…' : `${(progress * 100).toFixed(1)}%`);
-      break;
-    }
-
-    case 'initializing':
-      setBadge('Loading…', 'downloading');
-      showPanel('localModelDownloading');
-      progressFill.classList.add('indeterminate');
-      byId<HTMLElement>('localProgressText').textContent = status.text
-        || 'Preparing Gemma for local inference…';
-      break;
-
-    case 'cached':
-      setBadge('Downloaded', 'ready');
-      showPanel('localModelReady');
-      byId<HTMLElement>('localModelReadyHint').textContent = 'Downloaded; loads automatically when first needed.';
-      break;
-
-    case 'ready':
-      setBadge('Ready', 'ready');
-      showPanel('localModelReady');
-      byId<HTMLElement>('localModelReadyHint').textContent = 'Loaded and ready to filter posts locally.';
-      break;
-
-    case 'error': {
-      setBadge('Error', 'error');
-      showPanel('localModelError');
-      const friendly = friendlyModelError(status.error || status.reason);
-      byId<HTMLElement>('localModelErrorText').textContent = [friendly.display, friendly.hint]
-        .filter(Boolean)
-        .join(' ');
-      break;
-    }
-
-    default:
-      setBadge('Error', 'error');
-      showPanel('localModelError');
-      byId<HTMLElement>('localModelErrorText').textContent = 'The local model reported an unknown state. Retry or delete its data.';
-  }
-}
-
-function setControlsDisabled(disabled: boolean): void {
-  for (const id of [
-    'downloadLocalModel',
-    'cancelLocalModelDownload',
-    'retryLocalModel',
-    'deleteLocalModel',
-    'deleteLocalModelAfterError',
-  ]) {
-    byId<HTMLButtonElement>(id).disabled = disabled;
-  }
-
-  const deleting = busyAction === 'delete';
-  byId<HTMLButtonElement>('deleteLocalModel').textContent = deleting ? 'Deleting…' : 'Delete model';
-  byId<HTMLButtonElement>('deleteLocalModelAfterError').textContent = deleting ? 'Deleting…' : 'Delete model data';
-}
-
-function setBadge(text: string, className?: 'downloading' | 'ready' | 'error'): void {
+function renderNativeStatus(): void {
+  const view = statusChecking
+    ? { badge: 'Checking…', text: 'Checking the local service…' } as NativeStatusView
+    : nativeStatusView(nativeStatus);
   const badge = byId<HTMLElement>('localModelStatusBadge');
-  badge.textContent = text;
-  badge.classList.remove('downloading', 'ready', 'error');
-  if (className) badge.classList.add(className);
-}
-
-function showPanel(id: string): void {
-  byId<HTMLElement>(id).hidden = false;
-}
-
-function renderActionError(): void {
+  badge.textContent = busyAction ? 'Checking…' : view.badge;
+  badge.classList.remove('busy', 'ready', 'error');
+  if (busyAction) badge.classList.add('busy');
+  else if (view.tone) badge.classList.add(view.tone);
+  byId<HTMLElement>('nativeStatusText').textContent = view.text;
+  const connect = byId<HTMLButtonElement>('connectNativeModel');
+  const retry = byId<HTMLButtonElement>('retryNativeModel');
+  const recover = byId<HTMLButtonElement>('recoverNativeModel');
+  recover.hidden = !view.recover;
+  recover.disabled = busyAction;
+  connect.hidden = !view.connect;
+  retry.hidden = !view.retry;
+  connect.disabled = retry.disabled = busyAction;
+  byId<HTMLElement>('nativeSetupHelp').hidden = !view.help;
+  byId<HTMLElement>('nativeSetupHelpText').textContent = view.help || '';
   const error = byId<HTMLElement>('localModelActionError');
   error.hidden = !actionError;
   error.textContent = actionError || '';
 }
 
-function friendlyModelError(message: string | undefined): { display: string; hint: string } {
-  if (!message) return { display: 'The local model failed.', hint: 'Retry, or delete its data and download it again.' };
-  const lowerMessage = message.toLowerCase();
-  for (const [pattern, friendly] of LOCAL_MODEL_ERROR_MESSAGES) {
-    if (lowerMessage.includes(pattern)) return friendly;
-  }
-  return { display: message, hint: 'Retry, or delete the model data and download it again.' };
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
+function errorText(error: unknown): string { return error instanceof Error ? error.message : String(error); }
 function byId<T extends HTMLElement>(id: string): T {
   const element = document.getElementById(id);
   if (!element) throw new Error(`Missing popup element #${id}`);

@@ -1,30 +1,36 @@
-// Shared production model definitions for Bouncer.
-// Used by the background, popup, and content scripts via esbuild bundling.
+import type { LocalModelDef } from '../types';
 
-import type { LocalModelDef, PredefinedModelsMap } from '../types';
+export const PRIMARY_LOCAL_MODEL_ID = 'bouncer-gemma4-e2b-qat-text:v1';
+export const CANDIDATE_NATIVE_MANIFEST_DIGEST =
+  'fbc40c82cb8acd3f63077d417d6040a42b5aeac406ed078fa8ba888fb38cfc19';
 
-export const PRIMARY_LOCAL_MODEL_ID = 'gemma-4-E2B-it-web';
+/** Fixed text-only QAT artifact accepted after the recorded Mac model checks. */
+export const ACCEPTED_NATIVE_MANIFEST_DIGEST: string | null = CANDIDATE_NATIVE_MANIFEST_DIGEST;
+export const ACCEPTED_NATIVE_WEIGHT_DIGEST =
+  '3646b4c147cd235a44d91df1546d3b7d8e29b547dbe4e1f80856419aa455e6fd';
+export const ACCEPTED_OLLAMA_VERSION = '0.40.3';
+export const ACCEPTED_NATIVE_QUANTIZATION = 'Q4_0';
+export const NATIVE_CONTEXT_TOKENS = 1024;
+export const NATIVE_SUGGESTION_TOKENS = 150;
+export const OPERATOR_RESTART_RECOVERY_QUALIFIED = true;
+/** Default automatic work yields while another model is resident. */
+export const CONCURRENT_NATIVE_MODELS_QUALIFIED = false;
 
-// Revision-pinned upstream LiteRT-LM artifact. Keeping the URL in one exported
-// constant also gives the retirement migration an exact cache key to preserve.
-export const PRIMARY_LOCAL_MODEL_URL =
-  'https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/9262660a1676eed6d0c477ab1a86344430854664/gemma-4-E2B-it-web.litertlm';
-
-export const PRIMARY_LOCAL_MODEL: LocalModelDef = {
+export const PRIMARY_LOCAL_MODEL: LocalModelDef = Object.freeze({
   name: PRIMARY_LOCAL_MODEL_ID,
-  display: 'Gemma 4 E2B (Instruct)',
-  isLocal: true,
-  backend: 'litertlm',
-  sizeGB: 2.008,
-  litertlmConfig: {
-    modelUrl: PRIMARY_LOCAL_MODEL_URL,
-    maxTokens: 1024,
-  },
-};
+  display: 'Gemma 4 E2B',
+  backend: 'ollama',
+  manifestDigest: ACCEPTED_NATIVE_MANIFEST_DIGEST,
+  weightDigest: ACCEPTED_NATIVE_WEIGHT_DIGEST,
+  contextTokens: NATIVE_CONTEXT_TOKENS,
+});
 
-/** The production catalog intentionally contains one on-device model. */
-export const PREDEFINED_MODELS: PredefinedModelsMap = {
-  local: [PRIMARY_LOCAL_MODEL],
-};
-
-export const DEFAULT_MODEL = `local:${PRIMARY_LOCAL_MODEL_ID}`;
+/** Cache identity includes the frozen native prompt, parser and input budget. */
+export const NATIVE_CLASSIFIER_FINGERPRINT = [
+  'native-v1',
+  ACCEPTED_NATIVE_MANIFEST_DIGEST ?? 'unqualified',
+  'table_yesno-numbered-v1',
+  'strict-table-parser-v1',
+  'think:false,stream:false,truncate:false,shift:false,temperature:0,seed:0,num_ctx:1024',
+  'output:min(256,max(64,12*n)),input:ceil(chars/3)',
+].join('|');

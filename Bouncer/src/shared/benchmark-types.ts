@@ -5,9 +5,10 @@
 import type { LocalPromptMode } from './prompts';
 
 // One bounded operation per message. The PAGE owns the run loop: an MV3 service
-// worker must not be asked to hold a response open for a whole multi-minute run
-// (the codebase already treats long model-init as fire-and-forget for this
-// reason), so each op returns within a single load / inference / unload.
+// worker must not hold a response open for an entire multi-minute run. The
+// historical operation names remain internal: `load` verifies metadata without
+// loading weights, `infer` is real generation, and `unload` drains extension
+// work without unloading the shared native runner.
 export type BenchmarkOp = 'load' | 'infer' | 'unload';
 
 // The post payload for an `infer` op (mirrors EvaluationPostData; text-only here).
@@ -17,8 +18,8 @@ export interface BenchmarkPost {
 
 export type BenchmarkPromptMode = LocalPromptMode;
 
-// Optional per-classification throughput/latency breakdown. Some engines can fill this from
-// `reply.usage` + `usage.extra`; LiteRT/Gemma exposes nothing, so it stays null.
+// Optional per-classification runtime accounting. The fixed native benchmark
+// currently reports null; blank columns are not zero-throughput measurements.
 export interface BenchmarkUsage {
   promptTokens: number;
   completionTokens: number;
@@ -31,7 +32,7 @@ export interface BenchmarkUsage {
 
 // Result of one `infer` op.
 export interface BenchmarkInferResult {
-  inferenceTime: number;   // generate-only SECONDS (result.inferenceTime)
+  inferenceTime: number;   // generation-call SECONDS, including transport/native loading
   wallMs: number;          // full callLocalInference() wall time (performance.now), incl. prompt prep
   shouldHide: boolean;
   reasoning: string;
@@ -40,7 +41,7 @@ export interface BenchmarkInferResult {
   usage: BenchmarkUsage | null;
 }
 
-// Result of one `load` op (reset() then timed ensureLoaded()).
+// Result of one `load` op: timed metadata readiness, never a native model load.
 export interface BenchmarkLoadResult {
   loadMs: number;
 }

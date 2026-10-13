@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ContentToBackgroundMessage, EvaluationResult } from '../../src/types';
+import { NativeModelError } from '../../src/shared/ollama-contract';
 
 const runtime = vi.hoisted(() => ({
-  infer: vi.fn(),
+  migration: vi.fn().mockResolvedValue({}), epoch: 0, infer: vi.fn(),
   engine: {
     engine: null,
     loadedModel: null,
@@ -11,22 +12,38 @@ const runtime = vi.hoisted(() => ({
     isMaintaining: vi.fn(() => false),
     isModelLoaded: vi.fn(() => true),
     isInitializing: vi.fn(() => false),
-    preempt: vi.fn(),
+    get operationEpoch() { return runtime.epoch; },
+    assertOperationEpoch: (expected: number) => {
+      if (expected !== runtime.epoch) throw new Error('Inference preempted');
+    },
+    preempt: vi.fn(() => { runtime.epoch++; }),
+    recoverAfterOperatorRestart: vi.fn(() => {
+      runtime.epoch++;
+      return Promise.resolve({ state: 'ready', message: 'Ready', revision: 1 });
+    }),
     clearQueue: vi.fn(),
     teardown: vi.fn(),
+    runInferenceOperation: vi.fn(),
   },
 }));
+
+vi.mock('../../src/shared/models.js', async importOriginal => {
+  const original = await importOriginal<typeof import('../../src/shared/models')>();
+  return { ...original,
+    ACCEPTED_NATIVE_MANIFEST_DIGEST: 'a'.repeat(64),
+    PRIMARY_LOCAL_MODEL: { ...original.PRIMARY_LOCAL_MODEL, manifestDigest: 'a'.repeat(64) },
+    NATIVE_CLASSIFIER_FINGERPRINT: 'synthetic-native-fingerprint',
+  };
+});
 
 vi.mock('../../src/background/local-model.js', () => ({
   callLocalInference: runtime.infer,
   localEngine: runtime.engine,
   MODEL_MAINTENANCE_ERROR: 'Local model maintenance in progress',
 }));
-vi.mock('../../src/background/backends/litertlm-backend.js', () => ({
-  forceCloseLitertlmOffscreen: vi.fn().mockResolvedValue(false),
-}));
 vi.mock('../../src/background/model-migration.js', () => ({
-  migrateToGemmaOnlyModel: vi.fn().mockResolvedValue({}),
+  migrateToNativeModel: runtime.migration,
+  stripNativeCutoverStorageChanges: (changes: Record<string, chrome.storage.StorageChange>) => changes,
 }));
 vi.mock('../../src/background/benchmark.js', () => ({
   handleBenchmark: vi.fn().mockResolvedValue({}),
@@ -40,6 +57,8 @@ let onMessage: (
   sendResponse: (response: unknown) => void,
 ) => unknown;
 let onStorageChanged: (changes: StorageChanges, areaName: string) => void;
+let onUpdated: (tabId: number, change: { status?: string }) => void;
+let onActivated: (info: { tabId: number }) => void;
 let pipeline: typeof import('../../src/background/pipeline');
 let generateCacheKey: typeof import('../../src/shared/utils')['generateCacheKey'];
 let writeStorage: ReturnType<typeof vi.fn>;
@@ -51,8 +70,9 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function send(message: ContentToBackgroundMessage): Promise<unknown> {
-  return new Promise(resolve => onMessage(message, { tab: { id: 1 } }, resolve));
+const contentSender = { id: 'test-extension', url: 'https://x.com/home', frameId: 0, documentId: 'document-one', tab: { id: 1 } };
+function send(message: ContentToBackgroundMessage, sender: chrome.runtime.MessageSender = contentSender): Promise<unknown> {
+  return new Promise(resolve => onMessage(message, sender, resolve));
 }
 
 function bounce(post: string, phrase?: string): Promise<unknown> {
@@ -81,8 +101,10 @@ async function deliverFilterEvent(before: string[], after: string[]): Promise<vo
 beforeEach(async () => {
   vi.resetModules();
   vi.clearAllMocks();
+  runtime.epoch = 0;
+  runtime.migration.mockResolvedValue({});
   stored = {
-    enabled: true, selectedModel: 'local:gemma-4-E2B-it-web', filterReplies: true,
+    enabled: true, filterReplies: true,
     descriptions_twitter: ['Sports'], evaluationCache: {},
     stats: { filtered: 0, evaluated: 0, totalCost: 0 },
   };
@@ -106,12 +128,11 @@ beforeEach(async () => {
     tabs: {
       query: vi.fn(async () => [{ id: 1 }]),
       sendMessage: vi.fn().mockResolvedValue({ positions: {} }),
-      onActivated: { addListener: vi.fn() }, onRemoved: { addListener: vi.fn() },
-      onUpdated: { addListener: vi.fn() },
+      onActivated: { addListener: vi.fn(listener => { onActivated = listener; }) }, onRemoved: { addListener: vi.fn() },
+      onUpdated: { addListener: vi.fn(listener => { onUpdated = listener; }) },
     },
     windows: { WINDOW_ID_NONE: -1, onFocusChanged: { addListener: vi.fn() } },
   } as unknown as typeof chrome;
-  Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { gpu: {} } });
   runtime.infer.mockResolvedValue({ shouldHide: false, reasoning: 'automatic verdict', matches: [] });
   pipeline = await import('../../src/background/pipeline');
   ({ generateCacheKey } = await import('../../src/shared/utils'));
@@ -128,6 +149,94 @@ afterEach(async () => {
 });
 
 describe('atomic local Bounce actions', () => {
+  it('starts the complete suggestion deadline at receipt even while startup is delayed', async () => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    const cutover = deferred<void>();
+    runtime.migration.mockReturnValueOnce(cutover.promise);
+    pipeline = await import('../../src/background/pipeline');
+    await import('../../src/background/index');
+    const suggestion = send({ type: 'suggestAnnoyingReasons', post: 'delayed startup synthetic post', siteId: 'twitter' });
+    const expected = expect(suggestion).resolves.toMatchObject({ reasons: [], error: expect.stringContaining('Suggestions took too long') });
+    await vi.advanceTimersByTimeAsync(pipeline.SUGGESTION_FLOW_DEADLINE_MS);
+    await expected;
+    expect(runtime.engine.runInferenceOperation).not.toHaveBeenCalled();
+    cutover.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(runtime.engine.runInferenceOperation).not.toHaveBeenCalled();
+    vi.useRealTimers();
+  });
+
+  it('rejects an old document request delayed before enqueue when another document takes its tab', async () => {
+    const oldSettings = deferred<Record<string, unknown>>();
+    let paused = false;
+    readStorage.mockImplementation(async (keys: string[]) => {
+      if (keys.includes('enabled') && !paused) { paused = true; return oldSettings.promise; }
+      return Object.fromEntries(keys.filter(key => key in stored).map(key => [key, structuredClone(stored[key])]));
+    });
+    const old = evaluate('old document delayed post');
+    await vi.waitFor(() => expect(paused).toBe(true));
+    onUpdated(1, { status: 'loading' });
+    const replacement = { ...contentSender, documentId: 'document-two' };
+    await expect(send({ type: 'pageLoad' }, replacement)).resolves.toEqual({ success: true });
+    oldSettings.resolve({ enabled: true });
+    await expect(old).resolves.toMatchObject({ retry: true, reasoning: expect.stringContaining('document') });
+    await expect(send({ type: 'evaluatePost', evaluationId: 'new-document-eval', post: 'new document post', postUrl: null, siteId: 'twitter' }, replacement))
+      .resolves.toMatchObject({ shouldHide: false });
+    expect(runtime.infer).toHaveBeenCalledTimes(1);
+    expect(runtime.infer.mock.calls[0][0]).toEqual({ text: 'new document post' });
+  });
+
+  it('retires a settings-delayed suggestion through the actual popup recovery route', async () => {
+    const settings = deferred<Record<string, unknown>>();
+    let paused = false;
+    readStorage.mockImplementation(async (keys: string[]) => {
+      if (keys.includes('enabled') && !paused) { paused = true; return settings.promise; }
+      return Object.fromEntries(keys.filter(key => key in stored).map(key => [key, structuredClone(stored[key])]));
+    });
+    const suggestion = send({ type: 'suggestAnnoyingReasons', post: 'old recovery post', siteId: 'twitter' });
+    await vi.waitFor(() => expect(paused).toBe(true));
+    await expect(send({ type: 'recoverNativeModel', operatorRestartConfirmed: true }, {
+      id: 'test-extension', url: 'chrome-extension://test-extension/popup.html',
+    })).resolves.toMatchObject({ success: true });
+    settings.resolve({ enabled: true });
+    await expect(suggestion).resolves.toEqual({ reasons: [], error: 'Inference preempted' });
+    expect(runtime.engine.recoverAfterOperatorRestart).toHaveBeenCalledWith(true);
+    expect(runtime.engine.runInferenceOperation).not.toHaveBeenCalled();
+  });
+
+  it('rejects a settings-delayed suggestion after a real tab activation', async () => {
+    await send({ type: 'pageLoad' });
+    await send({ type: 'pageLoad' }, { ...contentSender, documentId: 'second-tab-document', tab: { id: 2 } });
+    const settings = deferred<Record<string, unknown>>();
+    let paused = false;
+    readStorage.mockImplementation(async (keys: string[]) => {
+      if (keys.includes('enabled') && !paused) { paused = true; return settings.promise; }
+      return Object.fromEntries(keys.filter(key => key in stored).map(key => [key, structuredClone(stored[key])]));
+    });
+    const suggestion = send({ type: 'suggestAnnoyingReasons', post: 'old tab post', siteId: 'twitter' });
+    await vi.waitFor(() => expect(paused).toBe(true));
+    onActivated({ tabId: 2 });
+    settings.resolve({ enabled: true });
+    await expect(suggestion).resolves.toEqual({ reasons: [], error: 'Inference preempted' });
+    expect(runtime.engine.runInferenceOperation).not.toHaveBeenCalled();
+  });
+
+  it('keeps manual Bounce and Restore usable after an explicit suggestion budget failure', async () => {
+    const post = 'Synthetic post exceeding the native suggestion budget.';
+    runtime.engine.runInferenceOperation.mockRejectedValueOnce(new NativeModelError('input_budget', 'The suggestion input exceeds the native budget.'));
+    await expect(send({ type: 'suggestAnnoyingReasons', post, siteId: 'twitter' })).resolves.toEqual({
+      reasons: [], error: 'The suggestion input exceeds the native budget.',
+    });
+    expect(cached(post)).toBeUndefined();
+    await expect(bounce(post, 'Sports')).resolves.toEqual({ success: true });
+    expect(cached(post)).toMatchObject({ shouldHide: true, userOverride: true });
+    await expect(send({ type: 'overrideCacheEntry', post, shouldHide: false, reasoning: 'Restored by you' }))
+      .resolves.toEqual({ success: true });
+    expect(cached(post)).toMatchObject({ shouldHide: false, userOverride: true });
+    expect(runtime.infer).not.toHaveBeenCalled();
+  });
+
   it('reconciles visible phrase removal before accepting an old cache hit when its storage event is delayed', async () => {
     const post = 'cached post after its only rule was removed';
     pipeline.evaluationCache.set(generateCacheKey(post), {
@@ -151,7 +260,7 @@ describe('atomic local Bounce actions', () => {
   it('keeps a valid cache hit when evaluation observes the same effective phrase list', async () => {
     const post = 'cached post with unchanged rules';
     pipeline.evaluationCache.set(generateCacheKey(post), {
-      shouldHide: true, reasoning: 'current Sports match', matches: ['Sports'],
+      shouldHide: true, reasoning: 'current Sports match', matches: ['Sports'], classifierFingerprint: 'synthetic-native-fingerprint',
     });
 
     await expect(evaluate(post)).resolves.toMatchObject({ shouldHide: true, cached: true, matches: ['Sports'] });
@@ -182,7 +291,7 @@ describe('atomic local Bounce actions', () => {
     const result = evaluate(post);
     await vi.waitFor(() => expect(settingsPaused && phrasesPaused).toBe(true));
     stored.descriptions_twitter = [];
-    settingsRead.resolve({ enabled: true, selectedModel: 'local:gemma-4-E2B-it-web', filterReplies: true });
+    settingsRead.resolve({ enabled: true, filterReplies: true });
     phraseRead.resolve({ descriptions_twitter: readsCurrentPhrases ? [] : ['Sports'] });
 
     await expect(result).resolves.toMatchObject({ shouldHide: false });
@@ -367,7 +476,7 @@ describe('explicit post decisions fence automatic work', () => {
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const post = 'direct reader paused before pending manual decision';
     const key = generateCacheKey(post);
-    pipeline.evaluationCache.set(key, { shouldHide: false, reasoning: 'settled automatic verdict' });
+    pipeline.evaluationCache.set(key, { shouldHide: false, reasoning: 'settled automatic verdict', classifierFingerprint: 'synthetic-native-fingerprint' });
     await pipeline.saveCache();
     const settingsRead = deferred<Record<string, unknown>>();
     const manualWrite = deferred<void>();
@@ -390,7 +499,7 @@ describe('explicit post decisions fence automatic work', () => {
     await vi.waitFor(() => expect(pipeline.evaluationCache.get(key)?.userOverride).toBe(true));
     const settled = vi.fn();
     void result.then(settled);
-    settingsRead.resolve({ enabled: true, selectedModel: 'local:gemma-4-E2B-it-web', filterReplies: true });
+    settingsRead.resolve({ enabled: true, filterReplies: true });
     await new Promise<void>(resolve => setTimeout(resolve, 0));
     expect(settled).not.toHaveBeenCalled();
     manualWrite.resolve();
@@ -407,7 +516,7 @@ describe('explicit post decisions fence automatic work', () => {
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const post = 'reasoning reader during pending manual decision';
     const key = generateCacheKey(post);
-    pipeline.evaluationCache.set(key, { shouldHide: false, reasoning: 'settled automatic verdict' });
+    pipeline.evaluationCache.set(key, { shouldHide: false, reasoning: 'settled automatic verdict', classifierFingerprint: 'synthetic-native-fingerprint' });
     await pipeline.saveCache();
     const manualWrite = deferred<void>();
     writeStorage.mockImplementationOnce(async (items: Record<string, unknown>) => {
@@ -435,7 +544,7 @@ describe('explicit post decisions fence automatic work', () => {
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const post = 'batch reader paused before pending manual decision';
     const key = generateCacheKey(post);
-    pipeline.evaluationCache.set(key, { shouldHide: false, reasoning: 'settled automatic verdict' });
+    pipeline.evaluationCache.set(key, { shouldHide: false, reasoning: 'settled automatic verdict', classifierFingerprint: 'synthetic-native-fingerprint' });
     await pipeline.saveCache();
     const settingsRead = deferred<Record<string, unknown>>();
     const manualWrite = deferred<void>();
@@ -465,7 +574,7 @@ describe('explicit post decisions fence automatic work', () => {
     await vi.waitFor(() => expect(pipeline.evaluationCache.get(key)?.userOverride).toBe(true));
     const settled = vi.fn();
     void result.then(settled);
-    settingsRead.resolve({ enabled: true, selectedModel: 'local:gemma-4-E2B-it-web', filterReplies: true });
+    settingsRead.resolve({ enabled: true, filterReplies: true });
     await new Promise<void>(resolve => setTimeout(resolve, 0));
     expect(settled).not.toHaveBeenCalled();
     manualWrite.resolve();
@@ -648,9 +757,9 @@ describe('explicit post decisions fence automatic work', () => {
     }));
   });
 
-  it('keeps legacy cache entries without exact matches distinguishable', async () => {
+  it('keeps preserved legacy manual entries without exact matches distinguishable', async () => {
     pipeline.evaluationCache.set(generateCacheKey('legacy cached post'), {
-      shouldHide: true, reasoning: 'legacy', category: 'Markets, crypto and NFTs',
+      shouldHide: true, reasoning: 'legacy', category: 'Markets, crypto and NFTs', userOverride: true,
     });
     const response = await evaluate('legacy cached post');
     expect(response).toMatchObject({ cached: true, shouldHide: true });

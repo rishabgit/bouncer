@@ -1,35 +1,66 @@
-import { readFileSync, writeFileSync } from 'fs';
-import { execSync } from 'child_process';
-import { createInterface } from 'readline';
-import { resolve, dirname, basename } from 'path';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { createInterface } from 'node:readline';
+import { tmpdir } from 'node:os';
+import { resolve, dirname, basename } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { generateManifest } from './generate-manifests.mjs';
 
-const ROOT = dirname(new URL(import.meta.url).pathname);
-// Version lives in manifest.base.json (source of truth for the generator).
-// manifest.json at the root is a generated artifact and shouldn't be edited
-// directly — cut.js writes to base.json then re-runs the generator.
+const ROOT = dirname(fileURLToPath(import.meta.url));
 const BASE_MANIFEST_PATH = resolve(ROOT, 'manifest.base.json');
 
-function readManifestVersion(path) {
-  const manifest = JSON.parse(readFileSync(path, 'utf8'));
-  return manifest.version;
-}
+// Positive runtime allowlist: source files, diagnostics, dependencies and stale
+// generated assets cannot enter an archive merely because they exist locally.
+const RELEASE_FILES = [
+  'manifest.json',
+  'popup.html',
+  'popup.css',
+  'content.css',
+  'dompurify.js',
+  'dist/background.js',
+  'dist/popup.js',
+  'dist/content.js',
+  'dist/TwitterAdapter.js',
+  'adapters/twitter/twitter.css',
+  'adapters/twitter/fiber-extractor.js',
+  'icons/icon16.png',
+  'icons/icon48.png',
+  'icons/icon128.png',
+  'icons/a-bouncer-2x-black.png',
+];
 
-function writeManifestVersion(path, version) {
-  const manifest = JSON.parse(readFileSync(path, 'utf8'));
-  manifest.version = version;
-  writeFileSync(path, JSON.stringify(manifest, null, 2) + '\n');
+export function stageRelease(root, destination) {
+  const files = RELEASE_FILES.map(relative => [resolve(root, relative), relative]);
+  files.push([resolve(root, '../LICENSE.txt'), 'LICENSE.txt']);
+  for (const [source] of files) {
+    let valid = false;
+    try {
+      const stat = statSync(source);
+      valid = stat.isFile() && stat.size > 0;
+    } catch {
+      // A release requires every declared runtime asset and its license.
+    }
+    if (!valid) throw new Error(`Missing release asset: ${source}`);
+  }
+  mkdirSync(destination, { recursive: true });
+  try {
+    for (const [source, relative] of files) {
+      const target = resolve(destination, relative);
+      mkdirSync(dirname(target), { recursive: true });
+      copyFileSync(source, target);
+    }
+  } catch (error) {
+    rmSync(destination, { recursive: true, force: true });
+    throw error;
+  }
 }
-
 
 function compareVersions(a, b) {
   const partsA = a.split('.').map(Number);
   const partsB = b.split('.').map(Number);
-  const len = Math.max(partsA.length, partsB.length);
-  for (let i = 0; i < len; i++) {
-    const numA = partsA[i] || 0;
-    const numB = partsB[i] || 0;
-    if (numA > numB) return 1;
-    if (numA < numB) return -1;
+  for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+    const difference = (partsA[i] || 0) - (partsB[i] || 0);
+    if (difference) return Math.sign(difference);
   }
   return 0;
 }
@@ -42,118 +73,54 @@ function incrementPatch(version) {
 
 function prompt(question) {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise((resolve) => {
-    rl.question(question, (answer) => {
+  return new Promise(resolveAnswer => {
+    rl.question(question, answer => {
       rl.close();
-      resolve(answer.trim());
+      resolveAnswer(answer.trim());
     });
   });
 }
 
 async function main() {
-  const sameVersion = process.argv.includes('--same-version');
-  const firefox = process.argv.includes('--firefox');
-  const target = firefox ? 'firefox' : 'chrome';
+  const args = process.argv.slice(2);
+  const unsupported = args.find(arg => arg !== '--same-version');
+  if (unsupported) throw new Error(`Unsupported release option: ${unsupported}. This fork releases only Chrome.`);
+  const sameVersion = args.includes('--same-version');
 
-  // Build (build.js regenerates manifest.json from base + target overrides)
-  console.log('Running npm install...');
-  execSync('npm install', { cwd: ROOT, stdio: 'inherit' });
+  console.log('Running npm ci...');
+  execFileSync('npm', ['ci'], { cwd: ROOT, stdio: 'inherit' });
+  console.log('Running node build.js...');
+  execFileSync(process.execPath, ['build.js'], { cwd: ROOT, stdio: 'inherit' });
 
-  console.log(`Running node build.js --target=${target}...`);
-  execSync(`node build.js --target=${target}`, { cwd: ROOT, stdio: 'inherit' });
-
-  console.log('Removing node_modules...');
-  execSync('rm -rf node_modules', { cwd: ROOT, stdio: 'inherit' });
-
-  // Read current version from base (source of truth)
-  const currentVersion = readManifestVersion(BASE_MANIFEST_PATH);
-  console.log(`\nCurrent version (manifest.base.json): ${currentVersion}`);
-
-  let newVersion;
-  if (sameVersion) {
-    newVersion = currentVersion;
-    console.log(`Keeping version at ${newVersion}`);
-  } else {
-    // Prompt for new version
+  const manifest = JSON.parse(readFileSync(BASE_MANIFEST_PATH, 'utf8'));
+  const currentVersion = manifest.version;
+  let newVersion = currentVersion;
+  if (!sameVersion) {
     const defaultVersion = incrementPatch(currentVersion);
-    const input = await prompt(`Enter new version number (must be > ${currentVersion}) [${defaultVersion}]: `);
-    newVersion = input || defaultVersion;
-
-    // Validate format
-    if (!/^\d+(\.\d+)*$/.test(newVersion)) {
-      console.error('Error: Invalid version format. Use semver like 1.2.3');
-      process.exit(1);
-    }
-
-    // Validate it increased
-    if (compareVersions(newVersion, currentVersion) <= 0) {
-      console.error(`Error: New version ${newVersion} must be greater than ${currentVersion}`);
-      process.exit(1);
-    }
-
-    // Write version to base and regenerate the target manifest
-    writeManifestVersion(BASE_MANIFEST_PATH, newVersion);
-    console.log(`Updated ${BASE_MANIFEST_PATH} to ${newVersion}`);
-    const { generateManifest } = await import('./generate-manifests.mjs');
-    generateManifest(target);
+    newVersion = await prompt(`Enter new version number (must be > ${currentVersion}) [${defaultVersion}]: `) || defaultVersion;
+    if (!/^\d+(\.\d+)*$/.test(newVersion)) throw new Error('Invalid version format. Use semver like 1.2.3');
+    if (compareVersions(newVersion, currentVersion) <= 0) throw new Error(`New version ${newVersion} must be greater than ${currentVersion}`);
+    manifest.version = newVersion;
+    writeFileSync(BASE_MANIFEST_PATH, JSON.stringify(manifest, null, 2) + '\n');
+    generateManifest();
   }
 
-  // Zip the directory
-  const dirName = basename(ROOT);
-  const zipName = `${dirName}-${newVersion}.zip`;
-  const parentDir = resolve(ROOT, '..');
-
-  const zipPath = resolve(parentDir, zipName);
-  execSync(`rm -f "${zipPath}"`);
-
-  console.log(`\nCreating ${zipName}...`);
-  const excludes = [
-    'node_modules/*',
-    '.git/*',
-    '.gitignore',
-    '.wrangler/*',
-    'hosting/*',
-    'src/*',
-    'tests/*',
-    '.env.*',
-    'build.js',
-    'cut.js',
-    'generate-manifests.mjs',
-    'litertlm-assets.mjs',
-    'background.js',
-    'popup.js',
-    'content.js',
-    'offscreen.js',
-    'benchmark.html',
-    'benchmark.js',
-    'gemma-comparison.html',
-    'gemma-comparison.js',
-    'adapters/twitter/TwitterAdapter.ts',
-    'package.json',
-    'package-lock.json',
-    'vitest.config.js',
-    'eslint.config.mjs',
-    'manifest.base.json',
-    'manifest.chrome.json',
-    'manifest.firefox.json',
-    'manifest.safari.json',
-    '.DS_Store',
-    '*/.DS_Store',
-    '*/*/.DS_Store',
-    '*/*/*/.DS_Store',
-    'iOS (App)/*',
-    'Bouncer.xcodeproj/*',
-    '.claude/*',
-    '.nvmrc',
-    'README.md',
-    'tsconfig.json',
-    'tsconfig.test.json',
-  ].map(e => `"${e}"`).join(' ');
-  execSync(`cd "${ROOT}" && zip -r "${resolve(parentDir, zipName)}" . -x ${excludes}`, {
-    stdio: 'inherit',
-  });
-
-  console.log(`\nDone! Created ${resolve(parentDir, zipName)}`);
+  const zipPath = resolve(ROOT, '..', `${basename(ROOT)}-${newVersion}.zip`);
+  const stage = mkdtempSync(resolve(tmpdir(), 'bouncer-chrome-release-'));
+  try {
+    stageRelease(ROOT, stage);
+    rmSync(zipPath, { force: true });
+    console.log(`Creating ${basename(zipPath)}...`);
+    execFileSync('zip', ['-r', zipPath, '.'], { cwd: stage, stdio: 'inherit' });
+    console.log(`Done! Created ${zipPath}`);
+  } finally {
+    rmSync(stage, { recursive: true, force: true });
+  }
 }
 
-main();
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch(error => {
+    console.error('Release failed:', error);
+    process.exitCode = 1;
+  });
+}

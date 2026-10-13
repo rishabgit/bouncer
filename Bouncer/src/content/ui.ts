@@ -3,14 +3,12 @@
 import { toBlob } from 'html-to-image';
 import { asyncHandler } from '../shared/async';
 import { cleanReasoning, escapeHtml, formatPostForEvaluation, parseHTML } from '../shared/utils';
-import { init as initPopup } from '../popup/index';
 import {
   encodeFilterPackCode, decodeFilterPackCode, buildFilterPackShareUrl,
   FILTER_PACK_SHARE_URL_REGEX,
 } from '../shared/share-encoding';
 import type { ContentUIDeps, FilteredPost, PostContent, LocalModelStatus } from '../types';
 import { getStorage, getDescriptions, setDescriptions } from '../shared/storage';
-import { PREDEFINED_MODELS } from '../shared/models';
 import {
   tooltipContentMaxHeight,
   tooltipHorizontalPosition,
@@ -20,6 +18,7 @@ import { cancelScheduledFilteredHide, hasScheduledFilteredHide, isRendered, rest
 import {
   currentPostDecision, displayedMatches, forgetPostDecision, getPostDecision,
   isPostIdentityCurrent, postIdentity, rememberPostDecision, survivingMatches,
+  type LivePostDecision,
 } from './filter-actions';
 
 // Dependencies (set by initUI from index.ts)
@@ -28,8 +27,7 @@ let _deps: ContentUIDeps;
 export function initUI(deps: ContentUIDeps) {
   _deps = deps;
 
-  // Safari re-injects content scripts when the user changes extension
-  // permissions on a tab that's already loaded. The new injection has a
+  // Reinjection on an already-loaded tab must not leave duplicate UI. The new injection has a
   // fresh module scope, so its filter-container variables are null and the
   // injection guards think no box exists — resulting in duplicate UI.
   // Proactively remove any leftover boxes from a prior injection.
@@ -59,6 +57,58 @@ interface RestoreStatus {
 // replacement only while the corresponding snapshot remains retained.
 const filteredRestoreStatuses = new WeakMap<FilteredPost, RestoreStatus>();
 const renderedFilteredSnapshots = new WeakMap<HTMLElement, FilteredPost>();
+let reconciledFilterPhrases: string[] | undefined;
+
+type PostReasoning = ReturnType<ContentUIDeps['postReasonings']['get']>;
+interface SettledPostDecision {
+  decision?: LivePostDecision;
+  reasoning?: PostReasoning;
+}
+interface DecisionPersistence {
+  state: 'extracting' | 'writing' | 'committed' | 'canceled' | 'failed';
+  settled: Promise<void>;
+  result?: SettledPostDecision;
+  previousDecision?: LivePostDecision;
+  previousReasoning?: PostReasoning;
+}
+type ExplicitPostDecision = LivePostDecision & { persistence?: DecisionPersistence };
+
+function completeDecisionPersistence(persistence: DecisionPersistence, state: 'committed' | 'canceled' | 'failed', result: SettledPostDecision): void {
+  let decision = result.decision;
+  // Provisional manual ownership can delay the automatic rule-edit handling.
+  // Recheck its predecessor against the latest observed rules after all awaits,
+  // including outcomes retained by an earlier failed reservation.
+  if (decision?.shouldHide && !decision.userOverride && reconciledFilterPhrases) {
+    const matches = survivingMatches(decision.matches, reconciledFilterPhrases);
+    decision = { ...decision, shouldHide: !!matches?.length, matches: matches ?? undefined };
+    result = { ...result, reasoning: matches?.length && result.reasoning
+      ? { ...result.reasoning, matches, category: matches.join(', ') }
+      : undefined };
+  }
+  persistence.result = {
+    ...result,
+    // Settled outcomes contain no action lineage, so retries cannot retain an
+    // ever-growing chain of completed reservations and provisional Bounces.
+    decision: decision ? { identity: decision.identity, shouldHide: decision.shouldHide, matches: decision.matches ? [...decision.matches] : undefined, userOverride: decision.userOverride } : undefined,
+  };
+  persistence.state = state;
+  delete persistence.previousDecision;
+  delete persistence.previousReasoning;
+}
+
+async function settledPostDecision(decision: LivePostDecision | undefined, reasoning: PostReasoning): Promise<SettledPostDecision> {
+  while (decision) {
+    const persistence = (decision as ExplicitPostDecision).persistence;
+    if (!persistence) return { decision, reasoning };
+    if (persistence.state === 'writing') await persistence.settled;
+    if (persistence.result) return persistence.result;
+    // Extraction has not written anything; a later explicit action abandons
+    // this provisional Bounce and falls back to its actual predecessor.
+    reasoning = persistence.previousReasoning;
+    decision = persistence.previousDecision;
+  }
+  return { reasoning };
+}
 
 let filteredTabActive = false;
 let filteredModalBackdrop: HTMLElement | null = null;
@@ -133,7 +183,7 @@ let previousFilteredCount = 0;
 // Feed-level model-status indicator (bottom-left, theme-aware): one state-driven
 // element shown when the local model isn't ready to classify. See updateModelStatusIndicator.
 let modelStatusEl: HTMLElement | null = null;
-let modelStatusDismissed: ModelUiState | null = null; // derived state the user dismissed
+let modelStatusDismissed: string | null = null; // derived state the user dismissed
 
 // ==================== Update Banner ====================
 
@@ -222,7 +272,7 @@ function refreshRestoreControls(status?: RestoreStatus): void {
 
 function refreshFilteredPostsView(): void {
   updateFilteredTabCount();
-  const containers = document.querySelectorAll('.filtered-modal-content, .ff-ios-filtered-modal-content');
+  const containers = document.querySelectorAll('.filtered-modal-content');
   containers.forEach(renderFilteredPostsView);
 }
 
@@ -256,6 +306,7 @@ export function resetPostForRecycling(article: HTMLElement): void {
 
 /** Reconcile every live hiding unit, including adapter-hidden thread siblings. */
 export function reconcileFilterChanges(phrases: string[], processRestoredPosts = true): void {
+  reconciledFilterPhrases = [...phrases];
   const posts = _deps.findPosts();
   const liveContainers = new Set(posts.map(article => _deps.adapter.getPostContainer(article)));
   let shouldProcessRestoredPosts = false;
@@ -319,9 +370,7 @@ export function reconcileFilterChanges(phrases: string[], processRestoredPosts =
 
 export function updateTheme() {
   const theme = _deps.adapter.getThemeMode();
-  const iosFilteredModal = document.querySelector('.ff-ios-filtered-modal-backdrop');
-  const iosPageContainer = _deps.getIOSPageContainer();
-  const elements = [filterPhrasesContainer, filteredViewContainer, bottomFilterContainer, mobileFilterContainer, iosPageContainer, iosFilteredModal].filter(Boolean) as Element[];
+  const elements = [filterPhrasesContainer, filteredViewContainer, bottomFilterContainer, mobileFilterContainer].filter(Boolean) as Element[];
 
   for (const el of elements) {
     el.classList.remove('light-mode', 'dim-mode', 'dark-mode');
@@ -357,12 +406,6 @@ function buildFilterContainerHTML(): string {
           <span class="filter-phrases-and">and</span>
           ${placeholderHTML}
         </span>
-      </div>
-      <div class="filter-model-loading" style="display: none;">
-        <div class="model-loading-text">Loading model...</div>
-        <div class="model-loading-progress">
-          <div class="model-loading-progress-fill"></div>
-        </div>
       </div>
       <div class="filter-phrases-actions">
         <div class="filter-phrases-actions-left">
@@ -647,7 +690,6 @@ function updateBottomFilterVisibility() {
 }
 
 export function injectBottomFilterBox() {
-  if (_deps.IS_IOS) return;
   const existingInDom = document.querySelectorAll('.filter-phrases-bottom').length;
   // Adopt any existing node left by a previous injection
   if (!bottomFilterContainer || !bottomFilterContainer.isConnected) {
@@ -716,7 +758,6 @@ function updateMobileFilterVisibility() {
 }
 
 export function injectMobileFilterBox() {
-  if (_deps.IS_IOS) return;
   const existingInDom = document.querySelectorAll('.filter-phrases-mobile').length;
   // Adopt any existing node left by a previous injection
   if (!mobileFilterContainer || !mobileFilterContainer.isConnected) {
@@ -769,11 +810,6 @@ export function syncFilterPhrases() {
       }
     });
 
-    // Update iOS overlay categories if visible
-    const iosPageContainer = _deps.getIOSPageContainer();
-    if (iosPageContainer && iosPageContainer.isConnected) {
-      _deps.renderIOSCategories(iosPageContainer);
-    }
   }).catch(err => console.error('[UI] Failed to sync filter phrases:', err));
 }
 
@@ -815,125 +851,6 @@ async function screenshotFilterBox(box: HTMLElement): Promise<File> {
   }
   if (!blob) throw new Error('html-to-image returned null');
   return new File([blob], 'bouncer-filter-pack.png', { type: 'image/png' });
-}
-
-// iOS variant: there's no visible filter card on x.com when the iOS app's
-// native sheet is the user's filter UI. We render an off-screen replica of
-// the desktop card, screenshot it, and feed it into the same composer-paste
-// flow the desktop "Share filters" button uses. The screenshot needs to look
-// like what a desktop user would share, so we reuse buildFilterContainerHTML
-// + the renderPhrasesInContainer pill rendering.
-export async function shareFilterPackForIOS(): Promise<void> {
-  if (sharingFilterPackInProgress) return;
-  sharingFilterPackInProgress = true;
-  try {
-    await runShareFilterPackForIOS();
-  } finally {
-    sharingFilterPackInProgress = false;
-  }
-}
-
-async function runShareFilterPackForIOS(): Promise<void> {
-  const phrases = await getDescriptions(_deps.descriptionsKey);
-  if (phrases.length === 0) throw new Error('No phrases to share');
-
-  // Off-screen wrapper carries the theme class so .light-mode/.dark-mode
-  // descendant selectors in content.css resolve correctly. position:fixed +
-  // far-negative left keeps it out of the viewport without display:none,
-  // which html-to-image needs in order to compute layout.
-  //
-  // Deliberately NOT using the .filter-phrases-sidebar/-bottom/-mobile class
-  // here — content.css hides those on body.ff-ios, which would zero out the
-  // screenshot. Side effect: the font-family rule at the top of content.css
-  // is scoped to those same classes, so we inline the same stack here so the
-  // screenshot doesn't fall back to the browser's serif default.
-  const theme = _deps.adapter.getThemeMode();
-  const wrapper = document.createElement('div');
-  wrapper.className = `${theme}-mode`;
-  wrapper.style.position = 'fixed';
-  wrapper.style.left = '-10000px';
-  wrapper.style.top = '0';
-  // 320px clipped the right-aligned "Settings" button at the desktop card's
-  // gap+padding budget. 380px gives the actions row enough horizontal space
-  // for "View filtered (N)" + "Share filters" + "Settings" without overflow.
-  wrapper.style.width = '380px';
-  wrapper.style.zIndex = '-1';
-  wrapper.style.pointerEvents = 'none';
-  wrapper.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif';
-  wrapper.replaceChildren(parseHTML(buildFilterContainerHTML()));
-
-  const list = wrapper.querySelector<HTMLElement>('.filter-phrases-list');
-  if (list) renderPhrasesInContainer(list, phrases);
-
-  document.body.appendChild(wrapper);
-  try {
-    const box = wrapper.querySelector<HTMLElement>('.filter-phrases-container');
-    if (!box) throw new Error('Off-screen filter container missing');
-    const file = await screenshotFilterBox(box);
-    const shareCode = await encodeFilterPackCode({ phrases });
-    await openComposerOnMobile(file, shareCode);
-  } finally {
-    wrapper.remove();
-  }
-}
-
-// Mobile X (iPhone WebView UA) renders the composer as a real <textarea>
-// instead of the desktop DraftJS contenteditable, with no [role="dialog"]
-// wrapper. Synthetic ClipboardEvents that work on the desktop composer don't
-// update the textarea's React-tracked value, and the textarea won't accept
-// pasted images at all. Set the value through the prototype's native setter
-// (so React's value tracker sees the change) and attach the screenshot via
-// the composer's hidden file input.
-async function openComposerOnMobile(file: File, shareCode: string): Promise<void> {
-  const composeLink = document.querySelector<HTMLElement>('a[href="/compose/post"]');
-  if (!composeLink) throw new Error('Compose link not found on page');
-  composeLink.click();
-
-  const textbox = await waitForElement<HTMLTextAreaElement>('textarea[data-testid="tweetTextarea_0"]', 5000);
-  if (!textbox) throw new Error('Compose textarea did not appear');
-
-  // Image first: posting media after text on mobile X sometimes scrolls the
-  // textarea on insertion, which can blur input focus mid-flow.
-  await attachImageToMobileComposer(file);
-
-  textbox.focus();
-  const captionWithCode = `${SHARE_TWEET_TEXT}\n\n${buildFilterPackShareUrl(shareCode)}`;
-  setReactTextareaValue(textbox, captionWithCode);
-  textbox.dispatchEvent(new Event('input', { bubbles: true }));
-}
-
-// Update a React-controlled textarea's value via its prototype's native
-// setter so React's value tracker registers the change. Direct assignment
-// to .value is silently overwritten on the next render.
-function setReactTextareaValue(el: HTMLTextAreaElement, value: string): void {
-  const desc = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value');
-  if (desc?.set) {
-    desc.set.call(el, value);
-  } else {
-    el.value = value;
-  }
-}
-
-// Mobile X exposes a hidden <input type="file"> that the media button proxies
-// through. Setting `.files` via DataTransfer + dispatching change is the same
-// path that native picker → upload flow takes.
-async function attachImageToMobileComposer(file: File): Promise<void> {
-  const fileInput = await waitForElement<HTMLInputElement>(
-    'input[type="file"][data-testid="fileInput"], input[type="file"][accept*="image"]',
-    3000
-  );
-  if (!fileInput) {
-    console.warn('[Bouncer] Mobile composer file input not found — text-only share');
-    return;
-  }
-  const dt = new DataTransfer();
-  dt.items.add(file);
-  fileInput.files = dt.files;
-  fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-  // Give X's media-attach pipeline a tick to ingest the file before we move on
-  // to setting the textarea value, which can otherwise race with the upload
-  // taking focus.
-  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 }
 
 // Open the X composer and drop the image into it via a synthetic paste event
@@ -1304,10 +1221,6 @@ async function confirmAndImportPack(phrases: string[]): Promise<void> {
   if (newPhrases.length === 0) return;
   await setDescriptions(_deps.descriptionsKey, [...existing, ...newPhrases]);
   syncFilterPhrases();
-  // Push the new phrase list to the native iOS filter sheet — without this the
-  // native @Published phrases array stays at its pre-import snapshot until the
-  // user opens & closes the sheet.
-  if (_deps.IS_IOS) _deps.updateIOSFilteredCount();
   _deps.reEvaluateAllPosts();
 }
 
@@ -1396,77 +1309,20 @@ export function showSettingsModal() {
   settingsModal = document.createElement('div');
   settingsModal.className = 'settings-modal-overlay';
 
-  // Declare iframe outside branches so message handler can access it
-  let iframe: HTMLIFrameElement | undefined;
-
-  // In-app mode (WKWebView): inject popup directly into DOM
-  if (chrome._polyfilled && window.__feedfilterPopup) {
-    const popup = window.__feedfilterPopup;
-
-    // Inject popup CSS once (rewrite body.X-mode selectors to target container div)
-    if (!document.getElementById('ff-popup-styles')) {
-      const style = document.createElement('style');
-      style.id = 'ff-popup-styles';
-      style.textContent = popup.css
-        .replace(/body\.dark-mode/g, '.settings-modal-iframe.dark-mode')
-        .replace(/body\.dim-mode/g, '.settings-modal-iframe.dim-mode')
-        .replace(/body\.light-mode/g, '.settings-modal-iframe.light-mode')
-        .replace(/body\.modal-mode/g, '.settings-modal-iframe');
-      document.head.appendChild(style);
-    }
-
-    // Create container with popup HTML
-    const container = document.createElement('div');
-    container.className = 'settings-modal-iframe';
-    container.replaceChildren(parseHTML(popup.html));
-    container.style.overflow = 'auto';
-
-    // Show close button (modal mode)
-    const closeBtnEl = container.querySelector<HTMLElement>('.modal-close-btn');
-    if (closeBtnEl) closeBtnEl.style.display = 'block';
-
-    // Wire up close button
-    const modalCloseBtn = container.querySelector('#modalCloseBtn');
-    if (modalCloseBtn) {
-      modalCloseBtn.addEventListener('click', () => closeSettingsModal());
-    }
-
-    // Apply theme
+  const iframe = document.createElement('iframe');
+  iframe.className = 'settings-modal-iframe';
+  iframe.src = chrome.runtime.getURL('popup.html');
+  iframe.addEventListener('load', () => {
     const theme = _deps.adapter.getThemeMode();
-    container.classList.add(theme + '-mode');
-
-    settingsModal.appendChild(container);
-    document.body.appendChild(settingsModal);
-
-    // Trigger animation after append
-    requestAnimationFrame(() => {
-      settingsModal!.classList.add('visible');
-    });
-
-    // Run popup JS directly via import (no eval)
-    initPopup().catch((e: Error) => {
-      console.error('[FeedFilter] Error running popup init:', e, e.stack);
-    });
-  } else {
-    // Extension mode: load popup.html in iframe
-    iframe = document.createElement('iframe');
-    iframe.className = 'settings-modal-iframe';
-    iframe.src = chrome.runtime.getURL('popup.html');
-
-    // Send current theme to iframe once it loads
-    iframe.addEventListener('load', () => {
-      const theme = _deps.adapter.getThemeMode();
-      iframe!.contentWindow!.postMessage({ type: 'setTheme', theme }, '*');
-    });
-
-    settingsModal.appendChild(iframe);
-    document.body.appendChild(settingsModal);
-  }
+    iframe.contentWindow?.postMessage({ type: 'setTheme', theme }, '*');
+  });
+  settingsModal.appendChild(iframe);
+  document.body.appendChild(settingsModal);
 
   // Listen for messages from iframe
   let hasResized = false;
   const messageHandler = (event: MessageEvent<{ type?: string; height?: number }>) => {
-    if (!event.data) return;
+    if (event.source !== iframe.contentWindow || !event.data) return;
     if (event.data.type === 'closeSettingsModal') {
       closeSettingsModal();
       window.removeEventListener('message', messageHandler);
@@ -1561,146 +1417,37 @@ export function updateFilteredTabCount() {
     }
   });
 
-  // Also update iOS overlay "View filtered (N)" button
-  _deps.updateIOSFilteredCount();
-
-  // Update FAB badge
-  const ffFabButton = _deps.getFFFabButton();
-  if (ffFabButton && ffFabButton.isConnected) {
-    const badge = ffFabButton.querySelector<HTMLElement>('.ff-fab-badge');
-    if (badge) {
-      badge.textContent = String(newCount);
-      badge.style.display = newCount > 0 ? '' : 'none';
-      if (shouldAnimate) {
-        ffFabButton.classList.remove('ff-fab-bounce');
-        void ffFabButton.offsetWidth;
-        ffFabButton.classList.add('ff-fab-bounce');
-      }
-    }
-  }
 }
 
-// ==================== Model Loading Progress ====================
+// ==================== Native service status ====================
 
-export function updateModelLoadingProgress(statuses: Record<string, LocalModelStatus>, selectedModel: string) {
-  const containers = [filterPhrasesContainer, bottomFilterContainer, mobileFilterContainer];
-
-  const isLocalModel = selectedModel && selectedModel.startsWith('local:');
-  if (!isLocalModel) {
-    containers.forEach(container => {
-      if (container && container.isConnected) {
-        const loadingEl = container.querySelector<HTMLElement>('.filter-model-loading');
-        if (loadingEl) loadingEl.style.display = 'none';
-      }
-    });
-
-    return;
-  }
-
-  const modelId = selectedModel.split(':')[1];
-  const status = statuses[modelId];
-
-  if (!status) return;
-
-  // 'cached' means downloaded-but-idle (loads transparently on demand), so it is
-  // not shown as loading here — matching the feed-level indicator. Only the
-  // genuinely in-progress states surface the bar.
-  const isLoading = status.state === 'downloading' || status.state === 'initializing';
-
-  containers.forEach(container => {
-    if (container && container.isConnected) {
-      const loadingEl = container.querySelector<HTMLElement>('.filter-model-loading');
-      if (!loadingEl) return;
-
-      if (isLoading) {
-        loadingEl.style.display = 'block';
-        const textEl = loadingEl.querySelector('.model-loading-text')!;
-        const fillEl = loadingEl.querySelector<HTMLElement>('.model-loading-progress-fill')!;
-
-        if (status.text) {
-          textEl.textContent = status.text;
-          fillEl.style.width = `${(status.progress || 0) * 100}%`;
-        } else {
-          textEl.textContent = status.state === 'initializing' ? 'Loading… first run can take a minute' : 'Downloading...';
-          fillEl.style.width = `${(status.progress || 0) * 100}%`;
-        }
-      } else {
-        loadingEl.style.display = 'none';
-      }
-    }
-  });
-
+interface ModelStatusView {
+  variant: 'info' | 'progress' | 'warning';
+  body: string;
+  dismissible: boolean;
 }
 
-// ==================== Feed-level model-status indicator ====================
-//
-// A single state-driven element (bottom-left, theme-aware) that surfaces *why*
-// filtering isn't happening when the local model isn't ready. It is a pure
-// function of storage (selectedModel + localModelStatuses), updated by
-// initModelLoadingListener below — so it stays in sync with the popup without
-// any extra message plumbing. The popup remains the place to set up a model.
-
-type ModelUiState = 'ready' | 'needs_setup' | 'loading' | 'unsupported' | 'error';
-
-// Pure mapping: storage state → derived UI state.
-function deriveModelUiState(
-  selectedModel: string,
-  statuses: Record<string, LocalModelStatus>,
-): ModelUiState {
-  if (!selectedModel || !selectedModel.startsWith('local:')) return 'needs_setup';
-  const status = statuses[selectedModel.split(':')[1]];
-  switch (status?.state) {
-    // ready or cached = usable now. 'cached' means downloaded but the engine is
-    // cold; it loads transparently on the next post, so we stay hidden rather
-    // than claim "loading" while nothing is happening. The genuinely in-progress
-    // (and possibly slow) load surfaces via 'initializing' below.
+export function modelStatusView(status: LocalModelStatus): ModelStatusView | null {
+  switch (status.state) {
     case 'ready':
-    case 'cached': return 'ready';
-    case 'downloading':
-    case 'initializing': return 'loading';
-    case 'unsupported': return 'unsupported';
-    case 'error': return 'error';
-    case 'not_downloaded':
-    default: return 'needs_setup';
-  }
-}
-
-// Display name for a local model id, for user-facing loading copy.
-function localModelDisplay(modelId: string): string {
-  return PREDEFINED_MODELS.local.find(m => m.name === modelId)?.display ?? 'the model';
-}
-
-interface ModelStatusView { variant: 'info' | 'progress' | 'warning'; body: string; dismissible: boolean; percent?: number; }
-
-function modelStatusView(
-  state: ModelUiState,
-  statuses: Record<string, LocalModelStatus>,
-  selectedModel: string,
-): ModelStatusView | null {
-  switch (state) {
-    case 'needs_setup':
-      return { variant: 'info', body: 'Open the Bouncer extension to download a model and start filtering.', dismissible: true };
-    case 'loading': {
-      const modelId = selectedModel.split(':')[1];
-      const status = statuses[modelId];
-      const display = localModelDisplay(modelId);
-      // Real byte-download → show progress. Warm-up / shader-compile (no byte
-      // progress) → set the honest "first run can take a minute" expectation,
-      // which is the silent phase users mistake for a hang.
-      if (status?.state === 'downloading' && typeof status.progress === 'number') {
-        // Show a clean percent + progress bar rather than verbose internal
-        // transfer details.
-        return { variant: 'progress', body: `Downloading ${display}`, dismissible: false, percent: Math.round(status.progress * 100) };
-      }
-      return { variant: 'progress', body: `Loading ${display} — the first run can take up to a minute.`, dismissible: false };
-    }
-    case 'unsupported':
-      return { variant: 'warning', body: "This browser can't run local models — WebGPU isn't available.", dismissible: true };
-    case 'error':
-      return { variant: 'warning', body: 'The local model failed to load. Open the Bouncer extension to retry.', dismissible: true };
-    case 'ready':
-    default:
+    case 'filtering':
       return null;
+    case 'not_connected':
+      return { variant: 'info', body: 'Connect to Ollama in Bouncer settings to start filtering.', dismissible: true };
+    case 'loading':
+      return { variant: 'progress', body: 'Loading Gemma for this request…', dismissible: false };
+    case 'paused':
+      return { variant: 'info', body: status.message || 'Filtering paused while another local model is loaded.', dismissible: true };
+    case 'missing_model':
+      return { variant: 'warning', body: 'The pinned Bouncer model is missing. Open settings for setup instructions.', dismissible: true };
+    case 'blocked':
+      return { variant: 'warning', body: 'Ollama blocked this connection. Open settings for exact-origin setup help.', dismissible: true };
+    case 'recovery_required':
+      return { variant: 'warning', body: 'Filtering paused after an interrupted local request. Open settings for recovery; manual Bounce and Restore still work.', dismissible: true };
+    case 'error':
+      return { variant: 'warning', body: status.reason === 'connection' || status.reason === 'unreachable'
+        ? 'Can’t reach Ollama. Open the Ollama app, then Retry in Bouncer settings.'
+        : status.message || 'Can’t reach Ollama. Open the Ollama app, then Retry in Bouncer settings.', dismissible: true };
   }
 }
 
@@ -1712,150 +1459,91 @@ function ensureModelStatusEl(): HTMLElement {
   return modelStatusEl;
 }
 
-// Update (and create on demand) the indicator from the current storage state.
-export function updateModelStatusIndicator(
-  statuses: Record<string, LocalModelStatus>,
-  selectedModel: string,
-): void {
-  const state = deriveModelUiState(selectedModel, statuses);
-
-  // Clear a stale dismissal when the condition changes, so a new state (e.g. an
-  // error after the setup hint was dismissed) still surfaces.
-  if (modelStatusDismissed !== null && modelStatusDismissed !== state) modelStatusDismissed = null;
-
-  const view = modelStatusDismissed === state ? null : modelStatusView(state, statuses, selectedModel);
+export function updateModelStatusIndicator(status: LocalModelStatus): void {
+  // A changed reason deserves a fresh warning even when the state is unchanged.
+  const condition = `${status.state}:${status.reason || ''}`;
+  if (modelStatusDismissed !== condition) modelStatusDismissed = null;
+  const view = modelStatusDismissed === condition ? null : modelStatusView(status);
   if (!view) {
-    if (modelStatusEl) modelStatusEl.classList.remove('visible');
+    modelStatusEl?.classList.remove('visible');
     return;
   }
-
   const el = ensureModelStatusEl();
   el.classList.remove('bouncer-model-status--info', 'bouncer-model-status--progress', 'bouncer-model-status--warning');
   el.classList.add(`bouncer-model-status--${view.variant}`);
-  const pct = view.percent;
-  const labelHtml = `<strong>Bouncer:</strong> ${escapeHtml(view.body)}`;
-  const textHtml = typeof pct === 'number'
-    ? `<div class="bouncer-model-status-text"><div>${labelHtml}</div>` +
-        `<div class="bouncer-model-status-progress">` +
-          `<div class="bouncer-model-status-progress-track"><div class="bouncer-model-status-progress-fill"></div></div>` +
-          `<span class="bouncer-model-status-progress-pct">${pct}%</span>` +
-        `</div></div>`
-    : `<span class="bouncer-model-status-text">${labelHtml}</span>`;
   el.replaceChildren(parseHTML(
     `<span class="bouncer-model-status-dot"></span>` +
-    textHtml +
-    (view.dismissible ? `<button class="bouncer-model-status-close" aria-label="Dismiss">&times;</button>` : '')
+    `<span class="bouncer-model-status-text"><strong>Bouncer:</strong> ${escapeHtml(view.body)}</span>` +
+    '<button class="bouncer-model-status-settings" type="button">Settings</button>' +
+    (view.dismissible ? '<button class="bouncer-model-status-close" aria-label="Dismiss">&times;</button>' : '')
   ));
-  // Set the fill width after parsing — parseHTML/sanitizers can drop inline styles.
-  if (typeof pct === 'number') {
-    const fill = el.querySelector<HTMLElement>('.bouncer-model-status-progress-fill');
-    if (fill) fill.style.width = `${pct}%`;
-  }
-  if (view.dismissible) {
-    el.querySelector('.bouncer-model-status-close')?.addEventListener('click', () => {
-      modelStatusDismissed = state;
-      el.classList.remove('visible');
-    });
-  }
+  el.querySelector('.bouncer-model-status-settings')?.addEventListener('click', showSettingsModal);
+  el.querySelector('.bouncer-model-status-close')?.addEventListener('click', () => {
+    modelStatusDismissed = condition;
+    el.classList.remove('visible');
+  });
   requestAnimationFrame(() => el.classList.add('visible'));
 }
 
-interface ModelLoadingStorageSnapshot {
-  localModelStatuses?: Record<string, LocalModelStatus>;
-  selectedModel?: string;
-}
-
+interface ModelLoadingStorageSnapshot { nativeModelStatus?: LocalModelStatus }
 interface ModelLoadingCoordinator {
   handleChanges: (changes: Record<string, chrome.storage.StorageChange>) => void;
   finishInitialLoad: (snapshot: ModelLoadingStorageSnapshot) => void;
 }
 
-/**
- * Reconcile the initial async storage read with changes that can arrive before
- * it resolves. Keeping this coordinator pure makes the ordering contract
- * directly testable without a live extension storage area.
- */
+const disconnectedStatus = (): LocalModelStatus => ({ state: 'not_connected', message: '', revision: 0 });
+const needsRecovery = (status: LocalModelStatus | undefined): boolean => !!status
+  && !['ready', 'filtering', 'loading'].includes(status.state);
+
+/** Listener-before-snapshot initialization retains event revisions and recovers eligible posts once. */
 export function createModelLoadingCoordinator(
-  render: (statuses: Record<string, LocalModelStatus>, selectedModel: string) => void,
+  render: (status: LocalModelStatus) => void,
   processExistingPosts: () => void,
 ): ModelLoadingCoordinator {
-  let selectedModel = '';
-  let currentStatuses: Record<string, LocalModelStatus> = {};
+  let currentStatus = disconnectedStatus();
   let initialLoadFinished = false;
   const queuedChanges: Array<Record<string, chrome.storage.StorageChange>> = [];
-
-  const selectedModelId = (): string | null => (
-    selectedModel.startsWith('local:') ? selectedModel.slice('local:'.length) : null
-  );
-
-  const applyChanges = (
-    changes: Record<string, chrome.storage.StorageChange>,
-    shouldRender: boolean,
-  ) => {
-    // Apply selection first when storage reports both keys in one batch, so a
-    // ready transition is attributed to the newly selected model.
-    if (changes.selectedModel) {
-      selectedModel = (changes.selectedModel.newValue as string) || '';
-    }
-    if (changes.localModelStatuses) {
-      currentStatuses = (changes.localModelStatuses.newValue || {}) as Record<string, LocalModelStatus>;
-    }
-
-    const modelId = selectedModelId();
-    if (modelId && changes.localModelStatuses) {
-      const statusesBeforeChange = (changes.localModelStatuses.oldValue || {}) as Record<string, LocalModelStatus>;
-      const becameReadyWhileSelected = statusesBeforeChange[modelId]?.state !== 'ready'
-        && currentStatuses[modelId]?.state === 'ready';
-      if (becameReadyWhileSelected) {
-        processExistingPosts();
-      }
-    }
-
-    if (shouldRender) render(currentStatuses, selectedModel);
+  const applyChanges = (changes: Record<string, chrome.storage.StorageChange>, shouldRender: boolean) => {
+    if (!changes.nativeModelStatus) return;
+    const next = changes.nativeModelStatus.newValue as LocalModelStatus | undefined;
+    if (!next || next.revision < currentStatus.revision) return;
+    const previous = (changes.nativeModelStatus.oldValue as LocalModelStatus | undefined) || currentStatus;
+    currentStatus = next;
+    // Loading → ready is ordinary work; blocked/error/permission recovery
+    // reprocesses currently eligible visible posts without resurrecting stale work.
+    if (next.state === 'ready' && needsRecovery(previous)) processExistingPosts();
+    if (shouldRender) render(currentStatus);
   };
-
   return {
     handleChanges(changes) {
-      if (!initialLoadFinished) {
-        queuedChanges.push(changes);
-        return;
-      }
+      if (!initialLoadFinished) { queuedChanges.push(changes); return; }
       applyChanges(changes, true);
     },
     finishInitialLoad(snapshot) {
       if (initialLoadFinished) return;
-      currentStatuses = snapshot.localModelStatuses || {};
-      selectedModel = snapshot.selectedModel || '';
+      // Replay events in arrival order. Their revision guards also reject a
+      // delayed older event when the snapshot already contains newer state.
+      currentStatus = snapshot.nativeModelStatus || disconnectedStatus();
       for (const changes of queuedChanges) applyChanges(changes, false);
       queuedChanges.length = 0;
       initialLoadFinished = true;
-      render(currentStatuses, selectedModel);
+      render(currentStatus);
     },
   };
 }
 
-export function initModelLoadingListener() {
-  const coordinator = createModelLoadingCoordinator(
-    (statuses, selectedModel) => {
-      updateModelLoadingProgress(statuses, selectedModel);
-      updateModelStatusIndicator(statuses, selectedModel);
-    },
-    () => _deps.processExistingPosts(),
-  );
-
-  // Register before the initial read so no storage transition can fall into
-  // the gap. The coordinator buffers events until that snapshot resolves.
-  chrome.storage.onChanged.addListener((changes: Record<string, chrome.storage.StorageChange>, areaName: string) => {
-    if (areaName !== 'local') return;
-    coordinator.handleChanges(changes);
+let modelLoadingListenerInitialized = false;
+export function initModelLoadingListener(): void {
+  if (modelLoadingListenerInitialized) return;
+  modelLoadingListenerInitialized = true;
+  const coordinator = createModelLoadingCoordinator(updateModelStatusIndicator, () => _deps.processExistingPosts());
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'local') coordinator.handleChanges(changes);
   });
-
-  getStorage(['localModelStatuses', 'selectedModel'])
-    .then((data) => coordinator.finishInitialLoad(data))
+  getStorage(['nativeModelStatus'])
+    .then(data => coordinator.finishInitialLoad(data))
     .catch(err => {
-      console.error('[UI] Failed to load model statuses:', err);
-      // Still replay any buffered storage events; otherwise one read failure
-      // would leave the listener permanently inert for the life of the tab.
+      console.error('[UI] Failed to load local service status:', err);
       coordinator.finishInitialLoad({});
     });
 }
@@ -2156,8 +1844,22 @@ async function restorePostSnapshot(post: FilteredPost, button: HTMLButtonElement
     const content = _deps.extractPostContent(article);
     return post.post.postUrl
       ? _deps.adapter.getPostUrl(article) === post.post.postUrl
-      : formatPostForEvaluation(content) === post.evaluationText;
-  }).map(article => ({ article, identity: postIdentity(_deps.adapter, article), decision: getPostDecision(article) }));
+      : filteredKeyByArticle.get(article) === key && !!currentPostDecision(_deps.adapter, article)
+        || formatPostForEvaluation(content) === post.evaluationText;
+  }).map(article => {
+    const identity = postIdentity(_deps.adapter, article);
+    const decision = getPostDecision(article);
+    let settlePersistence!: () => void;
+    const persistence: DecisionPersistence = {
+      state: 'writing', settled: new Promise(resolve => { settlePersistence = resolve; }),
+      previousDecision: decision, previousReasoning: _deps.postReasonings.get(article),
+    };
+    // Claim this explicit action immediately, while preserving the current
+    // hide until persistence succeeds. Earlier canonical lookups must yield.
+    const reservation = { identity, shouldHide: decision?.shouldHide ?? true, matches: decision?.matches, userOverride: true, persistence };
+    rememberPostDecision(article, reservation);
+    return { article, identity, persistence, settlePersistence, restoreDecision: getPostDecision(article) };
+  });
   const status: RestoreStatus = { pending: true };
   filteredRestoreStatuses.set(post, status);
   applyRestoreStatus(button, errorEl, status);
@@ -2169,6 +1871,13 @@ async function restorePostSnapshot(post: FilteredPost, button: HTMLButtonElement
     });
     if (!response?.success) throw new Error(response?.error || 'The local Restore action did not complete.');
 
+    for (const target of targets) {
+      completeDecisionPersistence(target.persistence, 'committed', {
+        decision: { identity: target.identity, shouldHide: false, userOverride: true },
+        reasoning: { shouldHide: false, reasoning: 'User reported: false positive', userOverride: true },
+      });
+    }
+
     const index = filteredPosts.findIndex(entry => filteredPostKey(entry) === key);
     // A later explicit Bounce owns its snapshot and live hide. Automatic
     // refreshes of the same post still yield to this successful user Restore.
@@ -2177,8 +1886,7 @@ async function restorePostSnapshot(post: FilteredPost, button: HTMLButtonElement
     if (!superseded) {
       for (const target of targets) {
         if (!isPostIdentityCurrent(_deps.adapter, target.article, target.identity)) continue;
-        const decision = getPostDecision(target.article);
-        if (decision !== target.decision && decision?.userOverride && decision.shouldHide) continue;
+        if (getPostDecision(target.article) !== target.restoreDecision) continue;
         restoreFilteredContainer(_deps.adapter.getPostContainer(target.article), target.article);
         rememberPostDecision(target.article, { identity: target.identity, shouldHide: false, userOverride: true });
         _deps.postReasonings.set(target.article, { shouldHide: false, reasoning: 'User reported: false positive', userOverride: true });
@@ -2196,8 +1904,35 @@ async function restorePostSnapshot(post: FilteredPost, button: HTMLButtonElement
     filteredRestoreStatuses.delete(post);
   } catch (err) {
     console.error('[Bouncer] Restore action error:', err);
+    for (const target of targets) {
+      const previous = await settledPostDecision(target.persistence.previousDecision, target.persistence.previousReasoning);
+      // Record the settled outcome even if another action now owns the live
+      // post: that action may need this predecessor when it also fails.
+      completeDecisionPersistence(target.persistence, 'failed', previous);
+      const rollback = target.persistence.result!;
+      if (!isPostIdentityCurrent(_deps.adapter, target.article, target.identity)
+          || getPostDecision(target.article) !== target.restoreDecision) continue;
+      if (rollback.decision) rememberPostDecision(target.article, rollback.decision);
+      else forgetPostDecision(target.article);
+      if (!rollback.decision?.shouldHide) {
+        restoreFilteredContainer(_deps.adapter.getPostContainer(target.article), target.article);
+        removeFilteredPostForArticle(target.article);
+        markPostVerified(target.article);
+      }
+      if (rollback.reasoning) {
+        _deps.postReasonings.set(target.article, rollback.reasoning);
+      } else {
+        _deps.postReasonings.delete(target.article);
+      }
+      if (rollback.decision && !rollback.decision.userOverride && !rollback.decision.shouldHide) {
+        _deps.processedPosts.delete(target.article);
+        postDetectorStates.delete(target.article);
+        _deps.processExistingPosts();
+      }
+    }
     status.error = `Restore failed: ${err instanceof Error ? err.message : 'Try again.'}`;
   } finally {
+    for (const target of targets) target.settlePersistence();
     status.pending = false;
     refreshRestoreControls(status);
   }
@@ -2205,9 +1940,9 @@ async function restorePostSnapshot(post: FilteredPost, button: HTMLButtonElement
 
 // ==================== Filtered Post Storage ====================
 
-export function storeFilteredPost(article: HTMLElement, contentObj: PostContent, reasoning: string, rawResponse = '', category: string | null = null, matches?: string[], userOverride?: boolean) {
+export function storeFilteredPost(article: HTMLElement, contentObj: PostContent, reasoning: string, rawResponse = '', category: string | null = null, matches?: string[], userOverride?: boolean, evaluationText?: string) {
   // Use postUrl or content hash as dedup key
-  const evalText = formatPostForEvaluation(contentObj);
+  const evalText = evaluationText ?? formatPostForEvaluation(contentObj);
   const key = contentObj.postUrl || evalText.substring(0, 200);
   filteredKeyByArticle.set(article, key);
   if (filteredPostKeys.has(key)) {
@@ -2215,7 +1950,7 @@ export function storeFilteredPost(article: HTMLElement, contentObj: PostContent,
     if (index !== -1) {
       const previous = filteredPosts[index];
       const status = filteredRestoreStatuses.get(previous);
-      const replacement = { ...previous, reasoning, rawResponse, category, matches: matches ? [...matches] : undefined, userOverride };
+      const replacement = { ...previous, evaluationText: evaluationText ?? previous.evaluationText, reasoning, rawResponse, category, matches: matches ? [...matches] : undefined, userOverride };
       filteredPosts[index] = replacement;
       if (status && !userOverride) filteredRestoreStatuses.set(replacement, status);
       filteredRestoreStatuses.delete(previous);
@@ -2346,29 +2081,49 @@ export async function bouncePost(article: HTMLElement, content: PostContent, phr
   const currentContent = _deps.extractPostContent(article);
   if (!article.isConnected || currentContent.postUrl !== content.postUrl || formatPostForEvaluation(currentContent) !== formatPostForEvaluation(content)) return false;
   const matches = phrase ? [phrase] : undefined;
-  const decision = { identity, shouldHide: true, matches, userOverride: true };
+  let settlePersistence!: () => void;
+  const persistence: DecisionPersistence = {
+    state: 'extracting', settled: new Promise(resolve => { settlePersistence = resolve; }),
+    previousDecision: getPostDecision(article), previousReasoning: _deps.postReasonings.get(article),
+  };
+  const decision = { identity, shouldHide: true, matches, userOverride: true, persistence };
   rememberPostDecision(article, decision);
   const manualDecision = getPostDecision(article);
   postDetectorStates.delete(article);
-  _deps.postReasonings.set(article, { shouldHide: true, reasoning, category: phrase || null, matches, userOverride: true });
-  storeFilteredPost(article, content, reasoning, '', phrase || null, matches, true);
+  const manualReasoning = { shouldHide: true, reasoning, category: phrase || null, matches, userOverride: true };
+  _deps.postReasonings.set(article, manualReasoning);
   article.style.transition = 'opacity 0.3s ease';
   article.style.opacity = '0';
   scheduleFilteredHide(article, () => {
-    if (isPostIdentityCurrent(_deps.adapter, article, identity) && getPostDecision(article) === manualDecision) {
-      hidePost(article);
-    } else {
-      restoreFilteredContainer(_deps.adapter.getPostContainer(article), article);
-    }
+    if (!isPostIdentityCurrent(_deps.adapter, article, identity)) return;
+    // A failed newer action can roll back to an automatic hide. Respect the
+    // current identity-valid verdict rather than the old fade's action kind.
+    if (currentPostDecision(_deps.adapter, article)?.shouldHide) hidePost(article);
+    else restoreFilteredContainer(_deps.adapter.getPostContainer(article), article);
   });
   try {
+    // Durable feedback must use the same author and complete text as automatic
+    // evaluation. DOM author labels include handles/times and text may be cut.
+    const evaluationContent = await _deps.adapter.extractPostContentFromStore(article);
+    if (!isPostIdentityCurrent(_deps.adapter, article, identity) || getPostDecision(article) !== manualDecision) {
+      const previous = await settledPostDecision(persistence.previousDecision, persistence.previousReasoning);
+      completeDecisionPersistence(persistence, 'canceled', previous);
+      return false;
+    }
+    if (!evaluationContent) throw new Error('Could not extract post data from store. Try Bounce again.');
+    const evaluationText = formatPostForEvaluation(evaluationContent);
+    storeFilteredPost(article, content, reasoning, '', phrase || null, matches, true, evaluationText);
+    persistence.state = 'writing';
     const response: { success?: boolean; error?: string } | undefined = await chrome.runtime.sendMessage({
-      type: 'bouncePost', post: formatPostForEvaluation(content), phrase, reasoning, siteId: _deps.adapter.siteId,
+      type: 'bouncePost', post: evaluationText, phrase, reasoning, siteId: _deps.adapter.siteId,
     });
     if (!response?.success) throw new Error(response?.error || 'The local Bounce action did not complete.');
-    if (isPostIdentityCurrent(_deps.adapter, article, identity)) syncFilterPhrases();
+    completeDecisionPersistence(persistence, 'committed', { decision: manualDecision, reasoning: manualReasoning });
+    if (!isPostIdentityCurrent(_deps.adapter, article, identity) || getPostDecision(article) !== manualDecision) return false;
+    syncFilterPhrases();
     return true;
   } catch (err) {
+    completeDecisionPersistence(persistence, 'failed', {});
     console.error('[Bouncer] Bounce action error:', err);
     // A failed durable write must not leave a pretend-success hidden post.
     if (isPostIdentityCurrent(_deps.adapter, article, identity) && getPostDecision(article) === manualDecision) {
@@ -2379,6 +2134,8 @@ export async function bouncePost(article: HTMLElement, content: PostContent, phr
       markPostVerified(article);
     }
     return false;
+  } finally {
+    settlePersistence();
   }
 }
 
@@ -2563,7 +2320,7 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
             }));
           });
         } else {
-          btn.textContent = 'No suggestions';
+          btn.textContent = 'No useful suggestions';
           btn.disabled = true;
         }
       } catch (err) {
@@ -2729,102 +2486,26 @@ export function addContextMenuHandler(article: HTMLElement) {
     openPopup(e.clientX, e.clientY);
   });
 
-  // iOS: press-and-hold (~500ms) on the post brings up the same popup. The
-  // ctrlKey path doesn't apply on touch, so we detect a stationary single-
-  // finger touch here and trigger once the timer fires. We swallow the
-  // following `click`, `contextmenu`, and `touchend` so the system callout
-  // doesn't appear and Twitter doesn't navigate to the post.
-  if (_deps.IS_IOS) {
-    const LONG_PRESS_MS = 500;
-    const MOVE_TOLERANCE_PX = 10;
-    let pressTimer: number | null = null;
-    let startX = 0;
-    let startY = 0;
-    let triggered = false;
 
-    const cancelTimer = () => {
-      if (pressTimer !== null) {
-        clearTimeout(pressTimer);
-        pressTimer = null;
-      }
-    };
-
-    article.addEventListener('touchstart', (e: TouchEvent) => {
-      if (e.touches.length !== 1) {
-        cancelTimer();
-        triggered = false;
-        return;
-      }
-      const t = e.touches[0];
-      startX = t.clientX;
-      startY = t.clientY;
-      triggered = false;
-      cancelTimer();
-      pressTimer = window.setTimeout(() => {
-        pressTimer = null;
-        triggered = true;
-        openPopup(startX, startY);
-      }, LONG_PRESS_MS);
-    }, { passive: true });
-
-    article.addEventListener('touchmove', (e: TouchEvent) => {
-      if (pressTimer === null) return;
-      const t = e.touches[0];
-      if (Math.hypot(t.clientX - startX, t.clientY - startY) > MOVE_TOLERANCE_PX) {
-        cancelTimer();
-      }
-    }, { passive: true });
-
-    article.addEventListener('touchend', (e: TouchEvent) => {
-      cancelTimer();
-      if (triggered) e.preventDefault();
-    });
-
-    article.addEventListener('touchcancel', () => {
-      cancelTimer();
-      triggered = false;
-    });
-
-    // Suppress the click that fires after touchend when long-press triggered,
-    // so Twitter doesn't navigate to the post detail page.
-    article.addEventListener('click', (e) => {
-      if (triggered) {
-        e.preventDefault();
-        e.stopPropagation();
-        triggered = false;
-      }
-    }, true);
-
-    // Also block the iOS system callout menu if the WebView fires it.
-    article.addEventListener('contextmenu', (e) => {
-      if (triggered || pressTimer !== null) e.preventDefault();
-    });
-  }
 }
 
 async function fetchReasoningIfNeeded(article: HTMLElement) {
   if (_deps.postReasonings.has(article)) return;
 
-  const content = _deps.extractPostContent(article);
   const identity = postIdentity(_deps.adapter, article);
-  if (!content.text.trim()) return;
+  const decision = getPostDecision(article);
 
   try {
-    let response: { found?: boolean; shouldHide?: boolean; reasoning?: string; rawResponse?: string; matches?: string[]; category?: string | null; userOverride?: boolean } | undefined = await chrome.runtime.sendMessage({
+    const content = await _deps.adapter.extractPostContentFromStore(article);
+    if (!content?.text.trim() || !isPostIdentityCurrent(_deps.adapter, article, identity)
+        || getPostDecision(article) !== decision || _deps.postReasonings.has(article)) return;
+    const response: { found?: boolean; shouldHide?: boolean; reasoning?: string; rawResponse?: string; matches?: string[]; category?: string | null; userOverride?: boolean } | undefined = await chrome.runtime.sendMessage({
       type: 'getReasoning',
       post: formatPostForEvaluation(content)
     });
 
-    // If not found, try with plain text (DOM re-renders may change HTML but not text)
-    if (!response?.found && content.text) {
-      response = await chrome.runtime.sendMessage({
-        type: 'getReasoning',
-        post: content.text
-      });
-    }
-
     if (response && response.found && isPostIdentityCurrent(_deps.adapter, article, identity)
-        && !currentPostDecision(_deps.adapter, article)?.userOverride) {
+        && getPostDecision(article) === decision && !_deps.postReasonings.has(article)) {
       _deps.postReasonings.set(article, {
         shouldHide: response.shouldHide ?? false,
         reasoning: response.reasoning ?? '',
@@ -2842,6 +2523,76 @@ async function fetchReasoningIfNeeded(article: HTMLElement) {
 // ==================== DOM Mutation Handler ====================
 
 // ==================== Why Annoying Button ====================
+
+interface BounceSuggestionState {
+  pending?: boolean;
+  reasons?: string[];
+  error?: string;
+}
+
+/** Suggestions are optional; the user's explicit manual decision always remains available. */
+export function createBounceComposer(
+  container: HTMLElement,
+  onBounce: (phrase?: string) => void,
+  onCancel: () => void,
+): { setState: (state: BounceSuggestionState) => void } {
+  const suggestions = document.createElement('div');
+  suggestions.className = 'ff-annoying-suggestions';
+  suggestions.setAttribute('aria-live', 'polite');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'ff-annoying-custom-input';
+  input.placeholder = 'Filter phrase (optional)';
+  input.setAttribute('aria-label', 'Filter phrase (optional)');
+  const actions = document.createElement('div');
+  actions.className = 'ff-annoying-actions';
+  const bounce = document.createElement('button');
+  bounce.type = 'button';
+  bounce.className = 'ff-annoying-bounce';
+  bounce.textContent = 'Bounce';
+  const cancel = document.createElement('button');
+  cancel.type = 'button';
+  cancel.className = 'ff-annoying-cancel';
+  cancel.textContent = 'Cancel';
+  actions.append(bounce, cancel);
+  container.replaceChildren(suggestions, input, actions);
+  input.addEventListener('click', event => event.stopPropagation());
+  bounce.addEventListener('click', event => {
+    event.stopPropagation();
+    onBounce(input.value.trim() || undefined);
+  });
+  cancel.addEventListener('click', event => { event.stopPropagation(); onCancel(); });
+  return {
+    setState(state) {
+      suggestions.replaceChildren();
+      const reasons = [...new Set((state.reasons || []).map(reason => reason.trim()).filter(Boolean))].slice(0, 3);
+      if (state.pending || state.error || !reasons.length) {
+        const label = document.createElement('span');
+        label.className = 'ff-annoying-empty';
+        label.textContent = state.pending ? 'Finding useful suggestions…'
+          : state.error ? `Suggestions unavailable. ${state.error}` : 'No useful suggestions';
+        suggestions.appendChild(label);
+        return;
+      }
+      const label = document.createElement('span');
+      label.className = 'ff-annoying-label';
+      label.textContent = 'Choose or edit a filter phrase:';
+      suggestions.appendChild(label);
+      reasons.forEach(reason => {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'ff-annoying-chip';
+        chip.textContent = reason;
+        chip.addEventListener('click', event => {
+          event.stopPropagation();
+          input.value = reason;
+          input.focus();
+        });
+        suggestions.appendChild(chip);
+      });
+    },
+  };
+}
 
 // Add inline "why annoying" button next to Share post button
 export function addWhyAnnoyingButton(article: HTMLElement) {
@@ -2986,155 +2737,30 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
     });
     schedulePosition();
 
-    // Use prefetched result if available, otherwise fire a new request
-    requestEntry = getSuggestionRequest(article, openedPostKey, () => (
-      chrome.runtime.sendMessage({
-        type: 'suggestAnnoyingReasons',
-        post: content.text,
-        siteId: _deps.adapter.siteId
-      })
-    ));
-    const cachedPromise = requestEntry.promise;
-
-    (async () => {
-    // Check if the promise is already resolved (settled) by racing with an instant resolve
-    let response: SuggestionResponse | null = null;
-    const settled = await Promise.race([
-      cachedPromise.then((r: SuggestionResponse) => { response = r; return 'done' as const; }),
-      Promise.resolve('pending' as const)
-    ]);
-    const alreadyDone = settled === 'done';
-
-    if (!alreadyDone) {
-      // Still loading — show spinner while we wait
-      tooltipContent.replaceChildren(parseHTML(`<div class="ff-annoying-spinner"><div class="ff-spinner-dot"></div><div class="ff-spinner-dot"></div><div class="ff-spinner-dot"></div></div><span class="ff-annoying-thinking">Diagnosing annoyances</span><div class="ff-progress-bar"><div class="ff-progress-track"><div class="ff-progress-fill" data-stage="0"></div></div></div><a href="#" class="ff-missed-link">This should already be filtered</a>`));
-
-      const progressListener = (message: { type: string; verified: number }) => {
-        if (message.type === 'annoyingProgress') {
-          const fill = tooltip.querySelector<HTMLElement>('.ff-progress-fill');
-          if (fill) {
-            const stage = Math.min(message.verified, 3);
-            fill.dataset.stage = String(stage);
-            fill.style.width = `${(stage / 3) * 100}%`;
-          }
-        }
-      };
-      chrome.runtime.onMessage.addListener(progressListener);
-
-      const cleanupProgress = () => {
-        chrome.runtime.onMessage.removeListener(progressListener);
-      };
-
-      tooltip.querySelector('.ff-missed-link')!.addEventListener('click', (linkEvent) => {
-        linkEvent.preventDefault();
-        linkEvent.stopPropagation();
-        removeTooltip();
-        void bouncePost(article, content);
-      });
-      try {
-        response = await cachedPromise;
-      } catch (err) {
-        console.error('[Bouncer] Why annoying error:', err);
-        cleanupProgress();
-        tooltipContent.replaceChildren(parseHTML('<span class="ff-annoying-empty">Error - try again</span>'));
-        clearSuggestionRequest(article, requestEntry);
-        return;
-      }
-      cleanupProgress();
-    }
-
-    const currentPostKey = `${_deps.adapter.getPostUrl(article) || ''}\n${formatPostForEvaluation(_deps.extractPostContent(article))}`;
-    if (!isSuggestionRequestCurrent(article, requestEntry, currentPostKey)) {
+    const composer = createBounceComposer(tooltipContent, phrase => {
       removeTooltip();
-      return;
-    }
-
-    const responseError = suggestionResponseError(response);
-    if (responseError) {
-      clearSuggestionRequest(article, requestEntry);
-      tooltipContent.replaceChildren(parseHTML('<span class="ff-annoying-empty">Error - try again</span>'));
-      tooltipContent.querySelector<HTMLElement>('.ff-annoying-empty')!.title = responseError;
-      return;
-    }
-
-    // Render results
-    tooltipContent.replaceChildren();
-    const reasons = response?.reasons ?? [];
-    if (reasons.length > 0) {
-      const label = document.createElement('span');
-      label.className = 'ff-annoying-label';
-      label.textContent = 'Block this due to:';
-      tooltipContent.appendChild(label);
-      reasons.forEach(r => {
-        const chip = document.createElement('button');
-        chip.className = 'ff-annoying-chip';
-        chip.textContent = r;
-        chip.addEventListener('click', (ce) => {
-          ce.stopPropagation();
-          // Remove tooltip before the filter triggers re-evaluation and captures the post
-          removeTooltip();
-          void bouncePost(article, content, r);
-        });
-        tooltipContent.appendChild(chip);
-      });
-
-      // "Something else" custom input
-      const customWrapper = document.createElement('div');
-      customWrapper.className = 'ff-annoying-custom-wrapper';
-
-      const customInput = document.createElement('input');
-      customInput.type = 'text';
-      customInput.className = 'ff-annoying-custom-input';
-      customInput.placeholder = 'something else';
-
-      const sendBtn = document.createElement('button');
-      sendBtn.className = 'ff-annoying-send-btn';
-      sendBtn.replaceChildren(parseHTML('<svg viewBox="0 0 24 24"><path d="M3 12h18M21 12l-6-6M21 12l-6 6" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>'));
-
-      const submitCustomInput = () => {
-        const value = customInput.value.trim();
-        if (!value) return;
-        removeTooltip();
-        void bouncePost(article, content, value);
-      };
-
-      customInput.addEventListener('click', (e) => e.stopPropagation());
-      customInput.addEventListener('input', () => {
-        customWrapper.classList.toggle('has-text', customInput.value.length > 0);
-      });
-      customInput.addEventListener('keydown', (ke) => {
-        if (ke.key === 'Enter') {
-          ke.stopPropagation();
-          submitCustomInput();
-        }
-      });
-      sendBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        submitCustomInput();
-      });
-
-      customWrapper.appendChild(customInput);
-      customWrapper.appendChild(sendBtn);
-      tooltipContent.appendChild(customWrapper);
-    } else {
-      tooltipContent.replaceChildren(parseHTML('<span class="ff-annoying-empty">No suggestions</span>'));
-    }
-      // "Should have been filtered" link
-      const missedLink = document.createElement('a');
-      missedLink.className = 'ff-missed-link';
-      missedLink.textContent = 'This should already be filtered';
-      missedLink.href = '#';
-      missedLink.addEventListener('click', (linkEvent) => {
-        linkEvent.preventDefault();
-        linkEvent.stopPropagation();
-        removeTooltip();
-        void bouncePost(article, content);
-      });
-      tooltipContent.appendChild(missedLink);
-
-    // Reposition after content change (height may differ from spinner)
-    schedulePosition();
-    })().catch(err => console.error('[UI] annoying reasons tooltip failed:', err));
+      void bouncePost(article, content, phrase);
+    }, removeTooltip);
+    composer.setState({ pending: true });
+    // Only this explicit user action asks for suggestions. Their completion
+    // replaces the suggestion area, preserving any phrase the user is editing.
+    requestEntry = getSuggestionRequest(article, openedPostKey, () => (
+      chrome.runtime.sendMessage({ type: 'suggestAnnoyingReasons', post: content.text, siteId: _deps.adapter.siteId })
+    ));
+    const entry = requestEntry;
+    void entry.promise.then(response => {
+      const currentPostKey = `${_deps.adapter.getPostUrl(article) || ''}\n${formatPostForEvaluation(_deps.extractPostContent(article))}`;
+      if (!tooltip.isConnected || !isSuggestionRequestCurrent(article, entry, currentPostKey)) return;
+      const error = suggestionResponseError(response);
+      if (error) clearSuggestionRequest(article, entry);
+      composer.setState(error ? { error } : { reasons: response.reasons || [] });
+      schedulePosition();
+    }).catch(err => {
+      if (!tooltip.isConnected || !isSuggestionRequestCurrent(article, entry, openedPostKey)) return;
+      clearSuggestionRequest(article, entry);
+      composer.setState({ error: err instanceof Error ? err.message : 'Try again.' });
+      schedulePosition();
+    });
   });
 
   // Outside-click tooltip dismissal is handled by a single module-level
@@ -3145,8 +2771,6 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
 
 // Close any open .ff-annoying-tooltip when the user clicks outside of its
 // button and the tooltip itself. Registered once per page from initUI.
-// On iOS, use capture phase to swallow the dismissing click so the tap only
-// closes the tooltip and doesn't also activate the thing it landed on.
 export function setupAnnoyingTooltipCloser() {
   document.addEventListener('click', (e) => {
     const target = e.target as Node;
@@ -3155,17 +2779,11 @@ export function setupAnnoyingTooltipCloser() {
     if (target instanceof Element && target.closest('.ff-why-annoying-btn')) return;
     const tooltips = document.querySelectorAll('.ff-annoying-tooltip');
     if (tooltips.length === 0) return;
-    let removedAny = false;
     tooltips.forEach((t) => {
       if (!t.contains(target)) {
         removeAnnoyingTooltip(t);
-        removedAny = true;
       }
     });
-    if (removedAny && _deps.IS_IOS) {
-      e.preventDefault();
-      e.stopPropagation();
-    }
   }, true);
 }
 

@@ -4,7 +4,7 @@
   "version": "1.1.2",
   "description": "Remove the stuff you don’t want to see in your X feed. Filter by concept, person, emotion — anything.",
   "content_security_policy": {
-    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' http://127.0.0.1:11434"
   },
   "permissions": [
     "storage"
@@ -30,7 +30,6 @@
         "https://x.com/*"
       ],
       "js": [
-        "browser-polyfill.js",
         "dompurify.js",
         "dist/TwitterAdapter.js",
         "dist/content.js"
@@ -53,7 +52,6 @@
         "popup.html",
         "popup.css",
         "dist/popup.js",
-        "browser-polyfill.js",
         "adapters/twitter/fiber-extractor.js",
         "icons/a-bouncer-2x-black.png"
       ],
@@ -61,5 +59,8 @@
         "https://x.com/*"
       ]
     }
+  ],
+  "optional_host_permissions": [
+    "http://127.0.0.1:11434/*"
   ]
 }

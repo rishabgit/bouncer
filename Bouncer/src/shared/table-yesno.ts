@@ -1,4 +1,4 @@
-// Parser for LiteRT-LM/Gemma's compact table_yesno response format.
+// Strict parser for Gemma's compact table_yesno response format.
 // Parse failures always fall back to SHOW; callers can use `malformed` to
 // retry through a safer path without confusing invalid output with "all no".
 

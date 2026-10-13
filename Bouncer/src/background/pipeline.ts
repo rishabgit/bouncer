@@ -1,11 +1,12 @@
 // Post processing pipeline: queue, cache, error/latency state
 
 import { generateCacheKey } from '../shared/utils';
-import { PRIMARY_LOCAL_MODEL, PRIMARY_LOCAL_MODEL_ID, NATIVE_CLASSIFIER_FINGERPRINT, NATIVE_CONTEXT_TOKENS, NATIVE_SUGGESTION_TOKENS } from '../shared/models';
+import { NATIVE_SUGGESTION_TOKENS } from '../shared/models';
 import { NativeModelError } from '../shared/ollama-contract';
 import { buildSuggestionSystemPrompt, parseCandidatePhrases } from '../shared/suggestions';
 import { runDetector, type DetectorResult } from './detectors';
-import { callLocalInference, localEngine, MODEL_MAINTENANCE_ERROR } from './local-model';
+import { callLocalInference, localEngine, LocalAvailabilityError, MODEL_MAINTENANCE_ERROR } from './local-model';
+import { BrowserModelError } from './backends/types';
 import { getStorage, setStorage, getDescriptions } from '../shared/storage';
 import type {
   EvaluationResult, PipelineResponse, PipelineError, PendingEvaluation,
@@ -443,7 +444,7 @@ function scheduleLocalErrorRetry(error: unknown): void {
     // status. Preserve that reason instead of replacing it with generic error.
     if (!(error instanceof NativeModelError) || error.reason === 'service_unreachable') {
       void localEngine.markTerminalError(
-        PRIMARY_LOCAL_MODEL_ID,
+        localEngine.getSelectedModel()?.name ?? '',
         (error as Error).message || 'Local filtering failed. Retry from the Bouncer popup.',
       ).catch(err => console.error('[Error] Failed to publish native status:', err));
     }
@@ -467,9 +468,11 @@ export async function readCachedEvaluation(cacheKey: string): Promise<Evaluation
   const cached = evaluationCache.get(cacheKey);
   if (!cached) return undefined;
   if (cached.userOverride === true) return cached;
+  const selection = localEngine.getSelection();
   return typeof cached.shouldHide === 'boolean' && typeof cached.reasoning === 'string'
-    && !cached.malformed && PRIMARY_LOCAL_MODEL.manifestDigest !== null
-    && cached.classifierFingerprint === NATIVE_CLASSIFIER_FINGERPRINT ? cached : undefined;
+    && !cached.malformed && localEngine.getClassifierFingerprint() !== null
+    && cached.engine === selection.engine && cached.selectionRevision === selection.revision
+    && cached.classifierFingerprint === localEngine.getClassifierFingerprint() ? cached : undefined;
 }
 
 // Load cache from persistent storage on startup
@@ -752,7 +755,7 @@ async function processBatch(): Promise<void> {
         if (postUrl) void sendToTab(batchTabId, { type: 'processingPost', postUrl });
       };
       const result = await callLocalInference(
-        postData, settings.descriptions, PRIMARY_LOCAL_MODEL, PRIMARY_LOCAL_MODEL_ID, { onInferenceStart },
+        postData, settings.descriptions, localEngine.getSelectedModel(), undefined, { onInferenceStart },
       );
       if (result.malformed) {
         throw new NativeModelError('response_invalid', 'The classifier returned malformed output. Retry from the popup.', 'terminal');
@@ -781,8 +784,10 @@ async function processBatch(): Promise<void> {
       category: result.category || null,
       ...(result.matches !== undefined && { matches: result.matches }),
       rawResponse: result.rawResponse || null,
-      model: PRIMARY_LOCAL_MODEL_ID,
-      classifierFingerprint: NATIVE_CLASSIFIER_FINGERPRINT,
+      ...(result.modelId !== undefined && { model: result.modelId }),
+      ...(result.engine !== undefined && { engine: result.engine }),
+      ...(result.selectionRevision !== undefined && { selectionRevision: result.selectionRevision }),
+      ...(result.classifierFingerprint !== undefined && { classifierFingerprint: result.classifierFingerprint }),
       timestamp: Date.now(),
       detectorStates: buildDetectorStates(tabPlan, snapshots),
     };
@@ -895,6 +900,15 @@ async function processBatch(): Promise<void> {
         resolveWithDuplicates(batchTabId, item, null);
       }
       return; // setActiveTab handles scheduling for the new tab
+    }
+
+    if (error instanceof LocalAvailabilityError
+        || (error instanceof BrowserModelError && error.reason === 'needs_download')) {
+      resolveWithDuplicates(batchTabId, item, {
+        error: 'local_model', reasoning: error.message,
+        availabilityReason: error instanceof LocalAvailabilityError ? error.reason : 'needs_download',
+      });
+      return;
     }
 
     console.error('Inference error:', error);
@@ -1018,6 +1032,28 @@ function flushPipelineQueues(reason: string): void {
   localEngine.clearQueue();
 }
 
+/** Retire old-engine work synchronously at the choice-message boundary. */
+export function invalidateEngineWork(): void {
+  flushPipelineQueues('The inference engine changed, re-evaluating…');
+  errorState.count = 0;
+  errorState.type = null;
+  localErrorAutoRetryCount = 0;
+  if (errorRetryTimeout) clearTimeout(errorRetryTimeout);
+  errorRetryTimeout = null;
+}
+
+/** Engine choice invalidates automatic answers, never explicit user decisions. */
+export async function handleEngineChoiceChange(): Promise<void> {
+  await loadCache();
+  for (const [key, value] of evaluationCache) {
+    if (value.userOverride !== true
+        && (value.classifierFingerprint !== localEngine.getClassifierFingerprint()
+          || value.selectionRevision !== localEngine.getSelection().revision)) evaluationCache.delete(key);
+  }
+  await saveCache(true);
+  await broadcastErrorStatus();
+}
+
 // Metadata/recovery maintenance also retires all captured verdicts.
 export function runModelMaintenance<T>(fn: () => Promise<T>): Promise<T> {
   return localEngine.runMaintenance(fn, () => flushPipelineQueues('Local model maintenance in progress.'));
@@ -1110,7 +1146,7 @@ export async function runInferenceRequest<T>(
 async function validateFilterPhrase(postText: string, phrase: string, assertCurrent: () => void): Promise<boolean> {
   assertCurrent();
   const result = await callLocalInference(
-    { text: postText }, [phrase], PRIMARY_LOCAL_MODEL, PRIMARY_LOCAL_MODEL_ID,
+    { text: postText }, [phrase], localEngine.getSelectedModel(), undefined,
     { priority: 1, assertCurrent },
   );
   assertCurrent();
@@ -1131,9 +1167,11 @@ async function generateCandidatePhrases(postText: string, count: number, rejectP
     assertCurrent();
     const overhead = await lease.countTokens(`${systemPrompt}\n`);
     assertCurrent();
-    const budget = NATIVE_CONTEXT_TOKENS - overhead - NATIVE_SUGGESTION_TOKENS;
+    const model = localEngine.getSelectedModel();
+    if (!model) throw new LocalAvailabilityError('not_configured', 'Choose where Bouncer should run.');
+    const budget = model.contextTokens - overhead - NATIVE_SUGGESTION_TOKENS;
     if (budget <= 0) {
-      throw new NativeModelError('input_budget', 'The suggestion instructions exceed the native input budget.');
+      throw new NativeModelError('input_budget', 'The suggestion instructions exceed the local input budget.');
     }
     const boundedPost = await lease.truncateText(postText, budget);
     assertCurrent();
@@ -1155,7 +1193,7 @@ async function validatePhrasesBatched(
 ): Promise<string[] | null> {
   assertCurrent();
   const result = await callLocalInference(
-    { text: postText }, phrases, PRIMARY_LOCAL_MODEL, PRIMARY_LOCAL_MODEL_ID, { priority: 1, assertCurrent },
+    { text: postText }, phrases, localEngine.getSelectedModel(), undefined, { priority: 1, assertCurrent },
   );
   assertCurrent();
   return result.malformed ? null : result.matches ?? [];

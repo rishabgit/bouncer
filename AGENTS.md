@@ -2,21 +2,27 @@
 
 Bouncer is an AGPL-3.0 fork of
 [imbue-ai/bouncer](https://github.com/imbue-ai/bouncer) that filters Twitter/X
-posts in Chrome on macOS. It uses one fixed, text-only Gemma 4 E2B QAT
-classifier through Ollama at `http://127.0.0.1:11434`. Cloud providers, hosted
-backends, authentication, vision inference, arbitrary endpoints, custom
-models and a model picker are outside this fork's scope.
+posts in Chrome on macOS. The user chooses where one fixed text-only Gemma 4
+E2B classifier runs: in Chrome through LiteRT-LM, or through local Ollama at
+`http://127.0.0.1:11434`. These are separately pinned artifacts and prompts,
+not interchangeable results. Cloud providers, hosted backends, authentication,
+vision inference, arbitrary endpoints, custom models, a model picker, E4B
+comparison machinery and Firefox/Safari targets are outside this fork's scope.
 
 All extension code lives in `Bouncer/`. Chrome is the sole build target, with
 a manifest floor of 137. Preserve the checked-in Chrome key, X-only mandatory
-access, storage permission and exact optional
-`http://127.0.0.1:11434/*` permission. CSP connects only to self and this fixed
-loopback endpoint, with no WASM/eval allowance.
+access, storage/offscreen permissions and exact optional
+`http://127.0.0.1:11434/*` permission. Bundle the fixed LiteRT SDK and WASM
+locally. CSP deliberately permits local WASM plus connections to self, the
+fixed loopback endpoint, `https://huggingface.co` and `https://*.hf.co` for the
+explicit model download. Do not add broad remote code or native host access.
 
-Read [model setup and identity](docs/models.md) before changing native setup,
-and [native qualification](docs/benchmarks/ollama-qualification.md) before
-making performance, quality or lifecycle claims. The report separates earlier
-Chrome evidence from the 2026-10-13 launcher correction and its remaining gates.
+Read [engine choice and lifecycle](docs/inference-engines.md) and
+[model setup and identity](docs/models.md) before changing either engine.
+[Qualification](docs/benchmarks/ollama-qualification.md) separates historical
+measurements, the 2026-10-13 launcher correction and the new integration's
+remaining actual-Chrome gates. Historical measurements cannot qualify new
+selection, download-integrity, offscreen or switching paths.
 
 ## Check upstream before pursuing an idea
 
@@ -56,12 +62,66 @@ run the pure operator checks separately:
 node --test scripts/test-macos-ollama-setup.mjs scripts/test-prepare-native-model.mjs
 ```
 
-These checks use fake native adapters and do not install a helper, change
-launchd state, start Ollama, acquire weights or run inference. Native transport
-uses browser `fetch`; no Ollama SDK, proxy, browser inference runtime or
-offscreen host is needed.
+Packaged setup help pins the already published native operator recipe matching the unchanged operator scripts. Update that link when the native preparation/startup contract changes; an unmerged source checkout must not send users to an older default-branch browser recipe.
+
+These operator checks use fake native adapters and do not install a helper,
+change launchd state, start Ollama, acquire weights or run inference. Native
+transport uses browser `fetch`, with no Ollama SDK or proxy. Browser inference
+uses the separately bundled LiteRT runtime in an on-demand offscreen host.
 
 ## Architecture and invariants
+
+### Explicit engine choice
+
+Fresh or ambiguous profiles require an explicit choice, with Browser presented
+as recommended. Preserve a valid historical LiteRT preference, preserve Ollama
+for a completed native cutover, and give a valid new selection precedence.
+Never infer preference from permission, GPU availability, installed weights,
+errors or readiness; never fall back automatically.
+
+The settings preview is distinct from the committed choice. Persist and verify
+the choice by storage readback before download, GPU initialization or native
+readiness. Setup failure, cancellation and browser-cache deletion preserve
+that preference. Opening settings for a cached cold browser engine must not
+load the GPU; selecting Browser must not probe Ollama.
+
+Capture engine, selection revision, model and classifier fingerprint with each
+operation. A switch retires old verdicts/suggestions, cancels an old browser
+download and drains known native work before replacement generation. Restore
+and re-evaluate automatic feed decisions while preserving manual hide/restore.
+The durable native unresolved-work fence is global across both engines. Native
+recovery may run while Browser remains selected; it must not change preference.
+Inactive native permission events must not probe or preempt Browser work.
+
+### Browser classifier
+
+The only browser artifact is revision-pinned
+`gemma-4-E2B-it-web.litertlm`, 2,008,432,640 bytes, SHA-256
+`3a08e8d94e23b814ae5414469c370c503813949acb8ceaa17e4ebf8a35af35b5`.
+Use LiteRT-LM core exactly 0.17.0 and the fixed definition in
+`src/shared/models.ts`. The SDK, normal/compat WASM runners and required
+third-party licenses belong in the production package; no runtime code is
+downloaded. Load the offscreen/GPU engine only for a real eligible operation.
+
+Only an explicit Download action may fetch the pinned artifact. Streaming
+size/SHA-256 verification uses pinned `@noble/hashes` 2.4.0 and a backpressured
+stream into generation-owned Cache Storage. Cancellation, deletion or a
+superseded download cannot publish bytes/readiness for a replacement owner.
+Saved bytes are verified before GPU loading. Posts, suggestions and cache
+eviction never trigger an implicit download. Missing bytes require explicit
+setup; no GPU or download failure can choose Ollama for the user.
+Ordinary tab/filter inference preemption must not cancel an explicit cache-only
+download. Cancel, engine switching, deletion and teardown retire its ownership.
+Coalesce progress metadata; network chunks must not create an unbounded IPC or
+status-write backlog.
+
+One minute of browser inactivity releases the browser runtime while retaining
+verified cached weights. Keep physical setup/teardown ownership separate from
+a canceled caller: late initialization must not revive a retired engine.
+Use the historical browser prompt and strict parser with a distinct browser
+fingerprint; changing packaging or runtime does not preserve native verdict
+identity. Historical normal-page results do not establish offscreen idle,
+worker recreation or the new integration's lifecycle.
 
 ### Native classifier
 
@@ -109,7 +169,8 @@ preserve ownership and origin provenance; unknown or changed files fail closed.
 
 The first real classification or requested suggestion loads the model.
 Popup opening, connection, metadata, cache hits and empty feeds never preload
-it. Every generation requests `keep_alive: "1m"`; do not add warmup,
+it. Only selected Ollama setup or explicit native recovery may probe it.
+Every generation requests `keep_alive: "1m"`; do not add warmup,
 forced unload, deletion, service restart or global scheduling/retention changes.
 Another client sharing the weights may extend residency. Other resident models
 defer automatic work; concurrent-model generation remains disabled. Recheck on
@@ -121,12 +182,12 @@ restart procedure confirms settlement. Browser fetch abort, ordinary Retry,
 elapsed time or an empty residency list cannot prove cancellation. Never start
 replacement generation while work remains unresolved.
 
-Classification uses numbered categories, the shared `table_yesno` request and
+Native classification uses numbered categories, the shared `table_yesno` request and
 strict parser. Accept only unambiguous ordered answers for every category.
 Malformed automatic classifications fail open and remain malformed; only
 user-triggered suggestion validation uses the strict one-category fallback.
 Finite input/output budgets belong in the classifier fingerprint. Keep
-manual/cache reads ahead of native readiness.
+manual/cache reads ahead of either engine's readiness.
 
 ### Feed, decisions and storage
 
@@ -162,10 +223,11 @@ startup limit, then uses a 200 ms response limit.
 
 ### Diagnostics and verification
 
-`npm run build:dev` adds the fixed-native `benchmark.html` surface. It must not
-expose a model picker, GPU assumptions, manual unload or a second runtime.
-Production archives exclude diagnostics. Pure unit checks do not establish
-native model quality or actual Chrome permissions/lifecycle behavior.
+`npm run build:dev` adds the selected-engine `benchmark.html` surface. It must not
+expose a model picker, custom endpoint or native manual unload. Its existence
+does not qualify Browser. Production archives exclude diagnostics. Pure unit
+checks do not establish model quality, actual Chrome download/CORS, GPU
+initialization, permissions or lifecycle behavior.
 
 Verify popup and X controls through the real extension with synthetic data;
 record Chrome/Ollama versions and distinguish debugger instrumentation from
@@ -175,8 +237,10 @@ POST, grants, loading, shutdown/recreation or recovery. Follow
 cancel unexpected authentication prompts before narrow diagnosis.
 
 Historical LiteRT/Qwen/E4B reports and raw data remain under
-`docs/benchmarks/`. Reproduce their browser runtime from commit
-`a590ce0186c89374e904bef599c3f9c51db5b9b2`. Those measurements are not native
-QAT results and establish no battery-life improvement. Native corpus hashes
-record manual qualification evidence; no public replay dataset is shipped for
-those runs.
+`docs/benchmarks/`. Reproduce their historical harness from commit
+`a590ce0186c89374e904bef599c3f9c51db5b9b2`. The current Browser option reuses
+the fixed E2B artifact/core version; that does not qualify the new download,
+choice or lifecycle implementation. Those measurements are not native QAT
+results and establish no battery-life improvement or universal speed ranking.
+Native corpus hashes record bounded manual qualification evidence; no public
+replay dataset is shipped for those runs.

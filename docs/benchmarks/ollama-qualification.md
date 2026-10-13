@@ -1,29 +1,59 @@
-# Native Ollama qualification — 2026-10-12–13
+# Native Ollama qualification and engine-integration gates — 2026-10-12–13
 
 The fixed text-only E2B QAT artifact passes the recorded synthetic filtering,
-suggestion, speed, charged-memory and native idle gates. Its exact production
+suggestion, speed, charged-memory and native idle gates in the bounded manual
+qualification below. Its exact production
 digest is accepted. This report separates those measurements and the
-2026-10-12 Chrome checks from the 2026-10-13 startup correction.
+2026-10-12 native-only Chrome build from the 2026-10-13 startup correction and
+the new explicit Browser/Ollama integration. The latter reuses fixed artifacts;
+historical evidence does not qualify its new download, choice or lifecycle.
 
 ## Draft release gates
 
 | Gate | Recorded status |
 |---|---|
 | Fixed classifier quality, latency, loading and expiry | Passed in the 2026-10-12 qualification below |
-| Actual Chrome Connect/grant/regrant, generation, worker lifecycle, recovery and synthetic X controls | Passed before the launcher correction, with unchanged classifier/request contracts |
+| Actual Chrome Connect/grant/regrant, generation, worker lifecycle, recovery and synthetic X controls | Passed in the prior native-only build before the launcher correction; unchanged native classifier/request contract only |
 | Corrected launcher fresh-app metadata and registered-job readback | Passed 2026-10-13: qualified runtime, pinned model, exact-Origin HTTP 200, foreign-Origin HTTP 403, zero model residency |
 | Fresh actual Chrome-worker metadata request after the launcher correction | Not established |
 | Successful subsequent normal-login startup with the corrected launcher | Not established |
+| Browser fixed source HTTP metadata | HEAD and a bounded 4 KB GET reached `us.aws.cdn.hf.co` with expected total length. The source redirect echoed the exact extension Origin and the CDN allowed public CORS; not an actual Chrome GET or complete download |
+| Actual Chrome Browser download, streaming integrity, cancellation/deletion and offline saved-cache loading | Not established for the new integration |
+| Actual Chrome first choice, provenance upgrade and both switch directions, including manual/suggestion ownership and native unresolved-work blocking | Not established for the new integration |
+| Actual Chrome Browser offscreen idle release, worker recreation and later real generation | Not established for the new integration; historical normal-page tests explicitly do not qualify this |
 
-Keep the migration PR in draft until the last two gates are recorded. Launcher
-metadata checks alone cannot establish actual Chrome-worker access or future
-login behavior. See [operator setup and recovery](../models.md).
+Keep the integration PR in draft while these gates remain unestablished.
+Launcher metadata cannot establish actual Chrome-worker access or future login,
+and historical normal-page LiteRT measurements cannot establish restored
+offscreen behavior. Pure source/unit/package checks will be recorded separately
+from actual Chrome observations. See [engine scenarios](../inference-engines.md)
+and [operator setup and recovery](../models.md).
+
+## Dual-engine source checks — 2026-10-13
+
+The integrated source passes 918 extension tests across 36 files, ESLint and
+TypeScript, and development/production builds on Node 24.18.1. Production
+staging contains 24 allowlisted files /43,818,178 bytes, including bundled
+LiteRT runners and license notices, with development diagnostics excluded.
+The unchanged native operator scripts separately passed 38 pure checks.
+
+Synthetic regressions cover explicit preference, migration, stale results,
+manual decisions, inherited offscreen work, cancellation and idle ownership.
+An explicit download survives ordinary tab/filter inference preemption; idle
+GPU release retains its original one-minute deadline. Progress notifications
+coalesce without retaining model chunks. These mocked/source checks establish
+neither actual Chrome transport/GPU behavior nor model-quality parity.
 
 ## Fixed artifact and method
 
 The fixed artifact is Gemma 4 E2B Instruct QAT Q4_0, with text weights SHA-256 `3646b4c147cd235a44d91df1546d3b7d8e29b547dbe4e1f80856419aa455e6fd`, 3,349,514,112 bytes. The verified text-only import manifest is `fbc40c82cb8acd3f63077d417d6040a42b5aeac406ed078fa8ba888fb38cfc19`. Import reuses existing weights, omits projector/draft layers and preserves other installed tags. See [artifact identity](../models.md).
 
 Tests ran on an M5 Pro / 64 GB Mac, Ollama 0.40.3 and matching Chrome for Testing 155.0.8059.39 in a separate synthetic profile. Native classification uses numbered categories, strict parsing, `think:false`, `stream:false`, temperature/seed zero, context 1024 and one-minute retention. Final requests explicitly set `truncate:false` and `shift:false`. The [pinned request contract](https://github.com/ollama/ollama/blob/v0.40.3/api/types.go) supports these refusal flags; an actual oversized Unicode request estimated at 620 tokens was rejected with HTTP 400 for 1,107 actual tokens rather than silently shortened. Production treats this conservatively as unresolved native work.
+
+The paired LiteRT baseline used the 2,008,432,640-byte revision-pinned E2B web
+artifact and LiteRT-LM 0.17.0. Browser and QAT packaging, prompts, token handling
+and fingerprints differ. This comparison does not make answers interchangeable
+or qualify newly restored Browser orchestration, cache integrity or switching.
 
 The new 120-post corpus was independently authored and reviewed before inference: 40 rage cases plus 20 broad cases each at 1/3/5/10 filters, yielding 420 filter answers. Three repetitions test stability, not 360 independent posts. Corpus SHA-256: `354e80566fdf889e213aec9072387c42f8286a48347379b1142073cba3fa4e27`. Previously observed 160 posts remain regression data.
 
@@ -40,7 +70,7 @@ publicly reproducible CI benchmark.
 | Q8 reference | 120 | 117 | 417 | 0 | 0 |
 | LiteRT baseline | 118 | 110 | 402 | 2 | 0 |
 
-All repetitions were stable, with no missing, malformed or invalid evaluations. QAT has one additional hide/show error, two additional complete-filter errors and three additional individual errors versus Q8, within the frozen 2/3/4 budgets. It improves all three totals versus LiteRT and introduces no additional false hide. The final safety flags preserve the earlier QAT answers. The old 160-post replay scores 156/160 hide decisions, 146/160 complete filter sets and 495/520 individual answers, with three false hides and one missed hide; those are disclosed tradeoffs, not fresh validation.
+All repetitions were stable, with no missing, malformed or invalid evaluations. QAT has one additional hide/show error, two additional complete-filter errors and three additional individual errors versus Q8, within the frozen 2/3/4 budgets. In this corpus it improves all three totals versus LiteRT and introduces no additional false hide. The final safety flags preserve the earlier QAT answers. The old 160-post replay scores 156/160 hide decisions, 146/160 complete filter sets and 495/520 individual answers, with three false hides and one missed hide; those are disclosed tradeoffs, not fresh validation. These bounded results are not a universal model-quality ranking.
 
 The Q8 control is the measured combined package, about 5.95 GB. It requests context 1024 but reports effective context 2048; QAT reports 1024. Selecting Q8 for production would require its own text-only artifact qualification. QAT remains the smallest qualified native candidate in this bounded comparison; its 3.35 GB weights are larger on disk than LiteRT’s 2.01 GB artifact.
 
@@ -88,11 +118,11 @@ The real native retention test confirms a second request resets expiry, metadata
 
 The conservative shared-model policy also passed a native API check: one synthetic Qwen request loaded its existing model; the production backend compiled with a test-only candidate pin refused Gemma generation with `other_model_resident`, sending zero Gemma chat requests. Qwen remained resident and expired naturally after 60.3 seconds. This checks deferral, not real Chrome permissions or concurrent-compute behavior; concurrency stays disabled.
 
-## Implementation and review
+## Historical native-only implementation and review — 2026-10-12
 
-The replacement removes LiteRT/WASM, browser downloads, offscreen hosting, GPU timers, E4B comparison, model catalogs and retired Firefox/Safari/iOS paths. It preserves the queue, strict parser, explicit decisions, sharing, themes, reply control and 500-snapshot panel. Native storage migration retains all valid settled manual rows, drops old automatic results, verifies readback before markers, and deletes only owned browser model caches. Rollback refuses any unresolved native fence rather than returning an executable old runtime with an inert marker.
+That native-only replacement removed LiteRT/WASM, browser downloads, offscreen hosting, GPU timers, E4B comparison, model catalogs and retired Firefox/Safari/iOS paths. It preserved the queue, strict parser, explicit decisions, sharing, themes, reply control and 500-snapshot panel. Its native storage migration retained all valid settled manual rows, dropped old automatic results, verified readback before markers, and deleted only owned browser model caches. Its rollback refused any unresolved native fence rather than returning an executable old runtime with an inert marker. The new choice integration replaces that destructive native cutover with provenance-aware engine selection and exact E2B cache preservation; it deliberately bundles LiteRT/WASM and offscreen hosting again. The dated test below does not qualify the new migration.
 
-Actual Chrome reload in a disposable profile preserved all **702** synthetic manual hide/restore rows and preferences, removed retired automatic/model state and owned caches, retained an unrelated cache, and disposed the old synthetic offscreen document. The new build has no offscreen API permission. Disconnected Retry retained the synthetic unresolved fence. This check used an attached software debugger and does not qualify idle worker lifetime or native generation.
+Actual Chrome reload of that native-only build in a disposable profile preserved all **702** synthetic manual hide/restore rows and preferences, removed retired automatic/model state and owned caches, retained an unrelated cache, and disposed the old synthetic offscreen document. That build had no offscreen API permission. Disconnected Retry retained the synthetic unresolved fence. This check used an attached software debugger and does not qualify idle worker lifetime, native generation or the new choice migration.
 
 Recorded 2026-10-12 verification: **597 extension tests** and full ESLint/type checking pass. Earlier development/production builds, **17 pure operator-helper tests** and release allowlist checks also pass. The recorded X bundle and final debugger-free lifecycle checks passed as described below. Two independent finders reviewed the stable implementation and focused fixes with unchanged hash/status guards. Review fixes pin CLI import to loopback, refuse truncation/shifting, restrict origin advice, fence whole requests across document/epoch changes, bound complete suggestions to 25 seconds, reject unsafe rollback and prevent deferred startup cleanup from retiring replacement documents. Runtime fixture work also corrected grounded suggestions and phrase shape. Canonical post identity for manual decisions was corrected and covered by **79 targeted tests**, including three review-caused timing/rollback cases.
 
@@ -134,7 +164,7 @@ Source fixes also cover failed Restore ordering, current-rule rollback, fresh re
 A copied test profile can retain older registered service-worker bytes even
 when extension-resource fetches return new files. Qualification re-registered
 the isolated extension using the normal host grant/reload flow and verified
-the complete current worker script. No internal permission API was used.
+the complete then-current native-only worker script. No internal permission API was used.
 
 The final fresh-profile permission check confirms that **one Connect → Allow
 → reopen** reaches Ready without a second Connect or prewarming, leaving zero
@@ -144,7 +174,7 @@ metadata work to settle before a fresh check. Three real-engine regressions
 failed before that fix and pass afterward, including unchanged unresolved
 fencing.
 
-The final debugger-free run uses the complete current worker script, verified in the task script cache. After **40,002 ms** of quiet the worker was absent and the native model cold; real cold/warm requests completed in **1,278/112 ms**. After **70,002 ms** of quiet both worker and native model were absent; a later request created a different worker and completed in **1,282 ms**. No inspector, popup, inference heartbeat or controller storage writes kept the worker alive. Native lease, transport, artifact and generation-body contracts remain unchanged. The recorded 2026-10-12 production package contained **16 files /447,566 bytes**, excluding diagnostics and all retired runtime assets.
+The final debugger-free run of that native-only build uses the complete then-current worker script, verified in the task script cache. After **40,002 ms** of quiet the worker was absent and the native model cold; real cold/warm requests completed in **1,278/112 ms**. After **70,002 ms** of quiet both worker and native model were absent; a later request created a different worker and completed in **1,282 ms**. No inspector, popup, inference heartbeat or controller storage writes kept the worker alive. Native lease, transport, artifact and generation-body contracts remain unchanged. The recorded 2026-10-12 native-only production package contained **16 files /447,566 bytes**, excluding diagnostics and all then-retired browser runtime assets. That receipt does not describe the new Browser/Ollama package, which deliberately includes local SDK/WASM and offscreen assets.
 
 ## Login-startup correction — 2026-10-13
 
@@ -176,4 +206,5 @@ source was installed or freshly tested against the native application. A fresh a
 Chrome-worker request after the correction and a successful subsequent normal
 login are **not established** and remain the draft gates above. Earlier
 filtering, permission, loading, retention and recovery results qualify the
-unchanged classifier contract; they do not close these post-correction gates.
+unchanged native classifier contract; they do not close these post-correction
+gates or qualify the new dual-engine coordinator and Browser lifecycle.

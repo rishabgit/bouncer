@@ -3,7 +3,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import DOMPurify from 'dompurify';
-import type { BackgroundToContentMessage, EvaluationResult, PipelineResponse, PlatformAdapter, PostContent } from '../../src/types.js';
+import type { BackgroundToContentMessage, EngineSelection, EvaluationResult, PipelineResponse, PlatformAdapter, PostContent } from '../../src/types.js';
 import { generateCacheKey } from '../../src/shared/utils.js';
 
 function deferred<T>() {
@@ -17,9 +17,9 @@ describe('live content filter actions', () => {
   let ui: typeof import('../../src/content/ui.js');
   let adapter: PlatformAdapter;
   let storage: Record<string, unknown>;
-  let storageListeners: Array<(changes: Record<string, chrome.storage.StorageChange>) => void>;
+  let storageListeners: Array<(changes: Record<string, chrome.storage.StorageChange>, areaName?: string) => void>;
   let messageListeners: Array<(message: BackgroundToContentMessage, sender: object, respond: () => void) => void>;
-  let evaluations: Array<{ message: { evaluationId: string; post: string }; resolve: (value: PipelineResponse) => void }>;
+  let evaluations: Array<{ message: { evaluationId: string; post: string }; selection?: EngineSelection; resolve: (value: PipelineResponse) => void }>;
   let sendMessage: ReturnType<typeof vi.fn>;
   let permalink: boolean;
   let mutationObservers: Array<{ callback: MutationCallback; options?: MutationObserverInit }>;
@@ -51,7 +51,7 @@ describe('live content filter actions', () => {
   function change(key: string, newValue: unknown): void {
     const oldValue = storage[key];
     storage[key] = newValue;
-    storageListeners.forEach(listener => listener({ [key]: { oldValue, newValue } }));
+    storageListeners.forEach(listener => listener({ [key]: { oldValue, newValue } }, 'local'));
   }
 
   async function start(): Promise<void> {
@@ -61,13 +61,27 @@ describe('live content filter actions', () => {
   }
 
   async function verdict(index: number, matches?: string[], cached = true): Promise<void> {
-    evaluations[index].resolve({ shouldHide: true, reasoning: '| yes |', matches, category: matches?.join(', ') || 'legacy', cached });
+    const selection = evaluations[index].selection;
+    evaluations[index].resolve({ shouldHide: true, reasoning: '| yes |', matches, category: matches?.join(', ') || 'legacy', cached,
+      ...(selection ? { engine: selection.engine!, selectionRevision: selection.revision, classifierFingerprint: `synthetic-${selection.engine}` } : {}) });
     await flush();
   }
 
   async function openBounce(article: HTMLElement): Promise<void> {
     article.querySelector<HTMLElement>('.ff-why-annoying-btn')!.click();
     await flush();
+  }
+
+  async function startSelected(): Promise<void> {
+    storage.engineSelection = { engine: 'ollama', revision: 7 };
+    storage.localModelStatus = { state: 'ready', message: '', revision: 90, engine: 'ollama', selectionRevision: 7 };
+    await start();
+  }
+
+  function switchEngine(state = 'ready'): void {
+    const selection = { engine: 'litertlm', revision: ((storage.engineSelection as EngineSelection | undefined)?.revision || 0) + 1 };
+    change('engineSelection', selection);
+    change('localModelStatus', { state, message: '', revision: 1, engine: selection.engine, selectionRevision: selection.revision });
   }
 
   function recycle(article: HTMLElement, id: string): void {
@@ -230,7 +244,7 @@ describe('live content filter actions', () => {
     sendMessage = vi.fn(async (message: { type: string; evaluationId: string; post: string; phrase?: string }) => {
       if (message.type === 'evaluatePost') {
         const evaluation = deferred<PipelineResponse>();
-        evaluations.push({ message, resolve: evaluation.resolve });
+        evaluations.push({ message, resolve: evaluation.resolve, selection: storage.engineSelection ? { ...storage.engineSelection as EngineSelection } : undefined });
         return evaluation.promise;
       }
       if (message.type === 'suggestAnnoyingReasons') return suggestions?.promise || { reasons: ['rage', 'new phrase'] };
@@ -1490,4 +1504,296 @@ describe('live content filter actions', () => {
     expect(ui.getFilteredPosts()).toHaveLength(0);
     expect(error).toHaveBeenCalled();
   });
+  it('switches automatic hides while preserving live manual Bounce, Restore, panel rows and counts', async () => {
+    const automatic = post('1');
+    const manual = post('2');
+    const restored = post('3');
+    await startSelected();
+    const count = adoptFilteredCount();
+    await verdict(0, ['rage']);
+    await verdict(2, ['rage']);
+    await ui.bouncePost(manual, adapter.extractPostContent(manual), 'rage');
+    await vi.advanceTimersByTimeAsync(300);
+    renderRestorePanel();
+    document.querySelector<HTMLButtonElement>('a[href="https://x.com/synthetic/status/3"] .slop-restore')!.click();
+    await flush();
+    switchEngine();
+    await flush();
+
+    expect(adapter.getPostContainer(automatic).style.display).toBe('');
+    expect(adapter.getPostContainer(manual).style.display).toBe('none');
+    expect(adapter.getPostContainer(restored).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(1);
+    expect(ui.getFilteredPosts()[0].post.postUrl).toContain('/2');
+    expect(count.textContent).toBe('(1)');
+    expect(evaluations).toHaveLength(4);
+    await verdict(3, ['rage']);
+    expect(adapter.getPostContainer(automatic).style.display).toBe('none');
+    expect(ui.getFilteredPosts()).toHaveLength(2);
+  });
+
+  it.each(['inference', 'automatic fade'])('rejects old verdicts and hides during an engine switch in %s', async stage => {
+    const article = post('1');
+    await startSelected();
+    const old = evaluations[0];
+    if (stage === 'automatic fade') await verdict(0, ['rage'], false);
+    switchEngine();
+    await flush();
+    old.resolve({ shouldHide: true, reasoning: 'stale native result', engine: 'ollama', selectionRevision: 7, matches: ['rage'] });
+    messageListeners.forEach(listener => listener({ type: 'detectorResponse', evaluationId: old.message.evaluationId, detectorName: 'filter', shouldHide: true, reasoning: 'stale native detector' }, {}, () => {}));
+    await vi.advanceTimersByTimeAsync(300);
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(article.style.opacity).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+    expect(evaluations).toHaveLength(2);
+    await verdict(1, ['rage']);
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+  });
+
+  it.each(['extraction', 'writing'])('retains in-flight manual Bounce ownership through a switch during %s', async stage => {
+    const article = post('1');
+    await startSelected();
+    const lookup = deferred<PostContent | null>();
+    if (stage === 'extraction') vi.spyOn(adapter, 'extractPostContentFromStore').mockReturnValueOnce(lookup.promise);
+    bounceResponse = deferred();
+    const bounce = ui.bouncePost(article, adapter.extractPostContent(article), 'rage');
+    await flush();
+    switchEngine();
+    await flush();
+    expect(evaluations).toHaveLength(1);
+    if (stage === 'extraction') lookup.resolve(adapter.extractPostContent(article));
+    await flush();
+    bounceResponse.resolve({ success: true });
+    await expect(bounce).resolves.toBe(true);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    expect(ui.getFilteredPosts()).toHaveLength(1);
+    expect(ui.getFilteredPosts()[0].userOverride).toBe(true);
+  });
+
+  it.each(['success', 'failure'])('settles an in-flight Restore after an engine switch with %s', async outcome => {
+    const article = post('1');
+    await startSelected();
+    await verdict(0, ['rage']);
+    restoreResponse = deferred();
+    renderRestorePanel().click();
+    await flush();
+    switchEngine();
+    await flush();
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    expect(ui.getFilteredPosts()).toHaveLength(1);
+    expect(evaluations).toHaveLength(1);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    restoreResponse.resolve(outcome === 'success' ? { success: true } : { success: false, error: 'synthetic write failed' });
+    await flush();
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+    expect(evaluations).toHaveLength(outcome === 'failure' ? 2 : 1);
+  });
+
+  it('retains a previous manual hide when Restore fails across a switch', async () => {
+    const article = post('1');
+    await startSelected();
+    await ui.bouncePost(article, adapter.extractPostContent(article), 'rage');
+    await vi.advanceTimersByTimeAsync(300);
+    restoreResponse = deferred();
+    renderRestorePanel().click();
+    await flush();
+    switchEngine();
+    await flush();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    restoreResponse.resolve({ success: false, error: 'synthetic write failed' });
+    await flush();
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    expect(ui.getFilteredPosts()).toHaveLength(1);
+    expect(ui.getFilteredPosts()[0].userOverride).toBe(true);
+  });
+
+  it('restores an automatic hide on navigation without evaluating a page outside the feed scope', async () => {
+    const article = post('1');
+    await startSelected();
+    await verdict(0, ['rage']);
+    vi.spyOn(adapter, 'shouldProcessCurrentPage').mockReturnValue(false);
+    switchEngine();
+    await flush();
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(evaluations).toHaveLength(1);
+  });
+
+  it('evaluates recycled DOM under the new engine and rejects the previous post result', async () => {
+    const article = post('1');
+    await startSelected();
+    recycle(article, '2');
+    switchEngine();
+    await flush();
+    await verdict(0, ['rage']);
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(evaluations).toHaveLength(2);
+    expect(evaluations[1].message.post).toContain('replacement 2');
+    await verdict(1, ['rage']);
+    expect(ui.getFilteredPosts()[0].post.postUrl).toContain('/2');
+  });
+
+  it('keeps reply filtering independent during a switch and excludes the opened main post', async () => {
+    permalink = true;
+    const main = post('1');
+    main.dataset.main = 'true';
+    const reply = post('2');
+    await startSelected();
+    await verdict(0, ['rage'], false);
+    change('filterReplies', false);
+    switchEngine();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(evaluations).toHaveLength(1);
+    expect(adapter.getPostContainer(reply).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+    change('filterReplies', true);
+    await flush();
+    expect(evaluations).toHaveLength(2);
+    expect(evaluations[1].message.post).toContain('tweet 2');
+  });
+
+  it('rejects old suggestions after a switch while retaining typed input and manual actions', async () => {
+    const article = post('1');
+    await startSelected();
+    suggestions = deferred();
+    await openBounce(article);
+    const input = document.querySelector<HTMLInputElement>('.ff-annoying-custom-input')!;
+    input.value = 'my chosen phrase';
+    switchEngine('needs_download');
+    suggestions.resolve({ reasons: ['old engine suggestion'] });
+    await flush();
+    expect(input.value).toBe('my chosen phrase');
+    expect(document.querySelectorAll('.ff-annoying-chip')).toHaveLength(0);
+    expect(document.querySelector('.ff-annoying-suggestions')?.textContent).toContain('Browser AI setup');
+    expect(document.querySelector('.ff-annoying-suggestions')?.textContent).toContain('Settings');
+    document.querySelector<HTMLButtonElement>('.ff-annoying-bounce')!.click();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'bouncePost', phrase: 'my chosen phrase' }));
+  });
+
+  it('does not request suggestions when selected Browser AI has no downloaded model', async () => {
+    const article = post('1');
+    await startSelected();
+    switchEngine('needs_download');
+    await flush();
+    await openBounce(article);
+    expect(sendMessage.mock.calls.filter(([message]) => message.type === 'suggestAnnoyingReasons')).toHaveLength(0);
+    expect(document.querySelector('.ff-annoying-suggestions')?.textContent).toContain('Browser AI setup');
+    expect(document.querySelector<HTMLInputElement>('.ff-annoying-custom-input')?.disabled).toBe(false);
+    document.querySelector<HTMLButtonElement>('.ff-annoying-cancel')!.click();
+    expect(document.querySelector('.ff-annoying-tooltip')).toBeNull();
+  });
+
+  it('rejects late reasoning-popup suggestions after the engine changes', async () => {
+    const article = post('1');
+    await startSelected();
+    suggestions = deferred();
+    ui.showReasoningPopup(article, 10, 10);
+    expect(document.querySelector('.reasoning-suggest-btn')?.textContent).toBe('Find filter suggestions');
+    document.querySelector<HTMLButtonElement>('.reasoning-suggest-btn')!.click();
+    await flush();
+    switchEngine('needs_download');
+    suggestions.resolve({ reasons: ['old engine suggestion'] });
+    await flush();
+    expect(document.querySelectorAll('.reasoning-suggestion-chip')).toHaveLength(0);
+    document.querySelector<HTMLButtonElement>('.reasoning-suggest-btn')!.click();
+    await flush();
+    expect(document.querySelector('.reasoning-suggestions')?.textContent).toContain('Browser AI setup');
+    expect(sendMessage.mock.calls.filter(([message]) => message.type === 'suggestAnnoyingReasons')).toHaveLength(1);
+  });
+
+  it('shows one selected-engine banner only when automatic filtering has phrases and is enabled', async () => {
+    post('1');
+    await startSelected();
+    switchEngine('needs_download');
+    await vi.advanceTimersByTimeAsync(20);
+    const banner = document.querySelector<HTMLElement>('.bouncer-model-status')!;
+    expect(banner.classList.contains('visible')).toBe(true);
+    expect(document.querySelectorAll('.bouncer-model-status')).toHaveLength(1);
+    change('enabled', false);
+    expect(banner.classList.contains('visible')).toBe(false);
+    change('enabled', true);
+    await vi.advanceTimersByTimeAsync(20);
+    expect(banner.classList.contains('visible')).toBe(true);
+    change('descriptions_twitter', []);
+    expect(banner.classList.contains('visible')).toBe(false);
+  });
+
+  it.each(['not_configured', 'needs_download', 'downloading', 'switching'] as const)('waits without a timer or post error for expected %s availability', async reason => {
+    const article = post('1');
+    await startSelected();
+    change('localModelStatus', { state: reason, message: '', engine: 'ollama', selectionRevision: 7, revision: 91 });
+    evaluations[0].resolve({ error: 'local_model', availabilityReason: reason, reasoning: 'Synthetic setup wait' });
+    await flush();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(evaluations).toHaveLength(1);
+    expect(article.classList.contains('ff-error')).toBe(false);
+    expect(article.hasAttribute('data-ff-pending')).toBe(false);
+    change('localModelStatus', { state: 'ready', message: '', engine: 'ollama', selectionRevision: 7, revision: 92 });
+    await flush();
+    expect(evaluations).toHaveLength(2);
+  });
+
+  it('reads the engine-selection event before a stale initial settings snapshot', async () => {
+    const article = post('1');
+    const oldSelection = { engine: 'ollama', revision: 7 };
+    storage.engineSelection = oldSelection;
+    const initial = deferred<Record<string, unknown>>();
+    const originalGet = chrome.storage.local.get as ReturnType<typeof vi.fn>;
+    const existingGet = originalGet.getMockImplementation()!;
+    originalGet.mockImplementation(async (keys: string[]) => keys.includes('engineSelection') && keys.includes('filterReplies')
+      ? initial.promise : existingGet(keys));
+    await start();
+    switchEngine();
+    await flush();
+    expect(evaluations).toHaveLength(0);
+    initial.resolve({ enabled: true, filterReplies: true, engineSelection: oldSelection });
+    await flush();
+    expect(evaluations).toHaveLength(1);
+    await verdict(0, ['rage']);
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+  });
+
+  it('does not submit a reply after its setting changes during store extraction', async () => {
+    permalink = true;
+    const reply = post('1');
+    const lookup = deferred<PostContent | null>();
+    vi.spyOn(adapter, 'extractPostContentFromStore').mockReturnValueOnce(lookup.promise);
+    await startSelected();
+    change('filterReplies', false);
+    lookup.resolve(adapter.extractPostContent(reply));
+    await flush();
+    expect(evaluations).toHaveLength(0);
+    expect(adapter.getPostContainer(reply).style.display).toBe('');
+  });
+
+  it('does not reuse a completed suggestion request across committed engine choices', async () => {
+    const article = post('1');
+    await startSelected();
+    await openBounce(article);
+    expect(document.querySelectorAll('.ff-annoying-chip')).toHaveLength(2);
+    document.querySelector<HTMLButtonElement>('.ff-annoying-cancel')!.click();
+    switchEngine();
+    await flush();
+    suggestions = deferred();
+    await openBounce(article);
+    expect(document.querySelectorAll('.ff-annoying-chip')).toHaveLength(0);
+    expect(sendMessage.mock.calls.filter(([message]) => message.type === 'suggestAnnoyingReasons')).toHaveLength(2);
+    suggestions.resolve({ reasons: ['fresh browser suggestion'] });
+    await flush();
+    expect(document.querySelector('.ff-annoying-chip')?.textContent).toBe('fresh browser suggestion');
+  });
+
+  it('does not revive an old warning animation after the selected engine is ready', async () => {
+    post('1');
+    await startSelected();
+    switchEngine('needs_download');
+    const selection = storage.engineSelection as EngineSelection;
+    change('localModelStatus', { state: 'ready', message: '', revision: 2, engine: selection.engine, selectionRevision: selection.revision });
+    await vi.advanceTimersByTimeAsync(20);
+    expect(document.querySelector('.bouncer-model-status')?.classList.contains('visible')).toBe(false);
+  });
+
 });

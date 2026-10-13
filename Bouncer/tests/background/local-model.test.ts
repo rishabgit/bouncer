@@ -49,29 +49,31 @@ function metadataFetch(chat: () => Promise<Response>) {
   });
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.useRealTimers(); nativeState.digest = TEST_DIGEST; nativeState.recovery = false;
+  installStorage({ engineSelection: { engine: 'ollama', revision: 0 } });
+  await localEngine.syncAllStatuses();
   installStorage(); inferenceQueue.reset(); backend = makeBackend(); engine = new LocalEngine(backend);
 });
 afterEach(() => { engine.teardown(); localEngine.teardown(); vi.restoreAllMocks(); vi.useRealTimers(); });
 
 describe('native readiness and durable restart recovery', () => {
   it('keeps popup snapshots and startup free of metadata or generation', async () => {
-    expect(await engine.getStatus()).toEqual({ state: 'not_connected', message: 'Connect to Ollama', revision: 0 });
+    expect(await engine.getStatus()).toEqual({ state: 'not_connected', message: 'Connect to Ollama', revision: 1, engine: 'ollama', selectionRevision: 0 });
     await engine.syncAllStatuses(); expect(backend.check).not.toHaveBeenCalled(); expect(backend.generate).not.toHaveBeenCalled();
   });
   it('makes Retry metadata-only with healthy unloaded status', async () => {
-    expect(await engine.retry()).toMatchObject({ state: 'ready', message: 'Ready — loads when needed', revision: 1 });
+    expect(await engine.retry()).toMatchObject({ state: 'ready', message: 'Ready — loads when needed', revision: 2 });
     expect(backend.check).toHaveBeenCalledTimes(1); expect(backend.generate).not.toHaveBeenCalled();
   });
   it('reflects permission revocation without HTTP and preserves an unresolved fence', async () => {
     const fence = storedFence();
     installStorage({ nativeOperationFence: fence, nativeModelStatus: { state: 'ready', message: 'Ready', revision: 4 } });
     vi.mocked(chrome.permissions.contains).mockResolvedValue(false);
-    expect(await engine.getStatus()).toMatchObject({ state: 'not_connected', reason: 'permission_required', revision: 5 });
+    expect(await engine.getStatus()).toMatchObject({ state: 'recovery_required', revision: 5 });
     expect(data.nativeOperationFence).toEqual(fence);
     expect(backend.check).not.toHaveBeenCalled();
-    await expect(engine.generate(TEST_MESSAGES, 64)).rejects.toMatchObject({ reason: 'permission_required' });
+    await expect(engine.generate(TEST_MESSAGES, 64)).rejects.toMatchObject({ reason: 'recovery_required' });
     expect(backend.generate).not.toHaveBeenCalled();
     vi.mocked(chrome.permissions.contains).mockResolvedValue(true);
     expect(await engine.getStatus()).toMatchObject({ state: 'recovery_required' });
@@ -123,7 +125,7 @@ describe('native readiness and durable restart recovery', () => {
     const one = engine.updateStatus({ state: 'ready', message: 'Ready' });
     const two = engine.updateStatus({ state: 'paused', message: 'Paused' });
     expect((await one).revision).toBe(1); expect((await two).revision).toBe(2);
-    expect((await engine.getStatus()).state).toBe('paused'); expect(Object.keys(data)).toEqual(['nativeModelStatus']);
+    expect((await engine.getStatus()).state).toBe('paused'); expect(Object.keys(data).sort()).toEqual(['localModelStatus', 'nativeModelStatus']);
   });
 });
 

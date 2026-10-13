@@ -31,7 +31,13 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
+    "@litert-lm/core": "0.17.0",
+    "@litertjs/wasm-utils": "2.5.0",
+    "@noble/hashes": "2.4.0",
     "dompurify": "^3.3.1",
     "html-to-image": "^1.11.13"
+  },
+  "overrides": {
+    "@litertjs/wasm-utils": "2.5.0"
   }
 }

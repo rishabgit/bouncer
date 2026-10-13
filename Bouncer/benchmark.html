@@ -45,13 +45,15 @@
   <h1>Bouncer — Latency Benchmark <span class="muted">(dev-only)</span></h1>
   <div class="caveat">
     Measures <b>per-classification latency</b>, not raw tokens/sec. Gemma emits a short verdict row.
-    Headline = <code>inferenceTime</code> (the app's generation call, including native transport and any native load).
-    Optional token-level columns are blank. Metadata readiness does not load weights, and finishing a run
-    never unloads a shared Ollama runner. First-use and idle expiry need independent native observations.
-    Run with no x.com tab actively filtering, after the fixed model and worker POST path have been qualified.
+    Uses the saved engine choice from the Bouncer popup: <b>Browser (LiteRT-LM)</b> or <b>Ollama on this Mac</b>.
+    Complete setup in the popup first; this page never chooses an engine or downloads a model.
+    Headline = <code>inferenceTime</code> (the app's generation call, including backend transport and loading).
+    Cached Browser initialization and native metadata readiness are reported separately; metadata never loads native weights.
+    Finishing releases the Browser runtime while retaining its cache, and never unloads a shared Ollama runner.
+    Run with no x.com tab actively filtering. Engine switches stop the run; first-use and idle expiry require independent observations.
   </div>
 
-  <div id="env">Native artifact and environment: captured at run</div>
+  <div id="env">Selected engine, artifact, classifier and environment: captured at run</div>
 
   <div class="panel">
     <div class="models" id="models"></div>

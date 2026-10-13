@@ -154,7 +154,7 @@ Authorize those capabilities only for a scenario that actually needs them.
 [Chrome development workflow](https://developer.chrome.com/docs/extensions/get-started/tutorial/debug),
 [Apple Accessibility controls](https://support.apple.com/guide/mac-help/allow-accessibility-apps-to-access-your-mac-mh43185/mac)
 
-Bouncer declares mandatory X access, `storage`, and optional
+Bouncer declares mandatory X access, `storage` and `offscreen`, plus optional
 `http://127.0.0.1:11434/*`. Exercise the product's **Connect** click and Chrome's
 genuine **Allow** or deny action. Use a fresh profile for first-grant UI;
 revoke/regrant alone may restore access without another prompt. Playwright

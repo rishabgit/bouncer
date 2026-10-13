@@ -4,9 +4,11 @@ This page preserves the 2026-06-07 Qwen 3.5/WebLLM and Gemma E4B/LiteRT result.
 Neither model is selectable in the current product. The later LiteRT E2B
 release is recorded in the
 [historical E2B decision and contemporaneous comparison](e2b-evaluation.md).
-The current fork uses the fixed native QAT classifier; see
-[current native qualification](ollama-qualification.md). Recorded numeric
-results and raw data on this historical page are unchanged.
+The current fork offers explicit Browser E2B or native QAT engine choice; see
+[engine scenarios](../inference-engines.md) and
+[qualification limits](ollama-qualification.md). This historical Qwen/E4B
+comparison does not qualify either current artifact or the new integration.
+Recorded numeric results and raw data on this historical page are unchanged.
 
 The eval measures classification quality for one deliberately narrow filter
 boundary: rage bait / outrage farming vs. ordinary negativity.

@@ -3,8 +3,11 @@
 This page preserves the 2026-05-26 comparison of the then-shipped local
 engines: **WebLLM/Qwen 3.5** and **LiteRT-LM/Gemma E4B**. Both have since been
 removed from the product catalog. The later LiteRT E2B release is recorded in
-the [historical E2B decision](e2b-evaluation.md). The current fork uses the
-fixed native QAT classifier; see [current native qualification](ollama-qualification.md).
+the [historical E2B decision](e2b-evaluation.md). The current fork offers
+explicit Browser E2B or native QAT engine choice; see
+[engine scenarios](../inference-engines.md) and
+[qualification limits](ollama-qualification.md). This historical Qwen/E4B
+comparison does not qualify either current artifact or the new integration.
 Recorded numeric results and raw data on this historical page are unchanged.
 
 > **This historical run measures speed, not quality.** Qwen cost more partly

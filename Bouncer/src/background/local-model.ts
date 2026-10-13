@@ -1,19 +1,20 @@
-// One serial native inference lease. Ollama owns loading and idle residency;
-// Bouncer owns eligibility, cancellation epochs and a durable content-free fence.
+// Two fixed local engines share one serial operation lease and cancellation epoch.
+// The native content-free unresolved-work fence applies to either engine.
 import type {
   ChatMessage,
   EvaluationPostData,
+  EngineSelection,
+  InferenceEngineId,
   LocalModelDef,
   LocalModelStatus,
   NativeOperationFence,
 } from '../types';
 import {
   CONCURRENT_NATIVE_MODELS_QUALIFIED,
-  NATIVE_CLASSIFIER_FINGERPRINT,
-  NATIVE_CONTEXT_TOKENS,
+  classifierFingerprintForEngine,
+  isInferenceEngine,
+  modelForEngine,
   OPERATOR_RESTART_RECOVERY_QUALIFIED,
-  PRIMARY_LOCAL_MODEL,
-  PRIMARY_LOCAL_MODEL_ID,
 } from '../shared/models';
 import {
   NativeModelError,
@@ -25,34 +26,81 @@ import {
 } from '../shared/ollama-contract';
 import type { LocalPromptMode } from '../shared/prompts';
 import { parseTableYesnoResponse } from '../shared/table-yesno';
-import { buildNativeTableYesnoRequest } from '../shared/table-yesno-request';
+import { buildNativeTableYesnoRequest, buildTableYesnoRequest } from '../shared/table-yesno-request';
 import { getStorage, removeStorage, setStorage } from '../shared/storage';
 import { inferenceQueue } from './inference-queue';
-import type { LocalBackend, NativeReadiness } from './backends/types';
+import { BrowserModelError, type BrowserBackend, type LocalBackend, type NativeReadiness } from './backends/types';
 import { OllamaBackend } from './backends/ollama-backend';
+import { LitertlmBackend } from './backends/litertlm-backend';
 
 export { parseTableYesnoResponse } from '../shared/table-yesno';
 export const MODEL_MAINTENANCE_ERROR = 'Local model maintenance in progress';
 
 type StatusUpdate = Omit<LocalModelStatus, 'revision'>;
-interface InferenceBackendLease {
+export interface InferenceBackendLease {
   countTokens(text: string): Promise<number>;
   truncateText(text: string, maxTokens: number): Promise<string>;
   generate(messages: ChatMessage[], maxTokens: number): Promise<string>;
 }
 
-function assertFixedModel(modelId: string): void {
-  if (modelId !== PRIMARY_LOCAL_MODEL_ID) {
-    throw new NativeModelError('model_identity_changed', 'Bouncer supports only its fixed native classifier.');
+/** Setup availability is expected and must not consume the inference retry budget. */
+export class LocalAvailabilityError extends Error {
+  constructor(public readonly reason: 'not_configured' | 'needs_download' | 'downloading' | 'switching' | 'browser_cancelled', message: string) {
+    super(message);
+    this.name = 'LocalAvailabilityError';
   }
 }
 
+const BROWSER_IDLE_MS = 60_000;
+const BROWSER_KEEPALIVE_MS = 5_000;
+const BROWSER_CLEANUP_MS = 3_000;
+const BROWSER_INFERENCE_MS = 90_000;
+
+function validSelection(value: unknown): value is EngineSelection {
+  const selection = record(value);
+  return (selection.engine === null || isInferenceEngine(selection.engine))
+    && Number.isSafeInteger(selection.revision) && (selection.revision as number) >= 0;
+}
+
+function sameSelection(one: EngineSelection, two: EngineSelection): boolean {
+  return one.engine === two.engine && one.revision === two.revision;
+}
+
 function sameFence(value: unknown, operationId: string): boolean {
-  return record(value).operationId === operationId;
+  const fence = record(value);
+  return operationId.length > 0 && fence.operationId === operationId
+    && fence.schemaVersion === 1
+    && Number.isSafeInteger(fence.epoch) && (fence.epoch as number) >= 0
+    && Number.isSafeInteger(fence.startedAt) && (fence.startedAt as number) >= 0
+    && typeof fence.modelDigest === 'string' && /^[a-f0-9]{64}$/.test(fence.modelDigest)
+    && Object.keys(fence).sort().join(',') === 'epoch,modelDigest,operationId,schemaVersion,startedAt';
 }
 
 export class LocalEngine {
   private readonly _backend: LocalBackend;
+  private readonly _browser: BrowserBackend;
+  private _selection: EngineSelection;
+  private readonly _injectedNativeDefault: boolean;
+  private _selectionChain: Promise<void> = Promise.resolve();
+  private _pendingSelections = 0;
+  private _selectionBlocked = false;
+  private _browserRetryRequired = false;
+  private _browserLoaded = false;
+  private _browserResidentOwned = false;
+  private _browserDiscoveredDownloading = false;
+  private _browserDiscoveredInitializing = false;
+  private _browserLifecycleGeneration = 0;
+  private _browserReconcilePromise: Promise<void> | null = null;
+  private _browserPins = 0;
+  private _browserSetup: {
+    kind: 'download' | 'initialize'; controller: AbortController;
+    promise: Promise<void>; selection: EngineSelection;
+  } | null = null;
+  private _browserActive: Promise<unknown> | null = null;
+  private _browserMaintenance = 0;
+  private _browserStopPromise: Promise<void> | null = null;
+  private _browserIdleTimer: ReturnType<typeof setTimeout> | null = null;
+  private _browserKeepalive: ReturnType<typeof setInterval> | null = null;
   private _epoch = 0;
   private _maintenance = false;
   private _maintenanceGeneration = 0;
@@ -64,7 +112,90 @@ export class LocalEngine {
   private _lastMetadataFailure: { at: number; error: unknown } | null = null;
   private _readiness: NativeReadiness | null = null;
 
-  constructor(backend: LocalBackend = new OllamaBackend()) { this._backend = backend; }
+  constructor(backend?: LocalBackend, browser: BrowserBackend = new LitertlmBackend()) {
+    this._backend = backend ?? new OllamaBackend();
+    this._browser = browser;
+    // Existing driver tests explicitly inject native. Production has no default
+    // preference; startup loads the migration's verified explicit selection.
+    this._injectedNativeDefault = backend !== undefined;
+    this._selection = { engine: backend ? 'ollama' : null, revision: 0 };
+  }
+
+  getSelection(): EngineSelection { return { ...this._selection }; }
+  isSelectingEngine(): boolean { return this._pendingSelections > 0; }
+  getSelectedModel(): LocalModelDef | null {
+    return this._selection.engine ? modelForEngine(this._selection.engine) : null;
+  }
+  getClassifierFingerprint(): string | null {
+    return this._selection.engine ? classifierFingerprintForEngine(this._selection.engine) : null;
+  }
+
+  private _assertSelection(snapshot: EngineSelection): void {
+    if (!sameSelection(snapshot, this._selection) || this._pendingSelections || this._selectionBlocked) {
+      throw new NativeModelError('inference_preempted', 'Inference preempted');
+    }
+  }
+
+  private async _assertPersistedSelection(selection: EngineSelection): Promise<void> {
+    const data = await getStorage(['engineSelection']);
+    if (validSelection(data.engineSelection)) {
+      if (!sameSelection(selection, data.engineSelection)) throw new NativeModelError('inference_preempted', 'The saved engine choice changed. Reopen Bouncer before filtering.');
+    } else if (!this._injectedNativeDefault || selection.revision > 0) {
+      throw new NativeModelError('inference_preempted', 'The saved engine choice is unavailable. Reopen Bouncer before filtering.');
+    }
+  }
+
+  private _assertModel(modelId: string | undefined, selection = this._selection): void {
+    if (modelId !== undefined && (!selection.engine || modelId !== modelForEngine(selection.engine).name)) {
+      throw new NativeModelError('model_identity_changed', 'Bouncer supports only the selected fixed local classifier.');
+    }
+  }
+
+  /** Retire ownership at receipt; choice persistence precedes physical setup. */
+  selectEngine(engine: InferenceEngineId): Promise<LocalModelStatus> {
+    if (!isInferenceEngine(engine)) return Promise.reject(new NativeModelError('model_identity_changed', 'Choose one of Bouncer’s two local engines.'));
+    this._pendingSelections++;
+    // Engine choice owns download retirement; ordinary inference preemption
+    // cannot cancel the separate cache-only transfer requested by the user.
+    if (this._browserSetup?.kind === 'download') this._browserSetup.controller.abort();
+    this.preempt();
+    const requestEpoch = this._epoch;
+    const transition = this._selectionChain.catch(() => undefined).then(async () => {
+      const previous = await getStorage(['engineSelection']);
+      const revision = Math.max(this._selection.revision, validSelection(previous.engineSelection) ? previous.engineSelection.revision : 0) + 1;
+      if (!Number.isSafeInteger(revision)) throw new NativeModelError('storage_failed', 'Could not save the engine choice.');
+      const selection: EngineSelection = { engine, revision };
+      try {
+        await setStorage({ engineSelection: selection });
+        const verified = await getStorage(['engineSelection']);
+        if (!validSelection(verified.engineSelection) || !sameSelection(selection, verified.engineSelection)) {
+          throw new NativeModelError('storage_failed', 'Could not verify the saved engine choice.');
+        }
+        this._selection = selection;
+        this._selectionBlocked = false;
+      } catch (error) {
+        this._selectionBlocked = true;
+        throw error;
+      }
+      await this.updateStatus({ state: 'switching', message: 'Switching local engine…' }, selection);
+      // Closing browser resources never changes shared Ollama residency or its
+      // fence. Native HTTP is allowed to settle naturally through the queue.
+      await this._stopBrowserOwned();
+      await this.drainQueue(() => Promise.resolve());
+      if (requestEpoch === this._epoch) {
+        this._readiness = null;
+      }
+      return selection;
+    });
+    this._selectionChain = transition.then(() => undefined, () => undefined);
+    return transition.then(async selection => {
+      this._pendingSelections--;
+      return this._snapshotStatus(selection);
+    }, error => {
+      this._pendingSelections--;
+      throw error;
+    });
+  }
 
   get operationEpoch(): number { return this._epoch; }
   isMaintaining(): boolean { return this._maintenance; }
@@ -88,93 +219,260 @@ export class LocalEngine {
     };
   }
 
-  /** Snapshot only. Popup opens and healthy idle never poll or preload weights. */
-  getStatus(): Promise<LocalModelStatus> {
+  /** Popup/status reads never acquire a host, GPU, weights or native metadata. */
+  getStatus(): Promise<LocalModelStatus> { return this._snapshotStatus(this.getSelection()); }
+
+  private _snapshotStatus(selection: EngineSelection): Promise<LocalModelStatus> {
     const snapshot = this._statusWriteChain.catch(() => undefined).then(async () => {
-      let permitted = false;
-      try { permitted = await chrome.permissions.contains({ origins: [OLLAMA_HOST_PERMISSION] }); } catch { /* fail closed */ }
-      const data = await getStorage(['nativeModelStatus', 'nativeOperationFence']);
-      if (!permitted) {
-        return this._writeStatus({ state: 'not_connected', message: 'Connect to Ollama to allow local filtering.', reason: 'permission_required' }, data.nativeModelStatus);
-      }
+      const data = await getStorage(['nativeModelStatus', 'browserModelStatus', 'localModelStatus', 'nativeOperationFence']);
+      // Unresolved native work is a global block, even without permission or a
+      // selected engine. Malformed persisted values are equally unresolved.
       if (data.nativeOperationFence !== undefined
           && !sameFence(data.nativeOperationFence, this._activeOperationId ?? '')) {
         this._retryRequired = true;
-        return this._writeStatus(this._recoveryStatus(), data.nativeModelStatus);
+        return this._writeStatus(this._recoveryStatus(), selection, data);
+      }
+      if (this._selectionBlocked) {
+        return this._writeStatus({ state: 'error', reason: 'storage_failed', message: 'Save the engine choice again before filtering.' }, selection, data);
+      }
+      if (!selection.engine) {
+        return this._writeStatus({ state: 'not_configured', reason: 'not_configured', message: 'Choose where Bouncer should run.' }, selection, data);
+      }
+      if (this._pendingSelections && sameSelection(selection, this._selection)) {
+        return this._writeStatus({ state: 'switching', message: 'Switching local engine…' }, selection, data);
+      }
+      if (selection.engine === 'litertlm') {
+        let state: Awaited<ReturnType<BrowserBackend['getState']>>;
+        const lifecycle = this._browserLifecycleGeneration;
+        try {
+          state = await this._browser.getState();
+          if (this._browserDiscoveredDownloading && !this._browserSetup && !state.downloading
+              && sameSelection(selection, this._selection) && !this._pendingSelections) {
+            await this._stopBrowserOwned();
+            state = await this._browser.getState();
+          }
+        } catch (error) {
+          if (lifecycle !== this._browserLifecycleGeneration || !sameSelection(selection, this._selection)
+              || this._pendingSelections || this._browserStopPromise || this._browserSetup?.controller.signal.aborted) {
+            return this._statusAfterRetiredBrowserRead();
+          }
+          const failure = this._browserFailureStatus(error);
+          this._browserRetryRequired = failure.state === 'error' || failure.state === 'blocked';
+          return this._writeStatus(failure, selection, data);
+        }
+        if (sameSelection(selection, this._selection) && !this._pendingSelections
+            && !this._browserStopPromise && lifecycle === this._browserLifecycleGeneration) this._recordBrowserState(state);
+        const previous = data.browserModelStatus;
+        if (previous?.state === 'error' || previous?.state === 'blocked'
+            || (previous?.state === 'paused' && previous.reason === 'browser_cancelled')) {
+          this._browserRetryRequired = true;
+          return this._writeStatus(previous, selection, data);
+        }
+        if (state.initializing || (this._browserSetup?.kind === 'initialize' && sameSelection(this._browserSetup.selection, selection))) {
+          return this._writeStatus({ state: 'loading', message: 'Loading browser AI…', ...this._progressFields(state) }, selection, data);
+        }
+        const status: StatusUpdate = state.downloading
+          ? { state: 'downloading', message: 'Downloading browser AI…', ...this._progressFields(state) }
+          : state.cached ? { state: this._browserPins && state.loaded ? 'filtering' : 'ready', message: this._browserPins && state.loaded ? 'Filtering' : 'Ready — loads when needed' }
+            : { state: 'needs_download', reason: 'needs_download', message: 'Download the browser model to start filtering.' };
+        this._updateBrowserTimers(false);
+        return this._writeStatus(status, selection, data);
+      }
+      let permitted = false;
+      try { permitted = await chrome.permissions.contains({ origins: [OLLAMA_HOST_PERMISSION] }); } catch { /* fail closed */ }
+      if (!permitted) {
+        return this._writeStatus({ state: 'not_connected', message: 'Connect to Ollama to allow local filtering.', reason: 'permission_required' }, selection, data);
       }
       const status = data.nativeModelStatus;
       if (status && typeof status.revision === 'number') {
         if ((status.state === 'error' && status.reason !== 'service_unreachable')
             || ['recovery_required', 'blocked', 'missing_model'].includes(status.state)) this._retryRequired = true;
-        // A restarted worker has no active lease. Stale busy UI is healthy
-        // idle; an unresolved durable fence above takes precedence.
         if ((status.state === 'loading' || status.state === 'filtering') && !this._activeOperationId) {
-          return this._writeStatus({ state: 'ready', message: 'Ready — loads when needed' }, status);
+          return this._writeStatus({ state: 'ready', message: 'Ready — loads when needed' }, selection, data);
         }
-        return status;
+        return this._writeStatus(status, selection, data);
       }
-      return { state: 'not_connected' as const, message: 'Connect to Ollama', revision: 0 };
+      return this._writeStatus({ state: 'not_connected', message: 'Connect to Ollama' }, selection, data);
     });
     this._statusWriteChain = snapshot.then(() => undefined, () => undefined);
     return snapshot;
   }
 
-  async syncAllStatuses(): Promise<void> { await this.getStatus(); }
+  /** Read current facts directly; re-entering getStatus would wait on this read. */
+  private async _statusAfterRetiredBrowserRead(): Promise<LocalModelStatus> {
+    const data = await getStorage(['nativeModelStatus', 'browserModelStatus', 'localModelStatus', 'nativeOperationFence']);
+    const selection = this.getSelection();
+    let status: StatusUpdate;
+    if (this._selectionBlocked) {
+      status = { state: 'error', reason: 'storage_failed', message: 'Save the engine choice again before filtering.' };
+    } else if (!selection.engine) {
+      status = { state: 'not_configured', reason: 'not_configured', message: 'Choose where Bouncer should run.' };
+    } else if (this._pendingSelections) {
+      status = { state: 'switching', message: 'Switching local engine…' };
+    } else if (selection.engine === 'ollama') {
+      status = data.nativeModelStatus ?? { state: 'not_connected', message: 'Connect to Ollama' };
+    } else if (this._browserMaintenance || this._browserSetup?.controller.signal.aborted) {
+      status = { state: 'canceling', message: 'Finishing browser cleanup…' };
+    } else if (data.browserModelStatus?.state === 'error' || data.browserModelStatus?.state === 'blocked'
+        || (data.browserModelStatus?.state === 'paused' && data.browserModelStatus.reason === 'browser_cancelled')) {
+      status = data.browserModelStatus;
+    } else if (this._browserRetryRequired) {
+      status = this._browserFailureStatus(new BrowserModelError('browser_failed', 'Browser AI requires Retry.'));
+    } else if (this._browserLoaded) {
+      status = { state: this._browserPins ? 'filtering' : 'ready', message: this._browserPins ? 'Filtering' : 'Ready — loads when needed' };
+    } else if (this._browserDiscoveredDownloading) {
+      status = { state: 'downloading', message: 'Downloading browser AI…' };
+    } else if (this._browserDiscoveredInitializing || this._browserSetup?.kind === 'initialize') {
+      status = { state: 'loading', message: 'Loading browser AI…' };
+    } else {
+      status = data.browserModelStatus ?? { state: 'needs_download', reason: 'needs_download', message: 'Download the browser model to start filtering.' };
+    }
+    // The normal writer preserves a global native recovery block. No fault or
+    // physical ownership is inferred from the retired metadata failure.
+    return this._writeStatus(status, selection, data);
+  }
 
-  /** Metadata Retry cannot clear a durable native-work fence. */
+  async syncAllStatuses(): Promise<void> {
+    const data = await getStorage(['engineSelection', 'engineChoiceSchemaVersion']);
+    if (validSelection(data.engineSelection)) this._selection = { ...data.engineSelection };
+    else if (!this._injectedNativeDefault || data.engineChoiceSchemaVersion !== undefined) this._selection = { engine: null, revision: 0 };
+    if (this._selection.engine) {
+      try {
+        const state = await this._browser.getState();
+        this._recordBrowserState(state);
+        // Recreated workers cannot own the old GPU request or initializer.
+        // Prove it stopped before replacement use; cache-only downloads may
+        // continue when Browser remains selected and are reconciled below.
+        if (this._selection.engine === 'ollama' || state.loaded || state.initializing) await this._stopBrowserOwned();
+        else this._updateBrowserTimers(false);
+      } catch { await this._browser.forceClose(); this._clearBrowserPhysicalState(); }
+    }
+    await this.getStatus();
+  }
+
+  /** Retry never clears a native fence and never downloads browser weights. */
   async retry(): Promise<LocalModelStatus> {
-    if (this._activeOperationId) return this.getStatus();
+    const selection = this.getSelection();
+    const status = await this.getStatus();
+    if (!selection.engine || this._pendingSelections) return status;
+    if (status.state === 'recovery_required') {
+      const pending = await getStorage(['nativeOperationFence']);
+      if (pending.nativeOperationFence !== undefined) return status;
+    }
     const epoch = this._epoch;
     const maintenance = this._maintenanceGeneration;
     this._assertMaintenanceGeneration(maintenance);
+    if (selection.engine === 'litertlm') {
+      if (this._browserPins || this._browserSetup || this._browserDiscoveredDownloading) return status;
+      if (this._browserStopPromise || this._browserDiscoveredInitializing || (this._browserLoaded && !this._browserResidentOwned)) {
+        await this._stopBrowserOwned();
+        this.assertOperationEpoch(epoch);
+        this._assertSelection(selection);
+        await this._assertPersistedSelection(selection);
+      }
+      if (status.state === 'error' || status.state === 'blocked') {
+        await this._browser.forceClose();
+        this._clearBrowserPhysicalState();
+      }
+      this._browserRetryRequired = false;
+      await this.updateStatus({ state: 'ready', message: 'Ready — loads when needed' }, selection);
+      try {
+        const state = await this._browser.getState();
+        this.assertOperationEpoch(epoch);
+        this._assertSelection(selection);
+        if (!state.cached) return this.updateStatus({ state: 'needs_download', reason: 'needs_download', message: 'Download the browser model to start filtering.' }, selection);
+        // Browser Retry checks capability on the next real operation, preserving
+        // the no-prewarm contract and the current downloaded artifact.
+        return this.updateStatus({ state: 'ready', message: 'Ready — loads when needed' }, selection);
+      } catch (error) {
+        if (this._isRetired(error)) throw error;
+        await this.reportFailure(error, selection);
+        return this.getStatus();
+      }
+    }
+    if (this._activeOperationId) return status;
     try {
       await this._checkReadiness(true);
       this._assertMaintenanceGeneration(maintenance);
       this.assertOperationEpoch(epoch);
+      this._assertSelection(selection);
       const data = await getStorage(['nativeOperationFence']);
       this.assertOperationEpoch(epoch);
       if (data.nativeOperationFence !== undefined) {
         this._retryRequired = true;
-        return this.updateStatus(this._recoveryStatus());
+        return this.updateStatus(this._recoveryStatus(), selection);
       }
       this._retryRequired = false;
-      return this._publishReadiness();
+      return this._publishReadiness(selection);
     } catch (error) {
-      if (error instanceof NativeModelError && error.reason === 'inference_preempted') throw error;
-      await this.reportFailure(error);
+      if (this._isRetired(error)) throw error;
+      await this.reportFailure(error, selection);
       return this.getStatus();
     }
   }
 
-  async ensureLoaded(modelId = PRIMARY_LOCAL_MODEL_ID): Promise<void> {
-    assertFixedModel(modelId);
+  async ensureLoaded(modelId?: string, snapshot = this.getSelection()): Promise<void> {
+    this._assertModel(modelId, snapshot);
     const epoch = this._epoch;
     const maintenance = this._maintenanceGeneration;
     this._assertMaintenanceGeneration(maintenance);
-    const status = await this.getStatus();
+    if (!snapshot.engine) throw new LocalAvailabilityError('not_configured', 'Choose where Bouncer should run.');
+    if (this._pendingSelections || (snapshot.engine === 'litertlm' && this._browserMaintenance)) throw new LocalAvailabilityError('switching', 'Switching local engine…');
+    this._assertSelection(snapshot);
+    if (snapshot.engine === 'litertlm' && this._browserStopPromise) {
+      await this._browserStopPromise;
+      this._assertMaintenanceGeneration(maintenance);
+      this.assertOperationEpoch(epoch);
+      this._assertSelection(snapshot);
+    }
+    await this._assertPersistedSelection(snapshot);
+    this.assertOperationEpoch(epoch);
+    let status = await this.getStatus();
     this._assertMaintenanceGeneration(maintenance);
     this.assertOperationEpoch(epoch);
-    if (status.state === 'not_connected' && status.reason === 'permission_required') {
-      throw new NativeModelError('permission_required', status.message);
+    this._assertSelection(snapshot);
+    if (status.state === 'recovery_required') throw new NativeModelError('recovery_required', status.message, 'uncertain');
+    if (snapshot.engine === 'litertlm') {
+      if ((this._browserDiscoveredInitializing || (this._browserLoaded && !this._browserResidentOwned)) && !this._browserSetup) {
+        await this._stopBrowserOwned();
+        this._assertMaintenanceGeneration(maintenance);
+        this.assertOperationEpoch(epoch);
+        this._assertSelection(snapshot);
+        await this._assertPersistedSelection(snapshot);
+        status = await this.getStatus();
+        this.assertOperationEpoch(epoch);
+        this._assertSelection(snapshot);
+      }
+      if (status.state === 'paused' && status.reason === 'browser_cancelled') throw new LocalAvailabilityError('browser_cancelled', status.message);
+      if (status.state === 'needs_download') throw new LocalAvailabilityError('needs_download', status.message);
+      if (status.state === 'downloading' || status.state === 'canceling') throw new LocalAvailabilityError('downloading', status.message);
+      if (this._browserRetryRequired) throw new NativeModelError('response_invalid', 'Retry from the Bouncer popup before browser filtering resumes.');
+      await this._initializeBrowser(snapshot, epoch);
+      this.assertOperationEpoch(epoch);
+      this._assertSelection(snapshot);
+      return;
     }
-    if (status.state === 'recovery_required') {
-      throw new NativeModelError('recovery_required', status.message, 'uncertain');
-    }
-    if (this._retryRequired) {
-      throw new NativeModelError('response_invalid', 'Retry from the Bouncer popup before filtering resumes.');
-    }
+    if (status.state === 'not_connected' && status.reason === 'permission_required') throw new NativeModelError('permission_required', status.message);
+    if (this._retryRequired) throw new NativeModelError('response_invalid', 'Retry from the Bouncer popup before filtering resumes.');
     if (!this._readiness) {
       try {
         await this._checkReadiness(false);
         this._assertMaintenanceGeneration(maintenance);
         this.assertOperationEpoch(epoch);
-        await this._publishReadiness();
+        this._assertSelection(snapshot);
+        await this._publishReadiness(snapshot);
       } catch (error) {
-        if (!(error instanceof NativeModelError && error.reason === 'inference_preempted')
-            && !(error instanceof Error && error.message === MODEL_MAINTENANCE_ERROR)) await this.reportFailure(error);
+        if (!this._isRetired(error)) await this.reportFailure(error, snapshot);
         throw error;
       }
     }
+  }
+
+  private _isRetired(error: unknown): boolean {
+    return error instanceof LocalAvailabilityError
+      || (error instanceof BrowserModelError && error.reason === 'browser_cancelled')
+      || (error instanceof NativeModelError && error.reason === 'inference_preempted')
+      || (error instanceof Error && error.message === MODEL_MAINTENANCE_ERROR);
   }
 
   private async _checkReadiness(explicit: boolean): Promise<NativeReadiness> {
@@ -198,11 +496,11 @@ export class LocalEngine {
     }
   }
 
-  private async _publishReadiness(): Promise<LocalModelStatus> {
+  private async _publishReadiness(selection = this.getSelection()): Promise<LocalModelStatus> {
     if (this._readiness?.otherModelResident && !CONCURRENT_NATIVE_MODELS_QUALIFIED) {
-      return this.updateStatus({ state: 'paused', message: 'Filtering paused while another local model is loaded.', reason: 'other_model_resident' });
+      return this.updateStatus({ state: 'paused', message: 'Filtering paused while another local model is loaded.', reason: 'other_model_resident' }, selection);
     }
-    return this.updateStatus({ state: 'ready', message: 'Ready — loads when needed' });
+    return this.updateStatus({ state: 'ready', message: 'Ready — loads when needed' }, selection);
   }
 
   /** Explicit, qualified operator procedure; user confirmation is the trust boundary. */
@@ -215,7 +513,7 @@ export class LocalEngine {
       if (before.nativeOperationFence === undefined) {
         this._retryRequired = false;
         await this._checkReadiness(true);
-        return this._publishReadiness();
+        return this._publishAfterRecovery();
       }
       const identity = JSON.stringify(before.nativeOperationFence);
       await this._checkReadiness(true);
@@ -231,8 +529,317 @@ export class LocalEngine {
         }
       });
       this._retryRequired = false;
-      return this._publishReadiness();
+      return this._publishAfterRecovery();
     });
+  }
+
+  private async _publishAfterRecovery(): Promise<LocalModelStatus> {
+    const selection = this.getSelection();
+    if (selection.engine === 'ollama') return this._publishReadiness(selection);
+    // Recovery metadata belongs to native; selected browser status is derived
+    // from browser state without GPU initialization or preference changes.
+    await this.updateStatus({ state: 'ready', message: 'Ready — loads when needed' }, { engine: 'ollama', revision: selection.revision });
+    return this.getStatus();
+  }
+
+  private _progressFields(progress: Pick<LocalModelStatus, 'progress' | 'receivedBytes' | 'totalBytes'>): Pick<LocalModelStatus, 'progress' | 'receivedBytes' | 'totalBytes'> {
+    return {
+      ...(Number.isFinite(progress.progress) ? { progress: progress.progress } : {}),
+      ...(Number.isFinite(progress.receivedBytes) ? { receivedBytes: progress.receivedBytes } : {}),
+      ...(Number.isFinite(progress.totalBytes) ? { totalBytes: progress.totalBytes } : {}),
+    };
+  }
+
+  private _recordBrowserState(state: Awaited<ReturnType<BrowserBackend['getState']>>): void {
+    this._browserLoaded = state.loaded;
+    if (!state.loaded) this._browserResidentOwned = false;
+    this._browserDiscoveredDownloading = state.downloading;
+    this._browserDiscoveredInitializing = state.initializing;
+  }
+
+  private _clearBrowserPhysicalState(): void {
+    // Retire metadata reads captured before proved physical cleanup. A late
+    // snapshot must not restore residency or an initializer that has stopped.
+    this._browserLifecycleGeneration++;
+    this._browserLoaded = false;
+    this._browserResidentOwned = false;
+    this._browserDiscoveredDownloading = false;
+    this._browserDiscoveredInitializing = false;
+  }
+
+  /** Only a download inherited from a retired worker needs bounded state reads. */
+  private _reconcileInheritedDownload(): Promise<void> {
+    if (this._browserReconcilePromise) return this._browserReconcilePromise;
+    const selection = this.getSelection();
+    const lifecycle = this._browserLifecycleGeneration;
+    const reconcile = (async () => {
+      try {
+        const state = await this._browser.getState();
+        if (this._browserLifecycleGeneration !== lifecycle || this._pendingSelections
+            || !sameSelection(selection, this._selection) || this._browserSetup || this._browserStopPromise) return;
+        if (state.downloading) {
+          this._recordBrowserState(state);
+          await this.updateStatus({ state: 'downloading', message: 'Downloading browser AI…', ...this._progressFields(state) }, selection);
+        } else {
+          // Keep the observed-work flag through creation of the cleanup barrier.
+          // Closing the inherited host also prevents an orphan initializer from
+          // becoming resident after this worker has accepted new operations.
+          await this._stopBrowserOwned();
+          this._assertSelection(selection);
+          await this.updateStatus(state.cached
+            ? { state: 'ready', message: 'Ready — loads when needed' }
+            : { state: 'needs_download', reason: 'needs_download', message: 'Download the browser model to start filtering.' }, selection);
+        }
+      } catch (error) {
+        if (this._browserLifecycleGeneration === lifecycle && !this._pendingSelections
+            && sameSelection(selection, this._selection) && !this._isRetired(error)) {
+          await this._browser.forceClose();
+          this._clearBrowserPhysicalState();
+          await this.reportFailure(error, selection);
+        }
+      } finally { this._updateBrowserTimers(false); }
+    })();
+    this._browserReconcilePromise = reconcile;
+    return reconcile.finally(() => { if (this._browserReconcilePromise === reconcile) this._browserReconcilePromise = null; });
+  }
+
+  private _updateBrowserTimers(resetIdle = true): void {
+    const busy = this._browserLoaded || this._browserDiscoveredDownloading || this._browserDiscoveredInitializing || !!this._browserSetup || this._browserPins > 0;
+    if (busy && !this._browserKeepalive) {
+      this._browserKeepalive = setInterval(() => {
+        // MV3 lifetime touch is read-only and only exists with browser work.
+        void getStorage(['browserCacheGeneration']).catch(() => undefined);
+        if (this._browserDiscoveredDownloading && !this._browserSetup && !this._browserStopPromise) {
+          void this._reconcileInheritedDownload().catch(() => undefined);
+        }
+      }, BROWSER_KEEPALIVE_MS);
+    } else if (!busy && this._browserKeepalive) {
+      clearInterval(this._browserKeepalive);
+      this._browserKeepalive = null;
+    }
+    if (this._browserIdleTimer && (resetIdle || !this._browserLoaded || this._browserSetup || this._browserDiscoveredDownloading || this._browserDiscoveredInitializing || this._browserPins > 0)) {
+      clearTimeout(this._browserIdleTimer);
+      this._browserIdleTimer = null;
+    }
+    if (!this._browserIdleTimer && this._browserLoaded && !this._browserSetup && !this._browserDiscoveredDownloading && !this._browserDiscoveredInitializing && this._browserPins === 0) {
+      const lifecycle = this._browserLifecycleGeneration;
+      this._browserIdleTimer = setTimeout(() => {
+        this._browserIdleTimer = null;
+        if (lifecycle !== this._browserLifecycleGeneration || this._browserPins || this._browserSetup) return;
+        void this._stopBrowserOwned().catch(() => undefined);
+      }, BROWSER_IDLE_MS);
+    }
+  }
+
+  private async _settleBrowser(pending: Promise<unknown>): Promise<boolean> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const settled = pending.then(() => true, () => true);
+    const completed = await Promise.race([settled, new Promise<false>(resolve => { timer = setTimeout(() => resolve(false), BROWSER_CLEANUP_MS); })]);
+    if (timer) clearTimeout(timer);
+    if (!completed) await this._browser.forceClose();
+    return completed;
+  }
+
+  private _stopBrowserOwned(): Promise<void> {
+    if (this._browserStopPromise) return this._browserStopPromise;
+    const stop = this._performBrowserStop();
+    this._browserStopPromise = stop;
+    return stop.finally(() => { if (this._browserStopPromise === stop) this._browserStopPromise = null; });
+  }
+
+  private async _performBrowserStop(): Promise<void> {
+    this._browserLifecycleGeneration++;
+    const setup = this._browserSetup;
+    setup?.controller.abort();
+    const active = this._browserActive;
+    const ownedResident = this._browserResidentOwned;
+    let physical = this._browserLoaded || this._browserDiscoveredDownloading || this._browserDiscoveredInitializing;
+    try {
+      // A restarted worker has no promise/controller for the existing document.
+      // This query adopts only an existing host; it cannot create or warm one.
+      const state = await this._browser.getState();
+      physical ||= state.loaded || state.downloading || state.initializing;
+    } catch {
+      // The driver captured any existing Chrome context even if its script or
+      // cache cannot answer, so exact owned close remains possible.
+      await this._browser.forceClose();
+    }
+    if (setup || active || ownedResident) {
+      const settled = await this._settleBrowser(Promise.all([
+        this._browser.interrupt(), ...(setup ? [setup.promise] : []), ...(active ? [active] : []),
+      ]));
+      if (settled) await this._settleBrowser(this._browser.unload());
+      await this._browser.forceClose();
+    } else if (physical) {
+      // No worker lease can prove an inherited operation settled. Owned host
+      // closure retires its download generation and stops its GPU work.
+      await this._browser.forceClose();
+    }
+    if (this._browserSetup === setup) this._browserSetup = null;
+    this._clearBrowserPhysicalState();
+    this._updateBrowserTimers();
+  }
+
+  private async _initializeBrowser(selection: EngineSelection, epoch: number): Promise<void> {
+    if (this._browserStopPromise) {
+      await this._browserStopPromise;
+      this.assertOperationEpoch(epoch);
+      this._assertSelection(selection);
+      await this._assertPersistedSelection(selection);
+    }
+    if (this._browserLoaded) return;
+    if (this._browserSetup) {
+      if (this._browserSetup.kind === 'download') throw new LocalAvailabilityError('downloading', 'The browser model is downloading.');
+      await this._browserSetup.promise;
+      return;
+    }
+    const controller = new AbortController();
+    const setup = { kind: 'initialize' as const, controller, promise: Promise.resolve(), selection };
+    this._browserSetup = setup;
+    this._updateBrowserTimers();
+    setup.promise = (async () => {
+      await this.updateStatus({ state: 'loading', message: 'Loading browser AI…' }, selection);
+      this.assertOperationEpoch(epoch);
+      this._assertSelection(selection);
+      await this._browser.initialize(progress => {
+        if (this._browserSetup !== setup || controller.signal.aborted || this._epoch !== epoch || !sameSelection(selection, this._selection)) return;
+        void this.updateStatus({ state: 'loading', message: 'Loading browser AI…', ...this._progressFields(progress) }, selection).catch(() => undefined);
+      }, controller.signal);
+      this.assertOperationEpoch(epoch);
+      this._assertSelection(selection);
+      // Initialization may finish while a popup's host-state reply is pending.
+      // The real transition owns residency and its idle timer, not that reply.
+      this._browserLifecycleGeneration++;
+      this._browserLoaded = true;
+      this._browserResidentOwned = true;
+      this._browserDiscoveredInitializing = false;
+      await this.updateStatus({ state: 'ready', message: 'Ready — loads when needed' }, selection);
+    })().catch(async error => {
+      // Close directly: the general stop routine waits for setup.promise and
+      // calling it from this catch would wait on itself. No replacement setup
+      // is permitted until this captured driver's cleanup has completed.
+      await this._browser.forceClose();
+      this._clearBrowserPhysicalState();
+      if (controller.signal.aborted || this._epoch !== epoch || !sameSelection(selection, this._selection)) {
+        throw new NativeModelError('inference_preempted', 'Inference preempted');
+      }
+      if (!this._isRetired(error)) await this.reportFailure(error, selection);
+      throw error;
+    }).finally(() => {
+      if (this._browserSetup === setup) this._browserSetup = null;
+      this._updateBrowserTimers();
+    });
+    await setup.promise;
+  }
+
+  async downloadBrowserModel(): Promise<LocalModelStatus> {
+    const selection = this.getSelection();
+    if (selection.engine !== 'litertlm') throw new LocalAvailabilityError('not_configured', 'Choose browser AI before downloading its model.');
+    this._assertSelection(selection);
+    if (this._browserMaintenance || this._browserStopPromise) throw new LocalAvailabilityError('switching', 'Browser AI maintenance is in progress.');
+    if (this._browserSetup) return this.getStatus();
+    const saved = await getStorage(['browserModelStatus']);
+    this._assertSelection(selection);
+    if (saved.browserModelStatus?.state === 'paused' && saved.browserModelStatus.reason === 'browser_cancelled') {
+      throw new LocalAvailabilityError('browser_cancelled', saved.browserModelStatus.message);
+    }
+    if (this._browserMaintenance || this._browserStopPromise) throw new LocalAvailabilityError('switching', 'Browser AI maintenance is in progress.');
+    if (this._browserSetup) return this.getStatus();
+    const controller = new AbortController();
+    const setup = { kind: 'download' as const, controller, promise: Promise.resolve(), selection };
+    this._browserSetup = setup;
+    const assertOwned = (): void => {
+      if (this._browserSetup !== setup || controller.signal.aborted) throw new BrowserModelError('browser_cancelled', 'Browser download canceled.');
+      this._assertSelection(selection);
+    };
+    this._updateBrowserTimers();
+    setup.promise = (async () => {
+      await this.updateStatus({ state: 'downloading', message: 'Downloading browser AI…', progress: 0 }, selection);
+      assertOwned();
+      await this._browser.download(progress => {
+        if (this._browserSetup !== setup || controller.signal.aborted || this._pendingSelections || !sameSelection(selection, this._selection)) return;
+        void this.updateStatus({ state: 'downloading', message: 'Downloading browser AI…', ...this._progressFields(progress) }, selection).catch(() => undefined);
+      }, controller.signal);
+      assertOwned();
+      this._browserRetryRequired = false;
+      this._browserLifecycleGeneration++;
+      this._browserDiscoveredDownloading = false;
+      await this.updateStatus({ state: 'ready', message: 'Ready — loads when needed' }, selection);
+    })().catch(async error => {
+      const owned = this._browserSetup === setup && !controller.signal.aborted
+        && !this._pendingSelections && sameSelection(selection, this._selection);
+      if (owned && !this._isRetired(error)) await this.reportFailure(error, selection);
+      if (owned) throw error;
+    }).finally(() => {
+      if (this._browserSetup === setup) this._browserSetup = null;
+      this._updateBrowserTimers();
+    });
+    await setup.promise;
+    return this.getStatus();
+  }
+
+  async cancelBrowserDownload(): Promise<LocalModelStatus> {
+    const selection = this.getSelection();
+    const initialKind = this._browserSetup?.kind;
+    const knownInitialization = initialKind === 'initialize' || this._browserDiscoveredInitializing;
+    const knownWork = !!initialKind || this._browserDiscoveredDownloading || knownInitialization;
+    this._browserMaintenance++;
+    if (knownWork) {
+      this._browserSetup?.controller.abort();
+      this.preempt();
+    }
+    try {
+      let discovered: Awaited<ReturnType<BrowserBackend['getState']>>;
+      try { discovered = await this._browser.getState(); } catch (error) {
+        await this._stopBrowserOwned();
+        if (knownInitialization) {
+          this._browserRetryRequired = true;
+          await this.updateStatus({ state: 'paused', reason: 'browser_cancelled', message: 'Browser setup canceled. Retry when you are ready to load browser AI.' }, selection);
+        } else if (!knownWork) await this.reportFailure(error, selection);
+        return await this.getStatus();
+      }
+      this._recordBrowserState(discovered);
+      if (!knownWork && !this._browserSetup && !discovered.downloading && !discovered.initializing) return this.getStatus();
+      if (!knownWork) this.preempt();
+      const initializationCanceled = knownInitialization || this._browserSetup?.kind === 'initialize' || discovered.initializing;
+      await this.updateStatus({ state: 'canceling', message: 'Canceling browser setup…' }, selection);
+      await this._stopBrowserOwned();
+      if (initializationCanceled) {
+        this._browserRetryRequired = true;
+        await this.updateStatus({ state: 'paused', reason: 'browser_cancelled', message: 'Browser setup canceled. Retry when you are ready to load browser AI.' }, selection);
+      }
+      return await this.getStatus();
+    } finally { this._browserMaintenance--; }
+  }
+
+  async deleteBrowserModel(): Promise<LocalModelStatus> {
+    const selection = this.getSelection();
+    this._browserMaintenance++;
+    const selectedBrowser = selection.engine === 'litertlm';
+    if (selectedBrowser) this.preempt();
+    try {
+      await this._stopBrowserOwned();
+      if (selectedBrowser) await this.drainQueue(async () => { await this._browser.deleteCache(); });
+      else await this._browser.deleteCache();
+      this._browserRetryRequired = false;
+      await this.updateStatus({ state: 'needs_download', reason: 'needs_download', message: 'Download the browser model to start filtering.' }, { engine: 'litertlm', revision: selection.revision });
+      return await this.getStatus();
+    } finally { this._browserMaintenance--; }
+  }
+
+  /** Development diagnostics can release only the selected owned browser host. */
+  async unloadBrowserModel(): Promise<LocalModelStatus> {
+    const selection = this.getSelection();
+    if (selection.engine !== 'litertlm') throw new LocalAvailabilityError('not_configured', 'Browser AI must be selected to release its model.');
+    this._assertSelection(selection);
+    this._browserMaintenance++;
+    this.preempt();
+    try {
+      await this._stopBrowserOwned();
+      await this.drainQueue(() => Promise.resolve());
+      if (!sameSelection(selection, this._selection)) throw new NativeModelError('inference_preempted', 'Inference preempted');
+      return await this.getStatus();
+    } finally { this._browserMaintenance--; }
   }
 
   async generate(
@@ -252,8 +859,10 @@ export class LocalEngine {
     // Captured at call time, before queue and prompt-preparation awaits.
     const epoch = this._epoch;
     const maintenance = this._maintenanceGeneration;
+    const selection = this.getSelection();
     this._assertMaintenanceGeneration(maintenance);
     assertCurrent?.();
+    this._assertSelection(selection);
     return inferenceQueue.enqueue(async () => {
       let leaseOpen = true;
       let callerRetired = false;
@@ -262,6 +871,7 @@ export class LocalEngine {
         if (!leaseOpen) throw new NativeModelError('inference_preempted', 'Inference lease ended');
         this._assertMaintenanceGeneration(maintenance);
         this.assertOperationEpoch(epoch);
+        this._assertSelection(selection);
         if (callerRetired) throw callerFailure;
         try { assertCurrent?.(); } catch (error) {
           callerRetired = true;
@@ -270,16 +880,24 @@ export class LocalEngine {
         }
       };
       assertActive();
-      await this.ensureLoaded();
-      assertActive();
+      const browserLease = selection.engine === 'litertlm';
+      if (browserLease) { this._browserPins++; this._updateBrowserTimers(); }
+      try {
+        await this.ensureLoaded(undefined, selection);
+        assertActive();
+      } catch (error) {
+        if (browserLease) { this._browserPins--; this._updateBrowserTimers(); }
+        throw error;
+      }
       const lease: InferenceBackendLease = {
         countTokens: (text: string) => {
           assertActive();
-          return Promise.resolve(Math.ceil(text.length / 3)).then(count => { assertActive(); return count; });
+          return (browserLease ? this._browser.countTokens(text) : Promise.resolve(Math.ceil(text.length / 3))).then(count => { assertActive(); return count; });
         },
         truncateText: (text: string, maxTokens: number) => {
           assertActive();
-          if (!Number.isInteger(maxTokens) || maxTokens < 0) throw new NativeModelError('input_budget', 'Invalid native input budget.');
+          if (!Number.isInteger(maxTokens) || maxTokens < 0) throw new NativeModelError('input_budget', 'Invalid local input budget.');
+          if (browserLease) return this._browser.truncateText(text, maxTokens).then(result => { assertActive(); return result; });
           let bounded = text.slice(0, maxTokens * 3);
           // Avoid cutting one UTF-16 surrogate pair in half.
           if (/[\uD800-\uDBFF]$/.test(bounded)) bounded = bounded.slice(0, -1);
@@ -287,10 +905,41 @@ export class LocalEngine {
         },
         generate: async (messages: ChatMessage[], maxTokens: number) => {
           assertActive();
+          await this._assertPersistedSelection(selection);
+          assertActive();
           const pending = await getStorage(['nativeOperationFence']);
           assertActive();
           if (pending.nativeOperationFence !== undefined) {
             throw new NativeModelError('recovery_required', this._recoveryStatus().message, 'uncertain');
+          }
+          if (browserLease) {
+            await this.updateStatus({ state: 'filtering', message: 'Filtering' }, selection);
+            assertActive();
+            let deadline: ReturnType<typeof setTimeout> | undefined;
+            const physical = this._browser.generate(messages, maxTokens);
+            this._browserActive = physical;
+            try {
+              const result = await Promise.race([physical, new Promise<never>((_resolve, reject) => {
+                deadline = setTimeout(() => reject(new Error('Browser inference timed out. Retry from the popup.')), BROWSER_INFERENCE_MS);
+              })]);
+              assertActive();
+              await this.updateStatus({ state: 'ready', message: 'Ready — loads when needed' }, selection);
+              assertActive();
+              return result;
+            } catch (error) {
+              // A browser host is owned by this extension. Closing it proves
+              // browser work stopped; native service work has no such shortcut.
+              if (this._epoch === epoch && sameSelection(selection, this._selection) && !this._isRetired(error) && !callerRetired) await this.reportFailure(error, selection);
+              void this._browser.interrupt().catch(() => undefined);
+              await this._browser.forceClose();
+              this._clearBrowserPhysicalState();
+              if (this._epoch !== epoch || !sameSelection(selection, this._selection)) throw new NativeModelError('inference_preempted', 'Inference preempted');
+              if (callerRetired) throw callerFailure;
+              throw error;
+            } finally {
+              if (deadline) clearTimeout(deadline);
+              if (this._browserActive === physical) this._browserActive = null;
+            }
           }
           const operationId = crypto.randomUUID();
           let fenceWritten = false;
@@ -300,7 +949,7 @@ export class LocalEngine {
               beforeSubmit: async readiness => {
                 assertActive();
                 this._readiness = readiness;
-                await this.updateStatus({ state: readiness.resident ? 'filtering' : 'loading', message: readiness.resident ? 'Filtering' : 'Loading model…' });
+                await this.updateStatus({ state: readiness.resident ? 'filtering' : 'loading', message: readiness.resident ? 'Filtering' : 'Loading model…' }, selection);
                 assertActive();
                 const fence: NativeOperationFence = {
                   schemaVersion: 1,
@@ -339,7 +988,7 @@ export class LocalEngine {
             });
             assertActive();
             this._readiness = this._readiness ? { ...this._readiness, resident: true } : this._readiness;
-            await this.updateStatus({ state: 'ready', message: 'Ready — loads when needed' });
+            await this.updateStatus({ state: 'ready', message: 'Ready — loads when needed' }, selection);
             assertActive();
             return result;
           } catch (error) {
@@ -358,15 +1007,18 @@ export class LocalEngine {
               this._retryRequired = true;
               // The caller's transport deadline must not wait for cleanup or a
               // delayed storage/status write. The durable fence already exists.
-              void this.updateStatus(this._recoveryStatus()).catch(() => undefined);
+              void this.updateStatus(this._recoveryStatus(), selection).catch(() => undefined);
             } else {
-              await this.reportFailure(error);
+              await this.reportFailure(error, selection);
             }
             throw error;
           }
         },
       };
-      try { return await operation(lease); } finally { leaseOpen = false; }
+      try { return await operation(lease); } finally {
+        leaseOpen = false;
+        if (browserLease) { this._browserPins--; this._updateBrowserTimers(); }
+      }
     }, { priority });
   }
 
@@ -393,6 +1045,10 @@ export class LocalEngine {
   preempt(): void {
     this._epoch++;
     inferenceQueue.clear();
+    if (this._browserSetup?.kind === 'initialize') this._browserSetup.controller.abort();
+    if (this._browserSetup?.kind === 'initialize' || this._browserActive) void this._browser.interrupt().catch(() => undefined);
+    // A user-requested cache-only download is owned by setup + selection, not
+    // the inference epoch. Cancel, switch, delete and teardown retire it.
     // Active HTTP work drains until its terminal response/deadline. Aborting
     // would not prove native compute stopped and could create overlapping work.
   }
@@ -410,41 +1066,97 @@ export class LocalEngine {
   teardown(): void {
     this.preempt();
     this._readiness = null;
-    // Never delete a fence, unload a runner, or alter shared retention here.
+    if (this._browserIdleTimer) clearTimeout(this._browserIdleTimer);
+    this._browserIdleTimer = null;
+    if (this._browserKeepalive) clearInterval(this._browserKeepalive);
+    this._browserKeepalive = null;
+    if (this._browserSetup || this._browserActive || this._browserLoaded || this._browserDiscoveredDownloading || this._browserDiscoveredInitializing) {
+      void this._stopBrowserOwned().catch(() => undefined);
+    }
+    // Never delete a native fence or alter shared native retention here.
   }
 
-  async updateStatus(status: StatusUpdate): Promise<LocalModelStatus> {
+  async updateStatus(status: StatusUpdate, selection = this.getSelection()): Promise<LocalModelStatus> {
     const write = this._statusWriteChain.catch(() => undefined).then(async () => {
-      const data = await getStorage(['nativeModelStatus']);
-      return this._writeStatus(status, data.nativeModelStatus);
+      const data = await getStorage(['nativeModelStatus', 'browserModelStatus', 'localModelStatus', 'nativeOperationFence']);
+      return this._writeStatus(status, selection, data);
     });
     this._statusWriteChain = write.then(() => undefined, () => undefined);
     return write;
   }
 
-  private async _writeStatus(status: StatusUpdate, previous?: LocalModelStatus): Promise<LocalModelStatus> {
-    if (previous && previous.state === status.state && previous.message === status.message
-        && previous.reason === status.reason && previous.recoveryQualified === status.recoveryQualified) return previous;
-    const revision = previous && Number.isSafeInteger(previous.revision) && previous.revision >= 0 ? previous.revision + 1 : 1;
-    const next = { ...status, revision };
-    await setStorage({ nativeModelStatus: next });
-    return next;
+  private async _writeStatus(
+    status: StatusUpdate, selection: EngineSelection,
+    data: { nativeModelStatus?: LocalModelStatus; browserModelStatus?: LocalModelStatus; localModelStatus?: LocalModelStatus; nativeOperationFence?: unknown },
+  ): Promise<LocalModelStatus> {
+    const selected = sameSelection(selection, this._selection);
+    const enginePrevious = selection.engine === 'ollama' ? data.nativeModelStatus : data.browserModelStatus;
+    const identity = { ...status, engine: selection.engine, selectionRevision: selection.revision };
+    const fields: (keyof StatusUpdate)[] = ['state', 'message', 'reason', 'recoveryQualified', 'engine', 'selectionRevision', 'progress', 'receivedBytes', 'totalBytes'];
+    const nextStatus = (value: typeof identity, previous?: LocalModelStatus): LocalModelStatus => {
+      if (previous && fields.every(field => previous[field] === value[field])) return previous;
+      const revision = previous && Number.isSafeInteger(previous.revision) && previous.revision >= 0 ? previous.revision + 1 : 1;
+      return { ...value, revision };
+    };
+    const resource = nextStatus(identity, enginePrevious);
+    const writes: { nativeModelStatus?: LocalModelStatus; browserModelStatus?: LocalModelStatus; localModelStatus?: LocalModelStatus } = {};
+    // Resource records preserve download/cache/error state while a global native
+    // recovery block is presented. Neither progress nor Ready may bypass it.
+    if (selection.engine === 'ollama' && status.state !== 'switching') {
+      if (resource !== data.nativeModelStatus) writes.nativeModelStatus = resource;
+    } else if (selection.engine === 'litertlm' && status.state !== 'recovery_required' && status.state !== 'switching') {
+      if (resource !== data.browserModelStatus) writes.browserModelStatus = resource;
+    }
+    let result = resource;
+    if (selected) {
+      const unresolved = data.nativeOperationFence !== undefined && !sameFence(data.nativeOperationFence, this._activeOperationId ?? '');
+      const publicStatus = unresolved ? { ...this._recoveryStatus(), engine: selection.engine, selectionRevision: selection.revision } : identity;
+      result = nextStatus(publicStatus, data.localModelStatus ?? enginePrevious);
+      if (result !== data.localModelStatus) writes.localModelStatus = result;
+    }
+    if (Object.keys(writes).length) await setStorage(writes);
+    return result;
   }
 
-  async reportFailure(error: unknown): Promise<void> {
+  private _browserFailureStatus(error: unknown): StatusUpdate {
+    const reason = error instanceof BrowserModelError ? error.reason
+      : error instanceof NativeModelError ? error.reason : 'browser_failed';
+    if (reason === 'needs_download') return { state: 'needs_download', reason, message: 'Download the browser model to start filtering.' };
+    const messages: Record<string, string> = {
+      webgpu_unavailable: 'Browser AI needs WebGPU. Check browser support, then Retry.',
+      storage_full: 'There is not enough browser storage. Free space, then Retry the download.',
+      download_failed: 'The browser model download failed. Retry the download.',
+      artifact_integrity: 'The browser model could not be verified. Delete its files, then download again.',
+    };
+    return { state: reason === 'webgpu_unavailable' ? 'blocked' : 'error', reason, message: messages[reason] ?? 'Browser AI failed. Retry from the Bouncer popup.' };
+  }
+
+  async reportFailure(error: unknown, selection = this.getSelection()): Promise<void> {
+    if (this._isRetired(error)) return;
+    if (selection.engine === 'litertlm') {
+      // Fixed error codes survive the trusted runtime envelope. Arbitrary SDK
+      // or provider text never becomes persistent background diagnostics.
+      const status = this._browserFailureStatus(error);
+      this._browserRetryRequired = status.state === 'error' || status.state === 'blocked';
+      await this.updateStatus(status, selection);
+      return;
+    }
     const status = nativeFailureStatus(error);
     if ((status.state === 'error' && status.reason !== 'service_unreachable')
         || ['recovery_required', 'blocked', 'missing_model'].includes(status.state)) this._retryRequired = true;
-    await this.updateStatus(status.state === 'recovery_required' ? this._recoveryStatus() : status);
+    await this.updateStatus(status.state === 'recovery_required' ? this._recoveryStatus() : status, selection);
   }
 
   async markTerminalError(modelId: string, error: string): Promise<void> {
-    assertFixedModel(modelId);
-    this._retryRequired = true;
+    const selection = this.getSelection();
+    this._assertModel(modelId, selection);
+    if (selection.engine === 'litertlm') this._browserRetryRequired = true;
+    else this._retryRequired = true;
     const status = await this.getStatus();
-    if (['blocked', 'paused', 'recovery_required', 'not_connected', 'missing_model'].includes(status.state)) return;
-    await this.updateStatus({ state: 'error', message: error, reason: 'response_invalid' });
+    if (['blocked', 'paused', 'recovery_required', 'not_connected', 'missing_model', 'not_configured', 'needs_download', 'switching'].includes(status.state)) return;
+    await this.updateStatus({ state: 'error', message: error, reason: 'response_invalid' }, selection);
   }
+
 }
 
 export const localEngine = new LocalEngine();
@@ -452,53 +1164,67 @@ export const localEngine = new LocalEngine();
 export async function callLocalInference(
   postData: EvaluationPostData,
   bannedCategories: string[],
-  modelConfig: LocalModelDef | null = PRIMARY_LOCAL_MODEL,
-  modelId = PRIMARY_LOCAL_MODEL_ID,
+  modelConfig: LocalModelDef | null = localEngine.getSelectedModel(),
+  modelId?: string,
   { priority = 0, onInferenceStart, promptMode = 'baseline', assertCurrent }: {
     priority?: number; onInferenceStart?: () => void; promptMode?: LocalPromptMode; assertCurrent?: () => void;
   } = {},
 ): Promise<{
   shouldHide: boolean; reasoning: string; category: string | null; matches: string[];
   rawResponse: string; inferenceTime: number; malformed: boolean; classifierFingerprint: string;
+  modelId: string; engine: InferenceEngineId; selectionRevision: number;
 }> {
   assertCurrent?.();
-  assertFixedModel(modelId);
-  if (modelConfig && modelConfig.name !== PRIMARY_LOCAL_MODEL_ID) {
-    throw new NativeModelError('model_identity_changed', 'The native classifier configuration changed.');
-  }
   if (!postData.text.trim() || bannedCategories.length === 0
       || bannedCategories.some(category => typeof category !== 'string' || !category.trim())) {
     throw new NativeModelError('input_budget', 'A real post and nonempty filter phrases are required.');
   }
+  const selection = localEngine.getSelection();
+  if (!selection.engine) {
+    if (modelId !== undefined) throw new NativeModelError('model_identity_changed', 'Choose a fixed local classifier.');
+    throw new LocalAvailabilityError('not_configured', 'Choose where Bouncer should run.');
+  }
+  const model = modelForEngine(selection.engine);
+  if ((modelId !== undefined && modelId !== model.name) || (modelConfig && (modelConfig.name !== model.name || modelConfig.backend !== model.backend))) {
+    throw new NativeModelError('model_identity_changed', 'The selected classifier configuration changed.');
+  }
+  const fingerprint = classifierFingerprintForEngine(selection.engine);
   const epoch = localEngine.operationEpoch;
-  await localEngine.ensureLoaded(modelId);
+  // Native metadata remains outside the lease for qualified transport behavior;
+  // browser setup is inside its pinned lease, including prompt preparation.
+  if (selection.engine === 'ollama') await localEngine.ensureLoaded(model.name);
   assertCurrent?.();
   localEngine.assertOperationEpoch(epoch);
-  const empty = buildNativeTableYesnoRequest('', bannedCategories, promptMode);
+  const builder = selection.engine === 'ollama' ? buildNativeTableYesnoRequest : buildTableYesnoRequest;
+  const empty = builder('', bannedCategories, promptMode);
   const overhead = Math.ceil(empty.messages.map(message => message.content).join('\n').length / 3);
-  const budget = NATIVE_CONTEXT_TOKENS - overhead - empty.maxOutputTokens;
-  if (budget <= 0) throw new NativeModelError('input_budget', 'The filter phrases exceed the native input budget.');
+  const budget = model.contextTokens - overhead - empty.maxOutputTokens;
+  if (budget <= 0) throw new NativeModelError('input_budget', 'The filter phrases exceed the local input budget.');
   let inferenceStart = Date.now();
   const rawResponse = await localEngine.runInferenceOperation(async lease => {
     const postText = await lease.truncateText(postData.text, budget);
     onInferenceStart?.();
     inferenceStart = Date.now();
-    const request = buildNativeTableYesnoRequest(postText, bannedCategories, promptMode);
+    const request = builder(postText, bannedCategories, promptMode);
     return lease.generate(request.messages, request.maxOutputTokens);
   }, { priority, assertCurrent });
   assertCurrent?.();
+  localEngine.assertOperationEpoch(epoch);
   const parsed = parseTableYesnoResponse(rawResponse, bannedCategories);
   if (parsed.malformed && priority === 0) {
-    await localEngine.reportFailure(new NativeModelError('response_invalid', 'The classifier returned malformed verdicts. Retry from the popup.', 'terminal'));
+    await localEngine.reportFailure(new NativeModelError('response_invalid', 'The classifier returned malformed verdicts. Retry from the popup.', 'terminal'), selection);
   }
   assertCurrent?.();
+  localEngine.assertOperationEpoch(epoch);
   return {
     ...parsed,
-    // Persistent diagnostics never contain malformed model output.
     reasoning: parsed.malformed ? 'Malformed classifier response' : parsed.reasoning,
     category: parsed.matches.length > 0 ? parsed.matches.join(', ') : null,
     rawResponse,
     inferenceTime: (Date.now() - inferenceStart) / 1000,
-    classifierFingerprint: NATIVE_CLASSIFIER_FINGERPRINT,
+    classifierFingerprint: fingerprint,
+    modelId: model.name,
+    engine: selection.engine,
+    selectionRevision: selection.revision,
   };
 }

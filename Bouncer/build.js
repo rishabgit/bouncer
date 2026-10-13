@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { generateManifest } from './generate-manifests.mjs';
+import { packageLitertlmRuntime } from './litertlm-assets.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 
@@ -10,19 +11,19 @@ export async function build({ root = ROOT, dev = false, watch = false } = {}) {
   const env = dev ? 'dev' : 'prod';
   console.log(`Building local-only Chrome extension (env: ${env})`);
 
-  // Recreate generated output so retired runtimes and dev bundles cannot leak
-  // into the next build. Native inference uses fetch; it ships no model assets.
+  // Recreate generated output so retired platforms and diagnostics cannot leak.
   const distDir = path.join(root, 'dist');
   fs.rmSync(distDir, { recursive: true, force: true });
   fs.mkdirSync(distDir, { recursive: true });
   generateManifest({ root });
+  packageLitertlmRuntime(root, distDir);
 
   const define = {
     'process.env.NODE_ENV': '"production"',
     // Actual-extension diagnostics are stripped from production bundles.
     '__DEV__': String(dev),
   };
-  const entries = ['background.js', 'popup.js', 'content.js'];
+  const entries = ['background.js', 'popup.js', 'content.js', 'offscreen.js'];
   if (dev) entries.push('benchmark.js');
 
   const contexts = [];

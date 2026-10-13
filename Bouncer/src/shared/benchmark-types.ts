@@ -3,13 +3,41 @@
 // — importing this module pulls no runtime code into either bundle.
 
 import type { LocalPromptMode } from './prompts';
+import type { InferenceEngineId, LocalModelStatus } from '../types';
 
 // One bounded operation per message. The PAGE owns the run loop: an MV3 service
 // worker must not hold a response open for an entire multi-minute run. The
-// historical operation names remain internal: `load` verifies metadata without
-// loading weights, `infer` is real generation, and `unload` drains extension
-// work without unloading the shared native runner.
-export type BenchmarkOp = 'load' | 'infer' | 'unload';
+// `status` reads the committed choice without setup. `load` initializes cached
+// Browser weights or verifies native metadata. `unload` releases Browser's
+// extension-owned runtime; it only drains work for a shared native runner.
+export type BenchmarkOp = 'status' | 'load' | 'infer' | 'unload';
+
+export interface BenchmarkRequest {
+  op: BenchmarkOp;
+  selectionRevision?: number;
+  post?: BenchmarkPost;
+  categories?: string[];
+  promptMode?: BenchmarkPromptMode;
+}
+
+/** Captured classifier identity, never an instruction to select a model. */
+export interface BenchmarkClassifierIdentity {
+  readonly engine: InferenceEngineId;
+  readonly modelId: string;
+  readonly selectionRevision: number;
+  readonly classifierFingerprint: string;
+  readonly display: string;
+  readonly weightDigest: string;
+  readonly manifestDigest: string | null;
+  readonly runtimeVersion: string;
+}
+
+export interface BenchmarkStatusResult {
+  identity: BenchmarkClassifierIdentity | null;
+  status: LocalModelStatus;
+}
+
+export type BenchmarkLoadKind = 'browser_initialization' | 'native_metadata';
 
 // The post payload for an `infer` op (mirrors EvaluationPostData; text-only here).
 export interface BenchmarkPost {
@@ -18,8 +46,8 @@ export interface BenchmarkPost {
 
 export type BenchmarkPromptMode = LocalPromptMode;
 
-// Optional per-classification runtime accounting. The fixed native benchmark
-// currently reports null; blank columns are not zero-throughput measurements.
+// Optional per-classification runtime accounting. Blank columns are not
+// zero-throughput measurements.
 export interface BenchmarkUsage {
   promptTokens: number;
   completionTokens: number;
@@ -31,8 +59,8 @@ export interface BenchmarkUsage {
 }
 
 // Result of one `infer` op.
-export interface BenchmarkInferResult {
-  inferenceTime: number;   // generation-call SECONDS, including transport/native loading
+export interface BenchmarkInferResult extends BenchmarkClassifierIdentity {
+  inferenceTime: number;   // generation-call SECONDS, including backend transport/loading
   wallMs: number;          // full callLocalInference() wall time (performance.now), incl. prompt prep
   shouldHide: boolean;
   reasoning: string;
@@ -41,7 +69,8 @@ export interface BenchmarkInferResult {
   usage: BenchmarkUsage | null;
 }
 
-// Result of one `load` op: timed metadata readiness, never a native model load.
-export interface BenchmarkLoadResult {
+// Native metadata readiness and cached Browser initialization are distinct.
+export interface BenchmarkLoadResult extends BenchmarkClassifierIdentity {
   loadMs: number;
+  loadKind: BenchmarkLoadKind;
 }

@@ -1,10 +1,11 @@
 # Historical Gemma 4 E2B production decision
 
-> Historical LiteRT release record; this runtime is retired in the current
-> native fork. Recorded measurements and raw data are unchanged. Reproduce
-> this browser runtime from commit `a590ce0186c89374e904bef599c3f9c51db5b9b2`.
-> See [current native qualification](ollama-qualification.md) for the fixed
-> QAT classifier and its release gates.
+> Historical LiteRT release record. The current Browser option reuses its
+> fixed E2B artifact, now alongside explicit native QAT engine choice. This
+> record does not qualify the new download, choice or offscreen lifecycle.
+> Recorded measurements and raw data are unchanged. Reproduce the historical
+> harness from commit `a590ce0186c89374e904bef599c3f9c51db5b9b2`.
+> See [qualification and integration gates](ollama-qualification.md).
 
 **Decision (2026-07-15): ship Gemma 4 E2B through LiteRT-LM as Bouncer's sole
 production model.** Remove the WebLLM/Qwen, vision, custom-model, and product
@@ -178,7 +179,7 @@ run with the same workload and integrated battery current/voltage over time.
 
 Run the commands below in a separate historical checkout of
 `a590ce0186c89374e904bef599c3f9c51db5b9b2`. The comparison runner is retired
-in this native migration checkout.
+in the current checkout.
 
 ```bash
 cd Bouncer

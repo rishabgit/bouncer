@@ -1,7 +1,7 @@
 // Bouncer - Content Script
 // Entry point: post processing, observers, init, storage/message listeners
 
-import type { PlatformAdapter, PostContent, PostState, PipelineResponse, BackgroundToContentMessage, DescriptionKey } from '../types';
+import type { PlatformAdapter, PostContent, PostState, PipelineResponse, BackgroundToContentMessage, DescriptionKey, EngineSelection } from '../types';
 import { getStorage, removeStorage, getDescriptions, setDescriptions } from '../shared/storage';
 import { FILTER_PACK_CODE_PREFIX } from '../shared/share-encoding';
 import { postViewportPriority } from './geometry';
@@ -25,6 +25,8 @@ import {
   initDetectorStates,
   updateDetectorState,
   reconcileFilterChanges,
+  reconcileEngineChange,
+  updateContentEngineSelection,
   removeFilteredPostForArticle,
   resetPostForRecycling,
   clearDetectorStates,
@@ -85,6 +87,9 @@ import { formatPostForEvaluation } from '../shared/utils';
   const stuckPostCheckDelay = 5000;
   let enabled = true;
   let filterGeneration = 0;
+  let engineSelection: EngineSelection | undefined;
+  let settingsInitialized = false;
+  const settingsChangedDuringInit = new Set<string>();
   // Cached `filterReplies` setting; loaded on init and kept current by the
   // storage-change listener below. Defaults to true so the gate is a no-op
   // until the user explicitly opts out.
@@ -198,7 +203,7 @@ import { formatPostForEvaluation } from '../shared/utils';
 
   // Evaluate a post using the background script
   async function evaluatePost(article: HTMLElement, requirePageScope = false) {
-    if (!enabled || currentPostDecision(adapter, article)?.userOverride) return;
+    if (!enabled || replyFilteringIsDisabled(article) || currentPostDecision(adapter, article)?.userOverride) return;
     const identity = postIdentity(adapter, article);
     const generation = filterGeneration;
     let content: PostContent | undefined;
@@ -210,6 +215,11 @@ import { formatPostForEvaluation } from '../shared/utils';
 
     if (!isPostIdentityCurrent(adapter, article, identity) || generation !== filterGeneration
         || !enabled || currentPostDecision(adapter, article)?.userOverride) return;
+    if (replyFilteringIsDisabled(article)) {
+      restoreReplyPost(article);
+      processedPosts.delete(article);
+      return;
+    }
     if (requirePageScope && !adapter.shouldProcessCurrentPage()) {
       processedPosts.delete(article);
       return;
@@ -288,6 +298,7 @@ import { formatPostForEvaluation } from '../shared/utils';
         // remove from processed so the post is re-evaluated once a model is ready.
         // The feed-level model-status indicator (storage-driven) explains what to do.
         processedPosts.delete(article);
+        markPostVerified(article);
         if (response.retryAfterMs !== undefined) {
           setTimeout(() => {
             if (article.isConnected
@@ -305,6 +316,13 @@ import { formatPostForEvaluation } from '../shared/utils';
       }
 
       if ('error' in response) {
+        if (response.availabilityReason) {
+          // Setup/download/switching is an expected wait, with one feed banner.
+          // A matching selected-engine Ready event will release eligible posts.
+          processedPosts.delete(article);
+          markPostVerified(article);
+          return;
+        }
         // PipelineError - track for retry via error broadcasts
         postReasonings.set(article, { shouldHide: false, isModelError: true, reasoning: response.reasoning });
         if (content.postUrl) errorPostUrls.add(content.postUrl);
@@ -315,6 +333,15 @@ import { formatPostForEvaluation } from '../shared/utils';
         // recovery timer releases this post for re-evaluation.
         article.removeAttribute('data-ff-pending');
         article.classList.add('ff-error');
+        return;
+      }
+
+      // Automatic verdicts carry the immutable lease that actually evaluated
+      // the post. Cached manual decisions remain engine-independent.
+      if (!response.userOverride && engineSelection
+          && (response.engine !== engineSelection.engine || response.selectionRevision !== engineSelection.revision)) {
+        processedPosts.delete(article);
+        markPostVerified(article);
         return;
       }
 
@@ -453,6 +480,7 @@ import { formatPostForEvaluation } from '../shared/utils';
   }
 
   function reEvaluateAllPosts() {
+    if (!settingsInitialized || !enabled || !adapter.shouldProcessCurrentPage()) return;
     const posts = findPosts();
     const skipReplies = !filterReplies && adapter.isPermalinkView();
     posts.forEach(article => {
@@ -470,8 +498,11 @@ import { formatPostForEvaluation } from '../shared/utils';
       // before the timer fires. If the evaluation resolves before the timer
       // fires, the post never goes through the pending UI; true cache misses
       // still show pending after the short delay.
+      const generation = filterGeneration;
+      const identity = postIdentity(adapter, article);
       const pendingTimer = setTimeout(() => {
-        if (enabled && !replyFilteringIsDisabled(article) && !currentPostDecision(adapter, article)?.userOverride) markPostPending(article);
+        if (generation === filterGeneration && isPostIdentityCurrent(adapter, article, identity)
+            && enabled && !replyFilteringIsDisabled(article) && !currentPostDecision(adapter, article)?.userOverride) markPostPending(article);
       }, 120);
       evaluatePost(article)
         .catch(err => console.error('[Bouncer] evaluatePost failed:', err))
@@ -585,59 +616,28 @@ import { formatPostForEvaluation } from '../shared/utils';
 
   // ==================== Init ====================
 
-  async function init() {
-    const data = await getStorage(['enabled', 'filterReplies']);
-    enabled = data.enabled !== false;
-    // Treat undefined as true so users on builds released before this
-    // setting existed keep their current behavior.
-    filterReplies = data.filterReplies !== false;
-
-    if (enabled) {
-      observePosts();
-      processExistingPosts();
-    }
-
-    // Always run the import-code transform, even on pages where filter
-    // classification is gated off (profiles, notifications, lists, etc.) —
-    // users should be able to import shared filter packs from anywhere.
-    observeImportCodes();
-
-    injectFilterPhrasesInput();
-    injectBottomFilterBox();
-    injectMobileFilterBox();
-
-    initModelLoadingListener();
-
-    // Observe for sidebar appearing later or being replaced during SPA navigation
-    const uiObserver = new MutationObserver(() => {
-      handleDOMMutation();
-    });
-    uiObserver.observe(document.body, { childList: true, subtree: true });
-
-    // Hide bouncer sidebar when Twitter's search bar is focused
-    setupSearchBarHide();
-
-    // Observe for theme changes (platform changes body background color)
-    const themeObserver = new MutationObserver(() => {
-      updateTheme();
-    });
-    themeObserver.observe(document.body, { attributes: true, attributeFilter: ['style', 'class'] });
-
-    // Restore BottomBar opacity when clicked
-    document.addEventListener('click', (e: MouseEvent) => {
-      const target = e.target as HTMLElement | null;
-      const bottomBar = adapter.selectors.bottomBar && target ? target.closest<HTMLElement>(adapter.selectors.bottomBar) : null;
-      if (bottomBar) {
-        bottomBar.style.opacity = '1';
+  // Listen before the initial snapshot so a switch cannot lose its generation
+  // fence while storage is being read. Only committed events outrank that read.
+  chrome.storage.onChanged.addListener((changes) => {
+      if (!settingsInitialized) Object.keys(changes).forEach(key => settingsChangedDuringInit.add(key));
+      if (changes.engineSelection) {
+        const selection = changes.engineSelection.newValue as EngineSelection | undefined;
+        if (selection && (!engineSelection || selection.revision > engineSelection.revision)) {
+          // Invalidate evaluations and detector dispatches synchronously,
+          // before setup/status awaits or a new engine can publish a result.
+          filterGeneration++;
+          engineSelection = { ...selection };
+          updateContentEngineSelection(selection);
+          currentlyProcessingPostUrl = null;
+          errorPostUrls.clear();
+          reconcileEngineChange();
+          if (settingsInitialized) processExistingPosts();
+        }
       }
-    });
-
-    // Listen for settings changes
-    chrome.storage.onChanged.addListener((changes) => {
       if (changes.enabled) {
         filterGeneration++;
         enabled = changes.enabled.newValue as boolean;
-        if (enabled) {
+        if (enabled && settingsInitialized) {
           observePosts();
           processExistingPosts();
         } else {
@@ -679,6 +679,57 @@ import { formatPostForEvaluation } from '../shared/utils';
             processedPosts.delete(article);
           });
         }
+      }
+    });
+
+
+  async function init() {
+    const data = await getStorage(['enabled', 'filterReplies', 'engineSelection']);
+    if (!settingsChangedDuringInit.has('enabled')) enabled = data.enabled !== false;
+    if (!settingsChangedDuringInit.has('engineSelection')) engineSelection = data.engineSelection;
+    if (engineSelection) updateContentEngineSelection(engineSelection);
+    // Treat undefined as true so users on builds released before this
+    // setting existed keep their current behavior.
+    if (!settingsChangedDuringInit.has('filterReplies')) filterReplies = data.filterReplies !== false;
+    settingsInitialized = true;
+
+    if (enabled) {
+      observePosts();
+      processExistingPosts();
+    }
+
+    // Always run the import-code transform, even on pages where filter
+    // classification is gated off (profiles, notifications, lists, etc.) —
+    // users should be able to import shared filter packs from anywhere.
+    observeImportCodes();
+
+    injectFilterPhrasesInput();
+    injectBottomFilterBox();
+    injectMobileFilterBox();
+
+    initModelLoadingListener();
+
+    // Observe for sidebar appearing later or being replaced during SPA navigation
+    const uiObserver = new MutationObserver(() => {
+      handleDOMMutation();
+    });
+    uiObserver.observe(document.body, { childList: true, subtree: true });
+
+    // Hide bouncer sidebar when Twitter's search bar is focused
+    setupSearchBarHide();
+
+    // Observe for theme changes (platform changes body background color)
+    const themeObserver = new MutationObserver(() => {
+      updateTheme();
+    });
+    themeObserver.observe(document.body, { attributes: true, attributeFilter: ['style', 'class'] });
+
+    // Restore BottomBar opacity when clicked
+    document.addEventListener('click', (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      const bottomBar = adapter.selectors.bottomBar && target ? target.closest<HTMLElement>(adapter.selectors.bottomBar) : null;
+      if (bottomBar) {
+        bottomBar.style.opacity = '1';
       }
     });
 

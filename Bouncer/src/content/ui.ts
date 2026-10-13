@@ -7,7 +7,8 @@ import {
   encodeFilterPackCode, decodeFilterPackCode, buildFilterPackShareUrl,
   FILTER_PACK_SHARE_URL_REGEX,
 } from '../shared/share-encoding';
-import type { ContentUIDeps, FilteredPost, PostContent, LocalModelStatus } from '../types';
+import type { ContentUIDeps, EngineSelection, FilteredPost, PostContent, LocalModelStatus } from '../types';
+import { engineStatusView, statusMatchesSelection } from '../shared/engine-status-view';
 import { getStorage, getDescriptions, setDescriptions } from '../shared/storage';
 import {
   tooltipContentMaxHeight,
@@ -70,11 +71,19 @@ interface DecisionPersistence {
   result?: SettledPostDecision;
   previousDecision?: LivePostDecision;
   previousReasoning?: PostReasoning;
+  automaticRevision: number;
 }
 type ExplicitPostDecision = LivePostDecision & { persistence?: DecisionPersistence };
+let automaticDecisionRevision = 0;
 
 function completeDecisionPersistence(persistence: DecisionPersistence, state: 'committed' | 'canceled' | 'failed', result: SettledPostDecision): void {
   let decision = result.decision;
+  // A manual action keeps ownership while an engine switch restores automatic
+  // work. Its failure must not resurrect the previous engine's automatic hide.
+  if (decision && !decision.userOverride && persistence.automaticRevision !== automaticDecisionRevision) {
+    decision = { ...decision, shouldHide: false, matches: undefined };
+    result = { ...result, reasoning: undefined };
+  }
   // Provisional manual ownership can delay the automatic rule-edit handling.
   // Recheck its predecessor against the latest observed rules after all awaits,
   // including outcomes retained by an earlier failed reservation.
@@ -125,10 +134,14 @@ let activePopupArticle: HTMLElement | null = null;
 // Persists across in-place re-renders so the user's tab selection isn't lost
 // when a late-arriving detectorResponse triggers a refresh.
 let activePopupTab: string | null = null;
+let activePopupSuggestionCleanup: (() => void) | null = null;
 export interface SuggestionResponse {
   reasons?: string[];
   retry?: boolean;
   error?: string;
+  engine?: EngineSelection['engine'];
+  selectionRevision?: number;
+  classifierFingerprint?: string;
 }
 
 export function suggestionResponseError(response: SuggestionResponse | null | undefined): string | null {
@@ -139,11 +152,50 @@ export function suggestionResponseError(response: SuggestionResponse | null | un
 
 export interface SuggestionRequestEntry {
   postKey: string;
+  engineKey: string;
   promise: Promise<SuggestionResponse>;
 }
 
 const annoyingReasonsCache: WeakMap<HTMLElement, SuggestionRequestEntry> = new WeakMap();
 const annoyingTooltipCleanup = new WeakMap<HTMLElement, () => void>();
+let contentEngineSelection: EngineSelection | undefined;
+let contentLocalModelStatus: LocalModelStatus | undefined;
+const suggestionSelectionListeners = new Set<() => void>();
+
+function suggestionEngineKey(): string {
+  return contentEngineSelection ? `${contentEngineSelection.engine}:${contentEngineSelection.revision}` : 'legacy';
+}
+
+export function updateContentEngineSelection(selection: EngineSelection): void {
+  if (contentEngineSelection && selection.revision <= contentEngineSelection.revision) return;
+  contentEngineSelection = { ...selection };
+  if (contentLocalModelStatus && !statusMatchesSelection(contentLocalModelStatus, selection)) contentLocalModelStatus = undefined;
+  suggestionSelectionListeners.forEach(listener => listener());
+}
+
+function suggestionSetupMessage(): string | null {
+  // Legacy unit fixtures have no engine selection. Production always supplies
+  // the committed choice, so an absent browser artifact cannot start a fetch.
+  if (!contentEngineSelection) return null;
+  if (!contentEngineSelection.engine) return 'Choose Browser AI or Ollama in Settings to find filter suggestions.';
+  const status = contentLocalModelStatus;
+  if (status && statusMatchesSelection(status, contentEngineSelection)
+      && ['ready', 'filtering', 'loading'].includes(status.state)) return null;
+  if (status?.state === 'switching') return 'The engine is switching. Open Settings for its status.';
+  if (status?.state === 'recovery_required') return 'A previous local request needs recovery. Open Settings; manual Bounce and Restore still work.';
+  return contentEngineSelection.engine === 'litertlm'
+    ? 'Browser AI setup is needed for suggestions. Open Settings.'
+    : 'Suggestions need an Ollama connection. Open Settings.';
+}
+
+function requestSuggestions(article: HTMLElement, postKey: string, post: string): SuggestionRequestEntry {
+  return getSuggestionRequest(article, postKey, () => {
+    const setup = suggestionSetupMessage();
+    return setup ? Promise.resolve({ retry: true, error: setup }) : chrome.runtime.sendMessage({
+      type: 'suggestAnnoyingReasons', post, siteId: _deps.adapter.siteId,
+    });
+  });
+}
 
 export function getSuggestionRequest(
   article: HTMLElement,
@@ -151,8 +203,9 @@ export function getSuggestionRequest(
   create: () => Promise<SuggestionResponse>,
 ): SuggestionRequestEntry {
   const cached = annoyingReasonsCache.get(article);
-  if (cached?.postKey === postKey) return cached;
-  const entry = { postKey, promise: create() };
+  const engineKey = suggestionEngineKey();
+  if (cached?.postKey === postKey && cached.engineKey === engineKey) return cached;
+  const entry = { postKey, engineKey, promise: create() };
   annoyingReasonsCache.set(article, entry);
   return entry;
 }
@@ -162,7 +215,13 @@ export function isSuggestionRequestCurrent(
   entry: SuggestionRequestEntry,
   currentPostKey: string,
 ): boolean {
-  return annoyingReasonsCache.get(article) === entry && entry.postKey === currentPostKey;
+  return annoyingReasonsCache.get(article) === entry && entry.postKey === currentPostKey
+    && entry.engineKey === suggestionEngineKey();
+}
+
+function suggestionResponseMatchesSelection(response: SuggestionResponse | null | undefined): boolean {
+  return !response || !contentEngineSelection || response.engine === undefined && response.selectionRevision === undefined
+    || response.engine === contentEngineSelection.engine && response.selectionRevision === contentEngineSelection.revision;
 }
 
 function clearSuggestionRequest(article: HTMLElement, entry: SuggestionRequestEntry): void {
@@ -364,6 +423,51 @@ export function reconcileFilterChanges(phrases: string[], processRestoredPosts =
   }
   refreshFilteredPostsView();
   if (shouldProcessRestoredPosts && processRestoredPosts) _deps.processExistingPosts();
+}
+
+/** Engine identity invalidates every automatic verdict, even when its phrases survive. */
+export function reconcileEngineChange(): void {
+  automaticDecisionRevision++;
+  const posts = _deps.findPosts();
+  const manualContainers = new Set<HTMLElement>();
+  const manualKeys = new Set<string>();
+  for (const article of posts) {
+    if (!currentPostDecision(_deps.adapter, article)?.userOverride) continue;
+    manualContainers.add(_deps.adapter.getPostContainer(article));
+    const key = filteredKeyByArticle.get(article);
+    if (key) manualKeys.add(key);
+  }
+  for (const article of posts) {
+    const container = _deps.adapter.getPostContainer(article);
+    if (manualContainers.has(container)) continue;
+    restoreFilteredContainer(container, article);
+    forgetPostDecision(article);
+    _deps.processedPosts.delete(article);
+    _deps.postReasonings.delete(article);
+    postDetectorStates.delete(article);
+    _deps.pendingPosts.delete(article);
+    clearPendingDimTimer(article);
+    article.removeAttribute('data-ff-pending');
+    delete article.dataset.pendingStartTime;
+    delete article.dataset.errorType;
+    article.classList.remove('ff-error');
+    article.querySelector('.post-verification-bar')?.remove();
+    filteredKeyByArticle.delete(article);
+    refreshActivePopupIfFor(article);
+  }
+  // Thread siblings and temporarily unmounted cells can carry only the hiding
+  // marker. Restore them as well, retaining live explicit action ownership.
+  document.querySelectorAll<HTMLElement>('[data-filtered-by-extension="true"]').forEach(container => {
+    if (!manualContainers.has(container)) restoreFilteredContainer(container);
+  });
+  for (let index = filteredPosts.length - 1; index >= 0; index--) {
+    const post = filteredPosts[index];
+    if (post.userOverride || manualKeys.has(filteredPostKey(post)) || filteredRestoreStatuses.get(post)?.pending) continue;
+    filteredRestoreStatuses.delete(post);
+    filteredPosts.splice(index, 1);
+    filteredPostKeys.delete(filteredPostKey(post));
+  }
+  refreshFilteredPostsView();
 }
 
 // ==================== Theme ====================
@@ -1419,7 +1523,7 @@ export function updateFilteredTabCount() {
 
 }
 
-// ==================== Native service status ====================
+// ==================== Selected engine status ====================
 
 interface ModelStatusView {
   variant: 'info' | 'progress' | 'warning';
@@ -1427,28 +1531,16 @@ interface ModelStatusView {
   dismissible: boolean;
 }
 
-export function modelStatusView(status: LocalModelStatus): ModelStatusView | null {
-  switch (status.state) {
-    case 'ready':
-    case 'filtering':
-      return null;
-    case 'not_connected':
-      return { variant: 'info', body: 'Connect to Ollama in Bouncer settings to start filtering.', dismissible: true };
-    case 'loading':
-      return { variant: 'progress', body: 'Loading Gemma for this request…', dismissible: false };
-    case 'paused':
-      return { variant: 'info', body: status.message || 'Filtering paused while another local model is loaded.', dismissible: true };
-    case 'missing_model':
-      return { variant: 'warning', body: 'The pinned Bouncer model is missing. Open settings for setup instructions.', dismissible: true };
-    case 'blocked':
-      return { variant: 'warning', body: 'Ollama blocked this connection. Open settings for exact-origin setup help.', dismissible: true };
-    case 'recovery_required':
-      return { variant: 'warning', body: 'Filtering paused after an interrupted local request. Open settings for recovery; manual Bounce and Restore still work.', dismissible: true };
-    case 'error':
-      return { variant: 'warning', body: status.reason === 'connection' || status.reason === 'unreachable'
-        ? 'Can’t reach Ollama. Open the Ollama app, then Retry in Bouncer settings.'
-        : status.message || 'Can’t reach Ollama. Open the Ollama app, then Retry in Bouncer settings.', dismissible: true };
-  }
+export function modelStatusView(status: LocalModelStatus, selection?: EngineSelection): ModelStatusView | null {
+  if (selection && !statusMatchesSelection(status, selection)) return null;
+  if (status.state === 'ready' || status.state === 'filtering') return null;
+  const view = engineStatusView(status, selection);
+  const progress = ['loading', 'downloading', 'canceling', 'switching'].includes(status.state);
+  return {
+    variant: progress ? 'progress' : view.tone === 'error' ? 'warning' : 'info',
+    body: [view.text, view.progressText].filter(Boolean).join(' '),
+    dismissible: !progress,
+  };
 }
 
 function ensureModelStatusEl(): HTMLElement {
@@ -1459,11 +1551,20 @@ function ensureModelStatusEl(): HTMLElement {
   return modelStatusEl;
 }
 
-export function updateModelStatusIndicator(status: LocalModelStatus): void {
-  // A changed reason deserves a fresh warning even when the state is unchanged.
-  const condition = `${status.state}:${status.reason || ''}`;
+let statusFilteringEnabled = true;
+let statusHasFilters = false;
+let modelStatusPresentationRevision = 0;
+
+export function updateModelStatusIndicator(status: LocalModelStatus, selection?: EngineSelection): void {
+  const presentationRevision = ++modelStatusPresentationRevision;
+  contentLocalModelStatus = status;
+  if (selection) updateContentEngineSelection(selection);
+  // Each committed choice has its own dismissal; inactive engine snapshots
+  // cannot redisplay a warning or replace the selected engine's status.
+  const condition = `${selection?.engine ?? status.engine ?? 'legacy'}:${selection?.revision ?? status.selectionRevision ?? 0}:${status.state}:${status.reason || ''}`;
   if (modelStatusDismissed !== condition) modelStatusDismissed = null;
-  const view = modelStatusDismissed === condition ? null : modelStatusView(status);
+  const view = !statusFilteringEnabled || !statusHasFilters || modelStatusDismissed === condition
+    ? null : modelStatusView(status, selection);
   if (!view) {
     modelStatusEl?.classList.remove('visible');
     return;
@@ -1482,37 +1583,74 @@ export function updateModelStatusIndicator(status: LocalModelStatus): void {
     modelStatusDismissed = condition;
     el.classList.remove('visible');
   });
-  requestAnimationFrame(() => el.classList.add('visible'));
+  requestAnimationFrame(() => {
+    if (presentationRevision === modelStatusPresentationRevision && statusFilteringEnabled
+        && statusHasFilters && modelStatusDismissed !== condition) el.classList.add('visible');
+  });
 }
 
-interface ModelLoadingStorageSnapshot { nativeModelStatus?: LocalModelStatus }
+interface ModelLoadingStorageSnapshot {
+  engineSelection?: EngineSelection;
+  localModelStatus?: LocalModelStatus;
+  nativeModelStatus?: LocalModelStatus;
+}
 interface ModelLoadingCoordinator {
   handleChanges: (changes: Record<string, chrome.storage.StorageChange>) => void;
   finishInitialLoad: (snapshot: ModelLoadingStorageSnapshot) => void;
+  getStatus: () => LocalModelStatus;
+  getSelection: () => EngineSelection | undefined;
 }
 
 const disconnectedStatus = (): LocalModelStatus => ({ state: 'not_connected', message: '', revision: 0 });
+const selectionStatus = (selection: EngineSelection): LocalModelStatus => ({
+  state: selection.engine ? 'switching' : 'not_configured', message: '', revision: 0,
+  engine: selection.engine, selectionRevision: selection.revision,
+});
 const needsRecovery = (status: LocalModelStatus | undefined): boolean => !!status
   && !['ready', 'filtering', 'loading'].includes(status.state);
 
-/** Listener-before-snapshot initialization retains event revisions and recovers eligible posts once. */
+/** Listener-before-snapshot initialization compares revisions only within one selected engine. */
 export function createModelLoadingCoordinator(
   render: (status: LocalModelStatus) => void,
   processExistingPosts: () => void,
 ): ModelLoadingCoordinator {
+  let selection: EngineSelection | undefined;
   let currentStatus = disconnectedStatus();
+  let legacyNative = true;
   let initialLoadFinished = false;
   const queuedChanges: Array<Record<string, chrome.storage.StorageChange>> = [];
+  let lastRecoveredReadyRevision: string | undefined;
+  const matches = (status: LocalModelStatus): boolean => selection
+    ? statusMatchesSelection(status, selection)
+    : legacyNative && status.engine === undefined && status.selectionRevision === undefined;
   const applyChanges = (changes: Record<string, chrome.storage.StorageChange>, shouldRender: boolean) => {
-    if (!changes.nativeModelStatus) return;
-    const next = changes.nativeModelStatus.newValue as LocalModelStatus | undefined;
-    if (!next || next.revision < currentStatus.revision) return;
-    const previous = (changes.nativeModelStatus.oldValue as LocalModelStatus | undefined) || currentStatus;
-    currentStatus = next;
-    // Loading → ready is ordinary work; blocked/error/permission recovery
-    // reprocesses currently eligible visible posts without resurrecting stale work.
-    if (next.state === 'ready' && needsRecovery(previous)) processExistingPosts();
-    if (shouldRender) render(currentStatus);
+    let changed = false;
+    const nextSelection = changes.engineSelection?.newValue as EngineSelection | undefined;
+    if (nextSelection && (!selection || nextSelection.revision > selection.revision)) {
+      selection = { ...nextSelection };
+      legacyNative = false;
+      currentStatus = selectionStatus(selection);
+      changed = true;
+    }
+    const storageChange = changes.localModelStatus || (legacyNative ? changes.nativeModelStatus : undefined);
+    if (storageChange) {
+      const next = storageChange.newValue as LocalModelStatus | undefined;
+      // Status counters belong to the engine/selection pair. Never compare a
+      // browser progress revision with an Ollama revision or accept old Ready.
+      if (next && matches(next) && (next.revision > currentStatus.revision || changed
+          || !shouldRender && next.revision === currentStatus.revision && next.state === currentStatus.state)) {
+        const eventPrevious = storageChange.oldValue as LocalModelStatus | undefined;
+        const previous = eventPrevious && matches(eventPrevious) ? eventPrevious : currentStatus;
+        currentStatus = next;
+        changed = true;
+        const recoveryKey = `${selection?.engine ?? 'legacy'}:${selection?.revision ?? 0}:${next.revision}`;
+        if (next.state === 'ready' && needsRecovery(previous) && lastRecoveredReadyRevision !== recoveryKey) {
+          lastRecoveredReadyRevision = recoveryKey;
+          processExistingPosts();
+        }
+      }
+    }
+    if (changed && shouldRender) render(currentStatus);
   };
   return {
     handleChanges(changes) {
@@ -1521,14 +1659,17 @@ export function createModelLoadingCoordinator(
     },
     finishInitialLoad(snapshot) {
       if (initialLoadFinished) return;
-      // Replay events in arrival order. Their revision guards also reject a
-      // delayed older event when the snapshot already contains newer state.
-      currentStatus = snapshot.nativeModelStatus || disconnectedStatus();
+      selection = snapshot.engineSelection ? { ...snapshot.engineSelection } : undefined;
+      legacyNative = !selection && !snapshot.localModelStatus;
+      const status = snapshot.localModelStatus || (legacyNative ? snapshot.nativeModelStatus : undefined);
+      currentStatus = status && matches(status) ? status : selection ? selectionStatus(selection) : disconnectedStatus();
       for (const changes of queuedChanges) applyChanges(changes, false);
       queuedChanges.length = 0;
       initialLoadFinished = true;
       render(currentStatus);
     },
+    getStatus: () => currentStatus,
+    getSelection: () => selection,
   };
 }
 
@@ -1536,14 +1677,31 @@ let modelLoadingListenerInitialized = false;
 export function initModelLoadingListener(): void {
   if (modelLoadingListenerInitialized) return;
   modelLoadingListenerInitialized = true;
-  const coordinator = createModelLoadingCoordinator(updateModelStatusIndicator, () => _deps.processExistingPosts());
+  const descriptionsKey = _deps.descriptionsKey;
+  let snapshotPending = true;
+  const changedContext = new Set<string>();
+  const coordinator = createModelLoadingCoordinator(
+    status => updateModelStatusIndicator(status, coordinator.getSelection()),
+    () => _deps.processExistingPosts(),
+  );
   chrome.storage.onChanged.addListener((changes, areaName) => {
-    if (areaName === 'local') coordinator.handleChanges(changes);
+    if (areaName !== 'local') return;
+    if (snapshotPending) Object.keys(changes).forEach(key => changedContext.add(key));
+    if (changes.enabled) statusFilteringEnabled = changes.enabled.newValue !== false;
+    if (changes[descriptionsKey]) statusHasFilters = !!(changes[descriptionsKey].newValue as string[] | undefined)?.length;
+    coordinator.handleChanges(changes);
+    if (changes.enabled || changes[descriptionsKey]) updateModelStatusIndicator(coordinator.getStatus(), coordinator.getSelection());
   });
-  getStorage(['nativeModelStatus'])
-    .then(data => coordinator.finishInitialLoad(data))
+  getStorage(['engineSelection', 'localModelStatus', 'nativeModelStatus', 'enabled', descriptionsKey])
+    .then(data => {
+      if (!changedContext.has('enabled')) statusFilteringEnabled = data.enabled !== false;
+      if (!changedContext.has(descriptionsKey)) statusHasFilters = !!data[descriptionsKey]?.length;
+      snapshotPending = false;
+      coordinator.finishInitialLoad(data);
+    })
     .catch(err => {
-      console.error('[UI] Failed to load local service status:', err);
+      console.error('[UI] Failed to load local engine status:', err);
+      snapshotPending = false;
       coordinator.finishInitialLoad({});
     });
 }
@@ -1853,6 +2011,7 @@ async function restorePostSnapshot(post: FilteredPost, button: HTMLButtonElement
     const persistence: DecisionPersistence = {
       state: 'writing', settled: new Promise(resolve => { settlePersistence = resolve; }),
       previousDecision: decision, previousReasoning: _deps.postReasonings.get(article),
+      automaticRevision: automaticDecisionRevision,
     };
     // Claim this explicit action immediately, while preserving the current
     // hide until persistence succeeds. Earlier canonical lookups must yield.
@@ -2085,6 +2244,7 @@ export async function bouncePost(article: HTMLElement, content: PostContent, phr
   const persistence: DecisionPersistence = {
     state: 'extracting', settled: new Promise(resolve => { settlePersistence = resolve; }),
     previousDecision: getPostDecision(article), previousReasoning: _deps.postReasonings.get(article),
+    automaticRevision: automaticDecisionRevision,
   };
   const decision = { identity, shouldHide: true, matches, userOverride: true, persistence };
   rememberPostDecision(article, decision);
@@ -2247,7 +2407,7 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
     <div class="reasoning-post">${escapeHtml(content.text.substring(0, 100))}${content.text.length > 100 ? '...' : ''}</div>
     ${rawResponseSection}
     <button class="reasoning-reeval-btn">${stored ? 'Re-evaluate' : 'Evaluate Now'}</button>
-    <button class="reasoning-suggest-btn">Why is this annoying?</button>
+    <button class="reasoning-suggest-btn">Find filter suggestions</button>
     <div class="reasoning-suggestions"></div>
   `));
 
@@ -2281,35 +2441,56 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
     })().catch(err => console.error('[UI] reeval handler failed:', err));
   });
 
-  // Suggest annoying reasons button handler
-  popup.querySelector('.reasoning-suggest-btn')!.addEventListener('click', (e) => {
+  const suggestButton = popup.querySelector<HTMLButtonElement>('.reasoning-suggest-btn')!;
+  const suggestionsDiv = popup.querySelector<HTMLElement>('.reasoning-suggestions')!;
+  const openedPostKey = `${_deps.adapter.getPostUrl(article) || ''}\n${formatPostForEvaluation(content)}`;
+  const showSuggestionSetup = (message: string) => {
+    suggestionsDiv.replaceChildren();
+    const label = document.createElement('span');
+    label.textContent = message;
+    const settings = document.createElement('button');
+    settings.type = 'button';
+    settings.textContent = 'Settings';
+    settings.addEventListener('click', showSettingsModal);
+    suggestionsDiv.append(label, settings);
+    suggestButton.disabled = false;
+    suggestButton.style.display = '';
+    suggestButton.textContent = 'Find filter suggestions';
+  };
+  const onSelectionChange = () => showSuggestionSetup(suggestionSetupMessage() || 'The engine changed. Find filter suggestions again.');
+  suggestionSelectionListeners.add(onSelectionChange);
+  activePopupSuggestionCleanup = () => suggestionSelectionListeners.delete(onSelectionChange);
+  suggestButton.addEventListener('click', () => {
     (async () => {
-      const btn = e.currentTarget as HTMLButtonElement;
-      const suggestionsDiv = popup.querySelector('.reasoning-suggestions')!;
-      btn.disabled = true;
-      btn.textContent = 'Thinking...';
+      const setup = suggestionSetupMessage();
+      if (setup) { showSuggestionSetup(setup); return; }
+      suggestButton.disabled = true;
+      suggestButton.textContent = 'Finding suggestions…';
       suggestionsDiv.replaceChildren();
+      const entry = requestSuggestions(article, openedPostKey, content.text);
       try {
-        const response: SuggestionResponse | undefined = await chrome.runtime.sendMessage({
-          type: 'suggestAnnoyingReasons',
-          post: content.text,
-          siteId: _deps.adapter.siteId
-        });
-        if (!isPostIdentityCurrent(_deps.adapter, article, openedPostIdentity) || !popup.isConnected) return;
+        const response = await entry.promise;
+        if (!isPostIdentityCurrent(_deps.adapter, article, openedPostIdentity) || !popup.isConnected
+            || !isSuggestionRequestCurrent(article, entry, openedPostKey)) return;
+        if (!suggestionResponseMatchesSelection(response)) {
+          clearSuggestionRequest(article, entry);
+          showSuggestionSetup('The engine changed. Find filter suggestions again.');
+          return;
+        }
         const responseError = suggestionResponseError(response);
         if (responseError) {
-          btn.textContent = 'Error - try again';
-          btn.title = responseError;
-          btn.disabled = false;
-        } else if (response?.reasons?.length) {
-          btn.style.display = 'none';
+          clearSuggestionRequest(article, entry);
+          showSuggestionSetup(responseError);
+        } else if (response.reasons?.length) {
+          suggestButton.style.display = 'none';
           suggestionsDiv.replaceChildren(parseHTML(response.reasons.map(r =>
             `<button class="reasoning-suggestion-chip">${escapeHtml(r)}</button>`
           ).join('')));
           suggestionsDiv.querySelectorAll('.reasoning-suggestion-chip').forEach(chip => {
             chip.addEventListener('click', asyncHandler(async () => {
               const phrase = chip.textContent ?? '';
-              if (!isPostIdentityCurrent(_deps.adapter, article, openedPostIdentity)) return;
+              if (!isPostIdentityCurrent(_deps.adapter, article, openedPostIdentity)
+                  || !isSuggestionRequestCurrent(article, entry, openedPostKey)) return;
               (chip as HTMLButtonElement).disabled = true;
               if (await bouncePost(article, content, phrase)) {
                 chip.classList.add('suggestion-added');
@@ -2320,13 +2501,13 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
             }));
           });
         } else {
-          btn.textContent = 'No useful suggestions';
-          btn.disabled = true;
+          suggestButton.textContent = 'No useful suggestions';
+          suggestButton.disabled = true;
         }
       } catch (err) {
-        console.error('[Bouncer] Suggest reasons error:', err);
-        btn.textContent = 'Error - try again';
-        btn.disabled = false;
+        if (!popup.isConnected || !isSuggestionRequestCurrent(article, entry, openedPostKey)) return;
+        clearSuggestionRequest(article, entry);
+        showSuggestionSetup(err instanceof Error ? err.message : 'Try again.');
       }
     })().catch(err => console.error('[UI] suggest handler failed:', err));
   });
@@ -2345,6 +2526,8 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
 }
 
 export function hideReasoningPopup() {
+  activePopupSuggestionCleanup?.();
+  activePopupSuggestionCleanup = null;
   if (activePopup) {
     activePopup.remove();
     activePopup = null;
@@ -2494,18 +2677,19 @@ async function fetchReasoningIfNeeded(article: HTMLElement) {
 
   const identity = postIdentity(_deps.adapter, article);
   const decision = getPostDecision(article);
+  const engineKey = suggestionEngineKey();
 
   try {
     const content = await _deps.adapter.extractPostContentFromStore(article);
     if (!content?.text.trim() || !isPostIdentityCurrent(_deps.adapter, article, identity)
-        || getPostDecision(article) !== decision || _deps.postReasonings.has(article)) return;
+        || getPostDecision(article) !== decision || _deps.postReasonings.has(article) || engineKey !== suggestionEngineKey()) return;
     const response: { found?: boolean; shouldHide?: boolean; reasoning?: string; rawResponse?: string; matches?: string[]; category?: string | null; userOverride?: boolean } | undefined = await chrome.runtime.sendMessage({
       type: 'getReasoning',
       post: formatPostForEvaluation(content)
     });
 
     if (response && response.found && isPostIdentityCurrent(_deps.adapter, article, identity)
-        && getPostDecision(article) === decision && !_deps.postReasonings.has(article)) {
+        && getPostDecision(article) === decision && !_deps.postReasonings.has(article) && engineKey === suggestionEngineKey()) {
       _deps.postReasonings.set(article, {
         shouldHide: response.shouldHide ?? false,
         reasoning: response.reasoning ?? '',
@@ -2528,6 +2712,7 @@ interface BounceSuggestionState {
   pending?: boolean;
   reasons?: string[];
   error?: string;
+  settings?: boolean;
 }
 
 /** Suggestions are optional; the user's explicit manual decision always remains available. */
@@ -2569,9 +2754,16 @@ export function createBounceComposer(
       if (state.pending || state.error || !reasons.length) {
         const label = document.createElement('span');
         label.className = 'ff-annoying-empty';
-        label.textContent = state.pending ? 'Finding useful suggestions…'
+        label.textContent = state.pending ? 'Finding suggestions…'
           : state.error ? `Suggestions unavailable. ${state.error}` : 'No useful suggestions';
         suggestions.appendChild(label);
+        if (state.settings) {
+          const settings = document.createElement('button');
+          settings.type = 'button';
+          settings.textContent = 'Settings';
+          settings.addEventListener('click', event => { event.stopPropagation(); showSettingsModal(); });
+          suggestions.appendChild(settings);
+        }
         return;
       }
       const label = document.createElement('span');
@@ -2728,6 +2920,7 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
     window.addEventListener('scroll', onViewportChange, true);
     window.addEventListener('resize', onViewportChange);
     annoyingTooltipCleanup.set(tooltip, () => {
+      selectionCleanup?.();
       window.removeEventListener('scroll', onViewportChange, true);
       window.removeEventListener('resize', onViewportChange);
       resizeObserver?.disconnect();
@@ -2741,19 +2934,23 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
       removeTooltip();
       void bouncePost(article, content, phrase);
     }, removeTooltip);
+    const onSelectionChange = () => {
+      composer.setState({ error: suggestionSetupMessage() || 'The engine changed. Reopen Bounce to find suggestions.', settings: true });
+      schedulePosition();
+    };
+    suggestionSelectionListeners.add(onSelectionChange);
+    const selectionCleanup = () => suggestionSelectionListeners.delete(onSelectionChange);
     composer.setState({ pending: true });
     // Only this explicit user action asks for suggestions. Their completion
     // replaces the suggestion area, preserving any phrase the user is editing.
-    requestEntry = getSuggestionRequest(article, openedPostKey, () => (
-      chrome.runtime.sendMessage({ type: 'suggestAnnoyingReasons', post: content.text, siteId: _deps.adapter.siteId })
-    ));
+    requestEntry = requestSuggestions(article, openedPostKey, content.text);
     const entry = requestEntry;
     void entry.promise.then(response => {
       const currentPostKey = `${_deps.adapter.getPostUrl(article) || ''}\n${formatPostForEvaluation(_deps.extractPostContent(article))}`;
       if (!tooltip.isConnected || !isSuggestionRequestCurrent(article, entry, currentPostKey)) return;
-      const error = suggestionResponseError(response);
+      const error = suggestionResponseMatchesSelection(response) ? suggestionResponseError(response) : 'The engine changed. Reopen Bounce to find suggestions.';
       if (error) clearSuggestionRequest(article, entry);
-      composer.setState(error ? { error } : { reasons: response.reasons || [] });
+      composer.setState(error ? { error, settings: true } : { reasons: response.reasons || [] });
       schedulePosition();
     }).catch(err => {
       if (!tooltip.isConnected || !isSuggestionRequestCurrent(article, entry, openedPostKey)) return;

@@ -2,16 +2,17 @@
 
 import { generateCacheKey } from '../shared/utils';
 import { NativeModelError, OLLAMA_HOST_PERMISSION } from '../shared/ollama-contract';
+import { isInferenceEngine } from '../shared/models';
 import { getStorage, getDescriptions, setDescriptions } from '../shared/storage';
 import type { BackgroundToContentMessage, ContentToBackgroundMessage, LocalModelStatus } from '../types';
-import { localEngine } from './local-model';
-import { migrateToNativeModel, stripNativeCutoverStorageChanges } from './model-migration';
+import { localEngine, LocalAvailabilityError } from './local-model';
+import { migrateEngineChoice, isValidEngineSelection, stripNativeCutoverStorageChanges } from './model-migration';
 import {
   initPipeline, loadCache, overridePost, clearPost, readCachedEvaluation,
   setActiveTab, enqueuePost, isKeyPending, clearTabQueue,
   scheduleBatch, getSettings,
   errorState,
-  clearEvaluationCache,
+  clearEvaluationCache, invalidateEngineWork, handleEngineChoiceChange,
   handleSettingsChange, handleFilterPackChange, handlePageLoad, suggestAnnoyingReasons,
   replayDetectorStates,
   triggerErrorRetry, captureInferenceRequest, runInferenceRequest, type InferenceRequestFence,
@@ -185,10 +186,9 @@ async function synchronizeFilters(): Promise<void> {
 
 async function initializeBackground(): Promise<void> {
   try {
-    // The cutover is a barrier before cache reads and all handlers. The
-    // migration optionally closes an old extension-owned offscreen document
-    // using raw Chrome APIs even though new builds no longer request offscreen.
-    await migrateToNativeModel();
+    // Preserve established choices before exposing any cache or model work.
+    // Migration never downloads or initializes a browser model.
+    await migrateEngineChoice();
     await loadCache();
     appliedDescriptions = await getDescriptions('descriptions_twitter');
     // A real phrase event during startup may already be reflected in the
@@ -255,12 +255,14 @@ function checkNativeConnection(): Promise<LocalModelStatus> {
   if (nativeConnectionCheck?.revision === nativePermissionRevision) return nativeConnectionCheck.promise;
   const previous = nativeConnectionCheck?.promise;
   const revision = nativePermissionRevision;
+  const selection = localEngine.getSelection();
   const check = (async () => {
     // Revocation retires ownership, but engine/backend metadata promises still
     // drain. A regrant must wait before starting its own fresh verification.
     await previous?.catch(() => undefined);
     await ensureStartupReady();
-    if (revision !== nativePermissionRevision) return localEngine.getStatus();
+    if (revision !== nativePermissionRevision || selection.engine !== 'ollama'
+        || selection.revision !== localEngine.getSelection().revision) return localEngine.getStatus();
     try {
       const status = await localEngine.retry();
       if (revision !== nativePermissionRevision) return localEngine.getStatus();
@@ -288,8 +290,9 @@ async function handleMessage(
   assertDocumentCurrent: () => void,
   inferenceRequest?: InferenceRequestFence,
 ): Promise<unknown> {
+  const assertCurrent = (): void => { assertDocumentCurrent(); inferenceRequest?.assertCurrent(); };
   await ensureStartupReady();
-  assertDocumentCurrent();
+  assertCurrent();
   const tabId = sender.tab?.id;
 
   switch (message.type) {
@@ -297,14 +300,14 @@ async function handleMessage(
       // Phrase storage is visible before onChanged necessarily runs. Reconcile
       // it here too, so a delayed event cannot leave an old-rule cache hit valid.
       await runFilterAction(synchronizeFilters);
-      assertDocumentCurrent();
+      assertCurrent();
       registerContentTab(tabId!);
       // Explicit decisions and compatible automatic hits work while the native
       // application is stopped. Read settled cache state before availability.
       await getSettings(message.siteId);
-      assertDocumentCurrent();
+      assertCurrent();
       await loadCache();
-      assertDocumentCurrent();
+      assertCurrent();
       const cacheKey = generateCacheKey(message.post);
 
       // Check main cache
@@ -312,18 +315,18 @@ async function handleMessage(
         // Settings preparation awaits above can span a phrase write whose
         // notification is still delayed. Synchronize at cache acceptance too.
         await synchronizeFilters();
-        assertDocumentCurrent();
+        assertCurrent();
         const result = await readCachedEvaluation(cacheKey);
-        assertDocumentCurrent();
+        assertCurrent();
         return result;
       });
-      assertDocumentCurrent();
+      assertCurrent();
       if (cached) {
         if (tabId !== undefined) replayDetectorStates(tabId, message.evaluationId, cached);
         return { ...cached, cached: true };
       }
 
-      assertDocumentCurrent();
+      assertCurrent();
       // Check if already in queue - add another resolver for this item
       if (tabId !== undefined && isKeyPending(tabId, cacheKey)) {
         return new Promise(resolve => {
@@ -343,7 +346,7 @@ async function handleMessage(
       if (activeTabId === null) {
         chrome.tabs.query({ active: true, lastFocusedWindow: true }).then((tabs) => {
           const tab = tabs[0];
-          assertDocumentCurrent();
+          assertCurrent();
           if (tab && tab.id === tabId) updateActiveTab(tabId);
         }).catch(() => { /* active-tab confirmation is best effort */ });
       }
@@ -357,9 +360,15 @@ async function handleMessage(
         return { reasons: [], retry: true, error: 'Local model maintenance in progress.' };
       }
       try {
+        const selection = localEngine.getSelection();
+        const classifierFingerprint = localEngine.getClassifierFingerprint();
         const reasons = await suggestAnnoyingReasons(message.post, message.siteId || 'twitter', sender.tab?.id, inferenceRequest);
-        return { reasons };
+        inferenceRequest?.assertCurrent();
+        return { reasons, engine: selection.engine, selectionRevision: selection.revision, classifierFingerprint };
       } catch (err) {
+        if (err instanceof LocalAvailabilityError) {
+          return { reasons: [], error: err.message, availabilityReason: err.reason };
+        }
         console.error('[Bouncer] suggestAnnoyingReasons error:', err);
         return { reasons: [], error: (err as Error).message };
       }
@@ -445,8 +454,52 @@ async function handleMessage(
       return { status: await localEngine.getStatus() };
     }
 
+    case 'getLocalModelStatus': {
+      return { selection: localEngine.getSelection(), status: await localEngine.getStatus() };
+    }
+
+    case 'selectInferenceEngine': {
+      const status = await localEngine.selectEngine(message.engine);
+      await runFilterAction(handleEngineChoiceChange);
+      const selection = localEngine.getSelection();
+      return { success: selection.engine === message.engine, selection, status };
+    }
+
+    case 'downloadBrowserModel': {
+      const status = await localEngine.downloadBrowserModel();
+      if (status.state === 'ready') await triggerErrorRetry(true, true);
+      return { success: status.state === 'ready', selection: localEngine.getSelection(), status };
+    }
+
+    case 'cancelBrowserDownload': {
+      const status = await localEngine.cancelBrowserDownload();
+      return { success: true, selection: localEngine.getSelection(), status };
+    }
+
+    case 'deleteBrowserModel': {
+      if (localEngine.getSelection().engine === 'litertlm') invalidateEngineWork();
+      const status = await localEngine.deleteBrowserModel();
+      return { success: true, selection: localEngine.getSelection(), status };
+    }
+
+    case 'retryLocalModel': {
+      const status = await localEngine.retry();
+      if (status.state === 'ready') await triggerErrorRetry(true, true);
+      return { success: status.state === 'ready', selection: localEngine.getSelection(), status };
+    }
+
     case 'connectNativeModel':
     case 'retryNativeModel': {
+      if (localEngine.getSelection().engine !== 'ollama') {
+        // Connecting for global native recovery grants only access. It neither
+        // probes the inactive engine nor confirms that the previous work stopped.
+        const data = await getStorage(['nativeOperationFence']);
+        const permitted = message.type === 'connectNativeModel'
+          && data.nativeOperationFence !== undefined
+          && await chrome.permissions.contains({ origins: [OLLAMA_HOST_PERMISSION] });
+        return { success: permitted, selection: localEngine.getSelection(), status: await localEngine.getStatus(),
+          ...(!permitted && { error: 'Ollama is not the selected engine.' }) };
+      }
       const status = await checkNativeConnection();
       return { success: status.state === 'ready', status };
     }
@@ -490,7 +543,8 @@ function validateMessage(message: ContentToBackgroundMessage, sender: chrome.run
   }
   const source = trustedSender(sender);
   if (!source) throw new Error('Untrusted Bouncer sender.');
-  const popupActions = ['connectNativeModel', 'retryNativeModel', 'recoverNativeModel'];
+  const popupActions = ['connectNativeModel', 'retryNativeModel', 'recoverNativeModel',
+    'selectInferenceEngine', 'downloadBrowserModel', 'cancelBrowserDownload', 'deleteBrowserModel', 'retryLocalModel'];
   if (popupActions.includes(message.type) && source !== 'popup') {
     throw new Error('Open the Bouncer popup to manage the local connection.');
   }
@@ -504,7 +558,16 @@ function validateMessage(message: ContentToBackgroundMessage, sender: chrome.run
   }
   const fields = message as unknown as Record<string, unknown>;
   if (['endpoint', 'url', 'model', 'modelId', 'headers', 'options'].some(key => key in fields)) {
-    throw new Error('Bouncer uses one fixed local classifier.');
+    throw new Error('Bouncer uses fixed local classifiers.');
+  }
+  const engineActions = ['getLocalModelStatus', 'getNativeModelStatus', 'downloadBrowserModel',
+    'cancelBrowserDownload', 'deleteBrowserModel', 'retryLocalModel', 'connectNativeModel', 'retryNativeModel'];
+  if (engineActions.includes(message.type) && Object.keys(fields).some(key => key !== 'type')) {
+    throw new Error('Unexpected local-engine request fields.');
+  }
+  if (message.type === 'selectInferenceEngine'
+      && (!isInferenceEngine(message.engine) || Object.keys(fields).some(key => key !== 'type' && key !== 'engine'))) {
+    throw new Error('Choose Browser AI or Ollama.');
   }
   const needsPost = ['evaluatePost', 'suggestAnnoyingReasons', 'bouncePost', 'overrideCacheEntry', 'clearSinglePost', 'getReasoning'].includes(message.type);
   if (needsPost && (typeof fields.post !== 'string' || fields.post.length > 100_000)) {
@@ -536,10 +599,16 @@ function validateMessage(message: ContentToBackgroundMessage, sender: chrome.run
 }
 
 chrome.runtime.onMessage.addListener((message: ContentToBackgroundMessage, sender, sendResponse) => {
+  // The offscreen host has its own authenticated, closed protocol. Returning
+  // without a response prevents this router racing its replies.
+  if (message && typeof message === 'object'
+      && (('target' in message && message.target === 'litertlm-offscreen')
+        || ('channel' in message && message.channel === 'litertlm-progress'))) return false;
   (async () => {
     // Capture ownership before the first async barrier; later setup cannot
     // make a request from a retired document or engine epoch current again.
     validateMessage(message, sender);
+    if (message.type === 'selectInferenceEngine') invalidateEngineWork();
     const assertDocumentCurrent = trustedSender(sender) === 'content'
       ? captureDocument(sender, message.type === 'pageLoad') : () => undefined;
     const handleCurrentRequest = async (inferenceRequest?: InferenceRequestFence): Promise<unknown> => {
@@ -561,8 +630,11 @@ chrome.runtime.onMessage.addListener((message: ContentToBackgroundMessage, sende
       }
       return handleMessage(message, sender, assertDocumentCurrent, inferenceRequest);
     };
-    return message.type === 'suggestAnnoyingReasons'
-      ? runInferenceRequest(captureInferenceRequest(assertDocumentCurrent), handleCurrentRequest)
+    if (message.type === 'suggestAnnoyingReasons') {
+      return runInferenceRequest(captureInferenceRequest(assertDocumentCurrent), handleCurrentRequest);
+    }
+    return message.type === 'evaluatePost'
+      ? handleCurrentRequest(captureInferenceRequest(assertDocumentCurrent))
       : handleCurrentRequest();
   })().then(response => sendResponse(response)).catch(err => {
     const error = (err as Error).message;
@@ -582,6 +654,12 @@ chrome.runtime.onMessage.addListener((message: ContentToBackgroundMessage, sende
 
 chrome.storage.onChanged.addListener((incomingChanges, areaName) => {
   const changes = stripNativeCutoverStorageChanges(incomingChanges);
+  if (areaName === 'local' && filtersInitialized && changes.engineSelection
+      && !localEngine.isSelectingEngine()) {
+    const selection = localEngine.getSelection();
+    const next = changes.engineSelection.newValue;
+    if (!isValidEngineSelection(next) || next.engine !== selection.engine || next.revision !== selection.revision) invalidateEngineWork();
+  }
   if (areaName === 'local' && !filtersInitialized && changes.descriptions_twitter) {
     startupFiltersChanged = true;
   }
@@ -589,10 +667,13 @@ chrome.storage.onChanged.addListener((incomingChanges, areaName) => {
     if (areaName !== 'local') return;
     await ensureStartupReady();
     if (changes.enabled) await handleSettingsChange(changes);
-    if (changes.nativeModelStatus && errorState.count > 0) {
-      const before = changes.nativeModelStatus.oldValue as LocalModelStatus | undefined;
-      const after = changes.nativeModelStatus.newValue as LocalModelStatus | undefined;
-      if (before?.state !== 'ready' && after?.state === 'ready') await triggerErrorRetry();
+    if (changes.engineSelection) await runFilterAction(handleEngineChoiceChange);
+    if (changes.localModelStatus) {
+      const before = changes.localModelStatus.oldValue as LocalModelStatus | undefined;
+      const after = changes.localModelStatus.newValue as LocalModelStatus | undefined;
+      const selection = localEngine.getSelection();
+      if (after?.engine === selection.engine && after?.selectionRevision === selection.revision
+          && before?.state !== 'ready' && after?.state === 'ready') await triggerErrorRetry(true, true);
     }
     if (Object.keys(changes).some(key => key.startsWith('descriptions_'))) {
       await runFilterAction(synchronizeFilters);
@@ -607,15 +688,16 @@ chrome.permissions?.onRemoved?.addListener(permissions => {
   if (!permissions.origins?.includes(OLLAMA_HOST_PERMISSION)) return;
   ++nativePermissionRevision;
   withStartupBarrier(() => {
+    if (localEngine.getSelection().engine !== 'ollama') return;
     localEngine.preempt();
-    void localEngine.syncAllStatuses().catch(err => console.error('[Background] Permission status error:', err));
+    void localEngine.getStatus().catch(err => console.error('[Background] Permission status error:', err));
   });
 });
 chrome.permissions?.onAdded?.addListener(permissions => {
   if (!permissions.origins?.includes(OLLAMA_HOST_PERMISSION)) return;
   const revision = nativePermissionRevision;
   withStartupBarrier(() => {
-    if (revision !== nativePermissionRevision) return;
+    if (revision !== nativePermissionRevision || localEngine.getSelection().engine !== 'ollama') return;
     void checkNativeConnection().catch(err => console.error('[Background] Permission connection error:', err));
   });
 });
@@ -624,7 +706,9 @@ chrome.permissions?.onAdded?.addListener(permissions => {
 
 chrome.runtime.onInstalled.addListener((details) => {
   if (details.reason === 'install' || details.reason === 'update') {
-    ensureStartupReady().then(() => localEngine.syncAllStatuses())
+    // Startup already adopted preference and reconciled orphaned resources.
+    // A later install callback must not treat this worker's new work as orphaned.
+    ensureStartupReady().then(() => localEngine.getStatus())
       .catch(err => console.error('[Background] onInstalled error:', err));
   }
 });

@@ -7,46 +7,63 @@
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <!-- Main settings -->
   <div class="container" id="mainContainer">
     <header>
       <h1>Bouncer</h1>
-      <button id="modalCloseBtn" class="modal-close-btn">&times;</button>
+      <button id="modalCloseBtn" class="modal-close-btn" aria-label="Close Bouncer settings">&times;</button>
     </header>
-
     <section id="localModelSection" class="local-model-section" aria-labelledby="localModelTitle">
+      <h2 id="localModelTitle" class="local-model-title">Where should Bouncer run?</h2>
+      <p class="hint local-model-resource-hint">Both options run locally. Posts and filter phrases are processed on your device.</p>
+      <fieldset class="engine-choices" aria-describedby="engineChoiceHint">
+        <legend class="visually-hidden">Preview a local AI option</legend>
+        <label class="engine-card" id="browserEngineCard">
+          <input type="radio" name="inferenceEngine" id="previewBrowserEngine" value="litertlm" checked>
+          <span class="engine-card-copy"><span class="engine-card-title">In your browser <span class="recommendation">Recommended</span></span><span class="engine-card-meta">LiteRT-LM · Gemma 4 E2B</span><span class="engine-card-detail">About 2 GB downloaded once to this Chrome profile. Requires WebGPU.</span></span>
+        </label>
+        <label class="engine-card" id="nativeEngineCard">
+          <input type="radio" name="inferenceEngine" id="previewNativeEngine" value="ollama">
+          <span class="engine-card-copy"><span class="engine-card-title">On this Mac</span><span class="engine-card-meta">Ollama · Gemma 4 E2B</span><span class="engine-card-detail">Uses your installed Ollama app and Bouncer’s fixed model. Requires native setup and local connection permission.</span></span>
+        </label>
+      </fieldset>
+      <p id="engineChoiceHint" class="hint">Previewing an option does not change your saved choice.</p>
+      <button id="useEngineButton" class="local-model-connect-btn">Use browser AI</button>
+      <p id="engineSelectionText" class="selection-text" aria-live="polite">No option selected yet.</p>
       <div class="local-model-header">
-        <div>
-          <h2 id="localModelTitle" class="local-model-title">Gemma 4 E2B <span aria-hidden="true">·</span> Ollama</h2>
-          <p class="local-model-meta">Local service on this Mac</p>
-        </div>
+        <h3 id="activeEngineTitle" class="active-engine-title">Automatic filtering</h3>
         <span id="localModelStatusBadge" class="status-badge" aria-live="polite">Checking…</span>
       </div>
-      <p class="hint local-model-resource-hint">Post text and filter phrases stay on this Mac, using your local Ollama service.</p>
-      <p class="hint local-model-no-image-warning"><strong>Text only.</strong> Posts with images or videos are judged using their written text.</p>
-      <p id="nativeStatusText" class="hint" aria-live="polite">Checking the local service…</p>
+      <p id="nativeStatusText" class="hint model-state" aria-live="polite">Reading your saved choice…</p>
+      <div id="browserDownloadProgress" class="download-progress" hidden>
+        <progress id="browserDownloadMeter" aria-label="Browser model download progress" max="100"></progress>
+        <p id="browserDownloadProgressText" class="hint"></p>
+      </div>
       <div class="local-model-actions">
+        <button id="downloadBrowserModel" class="local-model-connect-btn" hidden>Download browser model</button>
+        <button id="cancelBrowserDownload" class="local-model-retry-btn" hidden>Cancel</button>
+        <button id="retryLocalModel" class="local-model-retry-btn" hidden>Retry browser AI</button>
         <button id="connectNativeModel" class="local-model-connect-btn" hidden>Connect to Ollama</button>
         <button id="retryNativeModel" class="local-model-retry-btn" hidden>Retry</button>
         <button id="recoverNativeModel" class="local-model-retry-btn" hidden>Resume after restarting Ollama</button>
       </div>
+      <div id="nativeRecoveryNotice" class="recovery-notice" hidden><p id="nativeRecoveryText" class="hint"></p></div>
       <details id="nativeSetupHelp" class="local-model-setup-help" hidden>
-        <summary>Setup help</summary>
+        <summary>Why setup is needed</summary>
         <p id="nativeSetupHelpText" class="hint"></p>
       </details>
-      <p id="localModelActionError" class="local-model-action-error" role="alert" hidden></p>
-    </section>
-
-    <section>
-      <div class="filter-replies-toggle">
-        <label class="checkbox-label">
-          <input type="checkbox" id="enableFilterReplies" checked>
-          <span>Filter replies in conversations</span>
-        </label>
+      <p class="setup-link"><a id="localSetupLink" href="setup.html" target="_blank" rel="noopener">Open setup help</a></p>
+      <div id="browserStorageControls" class="browser-storage" hidden>
+        <button id="deleteBrowserModel" class="text-button">Delete downloaded browser model</button>
+        <p class="hint">Removes only browser model files. Keeps your choice, filters and manual decisions.</p>
       </div>
+      <p id="localModelActionError" class="local-model-action-error" role="alert" hidden></p>
+      <p class="hint local-model-no-image-warning"><strong>Text only.</strong> Images and videos are judged by their written text.</p>
+    </section>
+    <section>
+      <div class="filter-replies-toggle"><label class="checkbox-label"><input type="checkbox" id="enableFilterReplies" checked><span>Filter replies in conversations</span></label></div>
+      <p id="filterRepliesError" class="local-model-action-error" role="alert" hidden></p>
     </section>
   </div>
-
   <script src="dist/popup.js" type="module"></script>
 </body>
 </html>

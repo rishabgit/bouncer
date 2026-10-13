@@ -33,7 +33,10 @@ export interface EvaluationResult {
   model?: string;
   /** Set by the background when the result came from the evaluation cache. */
   cached?: boolean;
-  /** Fixed native artifact, prompt/parser and inference/input contract. */
+  /** Selected engine and immutable choice revision that produced this verdict. */
+  engine?: InferenceEngineId;
+  selectionRevision?: number;
+  /** Fixed artifact, prompt/parser and inference/input contract. */
   classifierFingerprint?: string;
   /** Invalid model output remains an explicit failure, never a negative hit. */
   malformed?: boolean;
@@ -57,6 +60,8 @@ export type PipelineResponse = EvaluationResult | PipelineError | PipelineRetry 
 export interface PipelineError {
   error: 'local_model';
   reasoning: string;
+  /** Expected setup waits resume on status/choice changes, without a retry loop. */
+  availabilityReason?: 'not_configured' | 'needs_download' | 'downloading' | 'switching' | 'browser_cancelled';
 }
 
 /** Transient signal — content should remove from processed and retry later. */
@@ -109,8 +114,15 @@ export interface FilteredPost {
 
 // ==================== Models & Config ====================
 
-/** The fixed native classifier. There is no runtime model or endpoint picker. */
-export interface LocalModelDef {
+export type InferenceEngineId = 'litertlm' | 'ollama';
+
+/** The explicit choice is independent of download, permission or readiness. */
+export interface EngineSelection {
+  engine: InferenceEngineId | null;
+  revision: number;
+}
+
+export interface NativeModelDef {
   name: string;
   display: string;
   backend: 'ollama';
@@ -118,6 +130,19 @@ export interface LocalModelDef {
   weightDigest: string;
   contextTokens: number;
 }
+
+export interface BrowserModelDef {
+  name: string;
+  display: string;
+  backend: 'litertlm';
+  weightDigest: string;
+  contextTokens: number;
+  sizeBytes: number;
+  litertlmConfig: { modelUrl: string; maxTokens: number };
+}
+
+/** Two immutable artifacts, never a custom-model or endpoint catalog. */
+export type LocalModelDef = NativeModelDef | BrowserModelDef;
 
 /** Fields shared between runtime Settings and the chrome.storage.local schema. */
 interface SettingsBase {
@@ -133,11 +158,17 @@ export interface Settings extends SettingsBase {
 }
 
 export interface LocalModelStatus {
-  state: 'not_connected' | 'ready' | 'loading' | 'filtering' | 'paused'
+  state: 'not_configured' | 'needs_download' | 'downloading' | 'canceling' | 'switching'
+    | 'not_connected' | 'ready' | 'loading' | 'filtering' | 'paused'
     | 'missing_model' | 'blocked' | 'recovery_required' | 'error';
   message: string;
   reason?: string;
   revision: number;
+  engine?: InferenceEngineId | null;
+  selectionRevision?: number;
+  progress?: number;
+  receivedBytes?: number;
+  totalBytes?: number;
   /** Qualified operator restart is an explicit trust boundary, not an API ack. */
   recoveryQualified?: boolean;
 }
@@ -230,13 +261,19 @@ export type ContentToBackgroundMessage =
   | { type: 'getReasoning'; post: string }
   | { type: 'getErrorStatus' }
   | { type: 'getNativeModelStatus' }
+  | { type: 'getLocalModelStatus' }
+  | { type: 'selectInferenceEngine'; engine: InferenceEngineId }
+  | { type: 'downloadBrowserModel' }
+  | { type: 'cancelBrowserDownload' }
+  | { type: 'deleteBrowserModel' }
+  | { type: 'retryLocalModel' }
   | { type: 'connectNativeModel' }
   | { type: 'retryNativeModel' }
   | { type: 'recoverNativeModel'; operatorRestartConfirmed: true }
   | { type: 'preemptInference' }
   | { type: 'overrideCacheEntry'; post: string; shouldHide: boolean; reasoning?: string }
   // Dev-only latency benchmark (gated by __DEV__ in the background dispatch).
-  | { type: 'benchmark'; op: 'load' | 'infer' | 'unload'; modelId?: string; post?: { text: string }; categories?: string[]; promptMode?: 'baseline' | 'intent' };
+  | { type: 'benchmark'; op: 'status' | 'load' | 'infer' | 'unload'; selectionRevision?: number; post?: { text: string }; categories?: string[]; promptMode?: 'baseline' | 'intent' };
 
 export type BackgroundToContentMessage =
   | { type: 'ping' }
@@ -282,6 +319,12 @@ export type DescriptionKey = `descriptions_${SiteId}`;
 
 /** Typed schema for chrome.storage.local keys. */
 export type StorageSchema = SettingsBase & {
+  engineSelection: EngineSelection;
+  engineChoiceSchemaVersion: number;
+  engineChoiceModelCacheCleanupVersion: number;
+  localModelStatus: LocalModelStatus;
+  browserModelStatus: LocalModelStatus;
+  browserCacheGeneration: string;
   nativeModelStatus: LocalModelStatus;
   nativeOperationFence: NativeOperationFence;
   evaluationCache: Record<string, EvaluationResult>;

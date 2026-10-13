@@ -4,13 +4,14 @@
 // (src/background/benchmark.ts) one bounded op at a time, so the MV3 service
 // worker is never asked to hold a response open for a whole run. Headline metric
 // is `inferenceTime` (generation-call seconds from the app's inference wrapper).
-// Native wall time includes loopback transport and the shared serial lease.
+// Wall time includes the selected engine's transport and shared serial lease.
 
-import { PRIMARY_LOCAL_MODEL, PRIMARY_LOCAL_MODEL_ID } from '../shared/models';
-import type { LocalModelStatus } from '../types';
 import { POSTS, categories, type CorpusPost } from '../shared/benchmark-corpus';
 import { summarize, mean, type LatencyStats } from '../shared/benchmark-stats';
-import type { BenchmarkInferResult, BenchmarkLoadResult, BenchmarkPost, BenchmarkPromptMode } from '../shared/benchmark-types';
+import type {
+  BenchmarkClassifierIdentity, BenchmarkInferResult, BenchmarkLoadKind,
+  BenchmarkLoadResult, BenchmarkPost, BenchmarkPromptMode, BenchmarkStatusResult,
+} from '../shared/benchmark-types';
 import { EVAL_POSTS, EVAL_VARIANTS, expectsHide, type EvalPost, type EvalVariant } from '../shared/eval-corpus';
 import { score, scoreByKind, unstableCount, type EvalScore } from '../shared/eval-metrics';
 
@@ -23,11 +24,11 @@ interface Sample {
   usage: BenchmarkInferResult['usage'];
 }
 interface CellResult { postId: CorpusPost['id']; postLabel: string; nCats: number; samples: Sample[]; }
-interface ModelResult {
-  modelId: string; display: string; backend: string; sizeGB?: number;
+interface ModelResult extends BenchmarkClassifierIdentity {
+  loadKind: BenchmarkLoadKind;
   loadMs: number; firstInferMs: number; cells: CellResult[];
 }
-interface EnvInfo { userAgent: string; nativeModel: string; classifierDigest: string | null; date: string }
+interface EnvInfo { userAgent: string; classifier: BenchmarkClassifierIdentity; date: string }
 interface Report {
   startedAt: string; env: EnvInfo; config: { warmup: number; timed: number }; models: ModelResult[];
 }
@@ -62,7 +63,7 @@ interface EvalVariantResult {
   rows: EvalRow[];
   scores: EvalScores;
 }
-interface EvalModelResult { modelId: string; display: string; backend: string; variants: EvalVariantResult[]; }
+interface EvalModelResult extends BenchmarkClassifierIdentity { variants: EvalVariantResult[]; }
 interface EvalReport {
   startedAt: string; env: EnvInfo; runs: number; variants: EvalVariant[]; models: EvalModelResult[];
 }
@@ -86,6 +87,7 @@ let cancelled = false;
 let lastReport: Report | null = null;
 let lastEvalReport: EvalReport | null = null;
 let modelBadge: HTMLElement | null = null;
+let modelLabel: HTMLElement | null = null;
 
 // ---- DOM helpers -----------------------------------------------------------
 
@@ -120,17 +122,27 @@ function makeCell(postId: CorpusPost['id'], nCats: number): MadeCell {
   };
 }
 
-async function infer(_modelId: string, cell: MadeCell): Promise<BenchmarkInferResult> {
-  return (await send({
+function assertIdentity(expected: BenchmarkClassifierIdentity, actual: BenchmarkClassifierIdentity): void {
+  if (actual.engine !== expected.engine || actual.modelId !== expected.modelId
+      || actual.selectionRevision !== expected.selectionRevision
+      || actual.classifierFingerprint !== expected.classifierFingerprint) {
+    throw new Error('The selected engine changed. Start a new benchmark run.');
+  }
+}
+
+async function infer(identity: BenchmarkClassifierIdentity, cell: MadeCell): Promise<BenchmarkInferResult> {
+  const result = (await send({
     type: 'benchmark', op: 'infer', post: cell.post, categories: cell.categories, promptMode: cell.promptMode,
+    selectionRevision: identity.selectionRevision,
   })) as unknown as BenchmarkInferResult;
+  assertIdentity(identity, result);
+  return result;
 }
 
 // ---- Environment -----------------------------------------------------------
 
-function captureEnv(): Promise<EnvInfo> {
-  return Promise.resolve({ userAgent: navigator.userAgent, nativeModel: PRIMARY_LOCAL_MODEL_ID,
-    classifierDigest: PRIMARY_LOCAL_MODEL.manifestDigest, date: new Date().toISOString() });
+function captureEnv(identity: BenchmarkClassifierIdentity): EnvInfo {
+  return { userAgent: navigator.userAgent, classifier: identity, date: new Date().toISOString() };
 }
 
 // ---- Status / buttons ------------------------------------------------------
@@ -150,36 +162,49 @@ function updateButtons(): void {
   need<HTMLButtonElement>('exportEvalJson').disabled = !lastEvalReport;
 }
 
-// ---- Fixed native classifier -----------------------------------------------
+// ---- Selected fixed classifier ---------------------------------------------
 
 function buildModelChecks(): void {
   const container = need('models');
-  const label = document.createElement('span');
-  label.textContent = `${PRIMARY_LOCAL_MODEL.display} · Ollama on this Mac`;
+  modelLabel = document.createElement('span');
+  modelLabel.textContent = 'Selected engine: reading saved choice…';
   modelBadge = document.createElement('span');
   modelBadge.className = 'badge badge-unknown';
   modelBadge.textContent = '…';
-  container.replaceChildren(label, modelBadge);
+  container.replaceChildren(modelLabel, modelBadge);
+}
+
+function renderSelected(response: BenchmarkStatusResult): void {
+  if (modelLabel) modelLabel.textContent = response.identity
+    ? `${response.identity.display} · ${engineLabel(response.identity.engine)} · ${response.identity.modelId}`
+    : 'Choose an engine in the Bouncer popup';
+  if (modelBadge) {
+    modelBadge.textContent = response.status.state;
+    modelBadge.className = `badge badge-${response.status.state === 'ready' ? 'ok' : 'warn'}`;
+  }
+}
+
+function engineLabel(engine: BenchmarkClassifierIdentity['engine']): string {
+  return engine === 'litertlm' ? 'Browser (LiteRT-LM)' : 'Ollama on this Mac';
 }
 
 async function refreshStatuses(): Promise<void> {
   try {
-    const response = await send({ type: 'getNativeModelStatus' }) as unknown as { status: LocalModelStatus };
-    if (!modelBadge) return;
-    modelBadge.textContent = response.status?.state ?? 'unknown';
-    modelBadge.className = `badge badge-${response.status?.state === 'ready' ? 'ok' : 'warn'}`;
+    const response = await send({ type: 'benchmark', op: 'status' }) as unknown as BenchmarkStatusResult;
+    renderSelected(response);
   } catch (error) {
-    setStatus(`Could not read native status: ${(error as Error).message}`, 'error');
+    setStatus(`Could not read selected engine status: ${(error as Error).message}`, 'error');
   }
 }
 
-async function resolveReady(): Promise<{ ready: string[]; skipped: string[] } | null> {
-  const response = await send({ type: 'getNativeModelStatus' }) as unknown as { status: LocalModelStatus };
-  if (response.status?.state !== 'ready') {
-    setStatus(response.status?.message || 'Connect to Ollama from the Bouncer popup, then retry.', 'error');
+async function resolveReady(): Promise<BenchmarkClassifierIdentity | null> {
+  const response = await send({ type: 'benchmark', op: 'status' }) as unknown as BenchmarkStatusResult;
+  renderSelected(response);
+  if (!response.identity || response.status.state !== 'ready') {
+    setStatus(`${response.status.message} Choose, download, connect or retry from the Bouncer popup before running.`, 'error');
     return null;
   }
-  return { ready: [PRIMARY_LOCAL_MODEL_ID], skipped: [] };
+  return response.identity;
 }
 
 async function run(): Promise<void> {
@@ -188,71 +213,62 @@ async function run(): Promise<void> {
   const warmup = Math.max(0, parseInt(need<HTMLInputElement>('warmup').value, 10) || 0);
   const timed = Math.max(1, parseInt(need<HTMLInputElement>('timed').value, 10) || 1);
 
-  const resolved = await resolveReady();
-  if (!resolved) return;
-  const { ready, skipped } = resolved;
-
   running = true; cancelled = false; lastReport = null; updateButtons();
   need('results').replaceChildren();
-
-  const env = await captureEnv();
-  renderEnv(env);
-  if (skipped.length) setStatus(`Skipping (unavailable): ${skipped.join(', ')}. Continuing with the rest.`, 'warn');
-
-  const report: Report = { startedAt: new Date().toISOString(), env, config: { warmup, timed }, models: [] };
-
+  let identity: BenchmarkClassifierIdentity | null = null;
   try {
-    for (const modelId of ready) {
+    identity = await resolveReady();
+    if (!identity || cancelled) return;
+    const env = captureEnv(identity);
+    renderEnv(env);
+    const report: Report = { startedAt: new Date().toISOString(), env, config: { warmup, timed }, models: [] };
+
+    setStatus(`Preparing ${engineLabel(identity.engine)}…`);
+    const loadRes = (await send({ type: 'benchmark', op: 'load', selectionRevision: identity.selectionRevision })) as unknown as BenchmarkLoadResult;
+    assertIdentity(identity, loadRes);
+    if (cancelled) { setStatus('Stopped.', 'warn'); return; }
+
+    // Browser initialization is measured above. A first native inference may
+    // load an expired shared runner, independently of metadata readiness.
+    setStatus(`${identity.display}: first inference…`);
+    const first = await infer(identity, makeCell('medium', 3));
+    const firstInferMs = first.inferenceTime * 1000;
+
+    const cells: CellResult[] = [];
+    let cellIdx = 0;
+    for (const cell of CELLS) {
       if (cancelled) break;
-      const mdef = PRIMARY_LOCAL_MODEL;
-      if (!mdef) continue;
+      cellIdx++;
+      const made = makeCell(cell.postId, cell.nCats);
 
-      setStatus(`Checking ${mdef.display} readiness…`);
-      const loadRes = (await send({ type: 'benchmark', op: 'load' })) as unknown as BenchmarkLoadResult;
-
-      // First real request may include native model load if it has expired.
-      setStatus(`${mdef.display}: first inference…`);
-      const first = await infer(modelId, makeCell('medium', 3));
-      const firstInferMs = first.inferenceTime * 1000;
-
-      const cells: CellResult[] = [];
-      let cellIdx = 0;
-      for (const cell of CELLS) {
-        if (cancelled) break;
-        cellIdx++;
-        const made = makeCell(cell.postId, cell.nCats);
-
-        for (let w = 0; w < warmup && !cancelled; w++) {
-          setStatus(`${mdef.display} · ${made.label} · warmup ${w + 1}/${warmup}`);
-          await infer(modelId, made);
-        }
-
-        const samples: Sample[] = [];
-        for (let i = 0; i < timed && !cancelled; i++) {
-          setStatus(`${mdef.display} · ${made.label} · timed ${i + 1}/${timed} (cell ${cellIdx}/${CELLS.length})`);
-          const r = await infer(modelId, made);
-          samples.push({ inferenceMs: r.inferenceTime * 1000, wallMs: r.wallMs, completionChars: r.completionChars, usage: r.usage });
-        }
-        cells.push({ postId: cell.postId, postLabel: POSTS[cell.postId].label, nCats: cell.nCats, samples });
+      for (let w = 0; w < warmup && !cancelled; w++) {
+        setStatus(`${identity.display} · ${made.label} · warmup ${w + 1}/${warmup}`);
+        await infer(identity, made);
       }
 
-      await send({ type: 'benchmark', op: 'unload' });
-      report.models.push({
-        modelId, display: mdef.display, backend: mdef.backend ?? '?',
-        loadMs: loadRes.loadMs, firstInferMs, cells,
-      });
-      lastReport = report;
-      renderResults(report);
-      updateButtons();
+      const samples: Sample[] = [];
+      for (let i = 0; i < timed && !cancelled; i++) {
+        setStatus(`${identity.display} · ${made.label} · timed ${i + 1}/${timed} (cell ${cellIdx}/${CELLS.length})`);
+        const r = await infer(identity, made);
+        samples.push({ inferenceMs: r.inferenceTime * 1000, wallMs: r.wallMs, completionChars: r.completionChars, usage: r.usage });
+      }
+      cells.push({ postId: cell.postId, postLabel: POSTS[cell.postId].label, nCats: cell.nCats, samples });
     }
+
+    report.models.push({ ...identity, loadKind: loadRes.loadKind, loadMs: loadRes.loadMs, firstInferMs, cells });
+    lastReport = report;
+    renderResults(report);
+    updateButtons();
     setStatus(cancelled ? 'Stopped.' : 'Done.', cancelled ? 'warn' : 'ok');
   } catch (e) {
     setStatus('Error: ' + (e as Error).message, 'error');
   } finally {
+    // Revision-bound cleanup cannot retire a newly selected engine.
+    if (identity) {
+      try { await send({ type: 'benchmark', op: 'unload', selectionRevision: identity.selectionRevision }); } catch { /* selection may have changed */ }
+    }
     running = false;
     updateButtons();
-    // Settle extension work; native request retention owns residency.
-    try { await send({ type: 'benchmark', op: 'unload' }); } catch { /* ignore */ }
   }
 }
 
@@ -263,7 +279,8 @@ function nums(samples: Sample[], pick: (s: Sample) => number | undefined): numbe
 }
 
 function renderEnv(env: EnvInfo): void {
-  need('env').textContent = `Native: ${env.nativeModel} · digest ${env.classifierDigest ?? "unqualified"} · ${env.date} · ${env.userAgent}`;
+  const identity = env.classifier;
+  need('env').textContent = `${engineLabel(identity.engine)} · ${identity.modelId} · runtime ${identity.runtimeVersion} · selection ${identity.selectionRevision} · weights ${identity.weightDigest} · classifier ${identity.classifierFingerprint} · ${env.date} · ${env.userAgent}`;
 }
 
 function th(text: string): HTMLTableCellElement {
@@ -283,10 +300,11 @@ function renderResults(report: Report): void {
 
   for (const model of report.models) {
     const header = document.createElement('h3');
-    header.textContent = `${model.display} — ${model.backend}`;
+    header.textContent = `${model.display} — ${engineLabel(model.engine)}`;
     const sub = document.createElement('div');
     sub.className = 'muted';
-    sub.textContent = `metadata readiness ${fmt(model.loadMs, 0)} ms · first-inference ${fmt(model.firstInferMs, 0)} ms · warm: median inferenceTime (generation call)`;
+    const preparation = model.loadKind === 'browser_initialization' ? 'cached Browser initialization' : 'native metadata readiness';
+    sub.textContent = `${preparation} ${fmt(model.loadMs, 0)} ms · first-inference ${fmt(model.firstInferMs, 0)} ms · warm: median inferenceTime (generation call)`;
     root.append(header, sub);
 
     const table = document.createElement('table');
@@ -343,7 +361,8 @@ function exportJson(): void {
 function exportCsv(): void {
   if (!lastReport) return;
   const cols = [
-    'model', 'backend', 'sizeGB', 'metadata_readiness_ms', 'first_infer_ms',
+    'model', 'model_id', 'engine', 'selection_revision', 'classifier_fingerprint',
+    'weight_digest', 'manifest_digest', 'runtime_version', 'preparation_kind', 'preparation_ms', 'first_infer_ms',
     'post', 'n_filters', 'n', 'inf_median_ms', 'inf_mean_ms', 'inf_p90_ms', 'inf_p95_ms',
     'inf_min_ms', 'inf_max_ms', 'inf_stddev_ms', 'wall_median_ms', 'out_chars_mean',
     'completion_tokens_mean', 'ttft_ms_mean', 'tpot_ms_mean', 'decode_tps_mean', 'prefill_tps_mean',
@@ -354,7 +373,9 @@ function exportCsv(): void {
       const inf = summarize(nums(cell.samples, s => s.inferenceMs));
       const wall = summarize(nums(cell.samples, s => s.wallMs));
       const v = [
-        model.display, model.backend, model.sizeGB ?? '', fmt(model.loadMs, 0), fmt(model.firstInferMs, 0),
+        model.display, model.modelId, model.engine, model.selectionRevision, model.classifierFingerprint,
+        model.weightDigest, model.manifestDigest ?? '', model.runtimeVersion,
+        model.loadKind, fmt(model.loadMs, 0), fmt(model.firstInferMs, 0),
         cell.postLabel, cell.nCats, inf.n,
         fmt(inf.median, 2), fmt(inf.mean, 2), fmt(inf.p90, 2), fmt(inf.p95, 2),
         fmt(inf.min, 2), fmt(inf.max, 2), fmt(inf.stddev, 2), fmt(wall.median, 2),
@@ -365,8 +386,7 @@ function exportCsv(): void {
         fmt(mean(nums(cell.samples, s => s.usage?.decodeTokensPerS)), 1),
         fmt(mean(nums(cell.samples, s => s.usage?.prefillTokensPerS)), 1),
       ];
-      // Quote any field containing a comma.
-      rows.push(v.map(x => { const str = String(x); return str.includes(',') ? `"${str}"` : str; }).join(','));
+      rows.push(v.map(x => { const str = String(x); return /[",\r\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str; }).join(','));
     }
   }
   const stamp = lastReport.startedAt.replace(/[:.]/g, '-');
@@ -375,94 +395,85 @@ function exportCsv(): void {
 
 // ==== Accuracy eval =========================================================
 // Reuses the latency harness's plumbing — resolveReady / load / infer / unload,
-// the fixed native classifier, the running+cancelled flags, and the DOM helpers. Each
+// the selected fixed classifier, the running+cancelled flags, and the DOM helpers. Each
 // post is classified RUNS times against EVAL_FILTERS and majority-voted.
 
 async function runEval(): Promise<void> {
   if (running) return;
 
-  const resolved = await resolveReady();
-  if (!resolved) return;
-  const { ready, skipped } = resolved;
-
   running = true; cancelled = false; lastEvalReport = null; updateButtons();
   need('evalResults').replaceChildren();
-
-  const env = await captureEnv();
-  renderEnv(env);
-  if (skipped.length) setStatus(`Skipping (unavailable): ${skipped.join(', ')}. Continuing with the rest.`, 'warn');
-
-  const report: EvalReport = {
-    startedAt: new Date().toISOString(), env, runs: RUNS, variants: EVAL_VARIANTS, models: [],
-  };
-
+  let identity: BenchmarkClassifierIdentity | null = null;
   try {
-    for (const modelId of ready) {
+    identity = await resolveReady();
+    if (!identity || cancelled) return;
+    const env = captureEnv(identity);
+    renderEnv(env);
+    const report: EvalReport = {
+      startedAt: new Date().toISOString(), env, runs: RUNS, variants: EVAL_VARIANTS, models: [],
+    };
+
+    setStatus(`Preparing ${engineLabel(identity.engine)}…`);
+    const loadRes = await send({ type: 'benchmark', op: 'load', selectionRevision: identity.selectionRevision }) as unknown as BenchmarkLoadResult;
+    assertIdentity(identity, loadRes);
+
+    const variantResults: EvalVariantResult[] = [];
+    for (const variant of EVAL_VARIANTS) {
       if (cancelled) break;
-      const mdef = PRIMARY_LOCAL_MODEL;
-      if (!mdef) continue;
-
-      setStatus(`Checking ${mdef.display} readiness…`);
-      await send({ type: 'benchmark', op: 'load' });
-
-      const variantResults: EvalVariantResult[] = [];
-      for (const variant of EVAL_VARIANTS) {
+      const rows: EvalRow[] = [];
+      let i = 0;
+      for (const post of EVAL_POSTS) {
         if (cancelled) break;
-        const rows: EvalRow[] = [];
-        let i = 0;
-        for (const post of EVAL_POSTS) {
-          if (cancelled) break;
-          i++;
-          const runs: EvalRun[] = [];
-          for (let r = 0; r < RUNS && !cancelled; r++) {
-            setStatus(`${mdef.display} · ${variant.label} · ${post.id} · run ${r + 1}/${RUNS} (post ${i}/${EVAL_POSTS.length})`);
-            const out = await infer(modelId, {
-              post: { text: post.text },
-              categories: variant.filters,
-              label: `${variant.id}:${post.id}`,
-              promptMode: variant.promptMode,
-            });
-            runs.push({
-              run: r + 1,
-              shouldHide: out.shouldHide,
-              reasoning: out.reasoning,
-              rawResponse: out.rawResponse,
-            });
-          }
-          if (cancelled) break; // don't record a post we only partially measured
-          const hideCount = runs.filter(r => r.shouldHide).length;
-          // Strict majority — RUNS is odd, so this never ties.
-          const predicted = hideCount * 2 > RUNS;
-          const reasoning = runs[runs.length - 1]?.reasoning ?? '';
-          rows.push({ id: post.id, kind: post.kind, expected: expectsHide(post), predicted, hideCount, reasoning, runs });
+        i++;
+        const runs: EvalRun[] = [];
+        for (let r = 0; r < RUNS && !cancelled; r++) {
+          setStatus(`${identity.display} · ${variant.label} · ${post.id} · run ${r + 1}/${RUNS} (post ${i}/${EVAL_POSTS.length})`);
+          const out = await infer(identity, {
+            post: { text: post.text },
+            categories: variant.filters,
+            label: `${variant.id}:${post.id}`,
+            promptMode: variant.promptMode,
+          });
+          runs.push({
+            run: r + 1,
+            shouldHide: out.shouldHide,
+            reasoning: out.reasoning,
+            rawResponse: out.rawResponse,
+          });
         }
-
-        variantResults.push({
-          variantId: variant.id,
-          label: variant.label,
-          description: variant.description,
-          filters: variant.filters,
-          promptMode: variant.promptMode,
-          rows,
-          scores: evalScores(rows),
-        });
-        renderEval({ ...report, models: [...report.models, { modelId, display: mdef.display, backend: mdef.backend ?? '?', variants: variantResults }] });
+        if (cancelled) break; // don't record a post we only partially measured
+        const hideCount = runs.filter(r => r.shouldHide).length;
+        // Strict majority — RUNS is odd, so this never ties.
+        const predicted = hideCount * 2 > RUNS;
+        const reasoning = runs[runs.length - 1]?.reasoning ?? '';
+        rows.push({ id: post.id, kind: post.kind, expected: expectsHide(post), predicted, hideCount, reasoning, runs });
       }
 
-      await send({ type: 'benchmark', op: 'unload' });
-      report.models.push({ modelId, display: mdef.display, backend: mdef.backend ?? '?', variants: variantResults });
-      lastEvalReport = report;
-      renderEval(report);
-      updateButtons();
+      variantResults.push({
+        variantId: variant.id,
+        label: variant.label,
+        description: variant.description,
+        filters: variant.filters,
+        promptMode: variant.promptMode,
+        rows,
+        scores: evalScores(rows),
+      });
+      renderEval({ ...report, models: [{ ...identity, variants: variantResults }] });
     }
+
+    report.models.push({ ...identity, variants: variantResults });
+    lastEvalReport = report;
+    renderEval(report);
+    updateButtons();
     setStatus(cancelled ? 'Stopped.' : 'Eval done.', cancelled ? 'warn' : 'ok');
   } catch (e) {
     setStatus('Error: ' + (e as Error).message, 'error');
   } finally {
+    if (identity) {
+      try { await send({ type: 'benchmark', op: 'unload', selectionRevision: identity.selectionRevision }); } catch { /* selection may have changed */ }
+    }
     running = false;
     updateButtons();
-    // Settle extension work; native request retention owns residency.
-    try { await send({ type: 'benchmark', op: 'unload' }); } catch { /* ignore */ }
   }
 }
 
@@ -494,7 +505,7 @@ function renderEval(report: EvalReport): void {
 
   for (const model of report.models) {
     const header = document.createElement('h3');
-    header.textContent = `${model.display} — ${model.backend}`;
+    header.textContent = `${model.display} — ${engineLabel(model.engine)}`;
     const sub = document.createElement('div');
     sub.className = 'muted';
     sub.textContent = `${report.runs} runs/post, majority vote · positive class = "should hide"`;

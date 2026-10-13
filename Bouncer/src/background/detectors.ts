@@ -9,6 +9,9 @@ export interface DetectorResult {
   inferenceTime?: number;
   malformed?: boolean;
   classifierFingerprint?: string;
+  modelId?: string;
+  engine?: import('../types').InferenceEngineId;
+  selectionRevision?: number;
 }
 
 /** Dispatch exactly once for a terminal result or error; propagate failures. */

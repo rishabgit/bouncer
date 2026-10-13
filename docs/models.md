@@ -1,11 +1,61 @@
-# Native model — identity, setup and recovery
+# Fixed models — identity, setup and recovery
 
-Bouncer uses one fixed Gemma 4 E2B QAT text classifier through local Ollama.
-Exact artifact and runtime validation govern generation. The
-[native qualification report](benchmarks/ollama-qualification.md) records
-measured results and the remaining draft release gates.
+Bouncer lets the user choose Browser (LiteRT-LM) or Ollama. Both use a fixed
+Gemma 4 E2B text artifact with exact identity checks, separate packaging and
+separate classifier fingerprints. Their results are not interchangeable.
+Start with the [engine action matrix](inference-engines.md); the native
+operator sections below are needed only for Ollama or native recovery.
+The [qualification report](benchmarks/ollama-qualification.md) separates
+historical measurements from the new integration's unqualified actual-Chrome
+paths and remaining native startup gates.
 
-## Fixed artifact
+## Browser artifact and setup
+
+| Field | Fixed value |
+|---|---|
+| Model | Gemma 4 E2B Instruct, LiteRT-LM web artifact |
+| Browser runtime | `@litert-lm/core` exactly 0.17.0, bundled locally |
+| Streaming integrity implementation | `@noble/hashes` exactly 2.4.0 |
+| Repository | `litert-community/gemma-4-E2B-it-litert-lm` |
+| Revision | `9262660a1676eed6d0c477ab1a86344430854664` |
+| File | `gemma-4-E2B-it-web.litertlm` |
+| Bytes | 2,008,432,640, about 2.01 GB / 1.870 GiB |
+| SHA-256 | `3a08e8d94e23b814ae5414469c370c503813949acb8ceaa17e4ebf8a35af35b5` |
+| Download | [Exact revision-pinned artifact](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/9262660a1676eed6d0c477ab1a86344430854664/gemma-4-E2B-it-web.litertlm) |
+
+Load the extension in Chrome 137 or later, open settings and choose **In your
+browser**. Use **Download & use browser AI** to commit Browser and download
+the fixed artifact. If the exact saved weights are already present, use
+**Use browser AI**. That action is also offered while cache status is still
+unknown; it commits the choice, then **Download browser model** appears if
+weights are missing. Setup needs WebGPU and enough profile storage for the
+artifact. The recommendation never commits a preference by itself.
+
+The explicit action saves and reads back the engine preference before transfer
+or GPU loading. Download checks size and SHA-256 as bytes stream into an owned
+Cache Storage generation. No SDK/WASM code comes from the network: the
+extension bundles both normal and compatibility runners and creates its
+offscreen host on demand. Downloading weights does not initialize the GPU or
+send a post. Saved model bytes are verified before actual initialization.
+Opening settings can report a saved cold model without hashing it or loading
+the GPU.
+
+Only an explicit Download action acquires browser weights. Cancel, failed
+download or GPU setup, and **Delete downloaded browser model** preserve the chosen
+engine. Deletion affects Bouncer's owned browser model entries; it does not
+clear filters, manual decisions or native models. Evicted or invalid weights
+require another explicit download. Filtering and suggestions do not refill
+them, and no failure switches to Ollama. One minute of browser inactivity
+releases its runtime while retaining weights for a later real request.
+
+The browser download path relies on public CORS without a Hugging Face host
+permission. CSP allows `https://huggingface.co` and `https://*.hf.co`
+for its redirects. A 2026-10-13 metadata HEAD request reached
+`us.aws.cdn.hf.co` with the expected size and `Access-Control-Allow-Origin: *`;
+this does not establish an actual Chrome streamed GET or completed download.
+Those remain [integration qualification gates](benchmarks/ollama-qualification.md#draft-release-gates).
+
+## Native fixed artifact
 
 | Field | Value |
 |---|---|
@@ -71,7 +121,8 @@ OLLAMA_HOST=http://127.0.0.1:11434 ollama pull gemma4:e2b-it-qat
 
 Acquisition is separate from preparation and transfers about 4.34 GB for the
 recorded source. Inspect its source and license before acquiring it. The
-extension and preparation script never pull or download weights. A future
+extension never pulls native weights; the preparation script never downloads
+weights. Browser weights have the separate explicit path above. A future
 floating tag is acceptable only if the resulting exact weights, license and
 imported manifest pass the fixed checks; never bypass a mismatch.
 
@@ -124,9 +175,10 @@ table before proceeding.
 ## Install exact-origin startup
 
 Chrome's checked-in key preserves
-`chrome-extension://bkijmhafoocfloemhancbgadknkgdkcm`. After **Connect to Ollama**
-grants only `http://127.0.0.1:11434/*`, readiness must POST model metadata from
-the actual worker. A GET health check may succeed while Ollama rejects this
+`chrome-extension://bkijmhafoocfloemhancbgadknkgdkcm`. Choose **Use Ollama**, then
+**Connect to Ollama** to request only `http://127.0.0.1:11434/*`. After the grant,
+readiness must POST model metadata from the actual worker. A GET health check
+may succeed while Ollama rejects this
 Origin. Apply exact-origin setup only when that worker POST confirms rejection.
 Never broaden Chrome host access or use wildcard native origins.
 
@@ -261,9 +313,11 @@ launchctl enable "gui/$(id -u)/com.ollama.ollama"
 
 ## Interrupted-request recovery
 
-A timed-out, aborted or worker-interrupted generation may still be running.
-Bouncer preserves a durable unresolved-work fence and pauses new generation;
-saved manual/cache decisions remain available. Browser abort, elapsed time,
+A timed-out, aborted or worker-interrupted native generation may still be
+running. Bouncer preserves a durable unresolved-work fence and pauses new
+generation through both engines, including Browser. Selecting Browser or
+deleting browser weights cannot settle native work. Saved manual/cache
+decisions remain available. Browser abort, elapsed time,
 ordinary **Retry**, metadata or an empty residency list cannot prove cancellation.
 Concurrent-model generation remains disabled, and other resident models defer
 automatic work without forced unload.
@@ -277,7 +331,9 @@ For the full-process-stop recovery boundary:
    full restart completed and other clients are idle.
 
 That explicit confirmation establishes that prior native work stopped.
-Metadata validates only the reopened service and artifact. Every subsequent
+Recovery is available even when Browser is the committed choice and does not
+change that preference. Its optional local permission and metadata validation
+apply only to the reopened native service and artifact. Every subsequent native
 generation is text-only with fixed sampling, finite budgets, `think: false`
 and `keep_alive: "1m"`; cache reads and readiness do not preload it. Another
 client sharing the weights can extend residency. Bouncer changes no native
@@ -301,19 +357,28 @@ table. Preparation retains that source material in the imported model.
 Consult the exact source license when acquiring or redistributing the artifact;
 this provenance statement does not generalize to other Gemma packages.
 
-The historical LiteRT E2B release used
+The Browser option uses
 [`litert-community/gemma-4-E2B-it-litert-lm`](https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm),
 revision `9262660a1676eed6d0c477ab1a86344430854664`, file
 `gemma-4-E2B-it-web.litertlm`, 2,008,432,640 bytes, SHA-256
 `3a08e8d94e23b814ae5414469c370c503813949acb8ceaa17e4ebf8a35af35b5`.
-Its converted repository declared Apache-2.0 and identified Google's Gemma
-4 E2B as its base. Historical E4B used
+The recorded converted repository declared Apache-2.0 and identified Google's
+Gemma 4 E2B as its base. Consult the exact pinned source and applicable base-model
+terms when acquiring or redistributing these bytes. SDK/WASM and streaming hash
+library notices are bundled in `dist/THIRD-PARTY-NOTICES.txt`; code licenses and
+model provenance are separate. Historical E4B used
 `rishabhf/bouncer-gemma-4-e4b-litert@41a40dee03ce6185fb76bd96294f74561bf87f89`,
-2,969,059,328 bytes. Both browser runtimes are retired in this checkout.
+2,969,059,328 bytes; that comparator remains retired.
 [Historical reports and raw data](benchmarks/) preserve their measurements;
-reproduce from commit `a590ce0186c89374e904bef599c3f9c51db5b9b2`.
+reproduce their historical browser harness from commit
+`a590ce0186c89374e904bef599c3f9c51db5b9b2`. The current Browser option reuses the
+E2B bytes and 0.17.0 core, while its streaming verification and engine-selection
+lifecycle need separate qualification.
 
-Rollback to the historical browser runtime requires verified artifact bytes or
-exact-source reacquisition; git and a storage snapshot do not restore model
-bytes. Reconcile newer settings and manual decisions and respect unresolved
-native work. Restoring old code does not cancel a native request.
+Changing the selected engine preserves manual decisions and invalidates
+automatic results whose classifier fingerprint differs. Valid old LiteRT
+preferences and exact cached bytes survive the new choice migration; a
+completed native cutover retains Ollama, and a valid newer choice wins.
+Weights previously removed or later evicted cannot be recovered from git or a
+settings snapshot; reacquisition remains explicit. Respect unresolved native
+work when changing or restoring code: neither action cancels a native request.

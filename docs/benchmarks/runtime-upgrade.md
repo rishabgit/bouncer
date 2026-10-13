@@ -1,11 +1,12 @@
 # Historical E2B runtime and prefix-cache verification
 
 > Historical LiteRT browser-runtime measurements, not native QAT results.
-> The runtime and comparison runner are retired in the current native fork.
-> Methods, numeric results and raw data are unchanged. Reproduce from commit
+> The current Browser option reuses the fixed E2B artifact and 0.17.0 core,
+> but this historical normal-page runner does not qualify its new download
+> integrity, engine choice, switching or offscreen lifecycle. Methods, numeric
+> results and raw data are unchanged. Reproduce the historical harness from commit
 > `a590ce0186c89374e904bef599c3f9c51db5b9b2`; see
-> [current native qualification](ollama-qualification.md) for the fixed QAT
-> classifier and its release gates.
+> [qualification and integration gates](ollama-qualification.md).
 
 The 2026-10-11 implementation upgrades LiteRT-LM from 0.12.1 to exactly
 0.17.0 and reuses a prefilled prefix through independent per-post conversation

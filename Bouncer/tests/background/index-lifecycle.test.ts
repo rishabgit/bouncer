@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ContentToBackgroundMessage, EvaluationResult, LocalModelStatus } from '../../src/types';
+import type { ContentToBackgroundMessage, EngineSelection, EvaluationResult, LocalModelStatus } from '../../src/types';
 import type { LocalEngine } from '../../src/background/local-model';
-import type { LocalBackend } from '../../src/background/backends/types';
+import type { BrowserBackend, LocalBackend } from '../../src/background/backends/types';
 
 const state = vi.hoisted(() => ({
   migration: vi.fn(),
@@ -17,17 +17,30 @@ const state = vi.hoisted(() => ({
   captureInferenceRequest: vi.fn(),
   overridePost: vi.fn(),
   triggerErrorRetry: vi.fn(),
+  invalidateEngineWork: vi.fn(),
+  handleEngineChoiceChange: vi.fn(),
+  selection: { engine: 'ollama', revision: 1 } as EngineSelection,
   engineOverride: null as LocalEngine | null,
   engine: {
     getStatus: vi.fn(), retry: vi.fn(), recoverAfterOperatorRestart: vi.fn(),
     syncAllStatuses: vi.fn(), preempt: vi.fn(), teardown: vi.fn(),
+    selectEngine: vi.fn(), downloadBrowserModel: vi.fn(), cancelBrowserDownload: vi.fn(), deleteBrowserModel: vi.fn(),
+    getSelection: () => ({ ...state.selection }),
+    getClassifierFingerprint: () => state.selection.engine === 'ollama' ? 'synthetic-native-fingerprint'
+      : state.selection.engine === 'litertlm' ? 'synthetic-browser-fingerprint' : null,
+    isSelectingEngine: vi.fn(() => false),
     isMaintaining: vi.fn(() => false),
   },
 }));
 
-vi.mock('../../src/background/local-model.js', () => ({ get localEngine() { return state.engineOverride ?? state.engine; } }));
-vi.mock('../../src/background/model-migration.js', () => ({
+vi.mock('../../src/background/local-model.js', async importOriginal => ({
+  LocalAvailabilityError: (await importOriginal<typeof import('../../src/background/local-model')>()).LocalAvailabilityError,
+  get localEngine() { return state.engineOverride ?? state.engine; },
+}));
+vi.mock('../../src/background/model-migration.js', async importOriginal => ({
+  isValidEngineSelection: (await importOriginal<typeof import('../../src/background/model-migration')>()).isValidEngineSelection,
   migrateToNativeModel: state.migration,
+  migrateEngineChoice: state.migration,
   stripNativeCutoverStorageChanges: (changes: Record<string, chrome.storage.StorageChange>) =>
     Object.fromEntries(Object.entries(changes).filter(([key]) => ![
       'selectedModel', 'localModelStatuses', 'nativeCutoverSchemaVersion', 'nativeModelCacheCleanupVersion',
@@ -46,6 +59,7 @@ vi.mock('../../src/background/pipeline.js', () => ({
   captureInferenceRequest: state.captureInferenceRequest,
   runInferenceRequest: (request: { startedAt: number; assertCurrent: () => void }, operation: (request: unknown) => Promise<unknown>) => operation(request),
   replayDetectorStates: vi.fn(), triggerErrorRetry: state.triggerErrorRetry,
+  invalidateEngineWork: state.invalidateEngineWork, handleEngineChoiceChange: state.handleEngineChoiceChange,
 }));
 
 let onMessage: (message: ContentToBackgroundMessage, sender: chrome.runtime.MessageSender,
@@ -76,6 +90,7 @@ beforeEach(async () => {
   vi.resetModules();
   vi.clearAllMocks();
   state.engineOverride = null;
+  state.selection = { engine: 'ollama', revision: 1 };
   state.migration.mockResolvedValue({});
   state.loadCache.mockResolvedValue(undefined);
   state.readCachedEvaluation.mockResolvedValue(undefined);
@@ -86,12 +101,20 @@ beforeEach(async () => {
   state.handleSettingsChange.mockResolvedValue(undefined);
   state.overridePost.mockResolvedValue(undefined);
   state.triggerErrorRetry.mockResolvedValue(undefined);
+  state.handleEngineChoiceChange.mockResolvedValue(undefined);
   state.suggestAnnoyingReasons.mockResolvedValue([]);
   state.captureInferenceRequest.mockImplementation((assertCurrent: () => void) => ({ startedAt: Date.now(), assertCurrent }));
   state.engine.getStatus.mockResolvedValue(status);
   state.engine.retry.mockResolvedValue(status);
   state.engine.recoverAfterOperatorRestart.mockResolvedValue(status);
   state.engine.syncAllStatuses.mockResolvedValue(undefined);
+  state.engine.selectEngine.mockImplementation(async (engine: EngineSelection['engine']) => {
+    state.selection = { engine, revision: state.selection.revision + 1 };
+    return status;
+  });
+  state.engine.downloadBrowserModel.mockResolvedValue(status);
+  state.engine.cancelBrowserDownload.mockResolvedValue(status);
+  state.engine.deleteBrowserModel.mockResolvedValue(status);
   globalThis.chrome = {
     runtime: {
       id: 'test-extension',
@@ -125,6 +148,16 @@ async function initialize(): Promise<void> {
 }
 
 describe('native background lifecycle and sender boundary', () => {
+  it('keeps install callbacks snapshot-only after startup resource reconciliation', async () => {
+    await initialize();
+    expect(state.engine.syncAllStatuses).toHaveBeenCalledOnce();
+    onInstalled({ reason: 'update' });
+    await vi.waitFor(() => expect(state.engine.getStatus).toHaveBeenCalledOnce());
+    expect(state.engine.syncAllStatuses).toHaveBeenCalledOnce();
+    expect(state.engine.preempt).not.toHaveBeenCalled();
+    expect(state.engine.teardown).not.toHaveBeenCalled();
+  });
+
   it('awaits cutover before cache loading, page registration, preemption, and install handlers', async () => {
     const gate = deferred();
     state.migration.mockReturnValueOnce(gate.promise);
@@ -191,13 +224,148 @@ describe('native background lifecycle and sender boundary', () => {
     expect(state.engine.retry).not.toHaveBeenCalled();
   });
 
-  it('provides a metadata snapshot and popup connection retry without an initialization/download route', async () => {
+  it('provides a metadata snapshot and explicit popup connection retry', async () => {
     await initialize();
     await expect(send({ type: 'getNativeModelStatus' }, popupSender)).resolves.toEqual({ status });
     await expect(send({ type: 'connectNativeModel' }, popupSender)).resolves.toEqual({ success: true, status });
     await expect(send({ type: 'retryNativeModel' }, popupSender)).resolves.toEqual({ success: true, status });
     expect(state.engine.retry).toHaveBeenCalledTimes(2);
     expect(state.triggerErrorRetry).toHaveBeenCalledWith(true, true);
+  });
+
+  describe('explicit local engine setup routes', () => {
+    it('reports an unconfigured selection without choosing or starting either engine', async () => {
+      state.selection = { engine: null, revision: 0 };
+      const unconfigured: LocalModelStatus = { state: 'not_configured', message: 'Choose where Bouncer should run.', revision: 1 };
+      state.engine.getStatus.mockResolvedValue(unconfigured);
+      await initialize();
+
+      await expect(send({ type: 'getLocalModelStatus' }, popupSender)).resolves.toEqual({ selection: state.selection, status: unconfigured });
+      expect(state.engine.selectEngine).not.toHaveBeenCalled();
+      expect(state.engine.retry).not.toHaveBeenCalled();
+      expect(state.engine.downloadBrowserModel).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['litertlm', { state: 'needs_download', reason: 'needs_download', message: 'Download browser weights.' }],
+      ['ollama', { state: 'not_connected', reason: 'permission_required', message: 'Connect to Ollama.' }],
+    ] as const)('successfully commits %s while its explicit setup is still required', async (engine, availability) => {
+      await initialize();
+      const setupStatus: LocalModelStatus = { ...availability, revision: 2 };
+      state.engine.selectEngine.mockImplementationOnce(async () => {
+        state.selection = { engine, revision: 2 };
+        return setupStatus;
+      });
+
+      await expect(send({ type: 'selectInferenceEngine', engine }, popupSender)).resolves.toEqual({
+        success: true, selection: { engine, revision: 2 }, status: setupStatus,
+      });
+      expect(state.invalidateEngineWork).toHaveBeenCalledOnce();
+      expect(state.handleEngineChoiceChange).toHaveBeenCalledOnce();
+      expect(state.engine.retry).not.toHaveBeenCalled();
+      expect(state.engine.downloadBrowserModel).not.toHaveBeenCalled();
+    });
+
+    it('retires old pipeline work at receipt while startup and choice persistence are pending', async () => {
+      const startup = deferred();
+      state.migration.mockReturnValueOnce(startup.promise);
+      await import('../../src/background/index');
+      const choice = send({ type: 'selectInferenceEngine', engine: 'litertlm' }, popupSender);
+
+      expect(state.invalidateEngineWork).toHaveBeenCalledOnce();
+      expect(state.engine.selectEngine).not.toHaveBeenCalled();
+      expect(state.handleEngineChoiceChange).not.toHaveBeenCalled();
+      startup.resolve();
+      await expect(choice).resolves.toMatchObject({ success: true, selection: { engine: 'litertlm' } });
+      expect(state.engine.selectEngine).toHaveBeenCalledWith('litertlm');
+      expect(state.handleEngineChoiceChange).toHaveBeenCalledOnce();
+    });
+
+    it.each([
+      { type: 'selectInferenceEngine', engine: 'litertlm' },
+      { type: 'downloadBrowserModel' }, { type: 'cancelBrowserDownload' }, { type: 'deleteBrowserModel' }, { type: 'retryLocalModel' },
+    ] as const)('rejects content-script setup action $type', async message => {
+      await initialize();
+      await expect(send(message)).resolves.toMatchObject({ success: false, error: expect.any(String) });
+      expect(state.engine.selectEngine).not.toHaveBeenCalled();
+      expect(state.engine.downloadBrowserModel).not.toHaveBeenCalled();
+      expect(state.engine.cancelBrowserDownload).not.toHaveBeenCalled();
+      expect(state.engine.deleteBrowserModel).not.toHaveBeenCalled();
+      expect(state.engine.retry).not.toHaveBeenCalled();
+      expect(state.invalidateEngineWork).not.toHaveBeenCalled();
+    });
+
+    it('rejects alternate engines and extra setup fields before changing work ownership', async () => {
+      await initialize();
+      for (const message of [
+        { type: 'selectInferenceEngine', engine: 'auto' },
+        { type: 'selectInferenceEngine', engine: 'litertlm', model: 'different-model' },
+        { type: 'downloadBrowserModel', modelUrl: 'https://external.example/model' },
+        { type: 'getLocalModelStatus', endpoint: 'http://localhost:11434' },
+      ]) {
+        await expect(send(message as ContentToBackgroundMessage, popupSender)).resolves.toMatchObject({ success: false, error: expect.any(String) });
+      }
+      expect(state.engine.selectEngine).not.toHaveBeenCalled();
+      expect(state.engine.downloadBrowserModel).not.toHaveBeenCalled();
+      expect(state.invalidateEngineWork).not.toHaveBeenCalled();
+    });
+
+    it('runs browser setup actions only when explicitly requested and keeps the committed selection', async () => {
+      state.selection = { engine: 'litertlm', revision: 4 };
+      await initialize();
+      const missing: LocalModelStatus = { state: 'needs_download', message: 'Download browser weights.', revision: 2 };
+      state.engine.cancelBrowserDownload.mockResolvedValue(missing);
+      state.engine.deleteBrowserModel.mockResolvedValue(missing);
+
+      await expect(send({ type: 'downloadBrowserModel' }, popupSender)).resolves.toEqual({ success: true, selection: state.selection, status });
+      await expect(send({ type: 'cancelBrowserDownload' }, popupSender)).resolves.toEqual({ success: true, selection: state.selection, status: missing });
+      await expect(send({ type: 'deleteBrowserModel' }, popupSender)).resolves.toEqual({ success: true, selection: state.selection, status: missing });
+      expect(state.engine.downloadBrowserModel).toHaveBeenCalledOnce();
+      expect(state.engine.cancelBrowserDownload).toHaveBeenCalledOnce();
+      expect(state.engine.deleteBrowserModel).toHaveBeenCalledOnce();
+      expect(state.engine.selectEngine).not.toHaveBeenCalled();
+      expect(state.engine.retry).not.toHaveBeenCalled();
+      expect(state.selection).toEqual({ engine: 'litertlm', revision: 4 });
+    });
+
+    it('leaves native permission events inactive while Browser is selected', async () => {
+      state.selection = { engine: 'litertlm', revision: 3 };
+      await initialize();
+      const origins = ['http://127.0.0.1:11434/*'];
+      onPermissionAdded({ origins });
+      onPermissionRemoved({ origins });
+      await send({ type: 'getStats' });
+
+      expect(state.engine.retry).not.toHaveBeenCalled();
+      expect(state.engine.preempt).not.toHaveBeenCalled();
+      expect(state.engine.getStatus).not.toHaveBeenCalled();
+      expect(state.triggerErrorRetry).not.toHaveBeenCalled();
+      expect(state.selection).toEqual({ engine: 'litertlm', revision: 3 });
+    });
+
+    it('requires selected Ollama for native connection but permits explicit recovery while Browser remains selected', async () => {
+      state.selection = { engine: 'litertlm', revision: 3 };
+      await initialize();
+      await expect(send({ type: 'connectNativeModel' }, popupSender)).resolves.toMatchObject({ success: false, error: expect.any(String) });
+      expect(state.engine.retry).not.toHaveBeenCalled();
+
+      await expect(send({ type: 'recoverNativeModel', operatorRestartConfirmed: true }, popupSender)).resolves.toEqual({ success: true, status });
+      expect(state.engine.recoverAfterOperatorRestart).toHaveBeenCalledWith(true);
+      expect(state.engine.selectEngine).not.toHaveBeenCalled();
+      expect(state.selection).toEqual({ engine: 'litertlm', revision: 3 });
+    });
+
+    it.each([
+      { target: 'litertlm-offscreen', type: 'state' },
+      { channel: 'litertlm-progress', type: 'downloadProgress', progress: 50 },
+    ])('does not race the offscreen protocol response %#', async message => {
+      await initialize();
+      const reply = vi.fn();
+      expect(onMessage(message as unknown as ContentToBackgroundMessage, popupSender, reply)).toBe(false);
+      await Promise.resolve();
+      expect(reply).not.toHaveBeenCalled();
+      expect(state.engine.retry).not.toHaveBeenCalled();
+    });
   });
 
   describe('explicit native permission grant completion', () => {
@@ -222,37 +390,48 @@ describe('native background lifecycle and sender boundary', () => {
       chrome.storage.local.remove = vi.fn(async (keys: string | string[]) => {
         for (const key of Array.isArray(keys) ? keys : [keys]) delete stored[key];
       });
-      chrome.permissions.contains = vi.fn(() => {
-        if (holdPermissionCheck) { holdPermissionCheck = false; return permission.promise; }
-        return Promise.resolve(permitted);
-      });
+      chrome.permissions.contains = vi.fn(() => Promise.resolve(permitted));
       const backend: LocalBackend = {
         check: vi.fn(async () => {
-          if (!await chrome.permissions.contains({ origins })) {
+          let permittedAtCheck: boolean;
+          if (holdPermissionCheck) {
+            holdPermissionCheck = false;
+            permittedAtCheck = await permission.promise;
+          } else {
+            permittedAtCheck = await chrome.permissions.contains({ origins });
+          }
+          if (!permittedAtCheck) {
             throw new NativeModelError('permission_required', 'Connect to Ollama to allow local filtering.');
           }
           return { version: '0.40.3', modelDigest: 'a'.repeat(64), resident: false, otherModelResident: false };
         }),
         generate: vi.fn().mockResolvedValue('no'),
       };
-      const engine = new LocalEngine(backend);
+      const browser: BrowserBackend = {
+        getState: vi.fn().mockResolvedValue({ cached: true, loaded: false, downloading: false }),
+        download: vi.fn(), initialize: vi.fn(), generate: vi.fn(), countTokens: vi.fn(), truncateText: vi.fn(),
+        interrupt: vi.fn().mockResolvedValue(undefined), unload: vi.fn().mockResolvedValue(undefined),
+        forceClose: vi.fn().mockResolvedValue(undefined), deleteCache: vi.fn().mockResolvedValue(undefined),
+      };
+      const engine = new LocalEngine(backend, browser);
       const retry = vi.spyOn(engine, 'retry');
       state.engineOverride = engine;
       await import('../../src/background/index');
-      await expect(send({ type: 'getNativeModelStatus' }, popupSender)).resolves.toMatchObject({ status: { state: 'not_connected' } });
+      await expect(send({ type: 'getNativeModelStatus' }, popupSender)).resolves.toMatchObject({ status: { state: withFence ? 'recovery_required' : 'not_connected' } });
       permitted = true;
-      holdPermissionCheck = true;
+      holdPermissionCheck = !withFence;
       onPermissionAdded({ origins });
-      await vi.waitFor(() => expect(backend.check).toHaveBeenCalledOnce());
+      if (withFence) await vi.waitFor(() => expect(retry).toHaveBeenCalledOnce());
+      else await vi.waitFor(() => expect(backend.check).toHaveBeenCalledOnce());
       return {
-        backend, engine, retry, permission, stored, fence,
+        backend, browser, engine, retry, permission, stored, fence,
         revoke: () => { permitted = false; onPermissionRemoved({ origins }); },
         regrant: () => { permitted = true; onPermissionAdded({ origins }); },
       };
     }
 
-    it.each([false, true])('checks fresh metadata after revoked readiness settles (unresolved fence=%s)', async withFence => {
-      const operation = await realDeferredMetadata(withFence);
+    it('checks fresh metadata after revoked readiness settles', async () => {
+      const operation = await realDeferredMetadata();
       operation.revoke();
       operation.regrant();
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -261,18 +440,53 @@ describe('native background lifecycle and sender boundary', () => {
       operation.permission.resolve(false);
       await vi.waitFor(() => expect(operation.backend.check).toHaveBeenCalledTimes(2));
       await vi.waitFor(async () => expect(await operation.engine.getStatus()).toMatchObject({
-        state: withFence ? 'recovery_required' : 'ready',
+        state: 'ready',
       }));
-      if (withFence) {
-        expect(operation.stored.nativeOperationFence).toEqual(operation.fence);
-        expect(chrome.storage.local.remove).not.toHaveBeenCalled();
-        expect(state.triggerErrorRetry).not.toHaveBeenCalled();
-      } else {
-        await vi.waitFor(() => expect(state.triggerErrorRetry).toHaveBeenCalledWith(true, true));
-        expect(state.triggerErrorRetry).toHaveBeenCalledOnce();
-      }
+      await vi.waitFor(() => expect(state.triggerErrorRetry).toHaveBeenCalledWith(true, true));
+      expect(state.triggerErrorRetry).toHaveBeenCalledOnce();
       expect(operation.retry).toHaveBeenCalledTimes(2);
       expect(operation.backend.generate).not.toHaveBeenCalled();
+    });
+
+    it('keeps the native fence global across Browser selection and clears it only through explicit recovery', async () => {
+      const operation = await realDeferredMetadata(true);
+      expect(operation.backend.check).not.toHaveBeenCalled();
+      operation.stored.engineSelection = { engine: 'litertlm', revision: 2 };
+      await operation.engine.syncAllStatuses();
+      // Startup may inspect/close inherited browser work; fence-blocked routes
+      // below must not acquire or warm browser resources.
+      operation.browser.getState.mockClear();
+
+      await expect(send({ type: 'getLocalModelStatus' }, popupSender)).resolves.toMatchObject({
+        selection: { engine: 'litertlm', revision: 2 }, status: { state: 'recovery_required' },
+      });
+      await expect(send({ type: 'retryLocalModel' }, popupSender)).resolves.toMatchObject({
+        success: false, selection: { engine: 'litertlm', revision: 2 }, status: { state: 'recovery_required' },
+      });
+      await expect(send({ type: 'connectNativeModel' }, popupSender)).resolves.toMatchObject({
+        success: true, selection: { engine: 'litertlm', revision: 2 }, status: { state: 'recovery_required' },
+      });
+      await expect(send({ type: 'retryNativeModel' }, popupSender)).resolves.toMatchObject({
+        success: false, error: 'Ollama is not the selected engine.', status: { state: 'recovery_required' },
+      });
+      onPermissionRemoved({ origins });
+      onPermissionAdded({ origins });
+      await send({ type: 'getStats' });
+      expect(operation.backend.check).not.toHaveBeenCalled();
+      expect(operation.browser.getState).not.toHaveBeenCalled();
+      expect(operation.stored.nativeOperationFence).toEqual(operation.fence);
+      expect(chrome.storage.local.remove).not.toHaveBeenCalled();
+
+      await expect(send({ type: 'recoverNativeModel', operatorRestartConfirmed: true }, popupSender)).resolves.toMatchObject({
+        success: true, status: { state: 'ready', engine: 'litertlm', selectionRevision: 2 },
+      });
+      expect(operation.engine.getSelection()).toEqual({ engine: 'litertlm', revision: 2 });
+      expect(operation.backend.check).toHaveBeenCalledOnce();
+      expect(operation.stored.nativeOperationFence).toBeUndefined();
+      expect(operation.backend.generate).not.toHaveBeenCalled();
+      expect(operation.browser.download).not.toHaveBeenCalled();
+      expect(operation.browser.initialize).not.toHaveBeenCalled();
+      expect(operation.browser.generate).not.toHaveBeenCalled();
     });
 
     it('skips a superseded regrant and coalesces only the final revision after old readiness settles', async () => {
@@ -497,8 +711,8 @@ describe('native background lifecycle and sender boundary', () => {
       await expect(oldSuggestion).resolves.toMatchObject({ reasons: [], error: expect.stringContaining('document') });
       await expect(evaluate('new SPA evaluation')).resolves.toMatchObject({ shouldHide: false, reasoning: 'new document queued' });
       await expect(send({ type: 'suggestAnnoyingReasons', post: 'new SPA suggestion', siteId: 'twitter' }))
-        .resolves.toEqual({ reasons: [] });
-      expect(state.captureInferenceRequest.mock.results[1].value.assertCurrent).not.toThrow();
+        .resolves.toEqual({ reasons: [], engine: 'ollama', selectionRevision: 1, classifierFingerprint: 'synthetic-native-fingerprint' });
+      expect(state.captureInferenceRequest.mock.results.at(-1)!.value.assertCurrent).not.toThrow();
       expect(retiredFence.assertCurrent).toThrow('originating X document has changed');
       expect(state.handlePageLoad).toHaveBeenCalledOnce();
       expect(state.scheduleBatch).toHaveBeenCalledOnce();
@@ -643,7 +857,7 @@ describe('native background lifecycle and sender boundary', () => {
       onUpdated(1, { status: 'complete' });
       await vi.waitFor(() => expect(state.setActiveTab).toHaveBeenLastCalledWith(1));
       await expect(send({ type: 'suggestAnnoyingReasons', post: 'fresh owner suggestion', siteId: 'twitter' }))
-        .resolves.toEqual({ reasons: [] });
+        .resolves.toEqual({ reasons: [], engine: 'ollama', selectionRevision: 1, classifierFingerprint: 'synthetic-native-fingerprint' });
       const freshFence = state.captureInferenceRequest.mock.results[0].value as { assertCurrent: () => void };
       duplicatePing.resolve({ alive: true });
       await new Promise(resolve => setTimeout(resolve, 0));
@@ -671,7 +885,7 @@ describe('native background lifecycle and sender boundary', () => {
       await new Promise(resolve => setTimeout(resolve, 0));
       expect(state.setActiveTab).toHaveBeenLastCalledWith(expectedActiveTab);
       await expect(send({ type: 'suggestAnnoyingReasons', post: 'still current unfocused SPA', siteId: 'twitter' }))
-        .resolves.toEqual({ reasons: [] });
+        .resolves.toEqual({ reasons: [], engine: 'ollama', selectionRevision: 1, classifierFingerprint: 'synthetic-native-fingerprint' });
       expect(state.captureInferenceRequest.mock.results[0].value.assertCurrent).not.toThrow();
     });
   });
@@ -680,15 +894,16 @@ describe('native background lifecycle and sender boundary', () => {
     await initialize();
     state.engine.preempt.mockClear();
     state.engine.syncAllStatuses.mockClear();
+    state.engine.getStatus.mockClear();
     onPermissionRemoved({ origins: ['https://unrelated.example/*'] });
     expect(state.engine.preempt).not.toHaveBeenCalled();
     expect(state.engine.syncAllStatuses).not.toHaveBeenCalled();
     onPermissionRemoved({ origins: ['http://127.0.0.1:11434/*'] });
     expect(state.engine.preempt).toHaveBeenCalledOnce();
-    expect(state.engine.syncAllStatuses).toHaveBeenCalledOnce();
+    expect(state.engine.getStatus).toHaveBeenCalledOnce();
     onPermissionAdded({ origins: ['http://127.0.0.1:11434/*'] });
     await vi.waitFor(() => expect(state.engine.retry).toHaveBeenCalledOnce());
-    expect(state.engine.syncAllStatuses).toHaveBeenCalledOnce();
+    expect(state.engine.syncAllStatuses).not.toHaveBeenCalled();
   });
 
   it('ignores removed browser-model keys while preserving a disable verdict boundary', async () => {

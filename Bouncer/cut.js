@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { resolve, dirname, basename } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { generateManifest } from './generate-manifests.mjs';
+import { getLitertlmAssetNames } from './litertlm-assets.mjs';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const BASE_MANIFEST_PATH = resolve(ROOT, 'manifest.base.json');
@@ -14,6 +15,8 @@ const BASE_MANIFEST_PATH = resolve(ROOT, 'manifest.base.json');
 const RELEASE_FILES = [
   'manifest.json',
   'popup.html',
+  'setup.html',
+  'offscreen.html',
   'popup.css',
   'content.css',
   'dompurify.js',
@@ -21,6 +24,9 @@ const RELEASE_FILES = [
   'dist/popup.js',
   'dist/content.js',
   'dist/TwitterAdapter.js',
+  'dist/offscreen.js',
+  'dist/THIRD-PARTY-NOTICES.txt',
+  ...getLitertlmAssetNames().map(name => `dist/litertlm-wasm/${name}`),
   'adapters/twitter/twitter.css',
   'adapters/twitter/fiber-extractor.js',
   'icons/icon16.png',

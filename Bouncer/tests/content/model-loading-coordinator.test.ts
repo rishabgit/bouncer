@@ -1,7 +1,7 @@
 /** @vitest-environment happy-dom */
 import { describe, expect, it, vi } from 'vitest';
 import { createModelLoadingCoordinator, modelStatusView } from '../../src/content/ui.js';
-import type { LocalModelStatus } from '../../src/types.js';
+import type { EngineSelection, LocalModelStatus } from '../../src/types.js';
 
 const status = (state: LocalModelStatus['state'], revision: number): LocalModelStatus => ({ state, revision, message: '' });
 const change = (oldValue: LocalModelStatus, newValue: LocalModelStatus) => ({ nativeModelStatus: { oldValue, newValue } });
@@ -65,6 +65,79 @@ describe('native feed status', () => {
     expect(modelStatusView(status('filtering', 2))).toBeNull();
   });
   it('shows loading without a made-up percentage or duration', () => {
-    expect(modelStatusView(status('loading', 1))?.body).toBe('Loading Gemma for this request…');
+    expect(modelStatusView(status('loading', 1))?.body).toBe('Loading Gemma in Ollama for this request…');
+  });
+});
+
+const selectedStatus = (selection: EngineSelection, state: LocalModelStatus['state'], revision: number): LocalModelStatus => ({
+  ...status(state, revision), engine: selection.engine, selectionRevision: selection.revision,
+});
+
+describe('selected engine status coordination', () => {
+  const native: EngineSelection = { engine: 'ollama', revision: 7 };
+  const browser: EngineSelection = { engine: 'litertlm', revision: 8 };
+
+  it('orders status revisions only inside the selected engine and selection revision', () => {
+    const render = vi.fn();
+    const coordinator = createModelLoadingCoordinator(render, vi.fn());
+    coordinator.finishInitialLoad({ engineSelection: native, localModelStatus: selectedStatus(native, 'ready', 900) });
+    coordinator.handleChanges({ engineSelection: { oldValue: native, newValue: browser }, localModelStatus: {
+      oldValue: selectedStatus(native, 'ready', 900), newValue: selectedStatus(browser, 'needs_download', 1),
+    } });
+    expect(render).toHaveBeenLastCalledWith(selectedStatus(browser, 'needs_download', 1));
+    coordinator.handleChanges({ localModelStatus: { newValue: selectedStatus(native, 'ready', 999) } });
+    coordinator.handleChanges({ nativeModelStatus: { newValue: selectedStatus(native, 'ready', 1000) } });
+    expect(render).toHaveBeenCalledTimes(2);
+    expect(coordinator.getSelection()).toEqual(browser);
+  });
+
+  it('rejects stale initial snapshots and late progress for an earlier choice of the same engine', () => {
+    const render = vi.fn();
+    const coordinator = createModelLoadingCoordinator(render, vi.fn());
+    coordinator.handleChanges({ engineSelection: { oldValue: native, newValue: browser } });
+    coordinator.handleChanges({ localModelStatus: { newValue: selectedStatus(browser, 'downloading', 2) } });
+    coordinator.finishInitialLoad({ engineSelection: native, localModelStatus: selectedStatus(native, 'ready', 500) });
+    expect(render).toHaveBeenLastCalledWith(selectedStatus(browser, 'downloading', 2));
+    const oldBrowser = { engine: 'litertlm', revision: 6 } as const;
+    coordinator.handleChanges({ localModelStatus: { newValue: selectedStatus(oldBrowser, 'ready', 1000) } });
+    expect(render).toHaveBeenCalledOnce();
+  });
+
+  it('never revives an older engine event over a snapshot with a newer committed choice', () => {
+    const render = vi.fn();
+    const processPosts = vi.fn();
+    const coordinator = createModelLoadingCoordinator(render, processPosts);
+    coordinator.handleChanges({ engineSelection: { newValue: native }, localModelStatus: { newValue: selectedStatus(native, 'ready', 1000) } });
+    coordinator.finishInitialLoad({ engineSelection: browser, localModelStatus: selectedStatus(browser, 'needs_download', 1) });
+    expect(render).toHaveBeenLastCalledWith(selectedStatus(browser, 'needs_download', 1));
+    expect(processPosts).not.toHaveBeenCalled();
+  });
+
+  it('reprocesses once after a selected download recovers, including a raced snapshot', () => {
+    const processPosts = vi.fn();
+    const coordinator = createModelLoadingCoordinator(vi.fn(), processPosts);
+    const changes = { localModelStatus: { oldValue: selectedStatus(browser, 'needs_download', 1), newValue: selectedStatus(browser, 'ready', 2) } };
+    coordinator.handleChanges(changes);
+    coordinator.handleChanges(changes);
+    coordinator.finishInitialLoad({ engineSelection: browser, localModelStatus: selectedStatus(browser, 'ready', 2) });
+    coordinator.handleChanges(changes);
+    expect(processPosts).toHaveBeenCalledOnce();
+  });
+
+  it('does not accept unscoped native fixtures once there is an explicit choice', () => {
+    const render = vi.fn();
+    const coordinator = createModelLoadingCoordinator(render, vi.fn());
+    coordinator.finishInitialLoad({ engineSelection: browser, localModelStatus: selectedStatus(browser, 'needs_download', 1) });
+    coordinator.handleChanges({ localModelStatus: { newValue: status('ready', 999) } });
+    expect(render).toHaveBeenCalledOnce();
+  });
+
+  it('shows preparing, switching and measured download progress distinctly', () => {
+    const download = { ...selectedStatus(browser, 'downloading', 1), receivedBytes: 1_000_000_000, totalBytes: 2_000_000_000 };
+    expect(modelStatusView(download, browser)?.body).toContain('50%');
+    expect(modelStatusView(selectedStatus(browser, 'loading', 2), browser)?.body).toContain('Preparing');
+    expect(modelStatusView(selectedStatus(browser, 'switching', 3), browser)?.body).toContain('previous request');
+    expect(modelStatusView(selectedStatus(browser, 'ready', 4), browser)).toBeNull();
+    expect(modelStatusView(selectedStatus(native, 'blocked', 999), browser)).toBeNull();
   });
 });

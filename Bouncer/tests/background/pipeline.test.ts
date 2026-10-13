@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
+import type { EngineSelection } from '../../src/types';
 
 const localEngineState = vi.hoisted(() => ({
   maintaining: false, epoch: 0, countTokens: vi.fn(), truncateText: vi.fn(),
+  selection: { engine: 'ollama', revision: 1 } as EngineSelection,
 }));
 
 // Mock Chrome APIs used by pipeline.js and its imports
@@ -21,15 +23,24 @@ vi.mock('../../src/shared/models.js', async importOriginal => {
     ACCEPTED_NATIVE_MANIFEST_DIGEST: 'a'.repeat(64),
     PRIMARY_LOCAL_MODEL: { ...original.PRIMARY_LOCAL_MODEL, manifestDigest: 'a'.repeat(64) },
     NATIVE_CLASSIFIER_FINGERPRINT: 'synthetic-native-fingerprint',
+    BROWSER_CLASSIFIER_FINGERPRINT: 'synthetic-browser-fingerprint',
   };
 });
 
-vi.mock('../../src/background/local-model.js', () => {
+vi.mock('../../src/background/local-model.js', async importOriginal => {
+  const { LocalAvailabilityError } = await importOriginal<typeof import('../../src/background/local-model')>();
+  const models = await import('../../src/shared/models');
   const generate = vi.fn();
   return {
+  LocalAvailabilityError,
   MODEL_MAINTENANCE_ERROR: 'Local model maintenance in progress',
   callLocalInference: vi.fn(),
   localEngine: {
+    getSelection: () => ({ ...localEngineState.selection }),
+    getSelectedModel: () => localEngineState.selection.engine === 'ollama' ? models.PRIMARY_LOCAL_MODEL
+      : localEngineState.selection.engine === 'litertlm' ? models.BROWSER_MODEL : null,
+    getClassifierFingerprint: () => localEngineState.selection.engine === 'ollama' ? models.NATIVE_CLASSIFIER_FINGERPRINT
+      : localEngineState.selection.engine === 'litertlm' ? models.BROWSER_CLASSIFIER_FINGERPRINT : null,
     isInitializing: () => false,
     isModelLoaded: () => false,
     isMaintaining: () => localEngineState.maintaining,
@@ -80,21 +91,37 @@ import {
   triggerErrorRetry,
   localErrorRetryDelay,
   handleFilterPackChange,
+  handleEngineChoiceChange,
+  invalidateEngineWork,
   clearEvaluationCache,
   evaluationCache,
   saveCache,
   readCachedEvaluation,
   requiresLocalInference, SUGGESTION_FLOW_DEADLINE_MS,
 } from '../../src/background/pipeline.js';
-import { localEngine, callLocalInference } from '../../src/background/local-model.js';
+import { localEngine, callLocalInference, LocalAvailabilityError } from '../../src/background/local-model.js';
 import type { PendingEvaluation } from '../../src/types.js';
 import { NativeModelError } from '../../src/shared/ollama-contract';
 import { buildSuggestionSystemPrompt } from '../../src/shared/suggestions';
-import { NATIVE_CONTEXT_TOKENS, NATIVE_SUGGESTION_TOKENS } from '../../src/shared/models';
+import { BROWSER_MODEL_ID, NATIVE_CONTEXT_TOKENS, NATIVE_SUGGESTION_TOKENS } from '../../src/shared/models';
 import { NATIVE_SUGGESTION_BUDGET_POSTS } from '../fixtures/native-suggestion-budget-posts';
+import { generateCacheKey } from '../../src/shared/utils';
 
 const mockCallLocalInference = vi.mocked(callLocalInference);
 const E2B_MODEL_ID = 'bouncer-gemma4-e2b-qat-text:v1';
+
+type InferenceResult = Awaited<ReturnType<typeof callLocalInference>>;
+function inferenceResult(overrides: Partial<InferenceResult> = {}): InferenceResult {
+  const engine = localEngineState.selection.engine ?? 'ollama';
+  return {
+    shouldHide: false, reasoning: 'automatic verdict', category: null, matches: [],
+    rawResponse: 'no', inferenceTime: 0, malformed: false,
+    engine, selectionRevision: localEngineState.selection.revision,
+    modelId: engine === 'ollama' ? E2B_MODEL_ID : BROWSER_MODEL_ID,
+    classifierFingerprint: engine === 'ollama' ? 'synthetic-native-fingerprint' : 'synthetic-browser-fingerprint',
+    ...overrides,
+  };
+}
 
 describe('requiresLocalInference', () => {
   it('does not require native inference when filtering is disabled or no filters exist', () => {
@@ -106,6 +133,7 @@ describe('requiresLocalInference', () => {
 
 beforeEach(() => {
   localEngineState.maintaining = false;
+  localEngineState.selection = { engine: 'ollama', revision: 1 };
   localEngineState.countTokens.mockImplementation((text: string) => Promise.resolve(Math.ceil(text.length / 3)));
   localEngineState.truncateText.mockImplementation((text: string, budget: number) => {
     let bounded = text.slice(0, budget * 3);
@@ -439,11 +467,11 @@ describe('processBatch re-queue on inference queue cleared', () => {
       .mockImplementationOnce(() => new Promise((_resolve, reject) => {
         rejectOldInference = reject;
       }))
-      .mockResolvedValueOnce({
+      .mockResolvedValueOnce(inferenceResult({
         shouldHide: false,
         reasoning: 'new tab result',
         rawResponse: 'no',
-      });
+      }));
     const oldResolve = vi.fn();
     const newResolve = vi.fn();
     enqueuePost(TAB_ID, makePendingItem({
@@ -486,11 +514,11 @@ describe('processBatch re-queue on inference queue cleared', () => {
       }
       return Promise.resolve({ positions: {} });
     });
-    mockCallLocalInference.mockResolvedValue({
+    mockCallLocalInference.mockResolvedValue(inferenceResult({
       shouldHide: false,
       reasoning: 'new tab result',
       rawResponse: 'no',
-    });
+    }));
 
     const oldResolve = vi.fn();
     enqueuePost(TAB_ID, makePendingItem({
@@ -521,7 +549,7 @@ describe('processBatch re-queue on inference queue cleared', () => {
       { text: 'new active tab post' },
       expect.anything(),
       expect.anything(),
-      E2B_MODEL_ID,
+      undefined,
       expect.anything(),
     );
     expect(oldResolve).not.toHaveBeenCalled();
@@ -541,7 +569,7 @@ describe('processBatch re-queue on inference queue cleared', () => {
           releaseOldStart = () => {
             try {
               options?.onInferenceStart?.();
-              resolve({ shouldHide: false, reasoning: 'stale result', rawResponse: 'no' });
+              resolve(inferenceResult({ shouldHide: false, reasoning: 'stale result', rawResponse: 'no' }));
             } catch (error) {
               reject(error);
             }
@@ -549,7 +577,7 @@ describe('processBatch re-queue on inference queue cleared', () => {
         });
       }
       options?.onInferenceStart?.();
-      return Promise.resolve({ shouldHide: false, reasoning: 'new tab result', rawResponse: 'no' });
+      return Promise.resolve(inferenceResult({ shouldHide: false, reasoning: 'new tab result', rawResponse: 'no' }));
     });
 
     const oldResolve = vi.fn();
@@ -591,11 +619,11 @@ describe('processBatch re-queue on inference queue cleared', () => {
       .mockResolvedValue({
                 descriptions_twitter: ['Sports'],
       });
-    mockCallLocalInference.mockResolvedValue({
+    mockCallLocalInference.mockResolvedValue(inferenceResult({
       shouldHide: false,
       reasoning: 'no match',
       rawResponse: 'no',
-    });
+    }));
     const resolve = vi.fn();
     enqueuePost(TAB_ID, makePendingItem({
       post: 'retry after storage recovery',
@@ -862,7 +890,7 @@ describe('filter cache invalidation', () => {
           try {
             options?.onInferenceStart?.();
             decodeStarted = true;
-            resolve({ shouldHide: true, reasoning: 'stale filter result', rawResponse: 'yes' });
+            resolve(inferenceResult({ shouldHide: true, reasoning: 'stale filter result', rawResponse: 'yes' }));
           } catch (error) {
             reject(error);
           }
@@ -919,11 +947,11 @@ describe('filter cache invalidation', () => {
   });
 
   it('returns retry instead of a stale verdict when filters change during stats storage', async () => {
-    mockCallLocalInference.mockResolvedValue({
+    mockCallLocalInference.mockResolvedValue(inferenceResult({
       shouldHide: true,
       reasoning: 'matched old filter',
       rawResponse: 'yes',
-    });
+    }));
     let releaseStatsWrite!: () => void;
     (globalThis.chrome.storage.local.set as Mock).mockImplementation(
       (items: Record<string, unknown>) => {
@@ -958,11 +986,11 @@ describe('filter cache invalidation', () => {
   });
 
   it('publishes a successful verdict when only stats persistence fails', async () => {
-    mockCallLocalInference.mockResolvedValue({
+    mockCallLocalInference.mockResolvedValue(inferenceResult({
       shouldHide: true,
       reasoning: 'healthy model verdict',
       rawResponse: 'yes',
-    });
+    }));
     const statsFailure = new Error('stats storage unavailable');
     (globalThis.chrome.storage.local.set as Mock).mockImplementation(
       (items: Record<string, unknown>) => (
@@ -1034,8 +1062,8 @@ describe('suggestAnnoyingReasons', () => {
     const delayed = <T,>(value: T, delay: number): Promise<T> => new Promise(resolve => setTimeout(() => resolve(value), delay));
     vi.mocked(localEngine.generate).mockImplementationOnce(() => delayed('phrase one\nphrase two\nphrase three\nphrase four', 6000));
     mockCallLocalInference
-      .mockImplementationOnce(() => delayed({ shouldHide: false, reasoning: 'bad batch', malformed: true, rawResponse: 'partial' }, 8000))
-      .mockImplementation(() => delayed({ shouldHide: false, reasoning: 'valid no', matches: [], rawResponse: 'no' }, 8000));
+      .mockImplementationOnce(() => delayed(inferenceResult({ shouldHide: false, reasoning: 'bad batch', malformed: true, rawResponse: 'partial' }), 8000))
+      .mockImplementation(() => delayed(inferenceResult({ shouldHide: false, reasoning: 'valid no', matches: [], rawResponse: 'no' }), 8000));
     const suggestion = suggestAnnoyingReasons('slow synthetic post', 'twitter');
     const rejected = expect(suggestion).rejects.toThrow('Suggestions took too long');
     await vi.advanceTimersByTimeAsync(SUGGESTION_FLOW_DEADLINE_MS);
@@ -1088,12 +1116,12 @@ describe('suggestAnnoyingReasons', () => {
     vi.mocked(localEngine.generate).mockResolvedValue(
       '1. **rage bait**\n- `smug dunking`\n• "crypto"\n4) _hostile tone_',
     );
-    mockCallLocalInference.mockResolvedValue({
+    mockCallLocalInference.mockResolvedValue(inferenceResult({
       shouldHide: true,
       reasoning: 'matched',
       rawResponse: '| yes | no | yes | no',
       matches: ['rage bait', 'crypto'],
-    });
+    }));
 
     const result = await suggestAnnoyingReasons('post', 'twitter', 7);
 
@@ -1134,8 +1162,8 @@ describe('suggestAnnoyingReasons', () => {
   it('falls back to per-phrase validation when the batched Gemma row is malformed', async () => {
     vi.mocked(localEngine.generate).mockResolvedValue('rage bait\nsmug dunking\ncrypto');
     mockCallLocalInference
-      .mockResolvedValueOnce({ shouldHide: false, reasoning: 'bad', rawResponse: '| yes | no', malformed: true })
-      .mockResolvedValue({ shouldHide: true, reasoning: 'matched', rawResponse: 'yes' });
+      .mockResolvedValueOnce(inferenceResult({ shouldHide: false, reasoning: 'bad', rawResponse: '| yes | no', malformed: true }))
+      .mockResolvedValue(inferenceResult({ shouldHide: true, reasoning: 'matched', rawResponse: 'yes' }));
 
     const result = await suggestAnnoyingReasons('post', 'twitter');
 
@@ -1156,7 +1184,7 @@ describe('suggestAnnoyingReasons', () => {
   it('propagates an operational error from per-phrase malformed-batch fallback', async () => {
     vi.mocked(localEngine.generate).mockResolvedValue('rage bait\nsmug dunking\ncrypto');
     mockCallLocalInference
-      .mockResolvedValueOnce({ shouldHide: false, reasoning: 'bad', rawResponse: '| yes | no', malformed: true })
+      .mockResolvedValueOnce(inferenceResult({ shouldHide: false, reasoning: 'bad', rawResponse: '| yes | no', malformed: true }))
       .mockRejectedValueOnce(new Error('Local model maintenance in progress'));
 
     await expect(suggestAnnoyingReasons('post', 'twitter'))
@@ -1178,18 +1206,158 @@ describe('suggestAnnoyingReasons', () => {
 });
 
 
-describe('native automatic cache identity', () => {
+describe('engine choice integration in the pipeline', () => {
+  const TAB_ID = 78;
+
+  beforeEach(async () => {
+    clearTabQueue(TAB_ID);
+    setActiveTab(null);
+    await clearErrorState();
+    vi.clearAllMocks();
+    initPipeline(new Set([TAB_ID]));
+    vi.mocked(chrome.storage.local.get).mockResolvedValue({ descriptions_twitter: ['Sports'] });
+    vi.mocked(chrome.storage.local.set).mockResolvedValue(undefined);
+    vi.mocked(chrome.tabs.sendMessage).mockResolvedValue({ positions: {} });
+  });
+
+  afterEach(() => {
+    clearTabQueue(TAB_ID);
+    setActiveTab(null);
+    vi.useRealTimers();
+  });
+
+  it('retires queued requests synchronously before the new preference has committed', () => {
+    const resolve = vi.fn();
+    enqueuePost(TAB_ID, makePendingItem({ post: 'queued old engine post', cacheKey: 'queued-old-engine', resolve }));
+
+    invalidateEngineWork();
+
+    expect(resolve).toHaveBeenCalledWith(expect.objectContaining({ retry: true }));
+    expect(isKeyPending(TAB_ID, 'queued-old-engine')).toBe(false);
+    expect(localEngineState.selection).toEqual({ engine: 'ollama', revision: 1 });
+    expect(mockCallLocalInference).not.toHaveBeenCalled();
+  });
+
+  it('drops an old engine verdict that settles after receipt-time retirement', async () => {
+    let finishOld!: (value: InferenceResult) => void;
+    mockCallLocalInference.mockImplementationOnce(() => new Promise(resolve => { finishOld = resolve; }));
+    const resolve = vi.fn();
+    enqueuePost(TAB_ID, makePendingItem({
+      post: 'native verdict arriving after the switch', cacheKey: 'late-native-verdict', resolve, tabId: TAB_ID,
+    }));
+    setActiveTab(TAB_ID);
+    await vi.waitFor(() => expect(mockCallLocalInference).toHaveBeenCalledOnce());
+
+    localEngine.preempt();
+    invalidateEngineWork();
+    localEngineState.selection = { engine: 'litertlm', revision: 2 };
+    finishOld(inferenceResult({
+      shouldHide: true, reasoning: 'retired native result', engine: 'ollama',
+      modelId: E2B_MODEL_ID, selectionRevision: 1, classifierFingerprint: 'synthetic-native-fingerprint',
+    }));
+
+    await vi.waitFor(() => expect(resolve).toHaveBeenCalledWith(expect.objectContaining({ retry: true })));
+    expect(resolve).not.toHaveBeenCalledWith(expect.objectContaining({ shouldHide: true }));
+    expect(evaluationCache.has(generateCacheKey('native verdict arriving after the switch'))).toBe(false);
+    expect(chrome.tabs.sendMessage).not.toHaveBeenCalledWith(TAB_ID,
+      expect.objectContaining({ type: 'detectorResponse', shouldHide: true }));
+  });
+
+  it('uses the selected browser model and persists its actual classifier identity', async () => {
+    localEngineState.selection = { engine: 'litertlm', revision: 5 };
+    mockCallLocalInference.mockResolvedValueOnce(inferenceResult({ shouldHide: true, reasoning: 'browser verdict', matches: ['Sports'] }));
+    const resolve = vi.fn();
+    enqueuePost(TAB_ID, makePendingItem({ post: 'browser sports post', cacheKey: 'browser-verdict', resolve, tabId: TAB_ID }));
+    setActiveTab(TAB_ID);
+
+    await vi.waitFor(() => expect(resolve).toHaveBeenCalledWith(expect.objectContaining({ shouldHide: true, reasoning: 'browser verdict' })));
+    expect(mockCallLocalInference).toHaveBeenCalledWith(
+      { text: 'browser sports post' }, ['Sports'], expect.objectContaining({ backend: 'litertlm' }), undefined, expect.anything(),
+    );
+    expect(evaluationCache.get(generateCacheKey('browser sports post'))).toMatchObject({
+      model: BROWSER_MODEL_ID, classifierFingerprint: 'synthetic-browser-fingerprint',
+    });
+  });
+
+  it('clears automatic engine decisions while preserving settled manual hide and restore', async () => {
+    evaluationCache.set('native-automatic', { shouldHide: true, reasoning: 'native match', classifierFingerprint: 'synthetic-native-fingerprint' });
+    evaluationCache.set('browser-automatic', { shouldHide: false, reasoning: 'browser allow', classifierFingerprint: 'synthetic-browser-fingerprint' });
+    evaluationCache.set('manual-hide', { shouldHide: true, reasoning: 'hidden by you', userOverride: true });
+    evaluationCache.set('manual-restore', { shouldHide: false, reasoning: 'restored by you', userOverride: true });
+    localEngineState.selection = { engine: 'litertlm', revision: 2 };
+
+    await handleEngineChoiceChange();
+
+    expect([...evaluationCache.keys()]).toEqual(['manual-hide', 'manual-restore']);
+    expect(await readCachedEvaluation('manual-hide')).toMatchObject({ shouldHide: true, userOverride: true });
+    expect(await readCachedEvaluation('manual-restore')).toMatchObject({ shouldHide: false, userOverride: true });
+    expect(chrome.storage.local.set).toHaveBeenCalledWith({ evaluationCache: {
+      'manual-hide': { shouldHide: true, reasoning: 'hidden by you', userOverride: true },
+      'manual-restore': { shouldHide: false, reasoning: 'restored by you', userOverride: true },
+    } });
+  });
+
+  it.each(['not_configured', 'needs_download', 'downloading', 'switching'] as const)(
+    'does not consume the runtime retry budget or start an automatic setup loop for %s', async reason => {
+      vi.useFakeTimers();
+      const message = `Explicit setup required: ${reason}`;
+      mockCallLocalInference.mockRejectedValueOnce(new LocalAvailabilityError(reason, message));
+      const resolve = vi.fn();
+      enqueuePost(TAB_ID, makePendingItem({ post: `waiting for ${reason}`, cacheKey: `availability-${reason}`, resolve, tabId: TAB_ID }));
+      setActiveTab(TAB_ID);
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(resolve).toHaveBeenCalledWith({ error: 'local_model', reasoning: message, availabilityReason: reason });
+      expect(errorState).toEqual({ type: null, count: 0 });
+      expect(localEngine.markTerminalError).not.toHaveBeenCalled();
+      expect(localErrorRetryDelay(new LocalAvailabilityError(reason, message), 0)).toBeNull();
+      await vi.advanceTimersByTimeAsync(30_000);
+      expect(mockCallLocalInference).toHaveBeenCalledOnce();
+      expect(chrome.tabs.sendMessage).not.toHaveBeenCalledWith(TAB_ID, { type: 'reEvaluateErrors' });
+      expect(evaluationCache.size).toBe(0);
+    },
+  );
+});
+
+describe('selected automatic cache identity', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
   it('accepts only the current fingerprint and always accepts settled manual decisions', async () => {
     evaluationCache.set('legacy', { shouldHide: false, reasoning: 'old negative' });
     evaluationCache.set('stale', { shouldHide: false, reasoning: 'stale negative', classifierFingerprint: 'old-native' });
-    evaluationCache.set('malformed', { shouldHide: false, reasoning: 'invalid', malformed: true, classifierFingerprint: 'synthetic-native-fingerprint' });
-    evaluationCache.set('current', { shouldHide: false, reasoning: 'current', classifierFingerprint: 'synthetic-native-fingerprint' });
+    evaluationCache.set('malformed', { shouldHide: false, reasoning: 'invalid', malformed: true, engine: 'ollama', selectionRevision: 1, classifierFingerprint: 'synthetic-native-fingerprint' });
+    evaluationCache.set('current', { shouldHide: false, reasoning: 'current', engine: 'ollama', selectionRevision: 1, classifierFingerprint: 'synthetic-native-fingerprint' });
     evaluationCache.set('manual', { shouldHide: true, reasoning: 'manual hide', userOverride: true });
     expect(await readCachedEvaluation('legacy')).toBeUndefined();
     expect(await readCachedEvaluation('stale')).toBeUndefined();
     expect(await readCachedEvaluation('malformed')).toBeUndefined();
     expect(await readCachedEvaluation('current')).toMatchObject({ shouldHide: false });
     expect(await readCachedEvaluation('manual')).toMatchObject({ userOverride: true, shouldHide: true });
+  });
+
+  it('accepts only the committed engine fingerprint and keeps manual decisions usable without a choice', async () => {
+    evaluationCache.set('native', { shouldHide: true, reasoning: 'native match', engine: 'ollama', selectionRevision: 1, classifierFingerprint: 'synthetic-native-fingerprint' });
+    evaluationCache.set('browser', { shouldHide: false, reasoning: 'browser allow', engine: 'litertlm', selectionRevision: 2, classifierFingerprint: 'synthetic-browser-fingerprint' });
+    evaluationCache.set('manual', { shouldHide: false, reasoning: 'restored by you', userOverride: true });
+    localEngineState.selection = { engine: 'litertlm', revision: 2 };
+    expect(await readCachedEvaluation('native')).toBeUndefined();
+    expect(await readCachedEvaluation('browser')).toMatchObject({ shouldHide: false });
+    localEngineState.selection = { engine: null, revision: 3 };
+    expect(await readCachedEvaluation('browser')).toBeUndefined();
+    expect(await readCachedEvaluation('manual')).toMatchObject({ shouldHide: false, userOverride: true });
+    expect(mockCallLocalInference).not.toHaveBeenCalled();
+  });
+
+  it('rejects an old revision even after switching back to the same classifier artifact', async () => {
+    evaluationCache.set('prior-native-revision', {
+      shouldHide: true, reasoning: 'old native match', engine: 'ollama', selectionRevision: 1,
+      classifierFingerprint: 'synthetic-native-fingerprint',
+    });
+    localEngineState.selection = { engine: 'litertlm', revision: 2 };
+    expect(await readCachedEvaluation('prior-native-revision')).toBeUndefined();
+    localEngineState.selection = { engine: 'ollama', revision: 3 };
+    expect(await readCachedEvaluation('prior-native-revision')).toBeUndefined();
+    expect(mockCallLocalInference).not.toHaveBeenCalled();
   });
 
   it('dispatches a malformed classification as an error without negative cache or successful stats', async () => {
@@ -1199,7 +1367,7 @@ describe('native automatic cache identity', () => {
     vi.clearAllMocks();
     (globalThis.chrome.storage.local.get as Mock).mockResolvedValue({ descriptions_twitter: ['Sports'] });
     (globalThis.chrome.tabs.sendMessage as Mock).mockResolvedValue({ positions: {} });
-    mockCallLocalInference.mockResolvedValueOnce({ shouldHide: false, reasoning: 'bad output', malformed: true, rawResponse: 'partial' });
+    mockCallLocalInference.mockResolvedValueOnce(inferenceResult({ shouldHide: false, reasoning: 'bad output', malformed: true, rawResponse: 'partial' }));
     const resolve = vi.fn();
     enqueuePost(77, makePendingItem({ post: 'malformed post', cacheKey: 'malformed post', resolve, tabId: 77 }));
     setActiveTab(77);

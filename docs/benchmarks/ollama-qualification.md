@@ -100,9 +100,9 @@ The extension gates above remain unqualified and the PR remains draft.
 
 ## Lifecycle failure regressions — 2026-10-14
 
-The revised source passes **952 extension tests across 36 files**, ESLint,
+The revised source passes **953 extension tests across 36 files**, ESLint,
 TypeScript and development/production builds on Node 24.18.1. Production
-staging contains **24 allowlisted files /43,829,007 bytes**, excluding diagnostics
+staging contains **24 allowlisted files /43,829,211 bytes**, excluding diagnostics
 and model weights. The portable cache/runtime/prompt modules exercised above
 remain byte-identical. The unchanged operator scripts retain their separately
 recorded 38 pure checks.
@@ -121,7 +121,9 @@ release, cleanup failure spanning a switch, and native recovery precedence.
 Retry returns lazy cached readiness without Browser download or initialization.
 A rejected status read while owned initialization is still pending no longer
 creates a persistent Retry fence after initialization succeeds; actual
-initialization failure remains actionable. The shared UI identifies Browser
+initialization failure remains actionable. If initialization and owned host
+closure both reject, cleanup quarantine preserves uncertainty and stops polling;
+that regression also fails on the preceding source. The shared UI identifies Browser
 cleanup accurately under either saved choice rather than diagnosing an Ollama
 connection failure.
 

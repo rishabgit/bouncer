@@ -499,6 +499,47 @@ describe('owned browser lifecycle', () => {
     expect(chrome.storage.local.get).not.toHaveBeenCalled();
   });
 
+  it('quarantines failed initialization when observed physical work cannot be proved closed', async () => {
+    vi.useFakeTimers();
+    await chooseBrowser(true);
+    const selected = structuredClone(data.engineSelection);
+    const started = deferred<void>();
+    const initialized = deferred<void>();
+    vi.mocked(browser.initialize).mockImplementation(async () => {
+      state.initializing = true;
+      started.resolve();
+      await initialized.promise;
+    });
+    const generation = engine.generate(TEST_MESSAGES, 64);
+    const failed = expect(generation).rejects.toThrow('Synthetic owned close rejection');
+    await started.promise;
+    expect(await engine.getStatus()).toMatchObject({ state: 'loading' });
+    vi.mocked(browser.forceClose).mockRejectedValue(new Error('Synthetic owned close rejection'));
+    initialized.reject(new BrowserModelError('webgpu_unavailable', 'Synthetic actual initializer failure'));
+    await failed;
+    expect(await engine.getStatus()).toMatchObject({ state: 'error', reason: 'browser_cleanup_failed', engine: 'litertlm' });
+    expect(state.initializing).toBe(true);
+    expect(browser.forceClose).toHaveBeenCalledTimes(1);
+    const fence = { operationId: 'preserved-initialization-cleanup-fence', malformed: true };
+    data.nativeOperationFence = structuredClone(fence);
+    expect(await engine.getStatus()).toMatchObject({ state: 'recovery_required' });
+    expect(data.browserModelStatus).toMatchObject({ state: 'error', reason: 'browser_cleanup_failed' });
+    vi.mocked(chrome.storage.local.get).mockClear();
+    vi.mocked(browser.getState).mockClear();
+    await vi.advanceTimersByTimeAsync(180_000);
+    expect(chrome.storage.local.get).not.toHaveBeenCalled();
+    expect(browser.getState).not.toHaveBeenCalled();
+    expect(browser.forceClose).toHaveBeenCalledTimes(1);
+    expect(browser.initialize).toHaveBeenCalledTimes(1);
+    expect(browser.generate).not.toHaveBeenCalled();
+    expect(browser.download).not.toHaveBeenCalled();
+    expect(native.check).not.toHaveBeenCalled();
+    expect(native.generate).not.toHaveBeenCalled();
+    expect(data.engineSelection).toEqual(selected);
+    expect(data.nativeOperationFence).toEqual(fence);
+    vi.mocked(browser.forceClose).mockImplementation(async () => { state.initializing = false; });
+  });
+
   it('does not let a deferred popup snapshot undo completed initialization or its idle release', async () => {
     vi.useFakeTimers();
     await chooseBrowser(true);

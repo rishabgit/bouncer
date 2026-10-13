@@ -819,7 +819,11 @@ export class LocalEngine {
       // Close directly: the general stop routine waits for setup.promise and
       // calling it from this catch would wait on itself. No replacement setup
       // is permitted until this captured driver's cleanup has completed.
-      await this._browser.forceClose();
+      const lifecycle = this._browserLifecycleGeneration;
+      try { await this._browser.forceClose(); } catch (cleanupError) {
+        this._markBrowserCleanupFailure(lifecycle, selection);
+        throw cleanupError;
+      }
       this._clearBrowserPhysicalState();
       if (controller.signal.aborted || this._epoch !== epoch || !sameSelection(selection, this._selection)) {
         throw new NativeModelError('inference_preempted', 'Inference preempted');

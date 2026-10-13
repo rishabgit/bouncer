@@ -9,6 +9,7 @@ The recommendation is a starting point, not a saved choice or fallback rule.
 | Scenario | What happens | Your action |
 |---|---|---|
 | Fresh or ambiguous profile | No engine is committed; Browser is recommended. Automatic filtering waits. | Choose a card, then its explicit Use or Download action. |
+| Saved choice or status cannot be read | An unknown choice is shown as unavailable; an already known choice is retained. A failed read does not mean no choice was saved. | **Check status** reads readiness without loading either model. Follow the extension-reload guidance if the background reports an older API. |
 | Upgrade with a valid earlier Browser preference | Browser remains selected; compatible fixed E2B cached weights are preserved. Old automatic verdicts without the current fingerprint are re-evaluated. | Use the selected engine; download explicitly if weights were removed. |
 | Upgrade after completed native cutover | Ollama remains selected. A valid newer explicit choice takes precedence over older markers. | Keep it or explicitly choose Browser. |
 | Preview the other card | The preview differs from the committed engine. No transfer, GPU initialization or native readiness starts. | Use its explicit action to commit it. |

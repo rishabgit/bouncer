@@ -9,6 +9,7 @@ export const OLLAMA_PERMISSION = 'http://127.0.0.1:11434/*';
 type ModelAction = 'downloadBrowserModel' | 'cancelBrowserDownload' | 'deleteBrowserModel' | 'retryLocalModel'
   | 'connectNativeModel' | 'retryNativeModel' | 'recoverNativeModel';
 interface StatusResponse { selection?: EngineSelection; status?: LocalModelStatus; success?: boolean; error?: string }
+type StatusReadFailure = 'outdated' | 'startup' | 'unavailable';
 
 /** An event received during an async read always wins over that read. */
 export class SnapshotRevision {
@@ -28,7 +29,7 @@ let selectedStatus: LocalModelStatus = { state: 'not_configured', engine: null, 
 let browserStatus: LocalModelStatus | undefined;
 let nativeStatus: LocalModelStatus | undefined;
 let nativeFence = false;
-let nativePermission = false;
+let nativePermission: boolean | null = null;
 let preview: InferenceEngineId = 'litertlm';
 let previewTouched = false;
 let checking = true;
@@ -36,6 +37,9 @@ let choosing = false;
 const pendingActions = new Map<ModelAction, EngineSelection>();
 const actionRevisions = { browser: 0, native: 0 };
 let actionError: string | null = null;
+let statusReadFailure: StatusReadFailure | null = null;
+let resourceReadFailed = false;
+let permissionReadFailed = false;
 let initialized = false;
 
 if (typeof document !== 'undefined') {
@@ -96,8 +100,9 @@ function acceptSelection(next: EngineSelection): boolean {
 }
 
 function acceptStatus(status: LocalModelStatus): boolean {
-  if (!statusMatchesSelection(status, selection) || status.revision < selectedStatus.revision) return false;
+  if (!selectionKnown || !statusMatchesSelection(status, selection) || status.revision < selectedStatus.revision) return false;
   selectedStatus = status;
+  statusReadFailure = null;
   return true;
 }
 
@@ -113,17 +118,17 @@ function setupStorageListener(): void {
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== 'local') return;
     const changedSelection = changes.engineSelection?.newValue;
-    if (changes.engineSelection || changes.localModelStatus || changes.nativeOperationFence) statusRevision.markEvent();
     if (changes.browserModelStatus || changes.nativeModelStatus || changes.nativeOperationFence) resourceRevision.markEvent();
-    if (isSelection(changedSelection)) acceptSelection(changedSelection);
+    const acceptedSelection = isSelection(changedSelection) && acceptSelection(changedSelection);
+    if (acceptedSelection) statusRevision.markEvent();
     if (changes.browserModelStatus) browserStatus = changes.browserModelStatus.newValue as LocalModelStatus | undefined;
     if (changes.nativeModelStatus) nativeStatus = changes.nativeModelStatus.newValue as LocalModelStatus | undefined;
     if (changes.nativeOperationFence) nativeFence = changes.nativeOperationFence.newValue !== undefined;
     const nextStatus = changes.localModelStatus?.newValue as LocalModelStatus | undefined;
-    if (nextStatus && acceptStatus(nextStatus)) checking = false;
+    if (nextStatus && acceptStatus(nextStatus)) { statusRevision.markEvent(); checking = false; }
     else if (nextStatus && (nextStatus.selectionRevision ?? -1) > selection.revision) void refreshStatus();
-    if (changes.engineSelection && !nextStatus) void refreshStatus();
-    if (changes.nativeOperationFence) void refreshStatus();
+    if (acceptedSelection && !nextStatus) void refreshStatus();
+    if (changes.nativeOperationFence) { statusRevision.markEvent(); void refreshStatus(); }
     if (changes.filterReplies) {
       filterRepliesRevision.markEvent();
       byId<HTMLInputElement>('enableFilterReplies').checked = changes.filterReplies.newValue !== false;
@@ -133,7 +138,7 @@ function setupStorageListener(): void {
 }
 
 function setupPermissionListener(): void {
-  const update = () => { permissionRevision.markEvent(); statusRevision.markEvent(); void refreshStatus(); };
+  const update = () => { nativePermission = null; permissionRevision.markEvent(); statusRevision.markEvent(); void refreshStatus(); };
   chrome.permissions.onRemoved.addListener(update);
   chrome.permissions.onAdded.addListener(update);
 }
@@ -145,32 +150,74 @@ async function loadFilterReplies(): Promise<void> {
 }
 
 async function refreshStatus(): Promise<void> {
+  // A newer explicit read, as well as a storage event, retires earlier replies.
+  statusRevision.markEvent();
+  permissionRevision.markEvent();
+  resourceRevision.markEvent();
   const snapshot = statusRevision.beginSnapshot();
   const permissionSnapshot = permissionRevision.beginSnapshot();
   const resourceSnapshot = resourceRevision.beginSnapshot();
-  try {
-    // The status route reads the chosen engine; it never downloads, initializes a GPU or probes an inactive engine.
-    const [response, data] = await Promise.all([
-      chrome.runtime.sendMessage<{ type: 'getLocalModelStatus' }, StatusResponse | undefined>({ type: 'getLocalModelStatus' }),
-      getStorage(['browserModelStatus', 'nativeModelStatus', 'nativeOperationFence']),
-      chrome.permissions.contains({ origins: [OLLAMA_PERMISSION] }).then(granted => {
-        if (permissionRevision.isCurrent(permissionSnapshot)) { nativePermission = granted; render(); }
-      }),
-    ]);
-    if (!statusRevision.isCurrent(snapshot)) return;
-    if (resourceRevision.isCurrent(resourceSnapshot)) {
-      browserStatus = data.browserModelStatus;
-      nativeStatus = data.nativeModelStatus;
-      nativeFence = data.nativeOperationFence !== undefined;
-    }
-    if (response?.error || !acceptResponse(response)) throw new Error('Status unavailable');
-    actionError = null;
-  } catch {
-    if (!statusRevision.isCurrent(snapshot)) return;
-    checking = false;
-    actionError = 'Couldn’t read the saved AI status. Reopen settings to try again. Your filters and manual controls are still available.';
-  }
+  checking = true;
   render();
+  await Promise.all([
+    (async () => {
+      try {
+        // This route reads status; it never downloads, loads a GPU or probes an inactive engine.
+        const response = await chrome.runtime.sendMessage<{ type: 'getLocalModelStatus' }, StatusResponse | undefined>({ type: 'getLocalModelStatus' });
+        if (!statusRevision.isCurrent(snapshot)) return;
+        if (response?.error || !acceptResponse(response)) {
+          statusReadFailure = classifyStatusReadFailure(response);
+          checking = false;
+        } else actionError = null;
+      } catch {
+        if (!statusRevision.isCurrent(snapshot)) return;
+        checking = false;
+        statusReadFailure = 'unavailable';
+      }
+      render();
+    })(),
+    (async () => {
+      try {
+        const data = await getStorage(['browserModelStatus', 'nativeModelStatus', 'nativeOperationFence']);
+        if (!resourceRevision.isCurrent(resourceSnapshot)) return;
+        browserStatus = data.browserModelStatus;
+        nativeStatus = data.nativeModelStatus;
+        nativeFence = data.nativeOperationFence !== undefined;
+        resourceReadFailed = false;
+      } catch {
+        if (!resourceRevision.isCurrent(resourceSnapshot)) return;
+        resourceReadFailed = true;
+      }
+      render();
+    })(),
+    (async () => {
+      try {
+        const granted = await chrome.permissions.contains({ origins: [OLLAMA_PERMISSION] });
+        if (!permissionRevision.isCurrent(permissionSnapshot)) return;
+        nativePermission = granted;
+        permissionReadFailed = false;
+      } catch {
+        if (!permissionRevision.isCurrent(permissionSnapshot)) return;
+        nativePermission = null;
+        permissionReadFailed = true;
+      }
+      render();
+    })(),
+  ]);
+}
+
+function classifyStatusReadFailure(response?: StatusResponse): StatusReadFailure {
+  if (response?.error === 'Unknown message type: getLocalModelStatus') return 'outdated';
+  if (response?.success === false && typeof response.error === 'string' && response.error) return 'startup';
+  return 'unavailable';
+}
+
+function statusReadFailureText(failure: StatusReadFailure): string {
+  switch (failure) {
+    case 'outdated': return 'Bouncer’s background is out of date. Reload Bouncer normally in chrome://extensions, then reopen settings. Your saved choice and filters will be kept.';
+    case 'startup': return 'Bouncer’s background could not finish starting. Check status to try again. If this continues, reload Bouncer normally in chrome://extensions and reopen settings. Your saved choice and filters will be kept.';
+    case 'unavailable': return 'Bouncer’s AI status is unavailable. Check status to try again. Your saved choice, filters and manual controls are unchanged.';
+  }
 }
 
 function setupControlListeners(): void {
@@ -182,6 +229,7 @@ function setupControlListeners(): void {
     });
   }
   byId<HTMLButtonElement>('useEngineButton').addEventListener('click', () => { void chooseEngine(); });
+  byId<HTMLButtonElement>('checkLocalModelStatus').addEventListener('click', () => { if (!checking) void refreshStatus(); });
   byId<HTMLInputElement>('enableFilterReplies').addEventListener('change', event => {
     const checkbox = event.currentTarget as HTMLInputElement;
     const requested = checkbox.checked;
@@ -209,7 +257,7 @@ function setupControlListeners(): void {
 }
 
 async function chooseEngine(): Promise<void> {
-  if (choosing || selection.engine === preview) return;
+  if (!selectionKnown || choosing || checking || selection.engine === preview) return;
   const requested = preview;
   const previous = { ...selection };
   const downloadExplicitlyRequested = requested === 'litertlm' && browserStatus?.state === 'needs_download';
@@ -241,7 +289,7 @@ async function chooseEngine(): Promise<void> {
 }
 
 async function runAction(type: ModelAction): Promise<void> {
-  if (pendingActions.has(type)) return;
+  if (!selectionKnown || statusReadFailure || pendingActions.has(type)) return;
   const context = { ...selection };
   const resource = type.endsWith('NativeModel') ? 'native' : 'browser';
   const actionRevision = ++actionRevisions[resource];
@@ -257,6 +305,8 @@ async function runAction(type: ModelAction): Promise<void> {
       denied = !granted;
       if (!granted) throw new Error('Permission denied');
       nativePermission = true;
+      permissionRevision.markEvent();
+      permissionReadFailed = false;
     }
     if (!stillOwned()) return;
     const response: StatusResponse | undefined = await chrome.runtime.sendMessage(type === 'recoverNativeModel' ? { type, operatorRestartConfirmed: true } : { type });
@@ -290,16 +340,20 @@ function render(): void {
   byId<HTMLInputElement>('previewNativeEngine').checked = preview === 'ollama';
   const use = byId<HTMLButtonElement>('useEngineButton');
   use.hidden = selection.engine === preview;
-  use.disabled = choosing || checking;
+  use.disabled = !selectionKnown || choosing || checking;
   use.textContent = choosing ? 'Saving choice…' : preview === 'ollama' ? 'Use Ollama'
     : browserStatus?.state === 'needs_download' ? 'Download & use browser AI' : 'Use browser AI';
-  setText('engineSelectionText', selection.engine ? `${engineName(selection.engine)} selected.` : 'No option selected yet.');
-  byId<HTMLElement>('engineChoiceHint').textContent = preview === selection.engine
+  setText('engineSelectionText', !selectionKnown ? checking ? 'Reading saved choice…' : 'Saved choice unavailable.'
+    : selection.engine ? `${engineName(selection.engine)} selected.` : 'No option selected yet.');
+  byId<HTMLElement>('engineChoiceHint').textContent = !selectionKnown
+    ? 'You can preview either option. Check status before changing your saved choice.' : preview === selection.engine
     ? 'This is your saved choice. You can preview the other option at any time.'
     : 'Previewing an option does not change your saved choice. Use the button to save it.';
   byId<HTMLElement>('activeEngineTitle').textContent = selection.engine ? `${engineName(selection.engine)} · automatic filtering` : 'Automatic filtering';
-  let view: EngineStatusView = checking ? { badge: 'Checking…', text: 'Reading your saved choice…' } : engineStatusView(selectedStatus, selection);
-  if (!checking && selection.engine === 'ollama' && !nativePermission && !recoveryNeeded()) {
+  let view: EngineStatusView = checking ? { badge: 'Checking…', text: 'Reading your saved AI status…' }
+    : statusReadFailure || !selectionKnown ? { badge: 'Unavailable', tone: 'error', text: selectionKnown ? 'Your saved choice is shown above. Its current AI status could not be checked.' : 'Your saved choice could not be read. Check status before choosing an option.' }
+      : engineStatusView(selectedStatus, selection);
+  if (!checking && !statusReadFailure && selection.engine === 'ollama' && nativePermission === false && !recoveryNeeded()) {
     view = nativeStatusView({ state: 'not_connected', message: '', revision: 0 });
   }
   const badge = byId<HTMLElement>('localModelStatusBadge');
@@ -307,35 +361,47 @@ function render(): void {
   badge.classList.remove('busy', 'ready', 'error');
   if (view.tone) badge.classList.add(view.tone);
   setText('nativeStatusText', view.text);
-  const globalRecovery = !checking && selection.engine !== null && recoveryNeeded();
+  const globalRecovery = !checking && !statusReadFailure && selectionKnown && selection.engine !== null && recoveryNeeded();
   const browser = selection.engine === 'litertlm';
   setAction('downloadBrowserModel', browser && view.action === 'download');
   setAction('cancelBrowserDownload', browser && view.action === 'cancel');
   setAction('retryLocalModel', browser && view.action === 'retry' && !globalRecovery);
-  setAction('connectNativeModel', (!browser && !!view.connect) || (globalRecovery && !nativePermission));
+  setAction('connectNativeModel', (!browser && !!view.connect) || (globalRecovery && nativePermission !== true));
   setAction('retryNativeModel', !globalRecovery && !browser && !!view.retry);
-  setAction('recoverNativeModel', globalRecovery && nativePermission && recoveryQualified());
+  setAction('recoverNativeModel', globalRecovery && nativePermission === true && recoveryQualified());
+  const checkStatus = byId<HTMLButtonElement>('checkLocalModelStatus');
+  checkStatus.hidden = !statusReadFailure && !resourceReadFailed && !permissionReadFailed;
+  checkStatus.disabled = checking;
+  checkStatus.textContent = checking ? 'Checking…' : 'Check status';
   byId<HTMLElement>('nativeRecoveryNotice').hidden = !globalRecovery;
-  byId<HTMLElement>('nativeRecoveryText').textContent = !nativePermission
+  byId<HTMLElement>('nativeRecoveryText').textContent = nativePermission === null
+    ? 'Connection permission could not be checked. Check status again, or Connect to confirm local access before recovery.' : !nativePermission
     ? 'Connect to Ollama to complete recovery. Connection permission does not change your chosen engine or confirm a restart.'
     : 'Complete the full Ollama restart in Setup help, then confirm recovery. Retry alone does not clear this pause.';
   const help = view.details || view.help || '';
   byId<HTMLElement>('nativeSetupHelp').hidden = !help;
   byId<HTMLElement>('nativeSetupHelpText').textContent = help;
-  byId<HTMLElement>('browserDownloadProgress').hidden = !browser || selectedStatus.state !== 'downloading';
+  byId<HTMLElement>('browserDownloadProgress').hidden = checking || !!statusReadFailure || !browser || selectedStatus.state !== 'downloading';
   const meter = byId<HTMLProgressElement>('browserDownloadMeter');
   if (view.progress === undefined) meter.removeAttribute('value');
   else meter.value = view.progress;
   byId<HTMLElement>('browserDownloadProgressText').textContent = view.progressText || '';
   const knownBrowserFiles = (browser && ['ready', 'loading', 'filtering', 'downloading', 'canceling', 'paused', 'error', 'blocked'].includes(selectedStatus.state))
     || !!browserStatus && ['ready', 'loading', 'filtering', 'downloading', 'canceling', 'paused', 'error', 'blocked'].includes(browserStatus.state);
-  byId<HTMLElement>('browserStorageControls').hidden = !knownBrowserFiles;
+  byId<HTMLElement>('browserStorageControls').hidden = !selectionKnown || !!statusReadFailure || !knownBrowserFiles;
   const deleting = actionPending('deleteBrowserModel');
   byId<HTMLButtonElement>('deleteBrowserModel').disabled = deleting || (browser && selectedStatus.state === 'canceling');
   byId<HTMLButtonElement>('deleteBrowserModel').textContent = deleting ? 'Deleting browser model…' : 'Delete downloaded browser model';
   const error = byId<HTMLElement>('localModelActionError');
-  error.hidden = !actionError;
-  error.textContent = actionError || '';
+  const errorText = statusReadFailure ? statusReadFailureText(statusReadFailure) : actionError;
+  error.hidden = !errorText;
+  error.textContent = errorText || '';
+  const warning = byId<HTMLElement>('localModelStatusWarning');
+  warning.hidden = !!statusReadFailure || (!resourceReadFailed && !permissionReadFailed);
+  setText('localModelStatusWarning', resourceReadFailed && permissionReadFailed
+    ? 'Some model details and connection permissions could not be checked. Check status to try again.'
+    : permissionReadFailed ? 'Connection permission could not be checked. Check status to try again.'
+      : resourceReadFailed ? 'Some model details are unavailable. Check status to try again.' : '');
 }
 
 function setAction(type: ModelAction, visible: boolean): void {

@@ -262,6 +262,14 @@ button:disabled {
   font-size: 12px;
 }
 
+.local-model-status-warning {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
 .filter-replies-toggle {
   padding-top: 2px;
 }

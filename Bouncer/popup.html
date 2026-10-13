@@ -27,8 +27,8 @@
         </label>
       </fieldset>
       <p id="engineChoiceHint" class="hint">Previewing an option does not change your saved choice.</p>
-      <button id="useEngineButton" class="local-model-connect-btn">Use browser AI</button>
-      <p id="engineSelectionText" class="selection-text" aria-live="polite">No option selected yet.</p>
+      <button id="useEngineButton" class="local-model-connect-btn" disabled>Use browser AI</button>
+      <p id="engineSelectionText" class="selection-text" aria-live="polite">Reading saved choice…</p>
       <div class="local-model-header">
         <h3 id="activeEngineTitle" class="active-engine-title">Automatic filtering</h3>
         <span id="localModelStatusBadge" class="status-badge" aria-live="polite">Checking…</span>
@@ -39,6 +39,7 @@
         <p id="browserDownloadProgressText" class="hint"></p>
       </div>
       <div class="local-model-actions">
+        <button id="checkLocalModelStatus" class="local-model-retry-btn" hidden>Check status</button>
         <button id="downloadBrowserModel" class="local-model-connect-btn" hidden>Download browser model</button>
         <button id="cancelBrowserDownload" class="local-model-retry-btn" hidden>Cancel</button>
         <button id="retryLocalModel" class="local-model-retry-btn" hidden>Retry browser AI</button>
@@ -57,6 +58,7 @@
         <p class="hint">Removes only browser model files. Keeps your choice, filters and manual decisions.</p>
       </div>
       <p id="localModelActionError" class="local-model-action-error" role="alert" hidden></p>
+      <p id="localModelStatusWarning" class="hint local-model-status-warning" role="status" hidden></p>
       <p class="hint local-model-no-image-warning"><strong>Text only.</strong> Images and videos are judged by their written text.</p>
     </section>
     <section>

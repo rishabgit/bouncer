@@ -31,9 +31,9 @@ and [operator setup and recovery](../models.md).
 
 ## Dual-engine source checks — 2026-10-13
 
-The integrated source passes 918 extension tests across 36 files, ESLint and
+The integrated source passes 931 extension tests across 36 files, ESLint and
 TypeScript, and development/production builds on Node 24.18.1. Production
-staging contains 24 allowlisted files /43,818,178 bytes, including bundled
+staging contains 24 allowlisted files /43,822,304 bytes, including bundled
 LiteRT runners and license notices, with development diagnostics excluded.
 The unchanged native operator scripts separately passed 38 pure checks.
 

@@ -133,6 +133,183 @@ describe('explicit local engine choice', () => {
   });
 });
 
+describe('unavailable saved status', () => {
+  it('shows the reported old-worker failure as unknown choice and blocks preference writes', async () => {
+    data.nativeModelStatus = { state: 'ready', revision: 2, message: '' };
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue({ error: 'Unknown message type: getLocalModelStatus' });
+    await open();
+    expect(byId('engineSelectionText').textContent).toBe('Saved choice unavailable.');
+    expect(byId('localModelStatusBadge').textContent).toBe('Unavailable');
+    expect(byId<HTMLButtonElement>('useEngineButton').disabled).toBe(true);
+    expect(byId('localModelActionError').textContent).toContain('background is out of date');
+    expect(byId('localModelActionError').textContent).toContain('Reload Bouncer normally');
+    expect(document.body.textContent).not.toContain('Unknown message type');
+    expect(byId('checkLocalModelStatus').hidden).toBe(false);
+    expect(byId<HTMLInputElement>('enableFilterReplies').disabled).toBe(false);
+    preview('ollama');
+    byId('useEngineButton').click();
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledExactlyOnceWith({ type: 'getLocalModelStatus' });
+    expect(chrome.permissions.request).not.toHaveBeenCalled();
+    expect(chrome.storage.local.set).not.toHaveBeenCalled();
+  });
+
+  it.each(['no response', 'transport rejection'] as const)('uses safe unavailable guidance for %s without assuming an outdated worker', async failure => {
+    if (failure === 'no response') vi.mocked(chrome.runtime.sendMessage).mockResolvedValue(undefined);
+    else vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('Synthetic private path /Users/owner/private-model-details'));
+    await open();
+    expect(byId('engineSelectionText').textContent).toBe('Saved choice unavailable.');
+    expect(byId('localModelStatusBadge').textContent).toBe('Unavailable');
+    expect(byId('localModelActionError').textContent).toContain('AI status is unavailable');
+    expect(byId('localModelActionError').textContent).not.toContain('out of date');
+    expect(document.body.textContent).not.toContain('/Users/owner');
+    expect(byId<HTMLButtonElement>('useEngineButton').disabled).toBe(true);
+  });
+
+  it('maps a real worker error envelope to fixed startup guidance without exposing diagnostics', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValue({ success: false, error: 'Engine choice migration verification failed: synthetic /Users/owner/private-data' });
+    await open();
+    expect(byId('localModelActionError').textContent).toContain('background could not finish starting');
+    expect(document.body.textContent).not.toContain('migration verification');
+    expect(document.body.textContent).not.toContain('/Users/owner');
+    expect(byId('engineSelectionText').textContent).toBe('Saved choice unavailable.');
+    expect(chrome.storage.local.set).not.toHaveBeenCalled();
+  });
+
+  it('Check status recovers the authoritative native choice without setup, permission requests or preference writes', async () => {
+    selection = { engine: 'ollama', revision: 0 };
+    status = current('ready');
+    granted = true;
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValueOnce({ error: 'Unknown message type: getLocalModelStatus' });
+    await open();
+    byId('checkLocalModelStatus').click();
+    await flush();
+    expect(byId('engineSelectionText').textContent).toBe('Ollama selected.');
+    expect(byId('localModelStatusBadge').textContent).toBe('Ready');
+    expect(byId('localModelActionError').hidden).toBe(true);
+    expect(byId('checkLocalModelStatus').hidden).toBe(true);
+    expect(vi.mocked(chrome.runtime.sendMessage).mock.calls.map(call => call[0])).toEqual([
+      { type: 'getLocalModelStatus' }, { type: 'getLocalModelStatus' },
+    ]);
+    expect(chrome.permissions.request).not.toHaveBeenCalled();
+    expect(chrome.storage.local.set).not.toHaveBeenCalled();
+  });
+
+  it('disables only Check status during its own pending read and ignores repeat clicks', async () => {
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValueOnce(undefined);
+    await open();
+    let resolve!: (response: unknown) => void;
+    vi.mocked(chrome.runtime.sendMessage).mockImplementation(() => new Promise(done => { resolve = done; }));
+    byId('checkLocalModelStatus').click();
+    byId('checkLocalModelStatus').click();
+    expect(byId<HTMLButtonElement>('checkLocalModelStatus').disabled).toBe(true);
+    expect(byId<HTMLInputElement>('enableFilterReplies').disabled).toBe(false);
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledTimes(2);
+    resolve({ selection, status });
+    await flush();
+    expect(byId('localModelStatusBadge').textContent).toBe('Choose an option');
+    expect(byId('engineSelectionText').textContent).toBe('No option selected yet.');
+    expect(byId<HTMLButtonElement>('useEngineButton').disabled).toBe(false);
+  });
+
+  it.each(['resource', 'permission', 'both'] as const)('retains valid native choice/status when the auxiliary %s read fails', async failure => {
+    selection = { engine: 'ollama', revision: 0 };
+    status = current('ready');
+    granted = true;
+    if (failure !== 'permission') {
+      vi.mocked(chrome.storage.local.get).mockImplementation(async keys => {
+        if (Array.isArray(keys) && keys.includes('browserModelStatus')) throw new Error('Synthetic private resource diagnostic');
+        return { ...data };
+      });
+    }
+    if (failure !== 'resource') vi.mocked(chrome.permissions.contains).mockRejectedValue(new Error('Synthetic private permission diagnostic'));
+    await open();
+    expect(byId('engineSelectionText').textContent).toBe('Ollama selected.');
+    expect(byId('localModelStatusBadge').textContent).toBe('Ready');
+    expect(byId('connectNativeModel').hidden).toBe(true);
+    expect(byId('localModelActionError').hidden).toBe(true);
+    expect(byId('localModelStatusWarning').hidden).toBe(false);
+    expect(byId('checkLocalModelStatus').hidden).toBe(false);
+    expect(document.body.textContent).not.toContain('Synthetic private');
+    expect(chrome.permissions.request).not.toHaveBeenCalled();
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledExactlyOnceWith({ type: 'getLocalModelStatus' });
+  });
+
+  it('requires explicit Connect rather than assuming recovery permission after a failed permission check', async () => {
+    selection = { engine: 'litertlm', revision: 3 };
+    status = current('recovery_required', { recoveryQualified: true });
+    vi.mocked(chrome.permissions.contains).mockRejectedValue(new Error('Synthetic check failure'));
+    await open();
+    expect(byId('connectNativeModel').hidden).toBe(false);
+    expect(byId('recoverNativeModel').hidden).toBe(true);
+    expect(byId('nativeRecoveryText').textContent).toContain('permission could not be checked');
+    byId('recoverNativeModel').click();
+    expect(window.confirm).not.toHaveBeenCalled();
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledExactlyOnceWith({ type: 'getLocalModelStatus' });
+    expect(chrome.permissions.request).not.toHaveBeenCalled();
+  });
+
+  it('preserves a known choice and manual settings when a later background read fails', async () => {
+    selection = { engine: 'ollama', revision: 1 };
+    status = current('ready');
+    granted = true;
+    await open();
+    vi.mocked(chrome.runtime.sendMessage).mockRejectedValue(new Error('Synthetic transport failure'));
+    vi.mocked(chrome.permissions.onAdded.addListener).mock.calls.at(-1)![0]({ origins: ['http://127.0.0.1:11434/*'] });
+    await flush();
+    expect(byId('engineSelectionText').textContent).toBe('Ollama selected.');
+    expect(byId('localModelStatusBadge').textContent).toBe('Unavailable');
+    expect(byId('checkLocalModelStatus').hidden).toBe(false);
+    expect(byId<HTMLInputElement>('enableFilterReplies').disabled).toBe(false);
+    expect(chrome.storage.local.set).not.toHaveBeenCalled();
+  });
+
+  it('lets an authoritative event beat a late failed status reply', async () => {
+    granted = true;
+    let resolve!: (response: unknown) => void;
+    vi.mocked(chrome.runtime.sendMessage).mockImplementation(() => new Promise(done => { resolve = done; }));
+    const opening = open();
+    await flush();
+    event({
+      engineSelection: { newValue: { engine: 'ollama', revision: 0 } },
+      localModelStatus: { newValue: { state: 'ready', engine: 'ollama', selectionRevision: 0, revision: 2, message: '' } },
+    });
+    resolve({ success: false, error: 'Synthetic stale startup failure' });
+    await opening;
+    expect(byId('engineSelectionText').textContent).toBe('Ollama selected.');
+    expect(byId('localModelStatusBadge').textContent).toBe('Ready');
+    expect(byId('localModelActionError').hidden).toBe(true);
+  });
+
+  it('rejects old auxiliary failures after a newer successful Check status', async () => {
+    selection = { engine: 'ollama', revision: 0 };
+    status = current('ready');
+    granted = true;
+    let rejectResource!: (error: Error) => void;
+    let rejectPermission!: (error: Error) => void;
+    let resourceReads = 0;
+    vi.mocked(chrome.storage.local.get).mockImplementation(async keys => {
+      if (Array.isArray(keys) && keys.includes('browserModelStatus') && resourceReads++ === 0) {
+        return new Promise((_, reject) => { rejectResource = reject; });
+      }
+      return { ...data };
+    });
+    vi.mocked(chrome.permissions.contains).mockImplementationOnce(() => new Promise((_, reject) => { rejectPermission = reject; }));
+    vi.mocked(chrome.runtime.sendMessage).mockResolvedValueOnce({ error: 'Unknown message type: getLocalModelStatus' });
+    const opening = open();
+    await flush();
+    byId('checkLocalModelStatus').click();
+    await flush();
+    rejectResource(new Error('Synthetic old resource failure'));
+    rejectPermission(new Error('Synthetic old permission failure'));
+    await opening;
+    expect(byId('engineSelectionText').textContent).toBe('Ollama selected.');
+    expect(byId('localModelStatusBadge').textContent).toBe('Ready');
+    expect(byId('localModelStatusWarning').hidden).toBe(true);
+    expect(byId('checkLocalModelStatus').hidden).toBe(true);
+    expect(byId('connectNativeModel').hidden).toBe(true);
+  });
+});
+
 describe('selected engine status ownership', () => {
   it.each(['litertlm', 'ollama'] as const)('keeps an authoritative no-choice revision zero ahead of a conflicting %s event', async engine => {
     await open();

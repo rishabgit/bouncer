@@ -29,6 +29,7 @@ The recommendation is a starting point, not a saved choice or fallback rule.
 | Browser worker recreated during a download | The chosen Browser download continues; its progress and completion are reconciled only while active. | Wait or Cancel. Choosing Ollama stops the inherited transfer. |
 | Browser worker recreated during GPU work | Bouncer closes the orphaned owned GPU host and retains downloaded files. | The next eligible request reloads locally; no replacement download starts. |
 | A request arrives as Browser releases idle memory | The request waits for cleanup, then loads the saved model. | Continue normally; idle teardown does not require Retry. |
+| Browser resource cleanup fails | Bouncer preserves the uncertain host state and stops resident-only polling. Automatic generation through either choice waits; manual controls and Retry remain usable after worker recreation. | **Retry** attempts owned cleanup before resuming the saved choice. It does not download or preload Browser AI. A native restart-recovery block still takes precedence. |
 | One minute idle | Browser releases its runtime and retains weights. Ollama requests one-minute retention; other clients can extend its shared residency. | The next real request loads again as needed. |
 | Ollama has no connection permission | No post is sent to the native service. Permission is optional and exact loopback only. | With Ollama selected, **Connect to Ollama** and allow the local connection. |
 | Native permission changes while Browser is selected | Browser keeps its selected work; the permission event does not probe Ollama or preempt Browser. | No action unless using explicit native recovery. |
@@ -75,9 +76,31 @@ Historical LiteRT normal-page tests measured the fixed E2B artifact and core
 0.17.0, and dated native tests measured the fixed QAT artifact. Their quality
 and timing results are bounded manual evidence, not a guarantee of identical
 answers, universal speed or energy savings. The native replay corpus is not
-published. New engine choice, streaming integrity and integrated offscreen
-switching/idle behavior remain unqualified in actual Chrome until recorded in
-the [qualification report](benchmarks/ollama-qualification.md).
+published.
+
+A 2026-10-14 ordinary-page component smoke in Chrome 155 passed a
+complete fixed-artifact download with streaming size/SHA-256 verification,
+cancellation/retry, saved-cache reload and real WebGPU initialization. Three
+synthetic cases produced the expected rows in two runs. Reinitialization also
+succeeded while page CSP blocked external connections, with same-origin
+localhost runtime/report endpoints still available. This establishes
+cache-only component operation, not system-offline or extension behavior.
+
+Cold component initialization took about 20 seconds, including saved-byte
+reverification. Historical cached startup around 1.3 seconds does not predict
+this path. Explicit SDK unload reported an unloaded runtime; memory reclamation
+and the extension's one-minute idle timer were not measured.
+
+Source regressions cover rejected idle cleanup, repeated close failures after
+worker recreation, explicit cleanup Retry, and a status-read failure while
+owned initialization remains pending. They do not establish that those failures
+occurred in actual Chrome, or qualify the extension's lifecycle.
+
+Extension-origin CSP/full download, offscreen GPU lifecycle, engine switching,
+manual/suggestion ownership, 60-second idle release, worker recreation, fresh
+native worker metadata POST and subsequent normal-login startup remain
+unqualified. See the separate component results and draft gates in the
+[qualification report](benchmarks/ollama-qualification.md).
 
 See [fixed artifacts and setup](models.md) for sizes, hashes, licenses and the
 optional Ollama preparation, startup, upgrade/removal and recovery recipes.

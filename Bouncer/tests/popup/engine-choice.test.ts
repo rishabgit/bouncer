@@ -522,6 +522,32 @@ describe('storage and native recovery', () => {
 });
 
 describe('shared browser copy', () => {
+  it.each([['litertlm', true], ['litertlm', false], ['ollama', true], ['ollama', false]] as const)('offers cleanup Retry for saved %s with native permission %s without changing choice or diagnosing an Ollama outage', async (engine, permissionGranted) => {
+    selection = { engine, revision: 3 };
+    status = current('blocked', { reason: 'browser_cleanup_failed', message: 'Internal host diagnostic' });
+    granted = permissionGranted;
+    await open();
+    expect(byId('localModelStatusBadge').textContent).toBe('Cleanup needed');
+    expect(byId('nativeStatusText').textContent).toContain('releasing its resources');
+    expect(byId('nativeStatusText').textContent).not.toContain('reach Ollama');
+    expect(byId('nativeStatusText').textContent).not.toContain('Internal host diagnostic');
+    const action = engine === 'litertlm' ? 'retryLocalModel' : 'retryNativeModel';
+    expect(byId(action).hidden).toBe(false);
+    byId(action).click();
+    await flush();
+    expect(chrome.runtime.sendMessage).toHaveBeenCalledWith({ type: action });
+    expect(selection).toEqual({ engine, revision: 3 });
+    expect(chrome.permissions.request).not.toHaveBeenCalled();
+    expect(chrome.storage.local.set).not.toHaveBeenCalled();
+    expect(chrome.runtime.sendMessage).not.toHaveBeenCalledWith(expect.objectContaining({ type: 'selectInferenceEngine' }));
+    expect(chrome.runtime.sendMessage).not.toHaveBeenCalledWith({ type: 'downloadBrowserModel' });
+  });
+  it.each(['litertlm', 'ollama'] as const)('keeps native restart recovery ahead of cleanup Retry for %s', engine => {
+    const view = engineStatusView({ state: 'recovery_required', engine, selectionRevision: 3, revision: 1, message: '', reason: 'recovery_required', recoveryQualified: true }, { engine, revision: 3 });
+    expect(view.action).toBe('recover');
+    expect(view.retry).toBe(false);
+    expect(view.badge).toBe('Recovery needed');
+  });
   it('uses real byte progress and separates verification from GPU preparation', () => {
     const browser = { engine: 'litertlm' as const, selectionRevision: 1, revision: 1, message: '' };
     expect(engineStatusView({ ...browser, state: 'downloading', progress: 80 }).progress).toBeUndefined();

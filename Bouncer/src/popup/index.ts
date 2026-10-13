@@ -353,7 +353,9 @@ function render(): void {
   let view: EngineStatusView = checking ? { badge: 'Checking…', text: 'Reading your saved AI status…' }
     : statusReadFailure || !selectionKnown ? { badge: 'Unavailable', tone: 'error', text: selectionKnown ? 'Your saved choice is shown above. Its current AI status could not be checked.' : 'Your saved choice could not be read. Check status before choosing an option.' }
       : engineStatusView(selectedStatus, selection);
-  if (!checking && !statusReadFailure && selection.engine === 'ollama' && nativePermission === false && !recoveryNeeded()) {
+  const cleanupNeeded = statusMatchesSelection(selectedStatus, selection)
+    && (selectedStatus.state === 'error' || selectedStatus.state === 'blocked') && selectedStatus.reason === 'browser_cleanup_failed';
+  if (!checking && !statusReadFailure && selection.engine === 'ollama' && nativePermission === false && !recoveryNeeded() && !cleanupNeeded) {
     view = nativeStatusView({ state: 'not_connected', message: '', revision: 0 });
   }
   const badge = byId<HTMLElement>('localModelStatusBadge');

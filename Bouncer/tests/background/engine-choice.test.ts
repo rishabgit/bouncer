@@ -723,6 +723,296 @@ describe('owned browser lifecycle', () => {
     expect(browser.initialize).not.toHaveBeenCalled();
   });
 
+  it('quarantines rejected idle cleanup at 60 seconds without heartbeat or retry loops through 180 seconds', async () => {
+    vi.useFakeTimers();
+    await chooseBrowser(true);
+    await engine.generate(TEST_MESSAGES, 64);
+    const selection = structuredClone(data.engineSelection);
+    vi.mocked(browser.unload).mockRejectedValue(new Error('Synthetic unload rejection'));
+    vi.mocked(browser.forceClose).mockRejectedValue(new Error('Synthetic owned close rejection'));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(await engine.getStatus()).toMatchObject({ state: 'error', reason: 'browser_cleanup_failed', engine: 'litertlm' });
+    expect(state.loaded).toBe(true);
+    expect(state.cached).toBe(true);
+    expect(browser.unload).toHaveBeenCalledTimes(1);
+    expect(browser.forceClose).toHaveBeenCalledTimes(1);
+    await expect(engine.generate(TEST_MESSAGES, 64)).rejects.toMatchObject({ reason: 'browser_failed' });
+    const fence = { operationId: 'preserved-native-uncertainty', malformed: true };
+    data.nativeOperationFence = structuredClone(fence);
+    expect(await engine.getStatus()).toMatchObject({ state: 'recovery_required' });
+    expect(data.browserModelStatus).toMatchObject({ state: 'error', reason: 'browser_cleanup_failed' });
+    vi.mocked(chrome.storage.local.get).mockClear();
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(chrome.storage.local.get).not.toHaveBeenCalled();
+    expect(browser.unload).toHaveBeenCalledTimes(1);
+    expect(browser.forceClose).toHaveBeenCalledTimes(1);
+    expect(browser.initialize).toHaveBeenCalledTimes(1);
+    expect(browser.generate).toHaveBeenCalledTimes(1);
+    expect(browser.download).not.toHaveBeenCalled();
+    expect(native.check).not.toHaveBeenCalled();
+    expect(native.generate).not.toHaveBeenCalled();
+    expect(data.engineSelection).toEqual(selection);
+    expect(data.nativeOperationFence).toEqual(fence);
+    vi.mocked(browser.forceClose).mockImplementation(async () => { state.loaded = false; });
+  });
+
+  it.each(['litertlm', 'ollama'] as const)(
+    'keeps %s worker startup usable but blocked after repeated inherited owned-close rejection', async selected => {
+      vi.useFakeTimers();
+      const nativeStatus = { state: 'ready', message: 'Native metadata remains ready', engine: 'ollama', selectionRevision: 7, revision: 12 };
+      data.engineSelection = { engine: selected, revision: 7 };
+      data.nativeModelStatus = structuredClone(nativeStatus);
+      state.cached = true; state.loaded = true;
+      vi.mocked(browser.forceClose).mockRejectedValue(new Error('Synthetic inherited close rejection'));
+      engine = makeEngine();
+      await expect(engine.syncAllStatuses()).resolves.toBeUndefined();
+      expect(await engine.getStatus()).toMatchObject({ state: 'error', reason: 'browser_cleanup_failed', engine: selected, selectionRevision: 7 });
+      expect(data.browserModelStatus).toMatchObject({ state: 'error', reason: 'browser_cleanup_failed', engine: 'litertlm' });
+      expect(data.nativeModelStatus).toEqual(nativeStatus);
+      expect(data.engineSelection).toEqual({ engine: selected, revision: 7 });
+      expect(state.loaded).toBe(true);
+      await expect(engine.generate(TEST_MESSAGES, 64)).rejects.toMatchObject({ reason: 'browser_failed' });
+      vi.mocked(chrome.storage.local.get).mockClear();
+      await vi.advanceTimersByTimeAsync(180_000);
+      expect(chrome.storage.local.get).not.toHaveBeenCalled();
+      expect(browser.forceClose).toHaveBeenCalledTimes(2);
+      expect(browser.initialize).not.toHaveBeenCalled();
+      expect(browser.download).not.toHaveBeenCalled();
+      expect(browser.generate).not.toHaveBeenCalled();
+      expect(native.check).not.toHaveBeenCalled();
+      expect(native.generate).not.toHaveBeenCalled();
+      vi.mocked(browser.forceClose).mockImplementation(async () => { state.loaded = false; });
+    },
+  );
+
+  it('recovers failed owned cleanup only through successful explicit Retry and returns lazy cached readiness', async () => {
+    vi.useFakeTimers();
+    data.engineSelection = { engine: 'litertlm', revision: 4 };
+    state.cached = true; state.loaded = true;
+    vi.mocked(browser.forceClose).mockRejectedValue(new Error('Synthetic close rejection'));
+    engine = makeEngine();
+    await expect(engine.syncAllStatuses()).resolves.toBeUndefined();
+    expect(await engine.retry()).toMatchObject({ state: 'error', reason: 'browser_cleanup_failed' });
+    expect(state.loaded).toBe(true);
+    expect(browser.forceClose).toHaveBeenCalledTimes(3);
+    vi.mocked(browser.forceClose).mockImplementation(async () => { state.loaded = false; });
+    expect(await engine.retry()).toMatchObject({ state: 'ready', engine: 'litertlm', selectionRevision: 4 });
+    expect(browser.forceClose).toHaveBeenCalledTimes(4);
+    expect(state.cached).toBe(true);
+    expect(state.loaded).toBe(false);
+    expect(data.engineSelection).toEqual({ engine: 'litertlm', revision: 4 });
+    expect(browser.initialize).not.toHaveBeenCalled();
+    expect(browser.download).not.toHaveBeenCalled();
+    expect(browser.generate).not.toHaveBeenCalled();
+    expect(native.check).not.toHaveBeenCalled();
+    expect(native.generate).not.toHaveBeenCalled();
+    vi.mocked(chrome.storage.local.get).mockClear();
+    await vi.advanceTimersByTimeAsync(180_000);
+    expect(chrome.storage.local.get).not.toHaveBeenCalled();
+  });
+
+  it('keeps a malformed-output Retry fence eligible for its first ordinary idle cleanup', async () => {
+    vi.useFakeTimers();
+    await chooseBrowser(true);
+    await engine.generate(TEST_MESSAGES, 64);
+    await engine.reportFailure(new NativeModelError('response_invalid', 'Synthetic malformed verdict', 'terminal'));
+    await expect(engine.generate(TEST_MESSAGES, 64)).rejects.toMatchObject({ reason: 'response_invalid' });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(browser.unload).toHaveBeenCalledTimes(1);
+    expect(browser.forceClose).toHaveBeenCalledTimes(1);
+    expect(state.loaded).toBe(false);
+    expect(state.cached).toBe(true);
+    expect(data.browserModelStatus).toMatchObject({ state: 'error', reason: 'response_invalid' });
+    expect(browser.initialize).toHaveBeenCalledTimes(1);
+    expect(browser.generate).toHaveBeenCalledTimes(1);
+    expect(browser.download).not.toHaveBeenCalled();
+    vi.mocked(chrome.storage.local.get).mockClear();
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(chrome.storage.local.get).not.toHaveBeenCalled();
+  });
+
+  it('quarantines a rejected inherited-download state read and owned close without repeating its poll', async () => {
+    vi.useFakeTimers();
+    data.engineSelection = { engine: 'litertlm', revision: 9 };
+    state.downloading = true;
+    engine = makeEngine();
+    await engine.syncAllStatuses();
+    vi.mocked(browser.getState).mockRejectedValueOnce(new Error('Synthetic inherited download state rejection'));
+    vi.mocked(browser.forceClose).mockRejectedValue(new Error('Synthetic inherited download close rejection'));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(await engine.getStatus()).toMatchObject({ state: 'error', reason: 'browser_cleanup_failed', selectionRevision: 9 });
+    expect(state.downloading).toBe(true);
+    expect(browser.forceClose).toHaveBeenCalledTimes(1);
+    const fence = { operationId: 'preserved-inherited-download-fence', malformed: true };
+    data.nativeOperationFence = structuredClone(fence);
+    expect(await engine.getStatus()).toMatchObject({ state: 'recovery_required' });
+    vi.mocked(chrome.storage.local.get).mockClear();
+    vi.mocked(browser.getState).mockClear();
+    await vi.advanceTimersByTimeAsync(175_000);
+    expect(chrome.storage.local.get).not.toHaveBeenCalled();
+    expect(browser.getState).not.toHaveBeenCalled();
+    expect(browser.forceClose).toHaveBeenCalledTimes(1);
+    expect(browser.download).not.toHaveBeenCalled();
+    expect(browser.initialize).not.toHaveBeenCalled();
+    expect(browser.generate).not.toHaveBeenCalled();
+    expect(native.check).not.toHaveBeenCalled();
+    expect(native.generate).not.toHaveBeenCalled();
+    expect(data.engineSelection).toEqual({ engine: 'litertlm', revision: 9 });
+    expect(data.nativeOperationFence).toEqual(fence);
+    vi.mocked(browser.forceClose).mockImplementation(async () => { state.downloading = false; });
+  });
+
+  it.each(['litertlm', 'ollama'] as const)(
+    'restores persisted cleanup quarantine with %s selected instead of resuming an inherited download', async selected => {
+      vi.useFakeTimers();
+      const nativeStatus = { state: 'ready', message: 'Native metadata remains ready', engine: 'ollama', selectionRevision: 7, revision: 12 };
+      data.engineSelection = { engine: selected, revision: 7 };
+      data.nativeModelStatus = structuredClone(nativeStatus);
+      data.browserModelStatus = { state: 'error', reason: 'browser_cleanup_failed', message: 'Cleanup failed', engine: 'litertlm', selectionRevision: 7, revision: 4 };
+      state.downloading = true; state.progress = 0.5;
+      engine = makeEngine();
+      await engine.syncAllStatuses();
+      expect(await engine.getStatus()).toMatchObject({ state: 'error', reason: 'browser_cleanup_failed', engine: selected, selectionRevision: 7 });
+      expect(browser.forceClose).not.toHaveBeenCalled();
+      expect(data.nativeModelStatus).toEqual(nativeStatus);
+      vi.mocked(chrome.storage.local.get).mockClear();
+      vi.mocked(browser.getState).mockClear();
+      await vi.advanceTimersByTimeAsync(180_000);
+      expect(chrome.storage.local.get).not.toHaveBeenCalled();
+      expect(browser.getState).not.toHaveBeenCalled();
+      state.downloading = false; state.cached = true;
+      expect(await engine.getStatus()).toMatchObject({ state: 'error', reason: 'browser_cleanup_failed' });
+      expect(data.browserModelStatus).toMatchObject({ state: 'error', reason: 'browser_cleanup_failed' });
+      expect(browser.forceClose).not.toHaveBeenCalled();
+      expect(await engine.retry()).toMatchObject({ state: 'ready', engine: selected });
+      expect(browser.forceClose).toHaveBeenCalledTimes(1);
+      expect(data.browserModelStatus).toMatchObject({ state: 'ready', engine: 'litertlm' });
+      expect(data.engineSelection).toEqual({ engine: selected, revision: 7 });
+      expect(browser.download).not.toHaveBeenCalled();
+      expect(browser.initialize).not.toHaveBeenCalled();
+      expect(browser.generate).not.toHaveBeenCalled();
+      expect(native.check).toHaveBeenCalledTimes(selected === 'ollama' ? 1 : 0);
+      expect(native.generate).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([true, false])(
+    'retires only proved cleanup failure after native Retry before lazy Browser selection (cached=%s)', async cached => {
+      data.engineSelection = { engine: 'ollama', revision: 6 };
+      state.cached = cached; state.loaded = true;
+      vi.mocked(browser.forceClose).mockRejectedValue(new Error('Synthetic owned close rejection'));
+      engine = makeEngine();
+      await engine.syncAllStatuses();
+      expect(await engine.getStatus()).toMatchObject({ reason: 'browser_cleanup_failed', engine: 'ollama' });
+      vi.mocked(browser.forceClose).mockImplementation(async () => { state.loaded = false; });
+      expect(await engine.retry()).toMatchObject({ state: 'ready', engine: 'ollama' });
+      expect(data.browserModelStatus).toMatchObject({ state: cached ? 'ready' : 'needs_download', engine: 'litertlm' });
+      expect(data.engineSelection).toEqual({ engine: 'ollama', revision: 6 });
+      expect(browser.initialize).not.toHaveBeenCalled();
+      expect(browser.download).not.toHaveBeenCalled();
+      expect(browser.generate).not.toHaveBeenCalled();
+      expect(native.generate).not.toHaveBeenCalled();
+      expect(await engine.selectEngine('litertlm')).toMatchObject({ state: cached ? 'ready' : 'needs_download', selectionRevision: 7 });
+      expect(browser.initialize).not.toHaveBeenCalled();
+      if (cached) {
+        expect(await engine.generate(TEST_MESSAGES, 64)).toBe('no');
+        expect(browser.initialize).toHaveBeenCalledTimes(1);
+        expect(browser.generate).toHaveBeenCalledTimes(1);
+      } else {
+        await expect(engine.generate(TEST_MESSAGES, 64)).rejects.toMatchObject({ reason: 'needs_download' });
+        expect(browser.initialize).not.toHaveBeenCalled();
+      }
+      expect(browser.download).not.toHaveBeenCalled();
+      expect(native.check).toHaveBeenCalledTimes(1);
+      expect(native.generate).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['response_invalid', 'webgpu_unavailable'] as const)(
+    'preserves unrelated Browser %s Retry ownership across owned cleanup and native Retry', async reason => {
+      const browserStatus = { state: reason === 'webgpu_unavailable' ? 'blocked' : 'error', reason, message: 'Synthetic unrelated Browser fault', engine: 'litertlm', selectionRevision: 3, revision: 5 };
+      data.engineSelection = { engine: 'ollama', revision: 3 };
+      data.browserModelStatus = structuredClone(browserStatus);
+      state.cached = true; state.loaded = true;
+      engine = makeEngine();
+      await engine.syncAllStatuses();
+      expect(data.browserModelStatus).toEqual(browserStatus);
+      expect(await engine.retry()).toMatchObject({ state: 'ready', engine: 'ollama' });
+      expect(data.browserModelStatus).toEqual(browserStatus);
+      expect(await engine.selectEngine('litertlm')).toMatchObject({ state: browserStatus.state, reason });
+      await expect(engine.generate(TEST_MESSAGES, 64)).rejects.toMatchObject({ reason: 'response_invalid' });
+      expect(browser.initialize).not.toHaveBeenCalled();
+      expect(browser.download).not.toHaveBeenCalled();
+      expect(browser.generate).not.toHaveBeenCalled();
+      expect(native.generate).not.toHaveBeenCalled();
+    },
+  );
+
+  it('attributes delayed cleanup failure to the current stop selection without overwriting Ollama readiness', async () => {
+    vi.useFakeTimers();
+    const nativeStatus = { state: 'ready', message: 'Native metadata remains ready', engine: 'ollama', selectionRevision: 0, revision: 6 };
+    data.nativeModelStatus = structuredClone(nativeStatus);
+    await chooseBrowser(true);
+    await engine.generate(TEST_MESSAGES, 64);
+    const closing = deferred<void>();
+    const rejected = deferred<void>();
+    vi.mocked(browser.unload).mockRejectedValueOnce(new Error('Synthetic unload rejection'));
+    vi.mocked(browser.forceClose).mockImplementationOnce(async () => { closing.resolve(); await rejected.promise; });
+    await vi.advanceTimersByTimeAsync(60_000);
+    await closing.promise;
+    const switching = engine.selectEngine('ollama');
+    const failure = expect(switching).rejects.toThrow('Synthetic delayed close rejection');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(engine.getSelection()).toEqual({ engine: 'ollama', revision: 2 });
+    rejected.reject(new Error('Synthetic delayed close rejection'));
+    await failure;
+    expect(await engine.getStatus()).toMatchObject({ state: 'error', reason: 'browser_cleanup_failed', engine: 'ollama', selectionRevision: 2 });
+    expect(data.nativeModelStatus).toEqual(nativeStatus);
+    expect(data.browserModelStatus).toMatchObject({ reason: 'browser_cleanup_failed', selectionRevision: 2 });
+    const failures = vi.mocked(chrome.storage.local.set).mock.calls.filter(([items]) => items.browserModelStatus?.reason === 'browser_cleanup_failed');
+    expect(failures.every(([items]) => items.browserModelStatus?.selectionRevision === 2)).toBe(true);
+    expect(native.check).not.toHaveBeenCalled();
+    expect(native.generate).not.toHaveBeenCalled();
+    expect(browser.initialize).toHaveBeenCalledTimes(1);
+    expect(browser.generate).toHaveBeenCalledTimes(1);
+    expect(browser.download).not.toHaveBeenCalled();
+  });
+
+  it.each(['success', 'failure'] as const)(
+    'tolerates observational state failure during owned pending initialization before actual %s', async outcome => {
+      await chooseBrowser(true);
+      const starting = deferred<void>();
+      const initialized = deferred<void>();
+      vi.mocked(browser.initialize).mockImplementation(async () => {
+        state.initializing = true; starting.resolve(); await initialized.promise;
+        state.initializing = false; state.loaded = true;
+      });
+      const generation = engine.generate(TEST_MESSAGES, 64);
+      const result = outcome === 'failure' ? expect(generation).rejects.toMatchObject({ reason: 'webgpu_unavailable' }) : undefined;
+      await starting.promise;
+      vi.mocked(browser.getState).mockRejectedValueOnce(new Error('Synthetic state RPC rejected while initialization is pending'));
+      expect(await engine.getStatus()).toMatchObject({ state: 'loading' });
+      expect(data.browserModelStatus).not.toMatchObject({ state: 'error' });
+      if (outcome === 'failure') {
+        initialized.reject(new BrowserModelError('webgpu_unavailable', 'Actual initialization failure'));
+        await result;
+        expect(await engine.getStatus()).toMatchObject({ state: 'blocked', reason: 'webgpu_unavailable' });
+        await expect(engine.generate(TEST_MESSAGES, 64)).rejects.toMatchObject({ reason: 'response_invalid' });
+        expect(browser.generate).not.toHaveBeenCalled();
+      } else {
+        initialized.resolve();
+        expect(await generation).toBe('no');
+        expect(await engine.generate(TEST_MESSAGES, 64)).toBe('no');
+        expect(browser.generate).toHaveBeenCalledTimes(2);
+        expect(data.browserModelStatus).not.toMatchObject({ state: 'error' });
+      }
+      expect(browser.initialize).toHaveBeenCalledTimes(1);
+      expect(browser.download).not.toHaveBeenCalled();
+      expect(native.check).not.toHaveBeenCalled();
+      expect(native.generate).not.toHaveBeenCalled();
+    },
+  );
+
   it('keeps explicit cache-only download progress and completion owned across ordinary inference preemption', async () => {
     await chooseBrowser();
     const started = deferred<void>();

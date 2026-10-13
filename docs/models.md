@@ -38,7 +38,9 @@ extension bundles both normal and compatibility runners and creates its
 offscreen host on demand. Downloading weights does not initialize the GPU or
 send a post. Saved model bytes are verified before actual initialization.
 Opening settings can report a saved cold model without hashing it or loading
-the GPU.
+the GPU. In the 2026-10-14 ordinary-page component smoke, verifying saved bytes
+made cold initialization take about 20 seconds; warm inference timings do not
+include that preparation. See the [component results](benchmarks/ollama-qualification.md#ordinary-page-browser-component-smoke--2026-10-14).
 
 Only an explicit Download action acquires browser weights. Cancel, failed
 download or GPU setup, and **Delete downloaded browser model** preserve the chosen
@@ -52,8 +54,10 @@ The browser download path relies on public CORS without a Hugging Face host
 permission. CSP allows `https://huggingface.co` and `https://*.hf.co`
 for its redirects. A 2026-10-13 metadata HEAD request reached
 `us.aws.cdn.hf.co` with the expected size and `Access-Control-Allow-Origin: *`;
-this does not establish an actual Chrome streamed GET or completed download.
-Those remain [integration qualification gates](benchmarks/ollama-qualification.md#draft-release-gates).
+this alone does not establish an extension-origin Chrome streamed GET or
+completed download. A subsequent ordinary-page Chrome component test completed
+the pinned transfer and verification; extension-origin transport and CSP remain
+[integration qualification gates](benchmarks/ollama-qualification.md#draft-release-gates).
 
 ## Native fixed artifact
 

@@ -118,6 +118,12 @@ status-write backlog.
 One minute of browser inactivity releases the browser runtime while retaining
 verified cached weights. Keep physical setup/teardown ownership separate from
 a canceled caller: late initialization must not revive a retired engine.
+Failed owned cleanup preserves physical uncertainty, stops resident-only
+keepalive/rearming and blocks replacement generation through either engine.
+Startup must leave manual controls and explicit Retry reachable. Proved cleanup
+can restore lazy readiness; it never clears the native fence or changes choice.
+Observational state-read failure during owned pending initialization must not
+create a Retry fence that survives successful initialization.
 Use the historical browser prompt and strict parser with a distinct browser
 fingerprint; changing packaging or runtime does not preserve native verdict
 identity. Historical normal-page results do not establish offscreen idle,

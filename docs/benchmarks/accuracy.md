@@ -159,7 +159,10 @@ For the historical counterbalanced E2B/E4B accuracy run, use the localhost Gemma
 comparison procedure in [`e2b-evaluation.md`](e2b-evaluation.md#reproduce-the-comparison)
 from its recorded historical checkout. That release's dev-only extension
 `benchmark.html` exercised E2B through its MV3 background/offscreen path.
-The current native benchmark uses no offscreen runtime.
+The current development benchmark uses the saved selected fixed engine:
+Browser uses its offscreen runtime, while Ollama uses the local native service.
+That surface does not reproduce this historical model matrix or qualify the
+new integration without actual-extension checks.
 
 ## Raw data
 

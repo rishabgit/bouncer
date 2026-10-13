@@ -1,4 +1,4 @@
-# Native Ollama qualification and engine-integration gates — 2026-10-12–13
+# Native Ollama qualification and engine-integration gates
 
 The fixed text-only E2B QAT artifact passes the recorded synthetic filtering,
 suggestion, speed, charged-memory and native idle gates in the bounded manual
@@ -15,18 +15,20 @@ historical evidence does not qualify its new download, choice or lifecycle.
 | Fixed classifier quality, latency, loading and expiry | Passed in the 2026-10-12 qualification below |
 | Actual Chrome Connect/grant/regrant, generation, worker lifecycle, recovery and synthetic X controls | Passed in the prior native-only build before the launcher correction; unchanged native classifier/request contract only |
 | Corrected launcher fresh-app metadata and registered-job readback | Passed 2026-10-13: qualified runtime, pinned model, exact-Origin HTTP 200, foreign-Origin HTTP 403, zero model residency |
+| Installed dual-engine popup, retained native choice and Ready display | Manually observed; recorded 2026-10-14. Both options are visible and Ollama remains selected. This is a displayed status observation, not a captured fresh metadata POST or generation |
 | Fresh actual Chrome-worker metadata request after the launcher correction | Not established |
 | Successful subsequent normal-login startup with the corrected launcher | Not established |
-| Browser fixed source HTTP metadata | HEAD and a bounded 4 KB GET reached `us.aws.cdn.hf.co` with expected total length. The source redirect echoed the exact extension Origin and the CDN allowed public CORS; not an actual Chrome GET or complete download |
-| Actual Chrome Browser download, streaming integrity, cancellation/deletion and offline saved-cache loading | Not established for the new integration |
+| Browser fixed source HTTP metadata | HEAD and a bounded 4 KB GET reached `us.aws.cdn.hf.co` with expected total length. The source redirect echoed the exact extension Origin and the CDN allowed public CORS; not extension-origin Chrome transport evidence |
+| Portable Browser cache/runtime components in an ordinary Chrome page | Passed the 2026-10-14 smoke below: full streamed artifact verification, cancellation/retry, saved-cache reload and real GPU inference; not extension qualification |
+| Actual extension-origin Chrome Browser CSP/download, streaming integrity, cancellation/deletion and offline saved-cache loading | Not established for the new integration; ordinary-page component results do not close this gate |
 | Actual Chrome first choice, provenance upgrade and both switch directions, including manual/suggestion ownership and native unresolved-work blocking | Not established for the new integration |
-| Actual Chrome Browser offscreen idle release, worker recreation and later real generation | Not established for the new integration; historical normal-page tests explicitly do not qualify this |
+| Actual Chrome Browser offscreen GPU preparation, 60-second idle release, worker recreation and later real generation | Not established for the new integration; ordinary-page tests do not qualify this |
 
 Keep the integration PR in draft while these gates remain unestablished.
 Launcher metadata cannot establish actual Chrome-worker access or future login,
 and historical normal-page LiteRT measurements cannot establish restored
-offscreen behavior. Pure source/unit/package checks will be recorded separately
-from actual Chrome observations. See [engine scenarios](../inference-engines.md)
+offscreen behavior. Source/unit/package checks, ordinary-page component results
+and actual-extension observations are recorded separately. See [engine scenarios](../inference-engines.md)
 and [operator setup and recovery](../models.md).
 
 ## Dual-engine source checks — 2026-10-13
@@ -43,6 +45,98 @@ An explicit download survives ordinary tab/filter inference preemption; idle
 GPU release retains its original one-minute deadline. Progress notifications
 coalesce without retaining model chunks. These mocked/source checks establish
 neither actual Chrome transport/GPU behavior nor model-quality parity.
+
+## Ordinary-page Browser component smoke — 2026-10-14
+
+An existing Chrome connection exercised reusable production components with
+synthetic inputs at a fresh localhost origin. The page reported Chrome 155;
+the installed app was 155.0.8059.40, without a captured running full-version
+receipt. This was an
+ordinary page, not Bouncer's extension Origin, service worker, offscreen
+document or chooser. The production model-cache module was unchanged; the
+LiteRT runtime adaptation changed one WASM URL resolver line to use the same
+origin. It used bundled `@litert-lm/core` 0.17.0, `@litertjs/wasm-utils` 2.5.0
+and `@noble/hashes` 2.4.0.
+No public automated runner is shipped for this recorded component smoke.
+
+The full revision-pinned 2,008,432,640-byte artifact passed streaming size and
+SHA-256 verification, then a complete saved-cache reread. Canceling an earlier
+transfer after approximately 606 MB left no entry. The full retry took
+72.2 seconds including 20.4 seconds for the saved-cache verification; a page
+reload retained the completed entry.
+
+A real WebGPU adapter was available and initialization succeeded. The first
+initialization took 20.8 seconds; explicit unload took 42 ms and the runtime
+reported its loaded flag as false. Reinitialization from saved bytes took
+20.5 seconds. This requests SDK teardown and observes runtime state; it does
+not measure process/GPU memory reclamation or timer-driven idle release.
+Cached-byte reverification contributes roughly 20 seconds to the observed
+preparation. The historical 1,279.5 ms cached LiteRT startup below is therefore
+not a forecast for this integrity-verified path or the extension integration.
+
+The page enforced `connect-src 'self'`: a HEAD request to the fixed Hugging Face
+source was rejected with an observed CSP violation. Saved-cache
+reinitialization and inference succeeded with external page connections
+blocked. Same-origin localhost runtime/report endpoints remained available;
+this was not a system-offline test and does not establish extension-origin CSP.
+
+The production baseline prompt and strict parser used a 64-token output budget
+and 1,024-token context. The three filters were **astronomy**, **cooking recipes**
+and **professional football**, in that order. Three distinct synthetic cases
+matched their expected rows in each of two runs, for six responses total:
+
+| Synthetic post | Expected row | First / second inference |
+|---|---|---:|
+| A telescope image shows Saturn and its bright rings against the night sky. | yes / no / no | 282.8 / 258.4 ms |
+| Recipe: mix flour, yeast and water, let the dough rise, and bake a loaf of bread. | no / yes / no | 153.4 / 152.7 ms |
+| The city library extended its opening hours and added new bookshelves. | no / no / no | 157.5 / 159.6 ms |
+
+These are two repetitions of three cases, not six independent cases or a
+quality study. They establish a small direct-call smoke, not suggestion,
+manual-decision, switching, worker or offscreen behavior. Both owned test model
+entries were confirmed removed, SDK teardown was requested, and the owned
+tab/server were closed; cleanup bookkeeping was cleared after confirmation.
+The extension gates above remain unqualified and the PR remains draft.
+
+## Lifecycle failure regressions — 2026-10-14
+
+The revised source passes **952 extension tests across 36 files**, ESLint,
+TypeScript and development/production builds on Node 24.18.1. Production
+staging contains **24 allowlisted files /43,829,007 bytes**, excluding diagnostics
+and model weights. The portable cache/runtime/prompt modules exercised above
+remain byte-identical. The unchanged operator scripts retain their separately
+recorded 38 pure checks.
+
+Failure injection against the actual coordinator reproduced a rejected idle
+unload/owned-close path: the old source remained Ready and made 24 further
+storage touches through 180 seconds. The new regression fails on that old
+source. After the fix, failed cleanup retains physical uncertainty, publishes
+`browser_cleanup_failed`, stops resident-only keepalive and blocks either
+engine until proved cleanup. The same source probe made zero storage touches
+from 60–180 seconds, with no native calls or preference/fence changes.
+
+Tests also cover repeated inherited-close failure without rejecting worker
+startup, unsuccessful then successful explicit Retry, malformed-output idle
+release, cleanup failure spanning a switch, and native recovery precedence.
+Retry returns lazy cached readiness without Browser download or initialization.
+A rejected status read while owned initialization is still pending no longer
+creates a persistent Retry fence after initialization succeeds; actual
+initialization failure remains actionable. The shared UI identifies Browser
+cleanup accurately under either saved choice rather than diagnosing an Ollama
+connection failure.
+
+Further regressions cover failed inherited-download closure, persisted cleanup
+quarantine across worker recreation, and successful cleanup under Ollama
+followed by a Browser switch. Cleanup does not require granting Ollama's optional
+connection permission, and proved closure retires only the cleanup-specific
+Browser error. Unrelated malformed-output and capability errors retain their
+existing Retry behavior.
+
+These are synthetic adapter/time and source checks. The ordinary-page UI had
+one three-second observation timeout during initialization; no actual offscreen
+state-RPC timeout or rejected Chrome host closure was captured. Neither that
+observation nor these regressions qualify extension switching, automatic idle
+release, worker recreation or memory reclamation.
 
 ## Fixed artifact and method
 

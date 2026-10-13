@@ -70,7 +70,7 @@ node --test scripts/test-macos-ollama-setup.mjs scripts/test-prepare-native-mode
 | Command | Description |
 |---|---|
 | `npm run build` | Clean production Chrome build via esbuild |
-| `npm run build:dev` | Development build with the fixed native benchmark |
+| `npm run build:dev` | Development build with the selected fixed engine benchmark |
 | `npm run gen-manifests` | Generate the Chrome manifest from checked-in sources |
 | `npm run watch` | Rebuild on source changes |
 | `npm run test` | Unit tests with Vitest |
@@ -121,7 +121,7 @@ src/
     litertlm-runtime.ts               # Browser SDK, conversation and GPU lifecycle
     litertlm-loader.ts                # Extension-local normal/compat WASM loader
   benchmark/
-    index.ts                         # Dev-only fixed-native benchmark page
+    index.ts                         # Dev-only selected fixed engine benchmark page
 
 adapters/twitter/
   TwitterAdapter.ts                  # X DOM extraction and selectors
@@ -159,13 +159,18 @@ then use **Resume after restarting Ollama**. This recovery can run while Browser
 stays selected; it does not change preference. Native concurrent-model
 generation remains disabled.
 
-The development `benchmark.html` runs the fixed native classifier through the
-actual Chrome worker. Its metadata operation checks readiness without loading
-weights; its release operation clears only Bouncer bookkeeping. Actual cold
-loading and expiry are measured with real requests and independent native
-observations. Run synthetic fixtures with no X tab actively filtering. The
-native report's corpus hashes record manual qualification; no public replay
-dataset for those model evaluations is shipped or replayed in CI.
+The development `benchmark.html` runs the saved selected fixed classifier
+through the actual Chrome worker; choose and set it up in the popup first.
+Explicit benchmark preparation initializes verified cached Browser weights or
+checks Ollama metadata without native prewarming. Neither path downloads
+weights. Cleanup releases the Browser runtime or drains native requests without
+forcing shared native model unload. Reports capture the engine, artifact,
+classifier fingerprint and selection revision; a changed choice invalidates
+the run. Actual cold loading and expiry need real requests and engine-specific
+lifecycle observations. Run synthetic fixtures with no X tab actively filtering.
+The native report's corpus hashes record manual qualification; no public replay
+dataset for those model evaluations is shipped or replayed in CI. Localhost
+component checks do not qualify actual-extension behavior.
 
 Historical LiteRT, E4B and Qwen reports remain in
 [docs/benchmarks](../docs/benchmarks/) and can be reproduced from their historical

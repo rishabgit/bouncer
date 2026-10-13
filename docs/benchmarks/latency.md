@@ -108,7 +108,10 @@ Use the localhost procedure in
 [`e2b-evaluation.md`](e2b-evaluation.md#reproduce-the-comparison) in its recorded
 historical checkout for the counterbalanced E2B/E4B comparison. That release's
 dev-only extension `benchmark.html` measured E2B through its MV3
-service-worker/offscreen path. The current native benchmark uses no offscreen runtime.
+service-worker/offscreen path. The current development benchmark uses the saved
+selected fixed engine: Browser uses its offscreen runtime, while Ollama uses
+the local native service. That surface does not reproduce this historical
+model matrix or qualify the new integration without actual-extension checks.
 
 ## Raw data
 

@@ -117,9 +117,12 @@ the pure native operator checks are:
 node --test scripts/test-macos-ollama-setup.mjs scripts/test-prepare-native-model.mjs
 ```
 
-`npm run build:dev` adds the fixed-native actual-worker `benchmark.html` with
-synthetic fixtures and latency diagnostics. Production archives exclude that
-surface and include the local Browser SDK/WASM and third-party notices.
+`npm run build:dev` adds actual-worker `benchmark.html` diagnostics for the
+saved selected fixed engine. Preparation initializes verified cached Browser
+weights or checks Ollama metadata without native prewarming; neither downloads
+weights. Cleanup releases the Browser runtime or drains native requests without
+forcing native model unload. Production archives exclude that surface and
+include the local Browser SDK/WASM and third-party notices.
 The recorded native quality corpora are bounded manual qualification evidence;
 their public replay dataset is not shipped and CI does not replay those model
 evaluations.

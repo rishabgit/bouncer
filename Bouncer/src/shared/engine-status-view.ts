@@ -45,6 +45,9 @@ export function engineStatusView(status: LocalModelStatus, selection?: EngineSel
   if (status.state === 'recovery_required' && engine === 'litertlm') {
     return { badge: 'Recovery needed', tone: 'error', text: 'Browser AI selected · previous Ollama request needs recovery. Manual Bounce and Restore still work.', action: status.recoveryQualified === true ? 'recover' : undefined, recover: status.recoveryQualified === true, retry: false, details: 'Finish the full Ollama restart in Setup help, then confirm recovery. Choosing Browser AI does not stop a previous Ollama request.' };
   }
+  if ((status.state === 'blocked' || status.state === 'error') && status.reason === 'browser_cleanup_failed') {
+    return { badge: 'Cleanup needed', tone: 'error', text: 'Browser AI could not finish releasing its resources. Retry cleanup before automatic filtering resumes. Your choice is saved; manual Bounce and Restore still work.', action: 'retry', retry: true };
+  }
   if (engine !== 'litertlm') return nativeStatusView(status);
   switch (status.state) {
     case 'needs_download':

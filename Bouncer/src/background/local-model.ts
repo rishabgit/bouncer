@@ -90,6 +90,7 @@ export class LocalEngine {
   private _browserDiscoveredDownloading = false;
   private _browserDiscoveredInitializing = false;
   private _browserLifecycleGeneration = 0;
+  private _browserCleanupFailureGeneration: number | null = null;
   private _browserReconcilePromise: Promise<void> | null = null;
   private _browserPins = 0;
   private _browserSetup: {
@@ -219,6 +220,10 @@ export class LocalEngine {
     };
   }
 
+  private _browserCleanupStatus(): StatusUpdate {
+    return { state: 'error', reason: 'browser_cleanup_failed', message: 'Browser AI cleanup failed. Retry to finish releasing it.' };
+  }
+
   /** Popup/status reads never acquire a host, GPU, weights or native metadata. */
   getStatus(): Promise<LocalModelStatus> { return this._snapshotStatus(this.getSelection()); }
 
@@ -235,6 +240,11 @@ export class LocalEngine {
       if (this._selectionBlocked) {
         return this._writeStatus({ state: 'error', reason: 'storage_failed', message: 'Save the engine choice again before filtering.' }, selection, data);
       }
+      if (this._browserCleanupFailureGeneration !== null) {
+        return this._writeStatus(selection.engine === 'ollama'
+          ? data.nativeModelStatus ?? { state: 'not_connected', message: 'Connect to Ollama' }
+          : this._browserCleanupStatus(), selection, data);
+      }
       if (!selection.engine) {
         return this._writeStatus({ state: 'not_configured', reason: 'not_configured', message: 'Choose where Bouncer should run.' }, selection, data);
       }
@@ -244,6 +254,7 @@ export class LocalEngine {
       if (selection.engine === 'litertlm') {
         let state: Awaited<ReturnType<BrowserBackend['getState']>>;
         const lifecycle = this._browserLifecycleGeneration;
+        const setup = this._browserSetup;
         try {
           state = await this._browser.getState();
           if (this._browserDiscoveredDownloading && !this._browserSetup && !state.downloading
@@ -253,7 +264,8 @@ export class LocalEngine {
           }
         } catch (error) {
           if (lifecycle !== this._browserLifecycleGeneration || !sameSelection(selection, this._selection)
-              || this._pendingSelections || this._browserStopPromise || this._browserSetup?.controller.signal.aborted) {
+              || this._pendingSelections || this._browserStopPromise || this._browserSetup?.controller.signal.aborted
+              || (setup?.kind === 'initialize' && this._browserSetup === setup && sameSelection(setup.selection, selection))) {
             return this._statusAfterRetiredBrowserRead();
           }
           const failure = this._browserFailureStatus(error);
@@ -333,10 +345,17 @@ export class LocalEngine {
   }
 
   async syncAllStatuses(): Promise<void> {
-    const data = await getStorage(['engineSelection', 'engineChoiceSchemaVersion']);
+    const data = await getStorage(['engineSelection', 'engineChoiceSchemaVersion', 'browserModelStatus']);
     if (validSelection(data.engineSelection)) this._selection = { ...data.engineSelection };
     else if (!this._injectedNativeDefault || data.engineChoiceSchemaVersion !== undefined) this._selection = { engine: null, revision: 0 };
-    if (this._selection.engine) {
+    if (data.browserModelStatus?.state === 'error' && data.browserModelStatus.reason === 'browser_cleanup_failed') {
+      // Worker recreation is not permission to resume or retry the host whose
+      // physical cleanup failed. The persisted resource record owns this block.
+      this._browserCleanupFailureGeneration = this._browserLifecycleGeneration;
+      this._browserRetryRequired = true;
+      this._updateBrowserTimers(false);
+    }
+    if (this._selection.engine && this._browserCleanupFailureGeneration === null) {
       try {
         const state = await this._browser.getState();
         this._recordBrowserState(state);
@@ -345,7 +364,19 @@ export class LocalEngine {
         // continue when Browser remains selected and are reconciled below.
         if (this._selection.engine === 'ollama' || state.loaded || state.initializing) await this._stopBrowserOwned();
         else this._updateBrowserTimers(false);
-      } catch { await this._browser.forceClose(); this._clearBrowserPhysicalState(); }
+      } catch {
+        const selection = this.getSelection();
+        const lifecycle = this._browserLifecycleGeneration;
+        try {
+          await this._browser.forceClose();
+          this._clearBrowserPhysicalState();
+          this._updateBrowserTimers();
+        } catch {
+          // Startup remains usable for manual controls and explicit Retry even
+          // when a recreated worker cannot prove the inherited host stopped.
+          this._markBrowserCleanupFailure(lifecycle, selection);
+        }
+      }
     }
     await this.getStatus();
   }
@@ -362,6 +393,15 @@ export class LocalEngine {
     const epoch = this._epoch;
     const maintenance = this._maintenanceGeneration;
     this._assertMaintenanceGeneration(maintenance);
+    let cleanupCompleted = false;
+    if (this._browserCleanupFailureGeneration !== null) {
+      try { await this._stopBrowserOwned(); } catch { return this.getStatus(); }
+      this._assertMaintenanceGeneration(maintenance);
+      this.assertOperationEpoch(epoch);
+      this._assertSelection(selection);
+      await this._assertPersistedSelection(selection);
+      cleanupCompleted = true;
+    }
     if (selection.engine === 'litertlm') {
       if (this._browserPins || this._browserSetup || this._browserDiscoveredDownloading) return status;
       if (this._browserStopPromise || this._browserDiscoveredInitializing || (this._browserLoaded && !this._browserResidentOwned)) {
@@ -370,7 +410,7 @@ export class LocalEngine {
         this._assertSelection(selection);
         await this._assertPersistedSelection(selection);
       }
-      if (status.state === 'error' || status.state === 'blocked') {
+      if (!cleanupCompleted && (status.state === 'error' || status.state === 'blocked')) {
         await this._browser.forceClose();
         this._clearBrowserPhysicalState();
       }
@@ -432,6 +472,7 @@ export class LocalEngine {
     this.assertOperationEpoch(epoch);
     this._assertSelection(snapshot);
     if (status.state === 'recovery_required') throw new NativeModelError('recovery_required', status.message, 'uncertain');
+    if (this._browserCleanupFailureGeneration !== null) throw new BrowserModelError('browser_failed', this._browserCleanupStatus().message);
     if (snapshot.engine === 'litertlm') {
       if ((this._browserDiscoveredInitializing || (this._browserLoaded && !this._browserResidentOwned)) && !this._browserSetup) {
         await this._stopBrowserOwned();
@@ -560,11 +601,37 @@ export class LocalEngine {
   private _clearBrowserPhysicalState(): void {
     // Retire metadata reads captured before proved physical cleanup. A late
     // snapshot must not restore residency or an initializer that has stopped.
+    const cleanupFailed = this._browserCleanupFailureGeneration !== null;
     this._browserLifecycleGeneration++;
+    this._browserCleanupFailureGeneration = null;
     this._browserLoaded = false;
     this._browserResidentOwned = false;
     this._browserDiscoveredDownloading = false;
     this._browserDiscoveredInitializing = false;
+    if (cleanupFailed || this._browserRetryRequired) this._retireBrowserCleanupFailure(this._browserLifecycleGeneration, this.getSelection());
+  }
+
+  private _retireBrowserCleanupFailure(lifecycle: number, selection: EngineSelection): void {
+    const current = (): boolean => lifecycle === this._browserLifecycleGeneration
+      && this._browserCleanupFailureGeneration === null && sameSelection(selection, this._selection);
+    const retire = this._statusWriteChain.catch(() => undefined).then(async () => {
+      if (!current()) return;
+      const data = await getStorage(['nativeModelStatus', 'browserModelStatus', 'localModelStatus', 'nativeOperationFence']);
+      // Proved physical cleanup does not retire classifier or capability faults.
+      if (!current() || data.browserModelStatus?.reason !== 'browser_cleanup_failed') return;
+      let status: StatusUpdate;
+      try {
+        const state = await this._browser.getState();
+        status = state.cached ? { state: 'ready', message: 'Ready — loads when needed' }
+          : { state: 'needs_download', reason: 'needs_download', message: 'Download the browser model to start filtering.' };
+      } catch (error) { status = this._browserFailureStatus(error); }
+      if (!current()) return;
+      this._browserRetryRequired = status.state === 'error' || status.state === 'blocked';
+      await this._writeStatus(status, { engine: 'litertlm', revision: selection.revision }, data);
+    });
+    // Cleanup can be awaited by a status snapshot, so resource retirement must
+    // queue behind that snapshot rather than waiting recursively on its chain.
+    this._statusWriteChain = retire.then(() => undefined, () => undefined);
   }
 
   /** Only a download inherited from a retired worker needs bounded state reads. */
@@ -593,7 +660,11 @@ export class LocalEngine {
       } catch (error) {
         if (this._browserLifecycleGeneration === lifecycle && !this._pendingSelections
             && sameSelection(selection, this._selection) && !this._isRetired(error)) {
-          await this._browser.forceClose();
+          try { await this._browser.forceClose(); } catch {
+            if (!this._pendingSelections) this._markBrowserCleanupFailure(lifecycle, selection);
+            return;
+          }
+          if (this._browserLifecycleGeneration !== lifecycle || this._pendingSelections || !sameSelection(selection, this._selection)) return;
           this._clearBrowserPhysicalState();
           await this.reportFailure(error, selection);
         }
@@ -604,7 +675,9 @@ export class LocalEngine {
   }
 
   private _updateBrowserTimers(resetIdle = true): void {
-    const busy = this._browserLoaded || this._browserDiscoveredDownloading || this._browserDiscoveredInitializing || !!this._browserSetup || this._browserPins > 0;
+    const cleanupFailed = this._browserCleanupFailureGeneration !== null;
+    const busy = (!cleanupFailed && (this._browserLoaded || this._browserDiscoveredDownloading || this._browserDiscoveredInitializing))
+      || !!(this._browserSetup && !this._browserSetup.controller.signal.aborted) || !!this._browserActive || this._browserPins > 0;
     if (busy && !this._browserKeepalive) {
       this._browserKeepalive = setInterval(() => {
         // MV3 lifetime touch is read-only and only exists with browser work.
@@ -617,11 +690,11 @@ export class LocalEngine {
       clearInterval(this._browserKeepalive);
       this._browserKeepalive = null;
     }
-    if (this._browserIdleTimer && (resetIdle || !this._browserLoaded || this._browserSetup || this._browserDiscoveredDownloading || this._browserDiscoveredInitializing || this._browserPins > 0)) {
+    if (this._browserIdleTimer && (resetIdle || cleanupFailed || !this._browserLoaded || this._browserSetup || this._browserDiscoveredDownloading || this._browserDiscoveredInitializing || this._browserPins > 0)) {
       clearTimeout(this._browserIdleTimer);
       this._browserIdleTimer = null;
     }
-    if (!this._browserIdleTimer && this._browserLoaded && !this._browserSetup && !this._browserDiscoveredDownloading && !this._browserDiscoveredInitializing && this._browserPins === 0) {
+    if (!cleanupFailed && !this._browserIdleTimer && this._browserLoaded && !this._browserSetup && !this._browserDiscoveredDownloading && !this._browserDiscoveredInitializing && this._browserPins === 0) {
       const lifecycle = this._browserLifecycleGeneration;
       this._browserIdleTimer = setTimeout(() => {
         this._browserIdleTimer = null;
@@ -641,10 +714,38 @@ export class LocalEngine {
   }
 
   private _stopBrowserOwned(): Promise<void> {
-    if (this._browserStopPromise) return this._browserStopPromise;
-    const stop = this._performBrowserStop();
+    const selection = this.getSelection();
+    const stop = this._browserStopPromise ?? this._performBrowserStop();
+    // _performBrowserStop retires the physical lifecycle before its first
+    // await. Failure belongs to that operation, not the timer that armed it.
+    const lifecycle = this._browserLifecycleGeneration;
     this._browserStopPromise = stop;
-    return stop.finally(() => { if (this._browserStopPromise === stop) this._browserStopPromise = null; });
+    return stop.catch(error => {
+      this._markBrowserCleanupFailure(lifecycle, selection);
+      throw error;
+    }).finally(() => { if (this._browserStopPromise === stop) this._browserStopPromise = null; });
+  }
+
+  private _markBrowserCleanupFailure(lifecycle: number, selection: EngineSelection): void {
+    const current = (): boolean => lifecycle === this._browserLifecycleGeneration && sameSelection(selection, this._selection);
+    if (!current()) return;
+    this._browserCleanupFailureGeneration = lifecycle;
+    this._browserRetryRequired = true;
+    // Keep the physical facts uncertain, but do not keep a failed idle cleanup
+    // alive forever or schedule an automatic retry of a rejected owned close.
+    this._updateBrowserTimers(false);
+    const publish = this._statusWriteChain.catch(() => undefined).then(async () => {
+      if (!current() || this._browserCleanupFailureGeneration !== lifecycle) return;
+      const data = await getStorage(['nativeModelStatus', 'browserModelStatus', 'localModelStatus', 'nativeOperationFence']);
+      if (!current() || this._browserCleanupFailureGeneration !== lifecycle) return;
+      const resource = await this._writeStatus(this._browserCleanupStatus(), { engine: 'litertlm', revision: selection.revision }, data);
+      if (selection.engine !== 'litertlm' && current() && this._browserCleanupFailureGeneration === lifecycle) {
+        await this._writeStatus(data.nativeModelStatus ?? { state: 'not_connected', message: 'Connect to Ollama' }, selection, { ...data, browserModelStatus: resource });
+      }
+    });
+    // Do not await this publication: a status snapshot may itself be awaiting
+    // cleanup, and re-entering its write chain would wait on the same snapshot.
+    this._statusWriteChain = publish.then(() => undefined, () => undefined);
   }
 
   private async _performBrowserStop(): Promise<void> {
@@ -670,7 +771,7 @@ export class LocalEngine {
       ]));
       if (settled) await this._settleBrowser(this._browser.unload());
       await this._browser.forceClose();
-    } else if (physical) {
+    } else if (physical || this._browserCleanupFailureGeneration !== null) {
       // No worker lease can prove an inherited operation settled. Owned host
       // closure retires its download generation and stops its GPU work.
       await this._browser.forceClose();
@@ -736,6 +837,7 @@ export class LocalEngine {
     const selection = this.getSelection();
     if (selection.engine !== 'litertlm') throw new LocalAvailabilityError('not_configured', 'Choose browser AI before downloading its model.');
     this._assertSelection(selection);
+    if (this._browserCleanupFailureGeneration !== null) throw new BrowserModelError('browser_failed', this._browserCleanupStatus().message);
     if (this._browserMaintenance || this._browserStopPromise) throw new LocalAvailabilityError('switching', 'Browser AI maintenance is in progress.');
     if (this._browserSetup) return this.getStatus();
     const saved = await getStorage(['browserModelStatus']);
@@ -1102,7 +1204,7 @@ export class LocalEngine {
     const writes: { nativeModelStatus?: LocalModelStatus; browserModelStatus?: LocalModelStatus; localModelStatus?: LocalModelStatus } = {};
     // Resource records preserve download/cache/error state while a global native
     // recovery block is presented. Neither progress nor Ready may bypass it.
-    if (selection.engine === 'ollama' && status.state !== 'switching') {
+    if (selection.engine === 'ollama' && status.state !== 'switching' && this._browserCleanupFailureGeneration === null) {
       if (resource !== data.nativeModelStatus) writes.nativeModelStatus = resource;
     } else if (selection.engine === 'litertlm' && status.state !== 'recovery_required' && status.state !== 'switching') {
       if (resource !== data.browserModelStatus) writes.browserModelStatus = resource;
@@ -1110,7 +1212,8 @@ export class LocalEngine {
     let result = resource;
     if (selected) {
       const unresolved = data.nativeOperationFence !== undefined && !sameFence(data.nativeOperationFence, this._activeOperationId ?? '');
-      const publicStatus = unresolved ? { ...this._recoveryStatus(), engine: selection.engine, selectionRevision: selection.revision } : identity;
+      const publicStatus = unresolved ? { ...this._recoveryStatus(), engine: selection.engine, selectionRevision: selection.revision }
+        : this._browserCleanupFailureGeneration !== null ? { ...this._browserCleanupStatus(), engine: selection.engine, selectionRevision: selection.revision } : identity;
       result = nextStatus(publicStatus, data.localModelStatus ?? enginePrevious);
       if (result !== data.localModelStatus) writes.localModelStatus = result;
     }

@@ -115,6 +115,70 @@ endpoint, bind it to loopback with an ephemeral port and the owned profile.
 Read only that launch's endpoint; never discover or attach to another process's
 debugger. Playwright's normal pipe does not expose a TCP listener.
 
+## Human-operated isolated acceptance runner
+
+Prepare a finite integration check without touching an installed extension or
+opening a browser:
+
+```sh
+node scripts/prepare-isolated-acceptance.mjs --browser '/approved/path/to/Google Chrome for Testing'
+```
+
+The preparer builds only an owned temporary source copy using the already
+installed dependencies. It creates a production artifact receipt, a separate
+development test package, and **Start test.command**, **Clean up test.command**
+and **README.txt** in a new disposable directory. It performs no inference or
+model download. Run its pure checks separately:
+
+```sh
+node --test scripts/test-isolated-acceptance.mjs scripts/acceptance/test-runner-core.mjs
+```
+
+A human launches **Start test.command**. It uses the approved CfT executable
+with a new profile, explicit mock Keychain, the browser sandbox and no remote
+debugging. Enable **Developer mode** through Chrome's normal Extensions UI if
+off, then use the acceptance tab. If CLI loading is unavailable, use **Load
+unpacked** with the staged `extension/` folder. Cancel unexpected authentication
+prompts. The preparer does not grant permission to bypass a tool restriction;
+an agent must not launch or control this session as an alternate route to an
+outcome its browser tool has blocked.
+
+In the acceptance page, leave other local AI clients and everyday Bouncer idle,
+confirm the scope and start. Starting explicitly authorizes about 2 GB of
+Browser-model download **in the test profile**. If native access is requested,
+click the real popup's **Connect to Ollama** control and respond to Chrome's
+normal optional-host dialog. The test-only popup helper sends only fixed engine
+selection, explicit download and status requests; it never requests permission,
+confirms restart recovery or accesses arbitrary native APIs.
+
+The finite run checks synthetic classifier identity/verdicts, both switching
+directions, Browser host cleanup, native model residency, worker absence and
+later real inference. During each 120-second quiet interval it removes the
+popup frame and issues no worker messages, storage reads, context polling or
+native requests. Its first observation afterward is `runtime.getContexts()`,
+before waking the worker. Keep the test tab active and inspectors closed;
+visibility changes or a reload invalidate the interval. Do not close the test
+browser while requests are pending. Other clients can extend native residency,
+so lack of expiry cannot automatically be attributed to Bouncer.
+
+Export the bounded synthetic JSON report at the terminal result. Only if it
+reports `safeToCleanup: true` and `pendingRequests: 0`, normally quit this test
+browser and run **Clean up test.command**, supplying that report. Cleanup
+checks the run identity, package integrity and absence of the owned browser
+process before removing only the disposable session. A native uncertainty
+preserves its profile/report and stops generation; no elapsed-time, empty-model
+list, test-profile deletion or engine switch settles native work.
+
+This is **development integration evidence**. The existing benchmark branch
+changes `dist/background.js`; the runner additionally supplies test renderer
+assets and appends a narrow helper to the staged popup document. All changes
+are recorded and stay outside production archives. The real coordinator,
+offscreen/runtime modules, model pins, native transport, popup script, manifest,
+CSP and permissions remain the project implementation. It does not qualify
+production background bytes, toolbar-popup placement, actual X
+manual/suggestion behavior, native interruption recovery or login persistence.
+Keep those gates separate; a passing runner is not a whole-product sign-off.
+
 ## Profile isolation and mock Keychain
 
 A separate profile isolates cookies, history and extension state, **not the

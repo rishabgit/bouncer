@@ -36,6 +36,7 @@ jobs:
         with:
           node-version: "24"
       - run: node --test scripts/test-macos-ollama-setup.mjs scripts/test-prepare-native-model.mjs
+      - run: node --test scripts/test-isolated-acceptance.mjs scripts/acceptance/test-runner-core.mjs
 
   build:
     runs-on: ubuntu-latest

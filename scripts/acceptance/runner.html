@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Bouncer isolated acceptance</title>
+  <link rel="stylesheet" href="runner.css">
+</head>
+<body>
+  <main>
+    <header><p class="eyebrow">Human-operated · disposable Chrome for Testing profile</p><h1>Bouncer isolated acceptance</h1></header>
+    <p class="scope">This development integration build uses the production popup bundle and normal fixed classifiers. Its background and popup test relay differ from the production package. A pass leaves production acceptance pending.</p>
+    <section aria-labelledby="prepare-title">
+      <h2 id="prepare-title">Before starting</h2>
+      <p>Keep this tab visible, the Mac awake, and all extension inspectors and other Bouncer popup windows closed. Close any other extension pages in this test profile. The page will run three synthetic astronomy, cooking and neutral cases per engine, switch both ways, and attempt a Browser initialization retirement check.</p>
+      <p>Each engine then gets a full 120-second quiet interval with the popup removed and no extension messages, storage reads or native requests. Moving away, sleeping, reloading or suspending this page makes that interval inconclusive.</p>
+      <p class="muted">The product’s configured retention is one minute. A context/residency snapshot after 120 quiet seconds checks that resources have expired by then; it does not measure the exact release time.</p>
+      <label class="check"><input id="otherClientsIdle" type="checkbox"> Other local AI clients, including the daily Bouncer extension, are idle. I will keep them idle throughout this run without changing their saved choice.</label>
+      <label class="check"><input id="quietReady" type="checkbox"> This is the prepared disposable profile, mock Keychain is enabled, the sandbox is retained, no debugger is attached, and I can keep the tab visible and the Mac awake.</label>
+      <p class="download-note">Start explicitly authorizes downloading the pinned Browser model: <strong>2,008,432,640 bytes (2.01 GB)</strong> from Hugging Face into this disposable profile if it is missing. Nothing changes the shared native model, Ollama setup or the daily profile.</p>
+      <div class="actions"><button id="start" disabled>Start · allow 2.01 GB Browser download</button><button id="continue" hidden>Check readiness and continue</button><button id="finish" hidden>End run without more work</button><button id="export" disabled>Export JSON report</button></div>
+    </section>
+    <section aria-labelledby="state-title" aria-live="polite">
+      <h2 id="state-title">Run state</h2>
+      <p id="state">Reading the prepared source receipt…</p>
+      <progress id="progress" hidden max="100"></progress><p id="progressText" class="muted"></p>
+      <p id="instruction" class="instruction" hidden></p>
+      <div id="popupHost" hidden><h3>Actual Bouncer settings document</h3><p>Use only <strong>Connect to Ollama</strong> and Chrome’s genuine <strong>Allow</strong> action when requested. This embedded document does not qualify toolbar-popup behavior.</p></div>
+      <ol id="steps"></ol>
+    </section>
+    <details><summary>Evidence and boundaries</summary>
+      <p id="receipt" class="mono"></p>
+      <p>Verdict checks are smoke checks, not a model-quality study. This page does not test X feed behavior, manual Bounce/Restore, suggestions, toolbar/focus behavior, native interruption/recovery, normal login, logout or reboot. It performs no warmup, force unload, cache deletion, permission manufacture or native configuration change.</p>
+      <p>The shared Ollama service is outside profile isolation. A resident candidate after quiet is inconclusive because another client may extend residency. Any native uncertainty stops the run and preserves the profile. Do not restart Ollama or clear a recovery fence as part of this runner.</p>
+      <p>At the end, export the report and quit only the owned Chrome for Testing browser normally. Cache/profile cleanup is a separate guarded operator step; this page never deletes them.</p>
+    </details>
+  </main>
+  <script type="module" src="runner.js"></script>
+</body>
+</html>

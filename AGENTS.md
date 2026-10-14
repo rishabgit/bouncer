@@ -242,6 +242,14 @@ POST, grants, loading, shutdown/recreation or recovery. Follow
 [browser testing](docs/browser-testing.md), preserve the browser sandbox and
 cancel unexpected authentication prompts before narrow diagnosis.
 
+The browser-testing guide also owns the human-operated isolated acceptance
+runner: `scripts/prepare-isolated-acceptance.mjs` prepares files without launching
+a browser or changing an installed profile. Its separate dev integration
+receipt must not be described as production or live-feed qualification. Honor
+tool denials; a manual launcher is not an agent-control workaround. Native
+uncertainty stops the run and preserves its profile/report. Run the pure
+preparation and runner-core checks separately from the extension suite.
+
 Historical LiteRT/Qwen/E4B reports and raw data remain under
 `docs/benchmarks/`. Reproduce their historical harness from commit
 `a590ce0186c89374e904bef599c3f9c51db5b9b2`. The current Browser option reuses

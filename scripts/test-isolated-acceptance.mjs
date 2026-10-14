@@ -79,7 +79,10 @@ test('preparation builds only an owned scratch copy and preserves native permiss
   for (const name of ['@litert-lm/core', '@litertjs/wasm-utils', '@noble/hashes', 'dompurify', 'html-to-image', 'typescript']) mkdirSync(path.join(source, 'node_modules', name), { recursive: true });
   writeFileSync(path.join(source, 'node_modules', 'typescript', 'LICENSE.txt'), 'synthetic license');
   for (const directory of ['src', 'adapters', 'icons']) mkdirSync(path.join(source, directory));
-  const manifest = JSON.parse(readFileSync(path.join(PROJECT_ROOT, 'Bouncer', 'manifest.json'), 'utf8'));
+  const manifest = {
+    ...JSON.parse(readFileSync(path.join(PROJECT_ROOT, 'Bouncer', 'manifest.base.json'), 'utf8')),
+    ...JSON.parse(readFileSync(path.join(PROJECT_ROOT, 'Bouncer', 'manifest.chrome.json'), 'utf8')),
+  };
   for (const filename of [
     'background.js', 'popup.js', 'content.js', 'offscreen.js', 'benchmark.js', 'setup.html', 'offscreen.html',
     'popup.css', 'content.css', 'dompurify.js', 'manifest.base.json', 'manifest.chrome.json', 'package.json', 'tsconfig.json',

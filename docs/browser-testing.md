@@ -179,6 +179,42 @@ production background bytes, toolbar-popup placement, actual X
 manual/suggestion behavior, native interruption recovery or login persistence.
 Keep those gates separate; a passing runner is not a whole-product sign-off.
 
+### Reviewing an exported report
+
+Review the report against the runner source and its prepared receipts before
+updating qualification claims:
+
+- Check the run identity, source revision, browser version, production and
+  development receipts, fixed model/runtime fingerprints, and every phase's
+  status. A production byte receipt identifies the staged release package;
+  `productionByteIdentity: false` means the run executed the development
+  background. Keep all false coverage fields visible in the conclusion.
+- Check full ordered filter vectors and classifier/selection identity, not
+  just hide/show totals. Three smoke cases per engine do not establish model
+  quality, comparative speed, energy use or memory consumption.
+- For idle evidence, require worker/offscreen absence before the distinct
+  uncached wake request, followed by a new worker context and successful
+  generation. Native residency must change from present to absent before
+  wakeup. A snapshot after 120 seconds establishes expiry by then; it does
+  not measure the exact 60-second deadline or physical memory reclamation.
+- Treat `explicitDownloadAuthorizedBytes` as authorization, not a transfer
+  receipt. Setup can reuse saved bytes, and this field is recorded for both
+  branches. A successful run alone does not establish fresh network bytes,
+  download cancellation/deletion, or offline operation. Likewise, a Browser
+  Loading result retired by a switch checks result ownership, without
+  independently instrumenting the physical initialization boundary.
+- Distinguish native worker access inferred from the verified metadata-POST
+  prerequisite for successful generation from an independently captured
+  network trace or grant dialog. The Connect phase records owner-operated
+  product/browser actions; it does not capture the browser dialog itself.
+- Require a terminal report, zero pending requests and no native uncertainty
+  before treating `safeToCleanup: true` as cleanup eligibility. That flag
+  does not prove the test browser stopped or its disposable files were removed.
+
+Record bounded observations and remaining gates in the
+[qualification report](benchmarks/ollama-qualification.md), without publishing
+raw reports, local paths, run/context identifiers or machine-specific metadata.
+
 ## Profile isolation and mock Keychain
 
 A separate profile isolates cookies, history and extension state, **not the

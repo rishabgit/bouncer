@@ -6,8 +6,8 @@ separate classifier fingerprints. Their results are not interchangeable.
 Start with the [engine action matrix](inference-engines.md); the native
 operator sections below are needed only for Ollama or native recovery.
 The [qualification report](benchmarks/ollama-qualification.md) separates
-historical measurements from the new integration's unqualified actual-Chrome
-paths and remaining native startup gates.
+historical measurements, actual-Chrome development runtime evidence and the
+remaining production, feed, setup and native startup gates.
 
 ## Browser artifact and setup
 
@@ -39,8 +39,13 @@ offscreen host on demand. Downloading weights does not initialize the GPU or
 send a post. Saved model bytes are verified before actual initialization.
 Opening settings can report a saved cold model without hashing it or loading
 the GPU. In the 2026-10-14 ordinary-page component smoke, verifying saved bytes
-made cold initialization take about 20 seconds; warm inference timings do not
-include that preparation. See the [component results](benchmarks/ollama-qualification.md#ordinary-page-browser-component-smoke--2026-10-14).
+made cold initialization take about 20 seconds. The later development extension
+run also generated through the offscreen runtime and reloaded after observed
+worker/host absence. Its first real Browser request took 32.189 seconds and
+its post-idle request 14.961 seconds; those wall times include preparation and
+do not isolate hashing from initialization. See the
+[component results](benchmarks/ollama-qualification.md#ordinary-page-browser-component-smoke--2026-10-14)
+and [development acceptance](benchmarks/ollama-qualification.md#owner-operated-extension-development-acceptance--2026-10-14).
 
 Only an explicit Download action acquires browser weights. Cancel, failed
 download or GPU setup, and **Delete downloaded browser model** preserve the chosen
@@ -56,8 +61,11 @@ for its redirects. A 2026-10-13 metadata HEAD request reached
 `us.aws.cdn.hf.co` with the expected size and `Access-Control-Allow-Origin: *`;
 this alone does not establish an extension-origin Chrome streamed GET or
 completed download. A subsequent ordinary-page Chrome component test completed
-the pinned transfer and verification; extension-origin transport and CSP remain
-[integration qualification gates](benchmarks/ollama-qualification.md#draft-release-gates).
+the pinned transfer and verification. The development extension run authorized
+the fixed transfer size and successfully loaded Browser bytes, but its report
+does not record whether a fresh network transfer occurred. Extension-origin
+fresh download/CSP, cancellation/deletion and offline saved-cache behavior
+remain [integration qualification gates](benchmarks/ollama-qualification.md#draft-release-gates).
 
 ## Native fixed artifact
 
@@ -259,6 +267,13 @@ proxy, listener, heartbeat or ongoing polling. Finally, use **Retry** or
 **Connect to Ollama** in the actual popup and verify worker readiness.
 Native helper metadata checks do not establish that browser result.
 
+The 2026-10-14 development extension run established fresh Chrome-worker native
+access after the startup correction: successful generation requires the pinned
+metadata POST before transmitting classifier text. This is code-backed runtime
+evidence without an independent network trace or grant-dialog capture. It does
+not establish final production activation or successful startup at a subsequent
+normal login; those remain [separate gates](benchmarks/ollama-qualification.md#draft-release-gates).
+
 For manual startup without a login hook, use `--mode manual` for both preview
 and installation, omit `--confirm-login-item-disabled`, and skip bootstrap.
 The exact-origin, normal-stop, artifact and ownership rules still apply.
@@ -376,8 +391,9 @@ model provenance are separate. Historical E4B used
 [Historical reports and raw data](benchmarks/) preserve their measurements;
 reproduce their historical browser harness from commit
 `a590ce0186c89374e904bef599c3f9c51db5b9b2`. The current Browser option reuses the
-E2B bytes and 0.17.0 core, while its streaming verification and engine-selection
-lifecycle need separate qualification.
+E2B bytes and 0.17.0 core. The development run qualifies bounded switching and
+idle/recreation behavior; fresh extension download, current feed behavior and
+production activation still need separate qualification.
 
 Changing the selected engine preserves manual decisions and invalidates
 automatic results whose classifier fingerprint differs. Valid old LiteRT

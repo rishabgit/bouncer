@@ -5,8 +5,9 @@ suggestion, speed, charged-memory and native idle gates in the bounded manual
 qualification below. Its exact production
 digest is accepted. This report separates those measurements and the
 2026-10-12 native-only Chrome build from the 2026-10-13 startup correction and
-the new explicit Browser/Ollama integration. The latter reuses fixed artifacts;
-historical evidence does not qualify its new download, choice or lifecycle.
+the 2026-10-14 owner-operated Browser/Ollama development acceptance run.
+That run establishes bounded extension runtime behavior; the remaining
+production, feed and setup gates are recorded separately below.
 
 ## Draft release gates
 
@@ -16,19 +17,23 @@ historical evidence does not qualify its new download, choice or lifecycle.
 | Actual Chrome Connect/grant/regrant, generation, worker lifecycle, recovery and synthetic X controls | Passed in the prior native-only build before the launcher correction; unchanged native classifier/request contract only |
 | Corrected launcher fresh-app metadata and registered-job readback | Passed 2026-10-13: qualified runtime, pinned model, exact-Origin HTTP 200, foreign-Origin HTTP 403, zero model residency |
 | Installed dual-engine popup, retained native choice and Ready display | Manually observed; recorded 2026-10-14. Both options are visible and Ollama remains selected. This is a displayed status observation, not a captured fresh metadata POST or generation |
-| Fresh actual Chrome-worker metadata request after the launcher correction | Not established |
+| Fresh actual Chrome-worker metadata request after the launcher correction | Established by the 2026-10-14 development run: successful fixed native generation requires the worker's verified metadata POST before transmission. No independent network trace or grant-dialog capture |
 | Successful subsequent normal-login startup with the corrected launcher | Not established |
 | Browser fixed source HTTP metadata | HEAD and a bounded 4 KB GET reached `us.aws.cdn.hf.co` with expected total length. The source redirect echoed the exact extension Origin and the CDN allowed public CORS; not extension-origin Chrome transport evidence |
 | Portable Browser cache/runtime components in an ordinary Chrome page | Passed the 2026-10-14 smoke below: full streamed artifact verification, cancellation/retry, saved-cache reload and real GPU inference; not extension qualification |
-| Actual extension-origin Chrome Browser CSP/download, streaming integrity, cancellation/deletion and offline saved-cache loading | Not established for the new integration; ordinary-page component results do not close this gate |
-| Actual Chrome first choice, provenance upgrade and both switch directions, including manual/suggestion ownership and native unresolved-work blocking | Not established for the new integration |
-| Actual Chrome Browser offscreen GPU preparation, 60-second idle release, worker recreation and later real generation | Not established for the new integration; ordinary-page tests do not qualify this |
+| Actual extension-origin Browser saved-byte loading and offscreen LiteRT generation | Passed in the 2026-10-14 development run with the fixed artifact/runtime. No independent GPU instrumentation or physical memory measurement |
+| Actual extension-origin Browser fresh download/CSP, streaming integrity, cancellation/deletion and offline saved-cache loading | Still open: the development report records explicit download authorization but not whether a fresh transfer occurred; ordinary-page component results do not close these extension gates |
+| Actual Chrome explicit selection, both switch directions and retirement of Browser Loading work | Passed in the 2026-10-14 development run. A retired selection's result was rejected; the physical initialization boundary was not independently instrumented |
+| First-choice/provenance upgrades, feed manual/suggestion ownership and native unresolved-work blocking | Not established by the new integration run |
+| Browser offscreen/worker release, native expiry and worker recreation followed by real generation | Passed by observations after 120-second quiet intervals in the 2026-10-14 development run. Exact 60-second expiry and physical memory reclamation were not measured |
+| Final production-build activation and actual extension synthetic X feed behavior | Not established by the development runner; its production receipt records package identity, not execution |
+| Feed UI components on a standalone synthetic localhost page | Passed 21 recorded interaction observations on 2026-10-14 with production UI/CSS and mocked adapter, transport, storage and model replies; not actual-extension feed or persistence qualification |
 
-Keep the integration PR in draft while these gates remain unestablished.
-Launcher metadata cannot establish actual Chrome-worker access or future login,
-and historical normal-page LiteRT measurements cannot establish restored
-offscreen behavior. Source/unit/package checks, ordinary-page component results
-and actual-extension observations are recorded separately. See [engine scenarios](../inference-engines.md)
+Keep the integration PR in draft while the remaining gates are open.
+Launcher metadata cannot establish future login, and historical normal-page
+LiteRT measurements cannot establish restored offscreen behavior.
+Source/unit/package checks, ordinary-page component results and the development
+extension run are recorded separately. See [engine scenarios](../inference-engines.md)
 and [operator setup and recovery](../models.md).
 
 ## Dual-engine source checks — 2026-10-13
@@ -96,7 +101,8 @@ quality study. They establish a small direct-call smoke, not suggestion,
 manual-decision, switching, worker or offscreen behavior. Both owned test model
 entries were confirmed removed, SDK teardown was requested, and the owned
 tab/server were closed; cleanup bookkeeping was cleared after confirmation.
-The extension gates above remain unqualified and the PR remains draft.
+Those ordinary-page results did not close the extension gates. The later
+development extension run is recorded separately below; the PR remains draft.
 
 ## Lifecycle failure regressions — 2026-10-14
 
@@ -139,6 +145,100 @@ one three-second observation timeout during initialization; no actual offscreen
 state-RPC timeout or rejected Chrome host closure was captured. Neither that
 observation nor these regressions qualify extension switching, automatic idle
 release, worker recreation or memory reclamation.
+
+## Owner-operated extension development acceptance — 2026-10-14
+
+The exported report records all ten phases passing in Chrome for Testing
+**155.0.8059.39**, from source **`60e32e2`**, using the fixed LiteRT-LM
+**0.17.0** and Ollama **0.40.3** pins. The owner attested to a disposable profile,
+mock Keychain, retained sandbox, no debugger and other local clients idle.
+The runner used the actual coordinator, offscreen runtime, native transport,
+popup script, manifest, CSP and permissions, with its documented development
+benchmark branch and test overlay. See the [runner's evidence limits](../browser-testing.md#reviewing-an-exported-report).
+
+The separate production receipt identifies **24 files /43,829,211 bytes**,
+with background SHA-256
+`88a88a4072ae387a6a43e931324cc708fea63e7b03022ba4a34eba49f8f3bc7d`.
+It records package byte identity; the executed background was the development
+variant. The report explicitly marks production-byte execution, toolbar popup,
+manual decisions, suggestions, native-fence recovery and normal login as
+uncovered.
+
+Three simple synthetic posts produced the exact ordered vectors for
+**astronomy**, then **cooking**, through both engines:
+
+| Case | Expected vector | Browser wall time | Ollama wall time |
+|---|---|---:|---:|
+| Astronomy | yes / no | 32,189 ms | 2,019 ms |
+| Cooking | no / yes | 134 ms | 194 ms |
+| Neutral | no / no | 144 ms | 191 ms |
+
+The first Browser wall time includes cold preparation; the report does not
+isolate saved-byte verification from runtime initialization. These are three
+smoke cases per engine, not a benchmark, quality comparison, energy measurement
+or memory measurement. Successful offscreen LiteRT generation exercises the
+configured GPU path, without an independent GPU trace.
+
+After **120.198 seconds** of Browser silence, the first context observation
+found both worker and offscreen document absent. A distinct, uncached astronomy
+request then created a new worker and offscreen host and completed in
+**14.961 seconds**. After **120.166 seconds** of native silence, the worker was
+absent and the pinned native candidate had changed from resident to absent,
+with no other resident model observed. A distinct cooking request created a
+new worker and completed in **1.329 seconds**. During quiet, the runner removed
+its popup and issued no worker messages, storage reads, polling or native requests. These observations
+establish release/expiry by the observation time, not the exact configured
+60-second deadline or physical GPU memory reclamation.
+
+Both switching directions and the final native return passed. Browser
+**Loading** was observed under selection revision 3; switching to native
+revision 4 rejected the retired Browser result. The report does not instrument
+the physical initialization boundary. Later Browser generation succeeded, and
+the final native astronomy result completed in **281 ms**.
+
+Native generation ran in the actual Chrome worker after the startup correction.
+The unchanged backend validates runtime/model metadata through `/api/show`
+POST before `/api/chat`, so the successful run establishes fresh worker POST
+access by the code-backed request contract. The report records an
+owner-operated Connect/browser grant step, without a network trace or
+independent grant-dialog capture.
+
+Browser setup records authorization for **2,008,432,640 bytes** regardless of
+whether setup uses saved bytes or starts a transfer. It therefore does not
+establish a fresh extension-origin download, transferred byte count,
+cancellation, deletion or offline operation. Feed automatic/manual/suggestion
+behavior, production activation, interrupted native recovery and subsequent
+normal-login startup remain separate gates.
+
+The terminal report has **zero pending requests**, **no native uncertainty**
+and **`safeToCleanup: true`**. This establishes cleanup eligibility; it does
+not record browser shutdown, profile removal or physical resource cleanup.
+
+## Standalone synthetic feed UI components — 2026-10-14
+
+An ordinary localhost page imported the unchanged production `content/ui.ts`
+and its dependencies, with the shipped content/Twitter stylesheets. Its
+adapter, Chrome transport, storage and model replies were entirely mocked in
+page memory. It imported no content controller, background or inference engine;
+post links stayed on the local page and Settings was excluded.
+
+Twenty-one recorded interaction observations passed: delayed suggestions kept
+edited text; chips required explicit Bounce; blank/manual Bounce remained
+available during setup waits; failed Bounce rolled back its provisional hide;
+Restore stayed hidden while pending, retained its row after failure, and
+revealed the post after explicit retry success. Cancel and recycled article
+identity rejected late suggestions. Explicitly invoking the UI's engine-change
+helpers preserved manual decisions and edits while retiring automatic hides
+and stale chips. Phrase controls worked, and the composer/panel fit a 390-pixel
+emulated Chrome viewport. Light, dim and dark rendering was checked.
+
+These observations cover rendered components and their response handling,
+not real classifier suggestions, automatic controller wiring, background
+serialization, durable decisions or actual X extraction. Phrase deduplication
+was supplied by the mock. Successful empty suggestions stayed cached on reopen;
+errors allowed a new request. The owned tab and static server were closed and
+the viewport override reset; no installed extension preference or native setup
+was accessed. Actual-extension feed and production gates remain open.
 
 ## Fixed artifact and method
 
@@ -298,9 +398,10 @@ Fresh-app qualification of the corrected startup implementation passed those
 metadata checks with **zero resident models**. Its installed-launcher
 registered-job readback also passed. Later CLI help/argument-validation polish
 is covered by pure unit checks; this report does not claim that polished CLI
-source was installed or freshly tested against the native application. A fresh actual
-Chrome-worker request after the correction and a successful subsequent normal
-login are **not established** and remain the draft gates above. Earlier
-filtering, permission, loading, retention and recovery results qualify the
-unchanged native classifier contract; they do not close these post-correction
-gates or qualify the new dual-engine coordinator and Browser lifecycle.
+source was installed or freshly tested against the native application. The
+2026-10-14 development run above establishes fresh actual Chrome-worker POST
+access and bounded dual-engine lifecycle behavior. A successful subsequent
+normal login remains **not established**. Earlier filtering, permission,
+loading, retention and recovery results qualify the unchanged native classifier
+contract; the development run does not extend them to current feed behavior,
+production activation or interrupted-work recovery.

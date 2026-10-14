@@ -96,11 +96,25 @@ worker recreation, explicit cleanup Retry, and a status-read failure while
 owned initialization remains pending. They do not establish that those failures
 occurred in actual Chrome, or qualify the extension's lifecycle.
 
-Extension-origin CSP/full download, offscreen GPU lifecycle, engine switching,
-manual/suggestion ownership, 60-second idle release, worker recreation, fresh
-native worker metadata POST and subsequent normal-login startup remain
-unqualified. See the separate component results and draft gates in the
-[qualification report](benchmarks/ollama-qualification.md).
+An owner-operated development extension run on 2026-10-14 passed fixed
+classifier smoke checks through both engines, offscreen LiteRT generation,
+both switch directions and rejection of a retired Browser Loading result.
+After 120-second quiet intervals, Browser worker/offscreen contexts were absent,
+and the native worker and pinned resident candidate were absent. Distinct real
+requests then created new workers and generated successfully. Successful native
+generation also establishes fresh worker metadata POST access through the
+verified request contract. The report provides no independent GPU/network trace
+or grant-dialog capture, and does not measure exact 60-second expiry or physical
+memory reclamation.
+
+That run's production receipt identifies the release package, while the
+executed background uses the development benchmark branch and test overlay.
+Its setup authorization does not record whether a fresh Browser transfer
+occurred. Extension-origin fresh download/CSP, cancellation/deletion and offline
+operation, first-choice/provenance upgrades, feed manual/suggestion ownership,
+native interruption recovery, final production activation and subsequent
+normal-login startup remain separate gates. See the
+[development acceptance results and draft gates](benchmarks/ollama-qualification.md#owner-operated-extension-development-acceptance--2026-10-14).
 
 See [fixed artifacts and setup](models.md) for sizes, hashes, licenses and the
 optional Ollama preparation, startup, upgrade/removal and recovery recipes.

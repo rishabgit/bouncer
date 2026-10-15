@@ -5,9 +5,10 @@ suggestion, speed, charged-memory and native idle gates in the bounded manual
 qualification below. Its exact production
 digest is accepted. This report separates those measurements and the
 2026-10-12 native-only Chrome build from the 2026-10-13 startup correction and
-the 2026-10-14 owner-operated Browser/Ollama development acceptance run.
-That run establishes bounded extension runtime behavior; the remaining
-production, feed and setup gates are recorded separately below.
+the 2026-10-14 owner-operated Browser/Ollama development acceptance run and
+the 2026-10-15 production Browser synthetic-feed observations. These establish
+bounded runtime and Browser feed behavior; remaining setup, migration and
+native gates are recorded separately below.
 
 ## Draft release gates
 
@@ -22,18 +23,22 @@ production, feed and setup gates are recorded separately below.
 | Browser fixed source HTTP metadata | HEAD and a bounded 4 KB GET reached `us.aws.cdn.hf.co` with expected total length. The source redirect echoed the exact extension Origin and the CDN allowed public CORS; not extension-origin Chrome transport evidence |
 | Portable Browser cache/runtime components in an ordinary Chrome page | Passed the 2026-10-14 smoke below: full streamed artifact verification, cancellation/retry, saved-cache reload and real GPU inference; not extension qualification |
 | Actual extension-origin Browser saved-byte loading and offscreen LiteRT generation | Passed in the 2026-10-14 development run with the fixed artifact/runtime. No independent GPU instrumentation or physical memory measurement |
-| Actual extension-origin Browser fresh download/CSP, streaming integrity, cancellation/deletion and offline saved-cache loading | Still open: the development report records explicit download authorization but not whether a fresh transfer occurred; ordinary-page component results do not close these extension gates |
+| Production extension-origin Browser fresh setup: download/CSP and fixed-byte integrity | Observed 2026-10-15: fresh-profile first-launch receipt, initial Download needed, explicit Download/retry, Ready and real Browser filtering/suggestions jointly establish the functional path through verified size/SHA-256 prerequisites. Code-backed evidence, without an independent network/digest trace |
+| Actual extension-origin Browser download cancellation and offline saved-cache loading | Still open: cancellation timing/progress and offline operation were not observed; ordinary-page component results do not close these extension gates |
+| Production Browser owned model deletion and retained choice/filter | Observed 2026-10-15: explicit confirmation led to Download needed while Browser remained selected and the astronomy filter stayed saved. Verified source awaits owned deletion before publishing that state; physical cache inventory and disk reclamation were not measured |
 | Actual Chrome explicit selection, both switch directions and retirement of Browser Loading work | Passed in the 2026-10-14 development run. A retired selection's result was rejected; the physical initialization boundary was not independently instrumented |
-| First-choice/provenance upgrades, feed manual/suggestion ownership and native unresolved-work blocking | Not established by the new integration run |
+| First-choice/provenance upgrades and native unresolved-work blocking/recovery | Still open for the dual-engine integration |
+| Production Browser feed filtering, suggestions and manual decisions | Observed 2026-10-15 in owner-provided actual-extension captures, including retained edits and the instructed Bounce/reload/Restore/reload sequence; no independent navigation trace |
 | Browser offscreen/worker release, native expiry and worker recreation followed by real generation | Passed by observations after 120-second quiet intervals in the 2026-10-14 development run. Exact 60-second expiry and physical memory reclamation were not measured |
-| Final production-build activation and actual extension synthetic X feed behavior | Not established by the development runner; its production receipt records package identity, not execution |
+| Production-build activation and actual extension synthetic X feed behavior | Observed for Browser in an isolated profile on 2026-10-15 with the unchanged production package. Daily-profile activation and native production behavior remain unqualified |
 | Feed UI components on a standalone synthetic localhost page | Passed 21 recorded interaction observations on 2026-10-14 with production UI/CSS and mocked adapter, transport, storage and model replies; not actual-extension feed or persistence qualification |
 
 Keep the integration PR in draft while the remaining gates are open.
 Launcher metadata cannot establish future login, and historical normal-page
 LiteRT measurements cannot establish restored offscreen behavior.
-Source/unit/package checks, ordinary-page component results and the development
-extension run are recorded separately. See [engine scenarios](../inference-engines.md)
+Source/unit/package checks, ordinary-page component results, the development
+extension run and owner-provided production Browser captures are recorded
+separately. See [engine scenarios](../inference-engines.md)
 and [operator setup and recovery](../models.md).
 
 ## Dual-engine source checks — 2026-10-13
@@ -208,11 +213,60 @@ whether setup uses saved bytes or starts a transfer. It therefore does not
 establish a fresh extension-origin download, transferred byte count,
 cancellation, deletion or offline operation. Feed automatic/manual/suggestion
 behavior, production activation, interrupted native recovery and subsequent
-normal-login startup remain separate gates.
+normal-login startup were outside that run. See the later
+[production Browser observations](#owner-operated-production-browser-feed-observations--2026-10-15)
+and [current gates](#draft-release-gates).
 
 The terminal report has **zero pending requests**, **no native uncertainty**
 and **`safeToCleanup: true`**. This establishes cleanup eligibility; it does
 not record browser shutdown, profile removal or physical resource cleanup.
+
+## Owner-operated production Browser feed observations — 2026-10-15
+
+The owner operated the unchanged production extension in Chrome for Testing
+**155.0.8059.39**, using a fresh disposable profile and a static local HTTPS
+synthetic feed at `https://x.com`. All **24 production files /43,829,211 bytes**
+matched the production receipt above. The manifest, sender checks, CSP and
+model/runtime pins were unchanged; no development benchmark, popup helper or
+test overlay was present.
+
+The first-launch receipt required the profile to be absent before launch.
+Owner captures show initial **Download needed**, explicit Download/retry, then
+**Ready** and real filtering/suggestions. Together these establish functional
+extension-origin download/CSP and integrity success. Verified source requires
+exactly **2,008,432,640 bytes** and the pinned SHA-256 before cache publication,
+then reverifies saved bytes before GPU initialization. As with the native
+worker metadata POST above, this is code-backed prerequisite inference,
+without an independent network/digest trace.
+
+Owner-provided actual-extension captures show saved **Browser** choice and
+**Ready**; both initial astronomy posts hidden while a neutral recipe stays
+visible; and three valid suggestions with an edited phrase retained from
+pending through completion. A blank manual **Bounce** raised the filtered
+count to three. In the instructed reload/Restore/reload sequence, the recipe
+became visible again and the count returned to two. The sequence is
+owner-operated evidence without an independent navigation trace.
+
+A distinct new astronomy post was hidden and a new neutral post remained
+visible without another Download action. Reusing a retained post cell for
+neutral content revealed the new post and removed the old filtered snapshot.
+Dim, dark and light themes and
+Explore-to-Home navigation retained the expected controls and posts. After
+explicit model-deletion confirmation, settings showed **Download needed**
+while Browser remained selected and the astronomy filter stayed saved. This is
+functional owned model deletion evidence: verified source awaits deletion before
+publishing that state. Physical cache inventory and disk reclamation were not
+measured.
+
+The matching checklist export retains `ownerOutcome: "in_progress"` and
+unchecked items, which remain unverified. It is not a failed or completed
+machine-phase pass and certifies none of the workflow by itself. Transfer byte
+counts/timing, the exact CDN route and independent digest/GPU/disk/RAM traces
+were not measured; these are limits on measurement, not additional functional
+release gates. Cancellation timing/progress, offline operation, legacy
+provenance, native blocking/recovery, normal-login startup and daily-profile
+activation remain open. The earlier development switching/idle evidence
+remains separate, and the PR remains draft.
 
 ## Standalone synthetic feed UI components — 2026-10-14
 
@@ -238,7 +292,9 @@ serialization, durable decisions or actual X extraction. Phrase deduplication
 was supplied by the mock. Successful empty suggestions stayed cached on reopen;
 errors allowed a new request. The owned tab and static server were closed and
 the viewport override reset; no installed extension preference or native setup
-was accessed. Actual-extension feed and production gates remain open.
+was accessed. Those component observations did not close actual-extension feed
+or production gates; see the later [production Browser observations](#owner-operated-production-browser-feed-observations--2026-10-15)
+and [current gates](#draft-release-gates).
 
 ## Fixed artifact and method
 

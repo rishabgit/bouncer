@@ -23,11 +23,12 @@ Images and videos are not passed to inference. The two packages use separate
 prompts and classifier identities, so their results can differ. There is no
 automatic fallback, model picker, custom endpoint or cloud inference.
 
-> **The two-engine integration remains in draft.** Historical browser and
-> native measurements are recorded, but they do not qualify the new choice,
-> streaming integrity, offscreen or switching paths. The
+> **The two-engine integration remains in draft.** Owner-operated checks
+> establish bounded development runtime behavior and production Browser setup
+> and synthetic-feed behavior. Cancellation, offline operation, migration,
+> native recovery and normal-login gates remain open. The
 > [qualification report](docs/benchmarks/ollama-qualification.md) separates
-> those limits from the remaining native startup checks.
+> those observations from historical measurements and the remaining gates.
 
 ## Features
 

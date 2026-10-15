@@ -215,6 +215,32 @@ Record bounded observations and remaining gates in the
 [qualification report](benchmarks/ollama-qualification.md), without publishing
 raw reports, local paths, run/context identifiers or machine-specific metadata.
 
+### Reviewing owner-operated production feed evidence
+
+A manual checklist export and owner-provided captures are separate from the
+machine-phase runner above. Verify package/browser identity, first-launch
+profile absence and fixed pins. Describe captured outcomes and label any
+verified-code prerequisite inference separately. Matching export metadata
+alone certifies no checklist outcome. Retain an
+`ownerOutcome: "in_progress"` as recorded; it is not a failed or completed
+machine-phase pass and does not erase separately captured observations.
+
+Fresh-profile evidence plus initial Download needed, explicit Download, Ready
+and real inference can establish functional download/CSP/integrity success
+when verified unchanged source requires fixed size/SHA-256 before cache
+publication and saved-byte reverification before GPU initialization. This is
+code-backed evidence, not an independent transfer/digest trace. Likewise,
+confirmed deletion followed by Download needed supports functional owned
+deletion when source awaits it; physical cache inventory and disk reclamation
+remain unmeasured.
+
+Distinguish an instructed owner reload sequence from an independently captured
+navigation trace. Transfer counts/timing, exact CDN routing and independent
+GPU/disk/RAM measurements are separate from functional success. Unobserved
+cancellation, offline, migration, native-recovery and login results remain open;
+these captures grant no cleanup authority. Record their bounded scope in the
+[qualification report](benchmarks/ollama-qualification.md#owner-operated-production-browser-feed-observations--2026-10-15).
+
 ## Profile isolation and mock Keychain
 
 A separate profile isolates cookies, history and extension state, **not the

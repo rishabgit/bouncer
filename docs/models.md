@@ -6,8 +6,9 @@ separate classifier fingerprints. Their results are not interchangeable.
 Start with the [engine action matrix](inference-engines.md); the native
 operator sections below are needed only for Ollama or native recovery.
 The [qualification report](benchmarks/ollama-qualification.md) separates
-historical measurements, actual-Chrome development runtime evidence and the
-remaining production, feed, setup and native startup gates.
+historical measurements, actual-Chrome development runtime evidence, bounded
+production Browser feed observations and the remaining setup, migration and
+native gates.
 
 ## Browser artifact and setup
 
@@ -63,9 +64,18 @@ this alone does not establish an extension-origin Chrome streamed GET or
 completed download. A subsequent ordinary-page Chrome component test completed
 the pinned transfer and verification. The development extension run authorized
 the fixed transfer size and successfully loaded Browser bytes, but its report
-does not record whether a fresh network transfer occurred. Extension-origin
-fresh download/CSP, cancellation/deletion and offline saved-cache behavior
-remain [integration qualification gates](benchmarks/ollama-qualification.md#draft-release-gates).
+does not record whether a fresh network transfer occurred. The 2026-10-15
+production first-launch receipt and captured Download needed → explicit
+Download/retry → Ready → real filtering/suggestions establish functional
+extension-origin download/CSP and integrity success. Verified code requires
+the fixed size/SHA-256 before cache publication and saved-byte reverification
+before GPU initialization; this is prerequisite inference, not an independent
+transfer/digest trace. Cancellation and offline saved-cache behavior remain
+[integration qualification gates](benchmarks/ollama-qualification.md#draft-release-gates).
+Confirmed deletion returned Download needed with the choice and filter
+retained. Source awaits owned deletion before publishing that state, supporting
+functional success; physical cache inventory and disk reclamation were not
+measured. See the [bounded production observations](benchmarks/ollama-qualification.md#owner-operated-production-browser-feed-observations--2026-10-15).
 
 ## Native fixed artifact
 
@@ -392,8 +402,11 @@ model provenance are separate. Historical E4B used
 reproduce their historical browser harness from commit
 `a590ce0186c89374e904bef599c3f9c51db5b9b2`. The current Browser option reuses the
 E2B bytes and 0.17.0 core. The development run qualifies bounded switching and
-idle/recreation behavior; fresh extension download, current feed behavior and
-production activation still need separate qualification.
+idle/recreation behavior; the later unchanged production package has bounded
+Browser fresh setup, synthetic-feed and owned model deletion observations supported
+by captures and verified code prerequisites. Cancellation/offline behavior,
+provenance upgrades, native blocking/recovery,
+normal login and daily-profile activation remain separate qualification gates.
 
 Changing the selected engine preserves manual decisions and invalidates
 automatic results whose classifier fingerprint differs. Valid old LiteRT

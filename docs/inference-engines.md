@@ -112,9 +112,28 @@ executed background uses the development benchmark branch and test overlay.
 Its setup authorization does not record whether a fresh Browser transfer
 occurred. Extension-origin fresh download/CSP, cancellation/deletion and offline
 operation, first-choice/provenance upgrades, feed manual/suggestion ownership,
-native interruption recovery, final production activation and subsequent
-normal-login startup remain separate gates. See the
-[development acceptance results and draft gates](benchmarks/ollama-qualification.md#owner-operated-extension-development-acceptance--2026-10-14).
+native interruption recovery, production activation and normal-login startup
+were outside that development run.
+
+On 2026-10-15, a fresh-profile first-launch receipt and owner-provided workflow
+captures from the unchanged production extension established functional
+Browser download/CSP and integrity success: initial Download needed, explicit
+Download/retry, Ready, then real filtering/suggestions. Verified source checks
+the fixed size/SHA-256 before cache publication and reverifies saved bytes
+before GPU initialization. This is code-backed prerequisite evidence without
+an independent transfer/digest trace.
+
+The same run established bounded Browser synthetic-feed filtering, real
+suggestions retaining edits, manual Bounce/Restore in the instructed reload
+sequence, recycled cells, themes and navigation. Confirmed deletion led to
+Download needed with Browser and the filter retained; source awaits owned
+deletion before publishing that state. Physical cache inventory, disk
+reclamation, transfer counts/timing, exact CDN routing and independent GPU/RAM
+measurements remain unmeasured. Cancellation, offline operation, provenance
+upgrades, native blocking/recovery, normal login and daily-profile activation
+remain open. See the
+[production Browser observations](benchmarks/ollama-qualification.md#owner-operated-production-browser-feed-observations--2026-10-15)
+and [current draft gates](benchmarks/ollama-qualification.md#draft-release-gates).
 
 See [fixed artifacts and setup](models.md) for sizes, hashes, licenses and the
 optional Ollama preparation, startup, upgrade/removal and recovery recipes.

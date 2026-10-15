@@ -8,6 +8,8 @@ on:
     types: [opened, edited, synchronize, reopened]
     paths:
       - "Bouncer/**"
+      - "scripts/**"
+      - ".github/workflows/lint_test_build.yml"
 
 jobs:
   lint-and-test:
@@ -19,12 +21,22 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: Bouncer/package-lock.json
       - run: npm ci
       - run: npm run lint
       - run: npm run test
+
+  operator-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: node --test scripts/test-macos-ollama-setup.mjs scripts/test-prepare-native-model.mjs
+      - run: node --test scripts/test-isolated-acceptance.mjs scripts/acceptance/test-runner-core.mjs
 
   build:
     runs-on: ubuntu-latest
@@ -35,7 +47,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
           cache: npm
           cache-dependency-path: Bouncer/package-lock.json
       - run: npm ci

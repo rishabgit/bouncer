@@ -3,8 +3,18 @@ import type { EvaluationResult } from '../../src/types';
 
 const engine = vi.hoisted(() => ({
   isMaintaining: vi.fn(() => false),
+  getSelection: () => ({ engine: 'ollama' as const, revision: 0 }),
+  getClassifierFingerprint: () => 'synthetic-native-fingerprint',
   markTerminalError: vi.fn(),
 }));
+vi.mock('../../src/shared/models.js', async importOriginal => {
+  const original = await importOriginal<typeof import('../../src/shared/models')>();
+  return { ...original,
+    ACCEPTED_NATIVE_MANIFEST_DIGEST: 'a'.repeat(64),
+    PRIMARY_LOCAL_MODEL: { ...original.PRIMARY_LOCAL_MODEL, manifestDigest: 'a'.repeat(64) },
+    NATIVE_CLASSIFIER_FINGERPRINT: 'synthetic-native-fingerprint',
+  };
+});
 vi.mock('../../src/background/local-model.js', () => ({
   localEngine: engine,
   callLocalInference: vi.fn(),
@@ -54,6 +64,22 @@ afterEach(() => {
 });
 
 describe('automatic cache persistence', () => {
+  it('retries a failed initial cache read before accepting preserved manual decisions', async () => {
+    vi.resetModules();
+    const post = 'preserved manual decision after a transient cache read';
+    const key = generateCacheKey(post);
+    persisted = { [key]: { shouldHide: true, reasoning: 'manual', userOverride: true } };
+    const failure = new Error('cache storage temporarily unavailable');
+    vi.mocked(chrome.storage.local.get).mockRejectedValueOnce(failure);
+    pipeline = await import('../../src/background/pipeline');
+    const logError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    await expect(pipeline.loadCache()).rejects.toThrow(failure.message);
+    await pipeline.loadCache();
+    await expect(pipeline.readCachedEvaluation(key)).resolves.toMatchObject({ shouldHide: true, userOverride: true });
+    expect(writeStorage).not.toHaveBeenCalled();
+    logError.mockRestore();
+  });
+
   it('uses the first dirty entry deadline and snapshots the current map when it fires', async () => {
     markAutomatic('first');
     await vi.advanceTimersByTimeAsync(1000);
@@ -157,7 +183,7 @@ describe('automatic cache persistence', () => {
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const post = 'post whose manual write fails';
     const key = generateCacheKey(post);
-    const previous = { shouldHide: false, reasoning: 'previous settled verdict' };
+    const previous: EvaluationResult = { shouldHide: false, reasoning: 'previous settled verdict', classifierFingerprint: 'synthetic-native-fingerprint', engine: 'ollama', selectionRevision: 0 };
     pipeline.evaluationCache.set(key, previous);
     await pipeline.saveCache(true);
     const manualWrite = deferred();

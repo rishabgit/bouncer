@@ -1,4 +1,11 @@
-# Gemma 4 E2B production decision
+# Historical Gemma 4 E2B production decision
+
+> Historical LiteRT release record. The current Browser option reuses its
+> fixed E2B artifact, now alongside explicit native QAT engine choice. This
+> record does not qualify the new download, choice or offscreen lifecycle.
+> Recorded measurements and raw data are unchanged. Reproduce the historical
+> harness from commit `a590ce0186c89374e904bef599c3f9c51db5b9b2`.
+> See [qualification and integration gates](ollama-qualification.md).
 
 **Decision (2026-07-15): ship Gemma 4 E2B through LiteRT-LM as Bouncer's sole
 production model.** Remove the WebLLM/Qwen, vision, custom-model, and product
@@ -9,7 +16,7 @@ harness.
 This is a one-model product, not a permanent two-model pipeline. E4B is neither
 shown in the popup nor loaded by normal filtering.
 
-The model decision remains in force. The later
+The later
 [2026-10-11 runtime/prefix-cache verification](runtime-upgrade.md) records the
 LiteRT-LM 0.17.0 upgrade using the same pinned E2B artifact and strict contract.
 
@@ -19,10 +26,10 @@ Upstream Bouncer had already replaced WebLLM/Qwen in its desktop local path
 with LiteRT/Gemma and added E2B alongside E4B in its local catalog. E2B was
 therefore not an overlooked model that upstream's authors had declined to use.
 Upstream still retains cloud providers and both Gemma sizes; making E2B the
-only production model is this personal fork's stronger simplification. The
+only production model is this local-only fork's stronger simplification. The
 fork had retained its older WebLLM/Qwen architecture while exposing E4B and
-had not yet supplied its own quantitative E2B comparison. This work closes
-that evidence gap on the only machine the fork needs to optimize for.
+had not yet supplied its own quantitative E2B comparison. This comparison closed
+that evidence gap on the recorded target hardware.
 
 ## Artifacts
 
@@ -38,8 +45,8 @@ The E2B artifact is pinned to
 `litert-community/gemma-4-E2B-it-litert-lm@9262660a1676eed6d0c477ab1a86344430854664`
 (`gemma-4-E2B-it-web.litertlm`, LFS SHA-256
 `3a08e8d94e23b814ae5414469c370c503813949acb8ceaa17e4ebf8a35af35b5`).
-The production URL still points to that revision-pinned upstream repository;
-it has **not yet been copied to a fork-owned mirror**.
+The historical production URL pointed to that revision-pinned upstream
+repository; no fork-owned mirror was used in this release.
 
 ## Test environment and method
 
@@ -146,7 +153,7 @@ classification took about 1,170 ms, versus about 460 ms for the then-current
 E4B/LiteRT path. A tuned Qwen intent prompt reached 95% accuracy, so these data
 do **not** establish that Qwen or WebLLM is universally worse. They establish
 that retaining that extra engine, model catalog, vision branch, cache format,
-and picker did not earn its complexity in this personal text-only fork.
+and picker did not earn its complexity in this text-only fork.
 
 The historical Qwen/E4B run changed model, runtime, prompt shape, and output
 length together; it does not isolate LiteRT as an intrinsically faster engine.
@@ -170,8 +177,13 @@ run with the same workload and integrated battery current/voltage over time.
 
 ## Reproduce the comparison
 
+Run the commands below in a separate historical checkout of
+`a590ce0186c89374e904bef599c3f9c51db5b9b2`. The comparison runner is retired
+in the current checkout.
+
 ```bash
 cd Bouncer
+npm ci
 npm run build:dev
 python3 -m http.server 8123 --bind 127.0.0.1
 ```
@@ -188,11 +200,11 @@ into that localhost origin's Cache Storage; later runs use the cache. The page
 places its structured report in `globalThis.__BOUNCER_GEMMA_REPORT__` and also
 renders it in the page.
 
-The localhost surface exists because browser automation cannot control another
-extension's `chrome-extension://` pages. It has no extension privileges and
+The historical localhost surface existed because the automation used for that
+run could not control another extension's `chrome-extension://` pages. It had no extension privileges and
 does not weaken the production extension's security boundary.
 
-## Residual follow-ups
+## Historical residual follow-ups
 
 - Mirror the exact pinned E2B artifact into a fork-owned repository if independent availability becomes important.
 - Manually reload the unpacked extension after this migration and smoke-test the popup plus injected X UI; automation cannot reload or inspect another extension's popup.

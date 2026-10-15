@@ -1,31 +1,19 @@
 // Bouncer - Content Script
 // Entry point: post processing, observers, init, storage/message listeners
 
-import type { PlatformAdapter, PostContent, PostState, PipelineResponse, BackgroundToContentMessage, DescriptionKey } from '../types';
+import type { PlatformAdapter, PostContent, PostState, PipelineResponse, BackgroundToContentMessage, DescriptionKey, EngineSelection } from '../types';
 import { getStorage, removeStorage, getDescriptions, setDescriptions } from '../shared/storage';
 import { FILTER_PACK_CODE_PREFIX } from '../shared/share-encoding';
 import { postViewportPriority } from './geometry';
 import { hasScheduledFilteredHide, restoreFilteredContainer, scheduleFilteredHide } from './dom-state';
 import { currentPostDecision, forgetPostDecision, isPostIdentityCurrent, postIdentity, rememberPostDecision } from './filter-actions';
 
-// iOS support was removed from this local-only fork (WKWebView has no WebGPU),
-// so these are desktop no-ops that keep the shared UI module's shape stable.
-const IS_IOS = false;
-const initIOS = (_opts: unknown): void => {};
-const getFFPageActive = (): boolean => false;
-const getIOSPageContainer = (): HTMLElement | null => null;
-const getFFFabButton = (): HTMLElement | null => null;
-const renderIOSCategories = (): void => {};
-const updateIOSFilteredCount = (): void => {};
-const handleDOMMutationIOS = (): void => {};
-
 import {
   initUI,
-  getFilteredPosts, getFilteredTabActive,
+  getFilteredTabActive,
   updateTheme,
   injectFilterPhrasesInput, injectBottomFilterBox, injectMobileFilterBox,
-  syncFilterPhrases, addFilterPhrase, removeFilterPhrase,
-  showSettingsModal, renderFilteredPostsView,
+  syncFilterPhrases,
   initModelLoadingListener,
   markPostPending, markPostVerified, getVerificationBar,
   storeFilteredPost, hidePost,
@@ -37,6 +25,8 @@ import {
   initDetectorStates,
   updateDetectorState,
   reconcileFilterChanges,
+  reconcileEngineChange,
+  updateContentEngineSelection,
   removeFilteredPostForArticle,
   resetPostForRecycling,
   clearDetectorStates,
@@ -47,7 +37,7 @@ import { formatPostForEvaluation } from '../shared/utils';
 (function() {
   'use strict';
 
-  // Safari re-injects content scripts when extension permissions change on
+  // A repeated injection when extension permissions change on
   // an already-loaded tab. Each re-injection has a fresh module scope and
   // would register duplicate listeners + create duplicate UI. Guard with a
   // window-level sentinel so only the first injection per page runs.
@@ -64,12 +54,10 @@ import { formatPostForEvaluation } from '../shared/utils';
     console.error('[Bouncer] No platform adapter found');
     return;
   }
-  console.log('[Bouncer] Content script starting, IS_IOS:', IS_IOS);
+  console.log('[Bouncer] Content script starting');
   const adapter: PlatformAdapter = new BouncerAdapter();
   console.log('[Bouncer] Adapter loaded:', adapter.siteId);
   document.body.classList.add(`site-${adapter.siteId}`);
-
-  if (IS_IOS) document.body.classList.add('ff-ios');
 
   // Site-specific storage key for filter phrases
   const descriptionsKey: DescriptionKey = `descriptions_${adapter.siteId}`;
@@ -97,9 +85,11 @@ import { formatPostForEvaluation } from '../shared/utils';
 
   const pendingPosts = new Set<HTMLElement>();
   const stuckPostCheckDelay = 5000;
-  let isLocalModelActive = false;
   let enabled = true;
   let filterGeneration = 0;
+  let engineSelection: EngineSelection | undefined;
+  let settingsInitialized = false;
+  const settingsChangedDuringInit = new Set<string>();
   // Cached `filterReplies` setting; loaded on init and kept current by the
   // storage-change listener below. Defaults to true so the gate is a no-op
   // until the user explicitly opts out.
@@ -111,12 +101,6 @@ import { formatPostForEvaluation } from '../shared/utils';
   initUI({
     adapter,
     descriptionsKey,
-    IS_IOS,
-    // iOS state/functions
-    getIOSPageContainer,
-    getFFFabButton,
-    updateIOSFilteredCount,
-    renderIOSCategories,
     // Index functions
     findPosts: () => findPosts(),
     extractPostContent: (article: HTMLElement) => extractPostContent(article),
@@ -128,18 +112,6 @@ import { formatPostForEvaluation } from '../shared/utils';
     processedPosts,
     postReasonings,
     pendingPosts,
-  });
-
-  initIOS({
-    adapter,
-    descriptionsKey,
-    // UI functions
-    showSettingsModal,
-    renderFilteredPostsView,
-    updateTheme,
-    addFilterPhrase,
-    removeFilterPhrase,
-    getFilteredPosts,
   });
 
   // ==================== Core Functions ====================
@@ -174,17 +146,6 @@ import { formatPostForEvaluation } from '../shared/utils';
 
   function extractPostContent(article: HTMLElement): PostContent {
     return adapter.extractPostContent(article);
-  }
-
-  async function checkLocalModelActive() {
-    try {
-      const data = await getStorage(['selectedModel']);
-      const model = data.selectedModel || '';
-      isLocalModelActive = model.startsWith('local:');
-    } catch (err) {
-      console.debug('[Bouncer] Failed to check model type:', err);
-      isLocalModelActive = false;
-    }
   }
 
   function replyFilteringIsDisabled(article: HTMLElement): boolean {
@@ -240,46 +201,45 @@ import { formatPostForEvaluation } from '../shared/utils';
 
   const MAX_STORE_RETRIES = 3;
 
-  // In-app WKWebView mode: fiber-extractor can't load, use DOM extraction directly
-  const isInApp = typeof chrome !== 'undefined' && chrome._polyfilled;
-
   // Evaluate a post using the background script
-  async function evaluatePost(article: HTMLElement) {
-    if (!enabled || currentPostDecision(adapter, article)?.userOverride) return;
+  async function evaluatePost(article: HTMLElement, requirePageScope = false) {
+    if (!enabled || replyFilteringIsDisabled(article) || currentPostDecision(adapter, article)?.userOverride) return;
     const identity = postIdentity(adapter, article);
     const generation = filterGeneration;
-    console.log('[Bouncer] evaluatePost called, isInApp:', isInApp);
     let content: PostContent | undefined;
 
-    if (isInApp) {
-      // WKWebView: use DOM-based extraction (store extraction unavailable)
-      content = extractPostContent(article);
-      console.log('[Bouncer] DOM extraction result:', content?.text?.substring(0, 80));
-    } else {
-      // Extension: extract post content from platform store (preferred source)
-      try {
-        content = await adapter.extractPostContentFromStore(article) ?? undefined;
-      } catch { /* store not ready */ }
+    // Extract post content from platform store (preferred source)
+    try {
+      content = await adapter.extractPostContentFromStore(article) ?? undefined;
+    } catch { /* store not ready */ }
 
-      if (!isPostIdentityCurrent(adapter, article, identity) || generation !== filterGeneration
-          || !enabled || currentPostDecision(adapter, article)?.userOverride) return;
+    if (!isPostIdentityCurrent(adapter, article, identity) || generation !== filterGeneration
+        || !enabled || currentPostDecision(adapter, article)?.userOverride) return;
+    if (replyFilteringIsDisabled(article)) {
+      restoreReplyPost(article);
+      processedPosts.delete(article);
+      return;
+    }
+    if (requirePageScope && !adapter.shouldProcessCurrentPage()) {
+      processedPosts.delete(article);
+      return;
+    }
 
-      // If store returned nothing, defer for MutationObserver to retry
-      if (!content) {
-        const retries = parseInt(article.dataset.ffStoreRetries || '0', 10);
-        if (retries >= MAX_STORE_RETRIES) {
-          console.warn('[Bouncer] Store extraction failed after', MAX_STORE_RETRIES, 'retries, skipping post');
-          postReasonings.set(article, {
-            shouldHide: false,
-            reasoning: 'Could not extract post data from store.'
-          });
-          markPostVerified(article);
-          return;
-        }
-        article.dataset.ffStoreRetries = String(retries + 1);
-        processedPosts.delete(article);
+    // If store returned nothing, defer for MutationObserver to retry
+    if (!content) {
+      const retries = parseInt(article.dataset.ffStoreRetries || '0', 10);
+      if (retries >= MAX_STORE_RETRIES) {
+        console.warn('[Bouncer] Store extraction failed after', MAX_STORE_RETRIES, 'retries, skipping post');
+        postReasonings.set(article, {
+          shouldHide: false,
+          reasoning: 'Could not extract post data from store.'
+        });
+        markPostVerified(article);
         return;
       }
+      article.dataset.ffStoreRetries = String(retries + 1);
+      processedPosts.delete(article);
+      return;
     }
 
     if (!isPostIdentityCurrent(adapter, article, identity) || generation !== filterGeneration
@@ -309,7 +269,11 @@ import { formatPostForEvaluation } from '../shared/utils';
           postUrl: content.postUrl || null,
           siteId: adapter.siteId
         });
-      const response = await evaluatePromise as PipelineResponse;
+      // Queue retirement has no verdict. Release the article through the same
+      // guarded retry path so surviving SPA content can submit fresh work.
+      const response = (await evaluatePromise as PipelineResponse) ?? {
+        retry: true, reasoning: 'Post evaluation interrupted.', retryAfterMs: 1000,
+      };
       releaseEvaluation(evaluationId);
       console.log('[Bouncer] evaluatePost response:', JSON.stringify(response)?.substring(0, 200));
 
@@ -329,30 +293,22 @@ import { formatPostForEvaluation } from '../shared/utils';
         return;
       }
 
-      if (response == null) {
-        // Skip - post stays as-is (pending). Covers: disabled, no_rules,
-        // page_reload, and Safari's MV3 quirk of resolving sendMessage with
-        // `undefined` when the service worker tears the channel down before
-        // sendResponse is called (Chrome/Firefox keep the promise pending).
-        // Treat both as "leave the post alone" rather than letting the
-        // `'retry' in response` check below throw on a non-object.
-        return;
-      }
-
       if ('retry' in response) {
-        // Retry cases (no model selected, model not downloaded, settings changed) -
+        // Retryable native-service or settings changes —
         // remove from processed so the post is re-evaluated once a model is ready.
         // The feed-level model-status indicator (storage-driven) explains what to do.
         processedPosts.delete(article);
+        markPostVerified(article);
         if (response.retryAfterMs !== undefined) {
           setTimeout(() => {
             if (article.isConnected
                 && isPostIdentityCurrent(adapter, article, identity)
                 && generation === filterGeneration && enabled
+                && adapter.shouldProcessCurrentPage()
                 && !currentPostDecision(adapter, article)?.userOverride
                 && !article.dataset.filteredByExtension
                 && !processedPosts.has(article)) {
-              processPost(article, true);
+              processPost(article);
             }
           }, response.retryAfterMs);
         }
@@ -360,6 +316,13 @@ import { formatPostForEvaluation } from '../shared/utils';
       }
 
       if ('error' in response) {
+        if (response.availabilityReason) {
+          // Setup/download/switching is an expected wait, with one feed banner.
+          // A matching selected-engine Ready event will release eligible posts.
+          processedPosts.delete(article);
+          markPostVerified(article);
+          return;
+        }
         // PipelineError - track for retry via error broadcasts
         postReasonings.set(article, { shouldHide: false, isModelError: true, reasoning: response.reasoning });
         if (content.postUrl) errorPostUrls.add(content.postUrl);
@@ -370,6 +333,15 @@ import { formatPostForEvaluation } from '../shared/utils';
         // recovery timer releases this post for re-evaluation.
         article.removeAttribute('data-ff-pending');
         article.classList.add('ff-error');
+        return;
+      }
+
+      // Automatic verdicts carry the immutable lease that actually evaluated
+      // the post. Cached manual decisions remain engine-independent.
+      if (!response.userOverride && engineSelection
+          && (response.engine !== engineSelection.engine || response.selectionRevision !== engineSelection.revision)) {
+        processedPosts.delete(article);
+        markPostVerified(article);
         return;
       }
 
@@ -412,7 +384,7 @@ import { formatPostForEvaluation } from '../shared/utils';
         };
 
         // Store in filtered posts list
-        storeFilteredPost(article, mergedContent, response.reasoning, response.rawResponse || '', response.category || null, response.matches, response.userOverride);
+        storeFilteredPost(article, mergedContent, response.reasoning, response.rawResponse || '', response.category || null, response.matches, response.userOverride, formatPostForEvaluation(content));
 
         const hideIfCurrent = () => {
           const decision = currentPostDecision(adapter, article);
@@ -470,7 +442,6 @@ import { formatPostForEvaluation } from '../shared/utils';
   function processPost(article: HTMLElement, forceForYou = false) {
     if (adapter.restoreRecycledPost(article)) resetPostForRecycling(article);
     if (!enabled) return;
-    if (getFFPageActive()) { console.log('[Bouncer] processPost: skipped (FF page active)'); return; }
     if (!forceForYou && !adapter.shouldProcessCurrentPage()) { console.log('[Bouncer] processPost: skipped (shouldProcessCurrentPage false, path:', window.location.pathname, ')'); return; }
 
     if (adapter.isMainPost(article)) return;
@@ -491,7 +462,7 @@ import { formatPostForEvaluation } from '../shared/utils';
     if (processedPosts.has(article)) return;
     if (article.dataset.filteredByExtension) return;
 
-    if (article.closest('.filtered-view-container') || article.closest('.ff-ios-page')) return;
+    if (article.closest('.filtered-view-container')) return;
 
     processedPosts.add(article);
 
@@ -499,7 +470,7 @@ import { formatPostForEvaluation } from '../shared/utils';
     lastProcessedContent.set(article, contentKey);
 
     if (forceForYou || adapter.shouldProcessCurrentPage()) {
-      evaluatePost(article).catch(err => console.error('[Bouncer] evaluatePost failed:', err));
+      evaluatePost(article, !forceForYou).catch(err => console.error('[Bouncer] evaluatePost failed:', err));
     }
   }
 
@@ -509,6 +480,7 @@ import { formatPostForEvaluation } from '../shared/utils';
   }
 
   function reEvaluateAllPosts() {
+    if (!settingsInitialized || !enabled || !adapter.shouldProcessCurrentPage()) return;
     const posts = findPosts();
     const skipReplies = !filterReplies && adapter.isPermalinkView();
     posts.forEach(article => {
@@ -526,8 +498,11 @@ import { formatPostForEvaluation } from '../shared/utils';
       // before the timer fires. If the evaluation resolves before the timer
       // fires, the post never goes through the pending UI; true cache misses
       // still show pending after the short delay.
+      const generation = filterGeneration;
+      const identity = postIdentity(adapter, article);
       const pendingTimer = setTimeout(() => {
-        if (enabled && !replyFilteringIsDisabled(article) && !currentPostDecision(adapter, article)?.userOverride) markPostPending(article);
+        if (generation === filterGeneration && isPostIdentityCurrent(adapter, article, identity)
+            && enabled && !replyFilteringIsDisabled(article) && !currentPostDecision(adapter, article)?.userOverride) markPostPending(article);
       }, 120);
       evaluatePost(article)
         .catch(err => console.error('[Bouncer] evaluatePost failed:', err))
@@ -601,7 +576,7 @@ import { formatPostForEvaluation } from '../shared/utils';
     const observer = new MutationObserver((mutations) => {
       if (!enabled) return;
       if (!adapter.shouldProcessCurrentPage()) return;
-      if (getFilteredTabActive() || getFFPageActive()) return;
+      if (getFilteredTabActive()) return;
 
       for (const mutation of mutations) {
         const target = mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;
@@ -641,62 +616,28 @@ import { formatPostForEvaluation } from '../shared/utils';
 
   // ==================== Init ====================
 
-  async function init() {
-    const data = await getStorage(['enabled', 'filterReplies']);
-    enabled = data.enabled !== false;
-    // Treat undefined as true so users on builds released before this
-    // setting existed keep their current behavior.
-    filterReplies = data.filterReplies !== false;
-
-    await checkLocalModelActive();
-
-    if (enabled) {
-      observePosts();
-      processExistingPosts();
-    }
-
-    // Always run the import-code transform, even on pages where filter
-    // classification is gated off (profiles, notifications, lists, etc.) —
-    // users should be able to import shared filter packs from anywhere.
-    observeImportCodes();
-
-    injectFilterPhrasesInput();
-    injectBottomFilterBox();
-    injectMobileFilterBox();
-
-    initModelLoadingListener();
-
-    // Observe for sidebar appearing later or being replaced during SPA navigation
-    const uiObserver = new MutationObserver(() => {
-      handleDOMMutation();
-      handleDOMMutationIOS();
-    });
-    uiObserver.observe(document.body, { childList: true, subtree: true });
-
-    // Hide bouncer sidebar when Twitter's search bar is focused
-    setupSearchBarHide();
-
-    // Observe for theme changes (platform changes body background color)
-    const themeObserver = new MutationObserver(() => {
-      updateTheme();
-    });
-    themeObserver.observe(document.body, { attributes: true, attributeFilter: ['style', 'class'] });
-
-    // Restore BottomBar opacity when clicked
-    document.addEventListener('click', (e: MouseEvent) => {
-      const target = e.target as HTMLElement | null;
-      const bottomBar = adapter.selectors.bottomBar && target ? target.closest<HTMLElement>(adapter.selectors.bottomBar) : null;
-      if (bottomBar) {
-        bottomBar.style.opacity = '1';
+  // Listen before the initial snapshot so a switch cannot lose its generation
+  // fence while storage is being read. Only committed events outrank that read.
+  chrome.storage.onChanged.addListener((changes) => {
+      if (!settingsInitialized) Object.keys(changes).forEach(key => settingsChangedDuringInit.add(key));
+      if (changes.engineSelection) {
+        const selection = changes.engineSelection.newValue as EngineSelection | undefined;
+        if (selection && (!engineSelection || selection.revision > engineSelection.revision)) {
+          // Invalidate evaluations and detector dispatches synchronously,
+          // before setup/status awaits or a new engine can publish a result.
+          filterGeneration++;
+          engineSelection = { ...selection };
+          updateContentEngineSelection(selection);
+          currentlyProcessingPostUrl = null;
+          errorPostUrls.clear();
+          reconcileEngineChange();
+          if (settingsInitialized) processExistingPosts();
+        }
       }
-    });
-
-    // Listen for settings changes
-    chrome.storage.onChanged.addListener((changes) => {
       if (changes.enabled) {
         filterGeneration++;
         enabled = changes.enabled.newValue as boolean;
-        if (enabled) {
+        if (enabled && settingsInitialized) {
           observePosts();
           processExistingPosts();
         } else {
@@ -710,10 +651,6 @@ import { formatPostForEvaluation } from '../shared/utils';
             }
           });
         }
-      }
-      if (changes.selectedModel) {
-        const newModel = (changes.selectedModel.newValue as string) || '';
-        isLocalModelActive = newModel.startsWith('local:') || false;
       }
       if (changes[descriptionsKey]) {
         syncFilterPhrases();
@@ -745,9 +682,60 @@ import { formatPostForEvaluation } from '../shared/utils';
       }
     });
 
+
+  async function init() {
+    const data = await getStorage(['enabled', 'filterReplies', 'engineSelection']);
+    if (!settingsChangedDuringInit.has('enabled')) enabled = data.enabled !== false;
+    if (!settingsChangedDuringInit.has('engineSelection')) engineSelection = data.engineSelection;
+    if (engineSelection) updateContentEngineSelection(engineSelection);
+    // Treat undefined as true so users on builds released before this
+    // setting existed keep their current behavior.
+    if (!settingsChangedDuringInit.has('filterReplies')) filterReplies = data.filterReplies !== false;
+    settingsInitialized = true;
+
+    if (enabled) {
+      observePosts();
+      processExistingPosts();
+    }
+
+    // Always run the import-code transform, even on pages where filter
+    // classification is gated off (profiles, notifications, lists, etc.) —
+    // users should be able to import shared filter packs from anywhere.
+    observeImportCodes();
+
+    injectFilterPhrasesInput();
+    injectBottomFilterBox();
+    injectMobileFilterBox();
+
+    initModelLoadingListener();
+
+    // Observe for sidebar appearing later or being replaced during SPA navigation
+    const uiObserver = new MutationObserver(() => {
+      handleDOMMutation();
+    });
+    uiObserver.observe(document.body, { childList: true, subtree: true });
+
+    // Hide bouncer sidebar when Twitter's search bar is focused
+    setupSearchBarHide();
+
+    // Observe for theme changes (platform changes body background color)
+    const themeObserver = new MutationObserver(() => {
+      updateTheme();
+    });
+    themeObserver.observe(document.body, { attributes: true, attributeFilter: ['style', 'class'] });
+
+    // Restore BottomBar opacity when clicked
+    document.addEventListener('click', (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      const bottomBar = adapter.selectors.bottomBar && target ? target.closest<HTMLElement>(adapter.selectors.bottomBar) : null;
+      if (bottomBar) {
+        bottomBar.style.opacity = '1';
+      }
+    });
+
     // Fallback recovery: periodically check for posts stuck in pending state
     setInterval(() => {
-      if (!enabled || getFilteredTabActive() || getFFPageActive()) return;
+      if (!enabled || getFilteredTabActive()) return;
       if (pendingPosts.size === 0) return;
 
       const now = Date.now();
@@ -783,7 +771,7 @@ import { formatPostForEvaluation } from '../shared/utils';
     // Preempt local model inference when user scrolls past the processing post
     let preemptScrollTimeout: ReturnType<typeof setTimeout> | null = null;
     window.addEventListener('scroll', () => {
-      if (!isLocalModelActive || !currentlyProcessingPostUrl) return;
+      if (!currentlyProcessingPostUrl) return;
       if (preemptScrollTimeout) return; // Already debouncing
       preemptScrollTimeout = setTimeout(() => {
         preemptScrollTimeout = null;

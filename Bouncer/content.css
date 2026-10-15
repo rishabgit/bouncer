@@ -81,11 +81,7 @@ html.twitter-dark, .dark-mode {
 .ff-missed-link,
 .ff-why-annoying-btn,
 .ff-reasoning-popup,
-.ff-reasoning-popup *,
-.ff-ios-page,
-.ff-ios-page *,
-.ff-ios-filtered-modal,
-.ff-ios-filtered-modal * {
+.ff-reasoning-popup * {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
@@ -365,37 +361,6 @@ html.twitter-dark, .dark-mode {
 
 .bouncer-model-status-text strong {
   font-weight: 600;
-}
-
-/* Slim progress row beneath the label (download state only) */
-.bouncer-model-status-progress {
-  display: flex;
-  align-items: center;
-  gap: var(--sp-2);
-  margin-top: 7px;
-}
-
-.bouncer-model-status-progress-track {
-  flex: 1 1 auto;
-  height: 4px;
-  border-radius: 999px;
-  background: var(--border);
-  overflow: hidden;
-}
-
-.bouncer-model-status-progress-fill {
-  width: 0;
-  height: 100%;
-  border-radius: 999px;
-  background: var(--accent);
-  transition: width 0.3s ease;
-}
-
-.bouncer-model-status-progress-pct {
-  flex: 0 0 auto;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-  color: var(--text-muted);
 }
 
 .bouncer-model-status-close {
@@ -933,39 +898,6 @@ article {
   font-weight: 500;
 }
 
-.ff-progress-bar {
-  padding: 8px 12px 4px;
-}
-
-.ff-progress-track {
-  width: 100%;
-  height: 4px;
-  background: var(--border);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.ff-progress-fill {
-  height: 100%;
-  width: 5%;
-  background: rgb(234, 133, 84);
-  border-radius: 2px;
-  transition: width 0.4s ease;
-}
-
-.twitter-light .ff-progress-track {
-  background: #cfd9de;
-}
-
-
-.ff-annoying-label {
-  padding-left: 3px;
-  display: block;
-  font-size: 12px;
-  color: #8b98a5;
-  margin-bottom: 6px;
-}
-
 /* Suggestion chips in tooltip */
 .ff-annoying-chip {
   display: block;
@@ -1001,31 +933,14 @@ article {
   font-style: italic;
 }
 
-/* "Something else" custom input wrapper in tooltip */
-.ff-annoying-custom-wrapper {
-  position: relative;
-  display: flex;
-  align-items: center;
-  width: 100%;
-  background: transparent;
-  border: 1px solid #38444d;
-  border-radius: 8px;
-  box-sizing: border-box;
-  transition: border-color 0.15s;
-}
-
-.ff-annoying-custom-wrapper:focus-within {
-  border-color: rgb(234, 133, 84);
-}
-
 .ff-annoying-custom-input {
   flex: 1;
   min-width: 0;
   padding: 8px 12px;
   background: transparent;
-  border: none;
+  border: 1px solid var(--border);
   border-radius: 8px;
-  color: #e7e9ea;
+  color: var(--text);
   font-size: 13px;
   outline: none;
   appearance: none;
@@ -1040,36 +955,6 @@ article {
 }
 .ff-annoying-custom-input:focus {
   border-color: #1d9bf0;
-}
-
-.ff-annoying-send-btn {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-  margin-right: 5px;
-  padding: 0;
-  background: rgb(234, 133, 84);
-  border: none;
-  border-radius: 50%;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: opacity 0.15s;
-}
-
-.ff-annoying-send-btn:hover {
-  opacity: 0.85;
-}
-
-.ff-annoying-send-btn svg {
-  width: 11px;
-  height: 11px;
-  fill: #fff;
-}
-
-.ff-annoying-custom-wrapper.has-text .ff-annoying-send-btn {
-  display: flex;
 }
 
 .ff-missed-link {
@@ -1120,12 +1005,6 @@ article {
 .twitter-light .ff-annoying-label {
   color: #536471;
 }
-.twitter-light .ff-annoying-custom-wrapper {
-  border-color: #cfd9de;
-}
-.twitter-light .ff-annoying-custom-wrapper:focus-within {
-  border-color: rgb(234, 133, 84);
-}
 .twitter-light .ff-annoying-custom-input {
   color: #0f1419;
 }
@@ -1136,7 +1015,7 @@ article {
   border-color: #1d9bf0;
 }
 
-/* System-level light mode fallback (for iOS Safari where .twitter-light may not be set) */
+/* System-level light mode fallback before X theme detection */
 @media (prefers-color-scheme: light) {
   .ff-annoying-chip {
     background: #eff3f4;
@@ -1156,9 +1035,6 @@ article {
   }
   .ff-annoying-label {
     color: #536471;
-  }
-  .ff-progress-track {
-    background: #cfd9de;
   }
   .ff-missed-link {
     border-top-color: #cfd9de;
@@ -1515,47 +1391,7 @@ article {
   margin-left: 0;
 }
 
-/* Model loading progress display */
-.filter-model-loading {
-  padding: 8px 0;
-  margin: 4px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
 
-.model-loading-text {
-  font-size: 12px;
-  color: rgb(29, 155, 240);
-  margin-bottom: 6px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.model-loading-progress {
-  height: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.model-loading-progress-fill {
-  height: 100%;
-  background: rgb(29, 155, 240);
-  border-radius: 2px;
-  transition: width 0.3s ease;
-  width: 0%;
-}
-
-/* Light mode model loading */
-.light-mode .filter-model-loading {
-  border-top-color: rgba(0, 0, 0, 0.1);
-  border-bottom-color: rgba(0, 0, 0, 0.1);
-}
-
-.light-mode .model-loading-progress {
-  background: rgba(0, 0, 0, 0.1);
-}
 
 /* Filtered toggle button */
 .filter-phrases-container .filtered-toggle-btn {
@@ -2157,532 +1993,6 @@ body.dark-mode .filter-ai-text-toggle-slider {
   transform: scale(1);
 }
 
-/* In-app popup (div instead of iframe) needs its own background */
-div.settings-modal-iframe {
-  background: #fff;
-  color: #0f1419;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 14px;
-  padding: 0;
-}
-div.settings-modal-iframe.dark-mode {
-  background: rgb(0, 0, 0);
-  color: rgb(231, 233, 234);
-}
-div.settings-modal-iframe.dim-mode {
-  background: rgb(21, 32, 43);
-  color: rgb(247, 249, 249);
-}
-
-/* ======================================
-   iOS Safari BottomBar Tab & Full Page Overlay
-   All styles scoped under body.ff-ios
-   ====================================== */
-
-/* On iOS, suppress the desktop sidebar, bottom, and mobile filter boxes */
-body.ff-ios .filter-phrases-sidebar,
-body.ff-ios .filter-phrases-bottom,
-body.ff-ios .filter-phrases-mobile {
-  display: none !important;
-}
-
-/* Bouncer full-screen overlay — true full-screen modal triggered by FAB */
-/* Lock body scroll while iOS overlay is open */
-body.ff-scroll-locked {
-  position: fixed;
-  top: var(--ff-scroll-y, 0px);
-  width: 100%;
-  overscroll-behavior-y: contain;
-}
-
-@keyframes ff-slide-up {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-
-@keyframes ff-slide-down {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(100%);
-  }
-}
-
-@keyframes ff-row-enter {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-body.ff-ios .ff-ios-page {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 9999;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  overscroll-behavior: contain;
-  background-color: rgb(0, 0, 0);
-  padding-bottom: 0;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  animation: ff-slide-up 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-body.ff-ios .ff-ios-page.closing {
-  animation: ff-slide-down 0.28s cubic-bezier(0.7, 0, 0.84, 0) both;
-}
-
-/* Page header */
-body.ff-ios .ff-ios-page-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 53px;
-  padding: 0 8px;
-  border-bottom: 1px solid rgb(47, 51, 54);
-  background-color: rgb(0, 0, 0);
-  flex-shrink: 0;
-}
-
-/* Close (X) button in header */
-body.ff-ios .ff-ios-close-btn {
-  background: none;
-  border: none;
-  color: rgb(231, 233, 234);
-  padding: 8px;
-  cursor: pointer;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-body.ff-ios .ff-ios-close-btn:hover {
-  background-color: rgba(239, 243, 244, 0.1);
-}
-
-body.ff-ios .ff-ios-page-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: rgb(231, 233, 234);
-}
-
-body.ff-ios .ff-ios-settings-btn {
-  background: none;
-  border: none;
-  color: rgb(113, 118, 123);
-  padding: 8px;
-  cursor: pointer;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-body.ff-ios .ff-ios-settings-btn:hover {
-  background-color: rgba(239, 243, 244, 0.1);
-  color: rgb(231, 233, 234);
-}
-
-/* Subtitle */
-body.ff-ios .ff-ios-subtitle {
-  padding: 16px 16px 10px;
-  font-size: 25px;
-  /*font-style: italic;*/
-  font-weight: 500;
-  /*text-transform: uppercase;*/
-  color: rgb(113, 118, 123);
-}
-
-body.ff-ios .ff-ios-page.entering .ff-ios-subtitle {
-  animation: ff-row-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-  animation-delay: 0.08s;
-}
-
-/* Category list */
-body.ff-ios .ff-ios-categories-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 0 16px;
-}
-
-body.ff-ios .ff-ios-category-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 14px 0;
-  border-bottom: 3px solid rgb(47, 51, 54);
-}
-
-body.ff-ios .ff-ios-page.entering .ff-ios-category-row {
-  animation: ff-row-enter 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-  animation-delay: calc(var(--row-index, 0) * 0.05s + 0.15s);
-}
-
-body.ff-ios .ff-ios-category-text {
-  font-size: 35px;
-  /*font-weight: 100;*/
-  color: rgb(231, 233, 234);
-  flex: 1;
-  width: 100%;
-  word-wrap: break-word;
-  margin-right: 12px;
-  hyphens: auto;
-}
-
-body.ff-ios .ff-ios-category-remove {
-  background: none;
-  border: none;
-  color: rgb(113, 118, 123);
-  font-size: 22px;
-  cursor: pointer;
-  padding: 4px 8px;
-  line-height: 1;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-body.ff-ios .ff-ios-category-remove:hover {
-  color: rgb(244, 33, 46);
-  background-color: rgba(244, 33, 46, 0.1);
-}
-
-body.ff-ios .ff-ios-categories-empty {
-  padding: 24px 0;
-  text-align: center;
-  color: rgb(113, 118, 123);
-  font-size: 15px;
-}
-
-/* Bottom bar — always pinned at bottom of overlay, right above Twitter BottomBar */
-body.ff-ios .ff-ios-bottom-bar {
-  flex-shrink: 0;
-  border-top: 1px solid rgb(47, 51, 54);
-  background-color: rgb(0, 0, 0);
-}
-
-/* View filtered button */
-body.ff-ios .ff-ios-view-filtered-btn {
-  display: block;
-  width: calc(100% - 32px);
-  margin: 12px 16px;
-  padding: 12px;
-  background-color: rgba(29, 155, 240, 0.1);
-  border: 1px solid rgba(29, 155, 240, 0.3);
-  border-radius: 9999px;
-  color: rgb(29, 155, 240);
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  text-align: center;
-}
-
-body.ff-ios .ff-ios-view-filtered-btn:hover {
-  background-color: rgba(29, 155, 240, 0.15);
-}
-
-/* Input bar */
-body.ff-ios .ff-ios-input-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
-  padding-bottom: max(10px, env(safe-area-inset-bottom, 0px));
-}
-
-body.ff-ios .ff-ios-phrase-input {
-  flex: 1;
-  padding: 10px 14px;
-  background-color: rgb(32, 35, 39);
-  border: 1px solid rgb(47, 51, 54);
-  border-radius: 9999px;
-  color: rgb(231, 233, 234);
-  font-size: 15px;
-  outline: none;
-  -webkit-appearance: none;
-}
-
-body.ff-ios .ff-ios-phrase-input::placeholder {
-  color: rgb(113, 118, 123);
-}
-
-body.ff-ios .ff-ios-phrase-input:focus {
-  border-color: rgb(29, 155, 240);
-}
-
-body.ff-ios .ff-ios-send-btn {
-  width: 38px;
-  height: 38px;
-  border-radius: 50%;
-  border: none;
-  background-color: rgb(29, 155, 240);
-  color: white;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-
-body.ff-ios .ff-ios-send-btn svg {
-  pointer-events: none;
-}
-
-body.ff-ios .ff-ios-send-btn:hover {
-  background-color: rgb(26, 140, 216);
-}
-
-/* ======================================
-   iOS Filtered Posts Modal
-   ====================================== */
-
-.ff-ios-filtered-modal-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: rgba(91, 112, 131, 0.4);
-  z-index: 10001;
-  display: flex;
-  justify-content: center;
-  align-items: flex-end;
-  opacity: 0;
-  visibility: hidden;
-  transition: opacity 0.25s ease, visibility 0.25s ease;
-}
-
-.ff-ios-filtered-modal-backdrop.visible {
-  opacity: 1;
-  visibility: visible;
-}
-
-.ff-ios-filtered-modal {
-  width: 100%;
-  max-height: 85vh;
-  max-height: 85svh;
-  background-color: rgb(0, 0, 0);
-  border-radius: 16px 16px 0 0;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  transform: translateY(100%);
-  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.ff-ios-filtered-modal-backdrop.visible .ff-ios-filtered-modal {
-  transform: translateY(0);
-}
-
-.ff-ios-filtered-modal-backdrop.closing {
-  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.ff-ios-filtered-modal-backdrop.closing .ff-ios-filtered-modal {
-  transform: translateY(100%);
-  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.ff-ios-filtered-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 16px;
-  border-bottom: 1px solid rgb(47, 51, 54);
-  flex-shrink: 0;
-}
-
-.ff-ios-filtered-modal-title {
-  font-size: 18px;
-  font-weight: 700;
-  color: rgb(231, 233, 234);
-}
-
-.ff-ios-filtered-modal-close {
-  background: none;
-  border: none;
-  color: rgb(113, 118, 123);
-  font-size: 24px;
-  cursor: pointer;
-  padding: 4px 8px;
-  line-height: 1;
-  border-radius: 50%;
-}
-
-.ff-ios-filtered-modal-close:hover {
-  color: rgb(231, 233, 234);
-  background-color: rgba(239, 243, 244, 0.1);
-}
-
-.ff-ios-filtered-modal-content {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
-}
-
-/* ======================================
-   iOS Page — Light mode overrides
-   ====================================== */
-
-body.ff-ios .ff-ios-page.light-mode {
-  background-color: rgb(255, 255, 255);
-}
-
-body.ff-ios .ff-ios-page.light-mode .ff-ios-page-header {
-  border-bottom-color: rgb(239, 243, 244);
-  background-color: rgb(255, 255, 255);
-}
-
-body.ff-ios .ff-ios-page.light-mode .ff-ios-page-title {
-  color: rgb(15, 20, 25);
-}
-
-body.ff-ios .ff-ios-page.light-mode .ff-ios-close-btn {
-  color: rgb(15, 20, 25);
-}
-
-body.ff-ios .ff-ios-page.light-mode .ff-ios-settings-btn {
-  color: rgb(83, 100, 113);
-}
-
-body.ff-ios .ff-ios-page.light-mode .ff-ios-subtitle {
-  color: rgb(83, 100, 113);
-}
-
-body.ff-ios .ff-ios-page.light-mode .ff-ios-category-row {
-  border-bottom-color: rgb(239, 243, 244);
-}
-
-body.ff-ios .ff-ios-page.light-mode .ff-ios-category-text {
-  color: rgb(15, 20, 25);
-}
-
-body.ff-ios .ff-ios-page.light-mode .ff-ios-category-remove {
-  color: rgb(83, 100, 113);
-}
-
-body.ff-ios .ff-ios-page.light-mode .ff-ios-categories-empty {
-  color: rgb(83, 100, 113);
-}
-
-body.ff-ios .ff-ios-page.light-mode .ff-ios-bottom-bar {
-  border-top-color: rgb(239, 243, 244);
-  background-color: rgb(255, 255, 255);
-}
-
-body.ff-ios .ff-ios-page.light-mode .ff-ios-phrase-input {
-  background-color: rgb(239, 243, 244);
-  border-color: rgb(207, 217, 222);
-  color: rgb(15, 20, 25);
-}
-
-body.ff-ios .ff-ios-page.light-mode .ff-ios-phrase-input::placeholder {
-  color: rgb(83, 100, 113);
-}
-
-/* Light mode for iOS filtered modal */
-.ff-ios-filtered-modal-backdrop.light-mode .ff-ios-filtered-modal {
-  background-color: rgb(255, 255, 255);
-}
-
-.ff-ios-filtered-modal-backdrop.light-mode .ff-ios-filtered-modal-header {
-  border-bottom-color: rgb(239, 243, 244);
-}
-
-.ff-ios-filtered-modal-backdrop.light-mode .ff-ios-filtered-modal-title {
-  color: rgb(15, 20, 25);
-}
-
-.ff-ios-filtered-modal-backdrop.light-mode .ff-ios-filtered-modal-close {
-  color: rgb(83, 100, 113);
-}
-
-/* iOS light mode overrides for structured post fields */
-.ff-ios-filtered-modal-backdrop.light-mode .slop-post-name {
-  color: rgb(15, 20, 25);
-}
-.ff-ios-filtered-modal-backdrop.light-mode .slop-post-handle {
-  color: rgb(83, 100, 113);
-}
-.ff-ios-filtered-modal-backdrop.light-mode .slop-post-text {
-  color: rgb(15, 20, 25);
-}
-.ff-ios-filtered-modal-backdrop.light-mode .slop-post-avatar {
-  background: #cfd9de;
-}
-
-.ff-ios-filtered-modal-backdrop.light-mode .slop-post-wrapper {
-  border-bottom-color: rgb(239, 243, 244);
-}
-
-.ff-ios-filtered-modal-backdrop.light-mode .slop-post-reasoning {
-  background: rgba(0, 0, 0, 0.03);
-  color: #536471;
-  border-left-color: rgba(0, 0, 0, 0.1);
-}
-
-.ff-ios-filtered-modal-backdrop.light-mode .slop-quote-box {
-  border-color: rgb(239, 243, 244);
-}
-
-.ff-ios-filtered-modal-backdrop.light-mode .slop-quote-name {
-  color: rgb(15, 20, 25);
-}
-
-.ff-ios-filtered-modal-backdrop.light-mode .slop-quote-handle {
-  color: rgb(83, 100, 113);
-}
-
-.ff-ios-filtered-modal-backdrop.light-mode .slop-quote-text {
-  color: rgb(15, 20, 25);
-}
-
-.ff-ios-filtered-modal-backdrop.light-mode .slop-restore:hover {
-  color: #0f1419;
-}
-
-/* iOS dark mode - default colors already match, no overrides needed */
-
-.ff-ios-filtered-modal-backdrop.dark-mode .slop-post-wrapper {
-  border-bottom-color: rgb(47, 51, 54);
-}
-
-/* ======================================
-   iOS Page — Dark mode (default/explicit)
-   ====================================== */
-
-body.ff-ios .ff-ios-page.dark-mode {
-  background-color: rgb(0, 0, 0);
-}
-
-body.ff-ios .ff-ios-page.dark-mode .ff-ios-page-header {
-  border-bottom-color: rgb(47, 51, 54);
-  background-color: rgb(0, 0, 0);
-}
-
-.ff-ios-filtered-modal-backdrop.dark-mode .ff-ios-filtered-modal {
-  background-color: rgb(0, 0, 0);
-}
-
-.ff-ios-filtered-modal-backdrop.dark-mode .ff-ios-filtered-modal-header {
-  border-bottom-color: rgb(47, 51, 54);
-}
-
 /* ==================== Filter Pack Badges ==================== */
 
 /* Share the header row with the existing "Bouncer" box name. Houses
@@ -2771,3 +2081,43 @@ body.ff-ios .ff-ios-page.dark-mode .ff-ios-page-header {
 .ff-capture .filter-signout-btn {
   display: none;
 }
+
+/* Manual Bounce stays available while native suggestions load or fail. */
+.ff-annoying-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ff-annoying-custom-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.ff-annoying-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ff-annoying-bounce,
+.ff-annoying-cancel,
+.bouncer-model-status-settings {
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: 6px 10px;
+  background: var(--surface-raised);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+
+.ff-annoying-bounce {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.ff-annoying-bounce:hover { background: var(--accent-hover); }
+.bouncer-model-status-settings { flex-shrink: 0; font-size: 11px; }

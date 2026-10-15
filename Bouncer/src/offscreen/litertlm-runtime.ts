@@ -1,6 +1,5 @@
 // Wraps LiteRT-LM's Engine + Conversation for use as a Bouncer LocalBackend.
-// Runs in any DOM-backed context — the Firefox event-page background and the
-// Chrome offscreen document both instantiate this directly. Chrome's MV3
+// Runs only in the Chrome offscreen document. Chrome's MV3
 // service worker proxies through litertlm-proxy.ts because @litertjs/wasm-utils
 // uses <script> tag injection to load the wasm runner, which a module SW
 // cannot do.
@@ -9,121 +8,22 @@ import {
   Engine,
   loadLiteRtLm,
   unloadLiteRtLm,
-  Backend,
   SamplerType,
   type Conversation,
   type ConversationConfig,
   type Message,
 } from '@litert-lm/core';
-import type { LocalModelDef, ChatMessage } from '../types';
+import type { ChatMessage } from '../types';
 import { getLitertlmLoaderUrl } from './litertlm-loader';
 
-// Cache the .litertlm model in the standard Cache Storage so a reload skips
-// the multi-GB download. Keyed by the model URL so multiple models coexist.
-const LITERTLM_CACHE_KEY = 'litertlm-cache';
+import { BROWSER_MODEL } from '../shared/models';
+import { readVerifiedCachedModel, prefetchFixedModel, type CacheGeneration } from '../background/backends/model-cache';
+import { BrowserModelError, type BrowserProgress } from '../background/backends/types';
 
-// Path inside the extension where build.js drops the LiteRT-LM wasm loader
-// + binaries. Has to be reachable via chrome.runtime.getURL.
-const WASM_BASE = 'dist/litertlm-wasm';
-
-// Rough chars-per-token for Gemma's BPE tokenizer. LiteRT-LM's JS layer
-// doesn't expose a tokenizer, so we use a conservative estimate — round down
-// in chars-to-tokens (estimateTokens) and round down in tokens-to-chars
-// (truncateText) to err on the side of fitting in the budget.
 const CHARS_PER_TOKEN = 3;
-
-export interface InitProgress {
-  progress: number;
-  text: string;
-}
-
+export type InitProgress = BrowserProgress;
 function getWasmBaseUrl(): string {
-  // Production runs inside an extension and resolves through its URL scheme.
-  // The dev-only Gemma comparison page is served from localhost, where Chrome
-  // exposes `window.chrome` but not `chrome.runtime.getURL`; in that case the
-  // copied wasm directory sits next to the comparison bundle under dist/.
-  // The loader helper selects the explicit same-origin runner script.
-  const runtime = globalThis.chrome?.runtime;
-  return runtime?.getURL
-    ? runtime.getURL(`${WASM_BASE}/`)
-    : new URL('./litertlm-wasm/', import.meta.url).href;
-}
-
-// Stream a remote model into the Cache Storage while reporting progress.
-// Returns a fresh Response for the now-cached entry so the caller can pull
-// the body without re-downloading.
-export async function fetchAndCacheModel(
-  url: string,
-  onProgress: (p: InitProgress) => void,
-  abortSignal: AbortSignal,
-): Promise<Response> {
-  const cache = await caches.open(LITERTLM_CACHE_KEY);
-  const cached = await cache.match(url);
-  if (cached) {
-    // A cache hit is initialization, not a network download. Emitting 100%
-    // here leaves the in-feed UI stuck on "Downloading" while weights stream
-    // from Cache Storage into the GPU.
-    return cached;
-  }
-
-  const upstream = await fetch(url, { signal: abortSignal });
-  if (!upstream.ok || !upstream.body) {
-    throw new Error(`Failed to fetch model: ${upstream.status} ${upstream.statusText}`);
-  }
-
-  const total = Number(upstream.headers.get('content-length') ?? 0);
-  let received = 0;
-
-  // Tee the response so we can both forward progress and store the bytes
-  // in Cache Storage. The Cache API takes a Response object whose body
-  // hasn't been consumed yet, so build a new Response from the tee.
-  const [forCache, forCount] = upstream.body.tee();
-
-  const counter = new ReadableStream<Uint8Array>({
-    async start(controller) {
-      const reader = forCount.getReader();
-      for (;;) {
-        if (abortSignal.aborted) {
-          controller.error(new Error('aborted'));
-          return;
-        }
-        const { done, value } = await reader.read();
-        if (done) break;
-        received += value.byteLength;
-        if (total > 0) {
-          onProgress({ progress: received / total, text: '' });
-        }
-        controller.enqueue(value);
-      }
-      controller.close();
-    },
-  });
-
-  // The progress stream needs to be drained — Cache Storage will read
-  // `forCache`, but if nothing pulls from `forCount` the tee will stall.
-  // Drive it explicitly and discard.
-  void (async (): Promise<void> => {
-    const reader = counter.getReader();
-    while (!(await reader.read()).done) { /* drained for progress */ }
-  })().catch(() => { /* abort/error is reported by cache.put/fetch path */ });
-
-  const responseForCache = new Response(forCache, { headers: upstream.headers });
-  await cache.put(url, responseForCache);
-  const cachedAfter = await cache.match(url);
-  if (!cachedAfter) throw new Error('Failed to cache model after download');
-  onProgress({ progress: 1, text: '' });
-  return cachedAfter;
-}
-
-/** Cache-only LiteRT download used by the development comparison runner. */
-export async function prefetchLitertlmModel(
-  modelDef: LocalModelDef,
-  onProgress: (p: InitProgress) => void,
-  abortSignal: AbortSignal,
-): Promise<void> {
-  const modelUrl = modelDef.litertlmConfig?.modelUrl;
-  if (!modelUrl) throw new Error(`Model ${modelDef.name} is missing litertlmConfig`);
-  await fetchAndCacheModel(modelUrl, onProgress, abortSignal);
+  return chrome.runtime.getURL('dist/litertlm-wasm/');
 }
 
 // `loadLiteRtLm` throws if called twice. Track our own load promise so the
@@ -150,16 +50,8 @@ function ensureWasmLoaded(): Promise<void> {
   return wasmLoaded;
 }
 
-// The dev comparison warms this separately so first-model load time is not
-// charged for one-time LiteRT wasm startup. Production initialization still
-// calls the same idempotent helper through initialize().
-export function warmLitertlmWasm(): Promise<void> {
-  return ensureWasmLoaded();
-}
-
 export class LitertlmRuntime {
   private engine: Engine | null = null;
-  private modelDef: LocalModelDef | null = null;
   private activeConversation: Conversation | null = null;
   private baseConversation: Conversation | null = null;
   private baseKey: string | null = null;
@@ -184,24 +76,24 @@ export class LitertlmRuntime {
   }
 
   async initialize(
-    modelDef: LocalModelDef,
-    onProgress: (p: InitProgress) => void,
+    generation: CacheGeneration,
+    _onProgress: (p: InitProgress) => void,
     abortSignal: AbortSignal,
   ): Promise<void> {
-    const cfg = modelDef.litertlmConfig;
-    if (!cfg) throw new Error(`Model ${modelDef.name} is missing litertlmConfig`);
+    const cfg = BROWSER_MODEL.litertlmConfig;
     if (this.unloading) throw new Error('Runtime unloading');
 
     // Engine creation shares the generation queue so unload cannot delete
     // engine state while an uncancellable model load is still settling.
     return this.enqueue(async () => {
       this.checkInitialization(abortSignal);
+      if (this.engine) return;
       // Only the real network path emits progress. Wasm startup, cache hits,
       // and cache-to-GPU loading remain in the caller's initializing state.
-      await ensureWasmLoaded();
+      const cached = await readVerifiedCachedModel(generation, abortSignal);
       this.checkInitialization(abortSignal);
-
-      const cached = await fetchAndCacheModel(cfg.modelUrl, onProgress, abortSignal);
+      if (!(globalThis.navigator as Navigator & { gpu?: unknown } | undefined)?.gpu) throw new BrowserModelError('webgpu_unavailable', 'Browser GPU support is unavailable. Use a supported Chrome device.');
+      await ensureWasmLoaded();
       this.checkInitialization(abortSignal);
 
       // Stream the model into GPU memory instead of creating a multi-GB blob.
@@ -217,7 +109,6 @@ export class LitertlmRuntime {
         throw error;
       }
       this.engine = engine;
-      this.modelDef = modelDef;
     });
   }
 
@@ -263,7 +154,6 @@ export class LitertlmRuntime {
       try { await this.engine?.delete(); }
       catch (error) { console.error('[LiteRT-LM] Error deleting engine:', error); }
       this.engine = null;
-      this.modelDef = null;
       this.generating = false;
     });
     const completed = unloading.finally(() => {
@@ -413,37 +303,13 @@ export class LitertlmRuntime {
     return Promise.resolve(text.slice(0, maxTokens * CHARS_PER_TOKEN));
   }
 
-  // Static cache probe so the orchestrator can ask "is this model on disk"
-  // without instantiating Engine (which requires WebGPU and big memory).
-  static async isCached(modelDef: LocalModelDef): Promise<boolean> {
-    try {
-      const url = modelDef.litertlmConfig?.modelUrl;
-      if (!url) return false;
-      if (typeof caches === 'undefined') return false;
-      const cache = await caches.open(LITERTLM_CACHE_KEY);
-      const hit = await cache.match(url);
-      return hit !== undefined;
-    } catch (e) {
-      console.error('[LiteRT-LM] Error checking cache for', modelDef.name, ':', e);
-      return false;
-    }
-  }
+  get loaded(): boolean { return this.engine !== null; }
 
-  // Static cache delete — symmetric with isCached(). Removes the cached
-  // `.litertlm` blob (multiple GB) without instantiating Engine. Used by the
-  // orchestrator's deleteModelCache dispatch.
-  static async deleteCache(modelDef: LocalModelDef): Promise<void> {
-    const url = modelDef.litertlmConfig?.modelUrl;
-    if (!url) return;
-    if (typeof caches === 'undefined') return;
-    const cache = await caches.open(LITERTLM_CACHE_KEY);
-    const deleted = await cache.delete(url);
-    const survivor = await cache.match(url);
-    if (survivor) {
-      throw new Error(
-        `LiteRT-LM cache entry survived deletion (${deleted ? 'delete reported success' : 'delete reported failure'}).`,
-      );
-    }
+  async prefetch(generation: CacheGeneration, onProgress: (p: InitProgress) => void, signal: AbortSignal): Promise<void> {
+    return this.enqueue(async () => {
+      this.checkInitialization(signal);
+      await prefetchFixedModel(generation, onProgress, signal);
+    });
   }
 }
 
@@ -455,8 +321,3 @@ export function unloadLitertlmWasm(): void {
     wasmLoaded = null;
   }
 }
-
-// Suppress unused-import warning on Backend. We don't override the default
-// (GPU_ARTISAN, set by Engine.create) yet, but re-exporting keeps the import
-// list tied to the API surface the runtime depends on.
-export { Backend };

@@ -1,5 +1,3 @@
-declare const __BOUNCER_BUILD_TARGET__: 'chrome' | 'firefox' | 'safari';
-
 // Official relaxed-SIMD probe from @litert-lm/core's
 // dist/wasm_feature_detect.js (Google LLC, Apache-2.0).
 const WASM_RELAXED_SIMD_CHECK = new Uint8Array([
@@ -9,28 +7,18 @@ const WASM_RELAXED_SIMD_CHECK = new Uint8Array([
 
 /** Select a full loader URL from the pairs packaged for this build target. */
 export function getLitertlmLoaderUrl(baseUrl: string): string {
-  // Unbundled tests and the localhost comparison harness default to Chrome.
-  const target = typeof __BOUNCER_BUILD_TARGET__ === 'undefined'
-    ? 'chrome'
-    : __BOUNCER_BUILD_TARGET__;
-  if (target !== 'chrome' && target !== 'firefox' && target !== 'safari') {
-    throw new Error(`Unknown LiteRT-LM build target: ${String(target)}`);
-  }
   if (typeof WebAssembly === 'undefined' || typeof WebAssembly.validate !== 'function') {
     throw new Error('LiteRT-LM requires WebAssembly support.');
   }
   const wasm = WebAssembly as typeof WebAssembly & { Suspending?: unknown };
-  if (target !== 'safari' && typeof wasm.Suspending !== 'function') {
+  if (typeof wasm.Suspending !== 'function') {
     throw new Error(
-      'LiteRT-LM requires WebAssembly JSPI. Use Chrome 137+ or Firefox 145+.',
+      'LiteRT-LM requires WebAssembly JSPI. Use Chrome 137+.',
     );
   }
 
   const compat = WebAssembly.validate(WASM_RELAXED_SIMD_CHECK) ? '' : '_compat';
-  // Always pin Safari to asyncify, including future Safari releases with JSPI:
-  // the upstream directory loader could otherwise choose an unshipped pair.
-  const asyncify = target === 'safari' ? '_asyncify' : '';
-  const filename = `litertlm_wasm${compat}${asyncify}_internal.js`;
+  const filename = `litertlm_wasm${compat}_internal.js`;
   const directory = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   return new URL(filename, directory).href;
 }

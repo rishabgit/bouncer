@@ -1,1 +1,1 @@
-import './src/offscreen/index.js';
+import './src/offscreen/index.ts';

@@ -1,9 +1,14 @@
 # Historical accuracy eval — Qwen 3.5 and Gemma E4B
 
 This page preserves the 2026-06-07 Qwen 3.5/WebLLM and Gemma E4B/LiteRT result.
-Neither model is selectable in the current product. Bouncer now ships Gemma 4
-E2B as its sole production model; see the
-[current E2B decision and contemporaneous comparison](e2b-evaluation.md).
+Neither model is selectable in the current product. The later LiteRT E2B
+release is recorded in the
+[historical E2B decision and contemporaneous comparison](e2b-evaluation.md).
+The current fork offers explicit Browser E2B or native QAT engine choice; see
+[engine scenarios](../inference-engines.md) and
+[qualification limits](ollama-qualification.md). This historical Qwen/E4B
+comparison does not qualify either current artifact or the new integration.
+Recorded numeric results and raw data on this historical page are unchanged.
 
 The eval measures classification quality for one deliberately narrow filter
 boundary: rage bait / outrage farming vs. ordinary negativity.
@@ -40,7 +45,7 @@ claim that the model family cannot classify well.
 - Ambiguous negatives include sincere frustration, fair criticism, personal
   hardship, civic participation, sarcasm, and calm pessimism.
 
-The current corpus has 40 rows:
+The historical corpus has 40 rows:
 
 | Kind | Count | Meaning |
 |------|------:|---------|
@@ -150,10 +155,14 @@ it cannot reproduce this exact historical model matrix. The raw export below
 is the source of truth for the 2026-06-07 result; do not re-add a retired engine
 to production merely to replay it.
 
-For the current, counterbalanced E2B/E4B accuracy run, use the localhost Gemma
-comparison procedure in [`e2b-evaluation.md`](e2b-evaluation.md#reproduce-the-comparison).
-The dev-only extension `benchmark.html` can separately exercise the sole E2B
-model through the actual MV3 background/offscreen path.
+For the historical counterbalanced E2B/E4B accuracy run, use the localhost Gemma
+comparison procedure in [`e2b-evaluation.md`](e2b-evaluation.md#reproduce-the-comparison)
+from its recorded historical checkout. That release's dev-only extension
+`benchmark.html` exercised E2B through its MV3 background/offscreen path.
+The current development benchmark uses the saved selected fixed engine:
+Browser uses its offscreen runtime, while Ollama uses the local native service.
+That surface does not reproduce this historical model matrix or qualify the
+new integration without actual-extension checks.
 
 ## Raw data
 

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bouncer — local AI setup</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body class="setup-mode">
+  <main>
+    <h1>Local AI setup</h1>
+    <p>Choose <strong>In your browser</strong> or <strong>On this Mac</strong> in Bouncer settings. Both use a fixed Gemma 4 E2B text model. Your posts and filter phrases are processed on your device; images and videos are judged by their written text.</p>
+    <p>Your choice is saved separately from setup. A failed download, unavailable GPU or missing Ollama connection keeps that choice. Bouncer does not switch engines automatically. Manual Bounce and Restore remain available.</p>
+
+    <h2>In your browser · LiteRT-LM</h2>
+    <ol>
+      <li>Choose <strong>Use browser AI</strong>. If the model is known to be missing, <strong>Download &amp; use browser AI</strong> combines the choice with an explicitly requested download.</li>
+      <li>Use <strong>Download browser model</strong> when needed. About 2 GB is fetched from <a href="https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/tree/9262660a1676eed6d0c477ab1a86344430854664" target="_blank" rel="noopener">the fixed Hugging Face source</a> and verified before use. This model-file download is separate from local inference.</li>
+      <li>The downloaded files stay in this Chrome profile. <strong>Ready</strong> means the files are available; the GPU model loads only for an actual request. <strong>Preparing</strong> is GPU initialization, not a download.</li>
+    </ol>
+    <p>If WebGPU is unavailable, check that Chrome supports WebGPU and hardware acceleration is enabled, then choose <strong>Retry browser AI</strong>. Bouncer does not load the model just to test an option. You can choose Ollama at any time.</p>
+    <p><strong>Cancel</strong> is available during a download or GPU preparation and keeps your choice. Canceling GPU preparation retains the downloaded files and pauses automatic preparation until you click Retry browser AI. Wait for <strong>Finishing cancellation</strong> to settle before starting another browser operation. <strong>Delete downloaded browser model</strong> removes only its model files; it keeps your filters and manual decisions. Chrome can also evict stored files. If that happens, a new download requires your explicit action.</p>
+    <p class="hint">Browser files belong to this profile and are separate from Ollama’s installation. Deleting them does not remove an Ollama model. Browser GPU memory is released after idle use; the downloaded files remain.</p>
+
+    <h2>On this Mac · Ollama</h2>
+    <p>This option uses the existing official Ollama app at <code>http://127.0.0.1:11434</code>. Bouncer checks the exact local model and runtime before sending text. It cannot install a model, configure or start the app, or remove native models.</p>
+    <h3>First-time preparation</h3>
+    <ol>
+      <li>Install the qualified <a href="https://github.com/ollama/ollama/releases/tag/v0.40.3" target="_blank" rel="noopener">Ollama 0.40.3 application and matching CLI</a>. Keep its service bound to loopback and <a href="https://docs.ollama.com/faq#how-do-i-disable-ollama-cloud-features" target="_blank" rel="noopener">disable Ollama cloud features</a> while preserving the rest of your settings.</li>
+      <li>Use the <a href="https://github.com/rishabgit/bouncer/blob/e073185495992c9bd5a562afae426f2f1c15eaf3/docs/models.md" target="_blank" rel="noopener">Bouncer operator setup guide</a> from a source checkout. It identifies the exact source weights and license, how to acquire them if missing, and how to preserve existing aliases.</li>
+      <li>With the qualified service running and other local models idle, run this from the Bouncer repository root using a stable Node 24 executable:</li>
+    </ol>
+    <pre><code>node scripts/prepare-native-model.mjs</code></pre>
+    <p>The script prepares and verifies the text-only alias <code>bouncer-gemma4-e2b-qat-text:v1</code>. It performs no inference or model download. A model with a different name, weights or version does not satisfy this contract.</p>
+    <ol start="4">
+      <li>Choose <strong>Use Ollama</strong>, then click <strong>Connect to Ollama</strong>. Allow only the local connection to <code>http://127.0.0.1:11434/*</code>. Bouncer checks metadata without preloading weights. If Chrome closes the popup during the grant, reopen settings to see the current result.</li>
+    </ol>
+
+    <h3>Connection and setup problems</h3>
+    <ul>
+      <li><strong>Not connected:</strong> click Connect. Denying or revoking permission keeps your saved engine choice.</li>
+      <li><strong>Unavailable:</strong> open the Ollama app on this Mac, then Retry.</li>
+      <li><strong>Model missing or could not be verified:</strong> follow the fixed-model preparation in the operator guide, then Retry. Do not substitute another artifact or upgrade the qualified runtime.</li>
+      <li><strong>Ollama rejected Bouncer’s connection:</strong> follow the operator guide’s exact-origin procedure. Preserve other allowed origins and the loopback/cloud-disabled settings. The extension origin is <code>chrome-extension://bkijmhafoocfloemhancbgadknkgdkcm</code>; do not use a wildcard. The documented helper launches the existing app with the finite origin set and verifies metadata. A general health check does not establish Chrome access.</li>
+      <li><strong>Another local model is loaded:</strong> let the other client finish and release it, then Retry. Bouncer will not unload another client’s model.</li>
+    </ul>
+    <p class="hint">Ollama loads the model for an actual request. It may release it after idle use; other clients sharing the model can keep it resident. Bouncer does not change native retention or scheduling settings.</p>
+
+    <h2>Previous Ollama request needs recovery</h2>
+    <p>An interrupted request may still be running in Ollama. Automatic inference pauses for either engine until it is settled. Selecting Browser AI, canceling a browser operation, reconnecting or clicking ordinary Retry does not prove that the previous native request stopped.</p>
+    <ol>
+      <li>Let other local clients finish and remain idle.</li>
+      <li>Use <strong>Quit Ollama</strong> normally. Confirm the application, server and local listener have stopped.</li>
+      <li>Reopen through the existing, documented exact-origin startup setup. Follow the operator guide’s controlled <code>--launch --confirm-ollama-stopped</code> procedure; an ordinary launch may not preserve that setup.</li>
+      <li>If Bouncer needs connection permission, click <strong>Connect to Ollama</strong>. This does not confirm a restart or change your engine choice.</li>
+      <li>Click <strong>Resume after restarting Ollama</strong> and confirm the full restart and idle clients. Bouncer then verifies the service and resumes your selected option.</li>
+    </ol>
+    <p>If the recovery action is unavailable, use a qualified Bouncer build and the operator guide. Bouncer never clears this pause merely because time passed or no resident model is listed.</p>
+    <p><a href="https://github.com/rishabgit/bouncer/blob/e073185495992c9bd5a562afae426f2f1c15eaf3/docs/models.md" target="_blank" rel="noopener">Complete Ollama operator guide</a> · <a href="https://docs.ollama.com/faq" target="_blank" rel="noopener">Official Ollama FAQ</a> · <a href="https://ai.google.dev/edge/litert/lm" target="_blank" rel="noopener">LiteRT-LM documentation</a></p>
+    <p class="hint">This help page is static. It makes no requests to Ollama and cannot execute setup commands.</p>
+  </main>
+</body>
+</html>

@@ -19,11 +19,7 @@ const ASYNCIFY_ASSETS = [
   'litertlm_wasm_compat_asyncify_internal.js',
   'litertlm_wasm_compat_asyncify_internal.wasm',
 ];
-const TARGETS = [
-  ['chrome', MODERN_ASSETS],
-  ['firefox', MODERN_ASSETS],
-  ['safari', ASYNCIFY_ASSETS],
-];
+const TARGETS = [['chrome', MODERN_ASSETS]];
 
 let fixtureDir;
 let sourceDir;
@@ -100,10 +96,10 @@ describe('target-specific LiteRT-LM packaging', () => {
   });
 
   it('rejects an empty required asset from an incomplete installation', () => {
-    writeFileSync(path.join(sourceDir, ASYNCIFY_ASSETS[1]), '');
+    writeFileSync(path.join(sourceDir, MODERN_ASSETS[1]), '');
 
-    expect(() => copyLitertlmAssets(sourceDir, destinationDir, 'safari')).toThrow(
-      `Missing LiteRT-LM safari asset: ${ASYNCIFY_ASSETS[1]}`,
+    expect(() => copyLitertlmAssets(sourceDir, destinationDir, 'chrome')).toThrow(
+      `Missing LiteRT-LM chrome asset: ${MODERN_ASSETS[1]}`,
     );
     expect(existsSync(destinationDir)).toBe(false);
   });
@@ -116,9 +112,7 @@ describe('target-specific LiteRT-LM packaging', () => {
 
   it('declares browser minimums that support the packaged JSPI loaders', () => {
     const chrome = JSON.parse(readFileSync(new URL('../../manifest.chrome.json', import.meta.url), 'utf8'));
-    const firefox = JSON.parse(readFileSync(new URL('../../manifest.firefox.json', import.meta.url), 'utf8'));
 
     expect(chrome.minimum_chrome_version).toBe('137');
-    expect(firefox.browser_specific_settings.gecko.strict_min_version).toBe('145.0');
   });
 });

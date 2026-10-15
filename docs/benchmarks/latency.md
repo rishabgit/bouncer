@@ -2,14 +2,18 @@
 
 This page preserves the 2026-05-26 comparison of the then-shipped local
 engines: **WebLLM/Qwen 3.5** and **LiteRT-LM/Gemma E4B**. Both have since been
-removed from the product catalog. Bouncer now ships Gemma 4 E2B through
-LiteRT-LM as its sole production model; see the
-[current E2B decision](e2b-evaluation.md).
+removed from the product catalog. The later LiteRT E2B release is recorded in
+the [historical E2B decision](e2b-evaluation.md). The current fork offers
+explicit Browser E2B or native QAT engine choice; see
+[engine scenarios](../inference-engines.md) and
+[qualification limits](ollama-qualification.md). This historical Qwen/E4B
+comparison does not qualify either current artifact or the new integration.
+Recorded numeric results and raw data on this historical page are unchanged.
 
 > **This historical run measures speed, not quality.** Qwen cost more partly
 > because it wrote visible reasoning before its verdict; E4B emitted a terse
 > yes/no row. Use the [historical accuracy eval](accuracy.md) for that model
-> matrix and the E2B decision for current evidence.
+> matrix and the E2B decision for contemporaneous evidence.
 
 ## Historical TL;DR
 
@@ -101,10 +105,13 @@ it cannot reproduce this exact historical engine/model matrix. The raw exports
 below are the source of truth for the 2026-05-26 result.
 
 Use the localhost procedure in
-[`e2b-evaluation.md`](e2b-evaluation.md#reproduce-the-comparison) for the current
-counterbalanced E2B/E4B comparison. The current dev-only extension
-`benchmark.html` separately measures E2B through the actual MV3
-service-worker/offscreen path.
+[`e2b-evaluation.md`](e2b-evaluation.md#reproduce-the-comparison) in its recorded
+historical checkout for the counterbalanced E2B/E4B comparison. That release's
+dev-only extension `benchmark.html` measured E2B through its MV3
+service-worker/offscreen path. The current development benchmark uses the saved
+selected fixed engine: Browser uses its offscreen runtime, while Ollama uses
+the local native service. That surface does not reproduce this historical
+model matrix or qualify the new integration without actual-extension checks.
 
 ## Raw data
 

@@ -1,4 +1,12 @@
-# E2B runtime and prefix-cache verification
+# Historical E2B runtime and prefix-cache verification
+
+> Historical LiteRT browser-runtime measurements, not native QAT results.
+> The current Browser option reuses the fixed E2B artifact and 0.17.0 core,
+> but this historical normal-page runner does not qualify its new download
+> integrity, engine choice, switching or offscreen lifecycle. Methods, numeric
+> results and raw data are unchanged. Reproduce the historical harness from commit
+> `a590ce0186c89374e904bef599c3f9c51db5b9b2`; see
+> [qualification and integration gates](ollama-qualification.md).
 
 The 2026-10-11 implementation upgrades LiteRT-LM from 0.12.1 to exactly
 0.17.0 and reuses a prefilled prefix through independent per-post conversation
@@ -109,8 +117,8 @@ Startup varied substantially despite cached weights:
 | 0.17.0 repeat | 1,149 ms | 266 ms |
 
 The reports establish first-use variability; they do not establish its exact
-cause or a cold-start improvement. Keep the freshly reloaded extension smoke
-as an owner verification step.
+cause or a cold-start improvement. A freshly reloaded extension smoke check
+remained a separate verification step for that historical release.
 
 Successful disposal retains one base and one completed clone, with a transient
 third handle during the next clone. Errors or key changes drop that state;
@@ -139,13 +147,17 @@ E2B model artifact or demonstrate lower inference memory or battery use.
 
 ## Reproduce and remaining verification
 
-After `npm run build:dev` in `Bouncer/`, serve that directory on localhost and
-open `gemma-comparison.html?model=e2b&autorun=1`. Use
+These commands refer to historical checkout
+`a590ce0186c89374e904bef599c3f9c51db5b9b2`, which retains the retired runner.
+
+From `Bouncer/`, run `npm ci` and `npm run build:dev`, then serve that
+directory on localhost and open `gemma-comparison.html?model=e2b&autorun=1`. Use
 `?model=e2b&scope=smoke&autorun=1` for lifecycle checks. Download the completed
 JSON report from the page; reruns clear stale completion/export state.
 
-Automated regression tests and production builds cover all three targets. Real
-model verification here covers Chrome's direct runtime. The owner still needs
-to reload the unpacked Chrome extension and verify the popup, live X filter
+At the time of this verification, automated regression tests and production
+builds covered all three targets. Real model verification here covered Chrome's
+direct runtime. The remaining historical checks were to
+reload the unpacked Chrome extension and verify the popup, live X filter
 actions, reply behavior, offscreen cancellation, idle unload, and reload.
-Firefox/Safari real inference and quantitative energy behavior remain untested.
+Firefox/Safari real inference and quantitative energy behavior were untested.

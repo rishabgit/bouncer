@@ -33,6 +33,13 @@ export interface EvaluationResult {
   model?: string;
   /** Set by the background when the result came from the evaluation cache. */
   cached?: boolean;
+  /** Selected engine and immutable choice revision that produced this verdict. */
+  engine?: InferenceEngineId;
+  selectionRevision?: number;
+  /** Fixed artifact, prompt/parser and inference/input contract. */
+  classifierFingerprint?: string;
+  /** Invalid model output remains an explicit failure, never a negative hit. */
+  malformed?: boolean;
   /** Explicit local Bounce/Restore decision, preserved across DOM updates. */
   userOverride?: boolean;
   /** Per-detector snapshots so a cache hit can rebuild the same tab UI. */
@@ -53,6 +60,8 @@ export type PipelineResponse = EvaluationResult | PipelineError | PipelineRetry 
 export interface PipelineError {
   error: 'local_model';
   reasoning: string;
+  /** Expected setup waits resume on status/choice changes, without a retry loop. */
+  availabilityReason?: 'not_configured' | 'needs_download' | 'downloading' | 'switching' | 'browser_cancelled';
 }
 
 /** Transient signal — content should remove from processed and retry later. */
@@ -105,31 +114,39 @@ export interface FilteredPost {
 
 // ==================== Models & Config ====================
 
-/** The sole class of model supported by this local-only fork. */
-export interface LocalModelDef {
-  name: string;
-  display: string;
-  isLocal: true;
-  backend: 'litertlm';
-  sizeGB?: number;
-  /** LiteRT-LM config — the `.litertlm` asset + sampler/budget knobs. */
-  litertlmConfig: {
-    // Absolute URL to the `.litertlm` model asset.
-    modelUrl: string;
-    // Combined prompt + output token budget (mainExecutorSettings.maxNumTokens).
-    maxTokens?: number;
-  };
+export type InferenceEngineId = 'litertlm' | 'ollama';
+
+/** The explicit choice is independent of download, permission or readiness. */
+export interface EngineSelection {
+  engine: InferenceEngineId | null;
+  revision: number;
 }
 
-/** Typed map for PREDEFINED_MODELS — local models get extended fields. */
-export interface PredefinedModelsMap {
-  local: LocalModelDef[];
+export interface NativeModelDef {
+  name: string;
+  display: string;
+  backend: 'ollama';
+  manifestDigest: string | null;
+  weightDigest: string;
+  contextTokens: number;
 }
+
+export interface BrowserModelDef {
+  name: string;
+  display: string;
+  backend: 'litertlm';
+  weightDigest: string;
+  contextTokens: number;
+  sizeBytes: number;
+  litertlmConfig: { modelUrl: string; maxTokens: number };
+}
+
+/** Two immutable artifacts, never a custom-model or endpoint catalog. */
+export type LocalModelDef = NativeModelDef | BrowserModelDef;
 
 /** Fields shared between runtime Settings and the chrome.storage.local schema. */
 interface SettingsBase {
   enabled: boolean;
-  selectedModel: string;
   // When false, replies on permalink (/status/<id>) pages are not
   // submitted for evaluation. The main timeline is unaffected either way.
   // Defaults to true to preserve historical behavior.
@@ -141,12 +158,28 @@ export interface Settings extends SettingsBase {
 }
 
 export interface LocalModelStatus {
-  state: 'not_downloaded' | 'downloading' | 'cached' | 'ready'
-    | 'initializing' | 'error' | 'unsupported';
-  progress?: number;
-  text?: string;
-  error?: string;
+  state: 'not_configured' | 'needs_download' | 'downloading' | 'canceling' | 'switching'
+    | 'not_connected' | 'ready' | 'loading' | 'filtering' | 'paused'
+    | 'missing_model' | 'blocked' | 'recovery_required' | 'error';
+  message: string;
   reason?: string;
+  revision: number;
+  engine?: InferenceEngineId | null;
+  selectionRevision?: number;
+  progress?: number;
+  receivedBytes?: number;
+  totalBytes?: number;
+  /** Qualified operator restart is an explicit trust boundary, not an API ack. */
+  recoveryQualified?: boolean;
+}
+
+/** Durable native lease. Never store post text, phrases, or response content. */
+export interface NativeOperationFence {
+  schemaVersion: 1;
+  operationId: string;
+  epoch: number;
+  startedAt: number;
+  modelDigest: string;
 }
 
 // ==================== Platform Adapter ====================
@@ -227,14 +260,20 @@ export type ContentToBackgroundMessage =
   | { type: 'getStats' }
   | { type: 'getReasoning'; post: string }
   | { type: 'getErrorStatus' }
-  | { type: 'getAllLocalModelStatuses' }
-  | { type: 'initializeLocalModel' }
-  | { type: 'cancelLocalModelDownload' }
-  | { type: 'deleteLocalModel' }
+  | { type: 'getNativeModelStatus' }
+  | { type: 'getLocalModelStatus' }
+  | { type: 'selectInferenceEngine'; engine: InferenceEngineId }
+  | { type: 'downloadBrowserModel' }
+  | { type: 'cancelBrowserDownload' }
+  | { type: 'deleteBrowserModel' }
+  | { type: 'retryLocalModel' }
+  | { type: 'connectNativeModel' }
+  | { type: 'retryNativeModel' }
+  | { type: 'recoverNativeModel'; operatorRestartConfirmed: true }
   | { type: 'preemptInference' }
   | { type: 'overrideCacheEntry'; post: string; shouldHide: boolean; reasoning?: string }
   // Dev-only latency benchmark (gated by __DEV__ in the background dispatch).
-  | { type: 'benchmark'; op: 'load' | 'infer' | 'unload'; modelId?: string; post?: { text: string }; categories?: string[]; promptMode?: 'baseline' | 'intent' };
+  | { type: 'benchmark'; op: 'status' | 'load' | 'infer' | 'unload'; selectionRevision?: number; post?: { text: string }; categories?: string[]; promptMode?: 'baseline' | 'intent' };
 
 export type BackgroundToContentMessage =
   | { type: 'ping' }
@@ -251,14 +290,6 @@ export type BackgroundToContentMessage =
 export interface PlatformContext {
   adapter: PlatformAdapter;
   descriptionsKey: DescriptionKey;
-  IS_IOS: boolean;
-}
-
-export interface IOSUICallbacks {
-  getIOSPageContainer: () => HTMLElement | null;
-  getFFFabButton: () => HTMLElement | null;
-  updateIOSFilteredCount: () => void;
-  renderIOSCategories: (page: HTMLElement) => void;
 }
 
 export interface PostOperations {
@@ -276,18 +307,7 @@ export interface PostState {
   pendingPosts: Set<HTMLElement>;
 }
 
-export interface ContentUIDeps extends PlatformContext, IOSUICallbacks, PostOperations, PostState {}
-
-export interface IOSDeps {
-  adapter: PlatformAdapter;
-  descriptionsKey: DescriptionKey;
-  showSettingsModal: () => void;
-  renderFilteredPostsView: (container: HTMLElement) => void;
-  updateTheme: () => void;
-  addFilterPhrase: (phrase: string) => Promise<boolean>;
-  removeFilterPhrase: (phrase: string) => Promise<void>;
-  getFilteredPosts: () => FilteredPost[];
-}
+export interface ContentUIDeps extends PlatformContext, PostOperations, PostState {}
 
 // ==================== Chrome Storage Schema ====================
 
@@ -299,9 +319,16 @@ export type DescriptionKey = `descriptions_${SiteId}`;
 
 /** Typed schema for chrome.storage.local keys. */
 export type StorageSchema = SettingsBase & {
-  localModelStatuses: Record<string, LocalModelStatus>;
+  engineSelection: EngineSelection;
+  engineChoiceSchemaVersion: number;
+  engineChoiceModelCacheCleanupVersion: number;
+  localModelStatus: LocalModelStatus;
+  browserModelStatus: LocalModelStatus;
+  browserCacheGeneration: string;
+  nativeModelStatus: LocalModelStatus;
+  nativeOperationFence: NativeOperationFence;
   evaluationCache: Record<string, EvaluationResult>;
   stats: { filtered: number; evaluated: number; totalCost: number };
-  gemmaOnlySchemaVersion: number;
-  retiredModelCacheCleanupVersion: number;
+  nativeCutoverSchemaVersion: number;
+  nativeModelCacheCleanupVersion: number;
 } & DescriptionKeys;

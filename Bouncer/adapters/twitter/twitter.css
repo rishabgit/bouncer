@@ -127,97 +127,6 @@ div[data-testid="BottomBar"] {
   background-color: rgb(21, 32, 43);
 }
 
-/* ======================================
-   iOS Bouncer page — dim mode
-   ====================================== */
-
-body.ff-ios .ff-ios-page.dim-mode {
-  background-color: rgb(21, 32, 43);
-}
-
-body.ff-ios .ff-ios-page.dim-mode .ff-ios-page-header {
-  border-bottom-color: rgb(56, 68, 77);
-  background-color: rgb(21, 32, 43);
-}
-
-body.ff-ios .ff-ios-page.dim-mode .ff-ios-page-title {
-  color: rgb(247, 249, 249);
-}
-
-body.ff-ios .ff-ios-page.dim-mode .ff-ios-settings-btn {
-  color: rgb(139, 152, 165);
-}
-
-body.ff-ios .ff-ios-page.dim-mode .ff-ios-subtitle {
-  color: rgb(139, 152, 165);
-}
-
-body.ff-ios .ff-ios-page.dim-mode .ff-ios-category-row {
-  border-bottom-color: rgb(56, 68, 77);
-}
-
-body.ff-ios .ff-ios-page.dim-mode .ff-ios-category-text {
-  color: rgb(247, 249, 249);
-}
-
-body.ff-ios .ff-ios-page.dim-mode .ff-ios-category-remove {
-  color: rgb(139, 152, 165);
-}
-
-body.ff-ios .ff-ios-page.dim-mode .ff-ios-categories-empty {
-  color: rgb(139, 152, 165);
-}
-
-body.ff-ios .ff-ios-page.dim-mode .ff-ios-bottom-bar {
-  border-top-color: rgb(56, 68, 77);
-  background-color: rgb(21, 32, 43);
-}
-
-body.ff-ios .ff-ios-page.dim-mode .ff-ios-phrase-input {
-  background-color: rgb(30, 39, 50);
-  border-color: rgb(56, 68, 77);
-  color: rgb(247, 249, 249);
-}
-
-body.ff-ios .ff-ios-page.dim-mode .ff-ios-phrase-input::placeholder {
-  color: rgb(139, 152, 165);
-}
-
-/* iOS filtered modal — dim mode */
-.ff-ios-filtered-modal-backdrop.dim-mode .ff-ios-filtered-modal {
-  background-color: rgb(21, 32, 43);
-}
-
-.ff-ios-filtered-modal-backdrop.dim-mode .ff-ios-filtered-modal-header {
-  border-bottom-color: rgb(56, 68, 77);
-}
-
-.ff-ios-filtered-modal-backdrop.dim-mode .ff-ios-filtered-modal-title {
-  color: rgb(247, 249, 249);
-}
-
-.ff-ios-filtered-modal-backdrop.dim-mode .ff-ios-filtered-modal-close {
-  color: rgb(139, 152, 165);
-}
-
-/* iOS dim mode overrides for structured post fields */
-.ff-ios-filtered-modal-backdrop.dim-mode .slop-post-name {
-  color: rgb(247, 249, 249);
-}
-.ff-ios-filtered-modal-backdrop.dim-mode .slop-post-handle {
-  color: rgb(139, 152, 165);
-}
-.ff-ios-filtered-modal-backdrop.dim-mode .slop-post-text {
-  color: rgb(247, 249, 249);
-}
-.ff-ios-filtered-modal-backdrop.dim-mode .slop-post-avatar {
-  background: #38444d;
-}
-
-.ff-ios-filtered-modal-backdrop.dim-mode .slop-post-wrapper {
-  border-bottom-color: rgb(56, 68, 77);
-}
-
 /* Dim mode overrides for quote box */
 .filtered-view-container.dim-mode .slop-quote-box {
   border-color: rgb(56, 68, 77);
@@ -232,23 +141,6 @@ body.ff-ios .ff-ios-page.dim-mode .ff-ios-phrase-input::placeholder {
   color: rgb(247, 249, 249);
 }
 .filtered-view-container.dim-mode .slop-post-reasoning {
-  background: rgba(255, 255, 255, 0.04);
-  border-left-color: rgba(255, 255, 255, 0.1);
-}
-
-.ff-ios-filtered-modal-backdrop.dim-mode .slop-quote-box {
-  border-color: rgb(56, 68, 77);
-}
-.ff-ios-filtered-modal-backdrop.dim-mode .slop-quote-name {
-  color: rgb(247, 249, 249);
-}
-.ff-ios-filtered-modal-backdrop.dim-mode .slop-quote-handle {
-  color: rgb(139, 152, 165);
-}
-.ff-ios-filtered-modal-backdrop.dim-mode .slop-quote-text {
-  color: rgb(247, 249, 249);
-}
-.ff-ios-filtered-modal-backdrop.dim-mode .slop-post-reasoning {
   background: rgba(255, 255, 255, 0.04);
   border-left-color: rgba(255, 255, 255, 0.1);
 }

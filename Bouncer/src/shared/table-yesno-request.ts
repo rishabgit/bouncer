@@ -12,6 +12,26 @@ export interface TableYesnoRequest {
   maxOutputTokens: number;
 }
 
+/** Exact numbered-category adapter qualified by the native isolation harness. */
+export function buildNativeTableYesnoRequest(
+  postText: string,
+  categories: string[],
+  promptMode: LocalPromptMode = 'baseline',
+): TableYesnoRequest {
+  const request = buildTableYesnoRequest(postText, categories, promptMode);
+  if (categories.length <= 1) return request;
+  const messages = request.messages.map(message => ({ ...message }));
+  const marker = `\n\nCategories (in order): ${categories.join(', ')}`;
+  const categoryStart = messages[1].content.lastIndexOf(marker);
+  if (categoryStart < 0 || messages[1].content[categoryStart + marker.length] !== '\n') {
+    throw new Error('Shared category prompt changed; numbered adapter needs qualification');
+  }
+  messages[1].content = messages[1].content.slice(0, categoryStart)
+    + `\n\nCategories (in order):\n${categories.map((category, index) => `${index + 1}. ${category}`).join('\n')}`
+    + messages[1].content.slice(categoryStart + marker.length);
+  return { ...request, messages };
+}
+
 /** Build the exact Gemma request shared by production and live-model evals. */
 export function buildTableYesnoRequest(
   postText: string,

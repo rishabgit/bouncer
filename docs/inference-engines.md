@@ -1,0 +1,139 @@
+# Choosing where Bouncer runs
+
+**You choose the engine.** Settings asks **Where should Bouncer run?** and
+offers **In your browser** (LiteRT-LM, recommended) and **On this Mac** (Ollama).
+Both run a fixed text-only Gemma 4 E2B artifact locally. They use different
+packages, prompts and classifier fingerprints, so answers can differ.
+The recommendation is a starting point, not a saved choice or fallback rule.
+
+| Scenario | What happens | Your action |
+|---|---|---|
+| Fresh or ambiguous profile | No engine is committed; Browser is recommended. Automatic filtering waits. | Choose a card, then its explicit Use or Download action. |
+| Saved choice or status cannot be read | An unknown choice is shown as unavailable; an already known choice is retained. A failed read does not mean no choice was saved. | **Check status** reads readiness without loading either model. Follow the extension-reload guidance if the background reports an older API. |
+| Upgrade with a valid earlier Browser preference | Browser remains selected; compatible fixed E2B cached weights are preserved. Old automatic verdicts without the current fingerprint are re-evaluated. | Use the selected engine; download explicitly if weights were removed. |
+| Upgrade after completed native cutover | Ollama remains selected. A valid newer explicit choice takes precedence over older markers. | Keep it or explicitly choose Browser. |
+| Preview the other card | The preview differs from the committed engine. No transfer, GPU initialization or native readiness starts. | Use its explicit action to commit it. |
+| Commit an engine | The preference is saved and read back before setup. Setup failure or cancellation preserves the choice. | **Use browser AI**, **Download & use browser AI**, or **Use Ollama**. |
+| Switch engines during work | Old verdicts/suggestions are retired, browser downloads are canceled, and known native work drains. Automatic feed decisions are restored and re-evaluated; manual decisions remain. | Wait for the selected engine's status; settle any native recovery block. |
+| Browser weights missing | No post or suggestion triggers download. | **Download browser model**; first choice may offer **Download & use browser AI**. |
+| Browser cache status still unknown | **Use browser AI** commits the choice without assuming a download is needed. | Use the subsequent explicit Download action if status reports missing weights. |
+| Browser download running | Progress reports the fixed model transfer; hashing checks size and SHA-256 before completion. It does not load the GPU or send posts. | Wait or **Cancel**; canceled bytes cannot become a replacement ready model. |
+| Change tabs, pause filtering or edit filters during a Browser download | The explicit model download continues independently of automatic inference. | Return to Settings for progress, or **Cancel**. Choosing another engine cancels the transfer. |
+| GPU preparation canceled | Browser remains selected, downloaded files stay saved and automatic preparation pauses. | **Retry browser AI** when ready; Retry itself does not preload. |
+| Download failed or canceled | Browser remains selected. No native fallback or background replacement download occurs. | Retry the explicit download when ready. |
+| Saved Browser weights, cold runtime | Settings reports saved weights without loading the GPU. Actual initialization verifies bytes before the next real request. | Continue using Bouncer; no setup load is required. |
+| Offline after Browser download | Verified saved weights and bundled runtime can infer locally if Chrome/WebGPU work. X itself still needs its network to load a feed. | Reconnect only if weights are absent or the feed needs it. |
+| No usable GPU or Browser initialization failed | Automatic generation waits or reports the Browser error; the preference stays Browser. | **Retry browser AI** after fixing support, or explicitly choose Ollama. |
+| Browser cache evicted or integrity invalid | Automatic generation waits for setup; invalid saved bytes are rejected. | Explicitly download again. |
+| Delete Browser weights | Bouncer deletes its owned saved model entries and retains Browser preference, filters and manual decisions. It does not delete native models. | **Delete downloaded browser model**, then explicitly download if needed later. |
+| Browser worker recreated during a download | The chosen Browser download continues; its progress and completion are reconciled only while active. | Wait or Cancel. Choosing Ollama stops the inherited transfer. |
+| Browser worker recreated during GPU work | Bouncer closes the orphaned owned GPU host and retains downloaded files. | The next eligible request reloads locally; no replacement download starts. |
+| A request arrives as Browser releases idle memory | The request waits for cleanup, then loads the saved model. | Continue normally; idle teardown does not require Retry. |
+| Browser resource cleanup fails | Bouncer preserves the uncertain host state and stops resident-only polling. Automatic generation through either choice waits; manual controls and Retry remain usable after worker recreation. | **Retry** attempts owned cleanup before resuming the saved choice. It does not download or preload Browser AI. A native restart-recovery block still takes precedence. |
+| One minute idle | Browser releases its runtime and retains weights. Ollama requests one-minute retention; other clients can extend its shared residency. | The next real request loads again as needed. |
+| Ollama has no connection permission | No post is sent to the native service. Permission is optional and exact loopback only. | With Ollama selected, **Connect to Ollama** and allow the local connection. |
+| Native permission changes while Browser is selected | Browser keeps its selected work; the permission event does not probe Ollama or preempt Browser. | No action unless using explicit native recovery. |
+| Ollama stopped or inaccessible | Native automatic work waits; manual and compatible cached decisions remain usable. | Start the prepared app normally, then **Retry**. |
+| Ollama rejects the extension Origin | A successful GET cannot establish worker POST access. | Follow the [exact-origin operator recipe](models.md#install-exact-origin-startup) after actual worker rejection. |
+| Native artifact or runtime changed | Generation is blocked before post transmission. | Follow [fixed model preparation](models.md#prepare-the-text-only-model); never bypass identity checks. |
+| Another native model is resident | Ollama automatic work defers; Bouncer does not unload another client's model or change native global settings. | Let other work finish, then use a later eligible action or **Retry**. |
+| Native request outcome unresolved | A durable block prevents replacement generation through either engine, including Browser. Abort, elapsed time, Retry and empty residency do not settle it. | Follow [native restart recovery](models.md#interrupted-request-recovery), then **Resume after restarting Ollama**. |
+| Recover while Browser is selected | Explicit native recovery validates the restarted native service without changing the committed Browser choice. | Complete the qualified operator procedure; resume Browser afterward. |
+| Either engine unavailable | Manual Bounce/Restore and saved compatible decisions remain available. | Keep using explicit decisions or complete the selected engine's setup. |
+| Request filter suggestions | Suggestions use only the selected ready engine. Missing setup never causes download or fallback; stale suggestions are retired on switch. | Edit your own phrase and use manual Bounce when suggestions are unavailable. |
+
+Selecting Browser cannot cancel a native request that already reached Ollama.
+Switching therefore keeps the global native recovery block until an owned
+terminal response or the qualified full-process restart establishes settlement.
+The extension never starts, restarts, configures, force-unloads or deletes from
+the shared native service.
+
+## Local inference and downloads
+
+Browser weights come only from the fixed revision-pinned Hugging Face URL after
+an explicit Download action. Transfer size and SHA-256 are verified in a
+backpressured stream, and saved bytes are verified before GPU loading. The
+LiteRT SDK and normal/compat WASM runners are bundled in the extension and run
+in an on-demand offscreen host. The download server receives a model request;
+it receives no post or filter text.
+
+Ollama receives text only at `http://127.0.0.1:11434`, after optional host
+permission and exact runtime/model metadata validation. Its model preparation
+and native source acquisition are separate operator actions. Preserve local
+binding, cloud-disabled settings and other clients' existing configuration.
+Images and video bytes go to neither inference path. X's own network activity
+and image display remain part of browsing X.
+
+Automatic cache identity includes the selected artifact, prompt/parser and
+budgets. A Browser verdict is not reused as an Ollama verdict or vice versa;
+manual hide/restore decisions keep the same ownership across both choices.
+Changing engines does not clear the filter list or create a second manual
+override store.
+
+## Evidence limits
+
+Historical LiteRT normal-page tests measured the fixed E2B artifact and core
+0.17.0, and dated native tests measured the fixed QAT artifact. Their quality
+and timing results are bounded manual evidence, not a guarantee of identical
+answers, universal speed or energy savings. The native replay corpus is not
+published.
+
+A 2026-10-14 ordinary-page component smoke in Chrome 155 passed a
+complete fixed-artifact download with streaming size/SHA-256 verification,
+cancellation/retry, saved-cache reload and real WebGPU initialization. Three
+synthetic cases produced the expected rows in two runs. Reinitialization also
+succeeded while page CSP blocked external connections, with same-origin
+localhost runtime/report endpoints still available. This establishes
+cache-only component operation, not system-offline or extension behavior.
+
+Cold component initialization took about 20 seconds, including saved-byte
+reverification. Historical cached startup around 1.3 seconds does not predict
+this path. Explicit SDK unload reported an unloaded runtime; memory reclamation
+and the extension's one-minute idle timer were not measured.
+
+Source regressions cover rejected idle cleanup, repeated close failures after
+worker recreation, explicit cleanup Retry, and a status-read failure while
+owned initialization remains pending. They do not establish that those failures
+occurred in actual Chrome, or qualify the extension's lifecycle.
+
+An owner-operated development extension run on 2026-10-14 passed fixed
+classifier smoke checks through both engines, offscreen LiteRT generation,
+both switch directions and rejection of a retired Browser Loading result.
+After 120-second quiet intervals, Browser worker/offscreen contexts were absent,
+and the native worker and pinned resident candidate were absent. Distinct real
+requests then created new workers and generated successfully. Successful native
+generation also establishes fresh worker metadata POST access through the
+verified request contract. The report provides no independent GPU/network trace
+or grant-dialog capture, and does not measure exact 60-second expiry or physical
+memory reclamation.
+
+That run's production receipt identifies the release package, while the
+executed background uses the development benchmark branch and test overlay.
+Its setup authorization does not record whether a fresh Browser transfer
+occurred. Extension-origin fresh download/CSP, cancellation/deletion and offline
+operation, first-choice/provenance upgrades, feed manual/suggestion ownership,
+native interruption recovery, production activation and normal-login startup
+were outside that development run.
+
+On 2026-10-15, a fresh-profile first-launch receipt and owner-provided workflow
+captures from the unchanged production extension established functional
+Browser download/CSP and integrity success: initial Download needed, explicit
+Download/retry, Ready, then real filtering/suggestions. Verified source checks
+the fixed size/SHA-256 before cache publication and reverifies saved bytes
+before GPU initialization. This is code-backed prerequisite evidence without
+an independent transfer/digest trace.
+
+The same run established bounded Browser synthetic-feed filtering, real
+suggestions retaining edits, manual Bounce/Restore in the instructed reload
+sequence, recycled cells, themes and navigation. Confirmed deletion led to
+Download needed with Browser and the filter retained; source awaits owned
+deletion before publishing that state. Physical cache inventory, disk
+reclamation, transfer counts/timing, exact CDN routing and independent GPU/RAM
+measurements remain unmeasured. Cancellation, offline operation, provenance
+upgrades, native blocking/recovery, normal login and daily-profile activation
+remain open. See the
+[production Browser observations](benchmarks/ollama-qualification.md#owner-operated-production-browser-feed-observations--2026-10-15)
+and [current draft gates](benchmarks/ollama-qualification.md#draft-release-gates).
+
+See [fixed artifacts and setup](models.md) for sizes, hashes, licenses and the
+optional Ollama preparation, startup, upgrade/removal and recovery recipes.

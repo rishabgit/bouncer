@@ -8,13 +8,17 @@ vi.mock('@litert-lm/core', () => ({
   SamplerType: { GREEDY: 'GREEDY', TOP_K: 'TOP_K' },
 }));
 
+vi.mock('../../src/background/backends/model-cache', () => ({
+  readVerifiedCachedModel: vi.fn(async () => new Response(new Uint8Array([1, 2, 3]))),
+  prefetchFixedModel: vi.fn().mockResolvedValue(undefined),
+}));
+import { readVerifiedCachedModel, prefetchFixedModel } from '../../src/background/backends/model-cache';
 import { Engine, loadLiteRtLm, SamplerType } from '@litert-lm/core';
 import {
   LitertlmRuntime,
-  prefetchLitertlmModel,
   unloadLitertlmWasm,
 } from '../../src/offscreen/litertlm-runtime.js';
-import type { ChatMessage, LocalModelDef } from '../../src/types.js';
+import type { ChatMessage } from '../../src/types.js';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -38,16 +42,7 @@ const messages = (post = 'post', system = 'system'): ChatMessage[] => [
 ];
 
 describe('LitertlmRuntime', () => {
-  const modelDef: LocalModelDef = {
-    name: 'gemma-test',
-    display: 'Gemma test',
-    isLocal: true,
-    backend: 'litertlm',
-    litertlmConfig: {
-      modelUrl: 'https://example.test/gemma.litertlm',
-      maxTokens: 1024,
-    },
-  };
+  const modelDef = 'legacy';
 
   let createConversation: Mock;
   let runtime: LitertlmRuntime;
@@ -101,6 +96,7 @@ describe('LitertlmRuntime', () => {
     const wasmWithJspi = Object.create(WebAssembly);
     wasmWithJspi.Suspending = vi.fn();
     vi.stubGlobal('WebAssembly', wasmWithJspi);
+    vi.stubGlobal('navigator', { gpu: {} });
     globalThis.chrome = {
       runtime: { getURL: vi.fn(path => `chrome-extension://test/${path}`) },
     } as unknown as typeof chrome;
@@ -134,6 +130,18 @@ describe('LitertlmRuntime', () => {
     vi.restoreAllMocks();
   });
 
+  it('reports unavailable WebGPU before loading wasm or creating an engine', async () => {
+    vi.stubGlobal('navigator', {});
+    await expect(initialize()).rejects.toMatchObject({ reason: 'webgpu_unavailable' });
+    expect(loadLiteRtLm).not.toHaveBeenCalled(); expect(Engine.create).not.toHaveBeenCalled();
+  });
+
+  it('coalesces duplicate initialization through the runtime queue without leaking engines', async () => {
+    await Promise.all([initialize(), initialize()]);
+    expect(Engine.create).toHaveBeenCalledOnce();
+    expect(readVerifiedCachedModel).toHaveBeenCalledOnce();
+  });
+
   it('loads an explicit same-origin wasm script', async () => {
     await initialize();
 
@@ -150,27 +158,20 @@ describe('LitertlmRuntime', () => {
     expect(onProgress).not.toHaveBeenCalled();
   });
 
-  it('prefetches into Cache Storage without creating a LiteRT GPU engine', async () => {
-    const entries = new Map<string, Response>();
-    globalThis.caches = {
-      open: vi.fn().mockResolvedValue({
-        match: vi.fn(async (url: string) => entries.get(url)?.clone()),
-        put: vi.fn(async (url: string, response: Response) => { entries.set(url, response.clone()); }),
-      }),
-    } as unknown as CacheStorage;
-    const fetchMock = vi.fn().mockResolvedValue(new Response(new Uint8Array([1, 2, 3]), {
-      status: 200,
-      headers: { 'content-length': '3' },
-    }));
-    vi.stubGlobal('fetch', fetchMock);
+  it('prefetches the fixed generation without creating a GPU engine', async () => {
+    const signal = new AbortController().signal;
     const progress = vi.fn();
-
-    await prefetchLitertlmModel(modelDef, progress, new AbortController().signal);
-
+    await runtime.prefetch('ab9b47f8-60a1-4422-9bb4-5e09e37379d4', progress, signal);
+    expect(prefetchFixedModel).toHaveBeenCalledWith('ab9b47f8-60a1-4422-9bb4-5e09e37379d4', progress, signal);
     expect(Engine.create).not.toHaveBeenCalled();
-    expect(entries.has(modelDef.litertlmConfig!.modelUrl)).toBe(true);
-    expect(progress).toHaveBeenLastCalledWith({ progress: 1, text: '' });
-    vi.unstubAllGlobals();
+    expect(loadLiteRtLm).not.toHaveBeenCalled();
+  });
+
+  it('refuses absent or invalid saved bytes before loading wasm or the engine', async () => {
+    (readVerifiedCachedModel as Mock).mockRejectedValueOnce(new Error('Browser model is not downloaded. Download it in setup.'));
+    await expect(initialize()).rejects.toThrow('Browser model is not downloaded');
+    expect(loadLiteRtLm).not.toHaveBeenCalled();
+    expect(Engine.create).not.toHaveBeenCalled();
   });
 
   it('enforces maxOutputTokens and uses deterministic greedy top-1', async () => {
@@ -566,22 +567,4 @@ describe('LitertlmRuntime', () => {
     expect(loadLiteRtLm).toHaveBeenCalledTimes(2);
   });
 
-  it.each([false, true])(
-    'fails cache deletion whenever the model survives (delete returned %s)',
-    async (deleteResult) => {
-      const survivor = new Response(new Uint8Array([1, 2, 3]));
-      globalThis.caches = {
-        open: vi.fn().mockResolvedValue({
-          delete: vi.fn().mockResolvedValue(deleteResult),
-          match: vi.fn().mockResolvedValue(survivor),
-        }),
-      } as unknown as CacheStorage;
-
-      await expect(LitertlmRuntime.deleteCache(modelDef))
-        .rejects.toThrow('cache entry survived deletion');
-      const cache = await caches.open('litertlm-cache');
-      expect(cache.delete).toHaveBeenCalledWith(modelDef.litertlmConfig!.modelUrl);
-      expect(cache.match).toHaveBeenCalledWith(modelDef.litertlmConfig!.modelUrl);
-    },
-  );
 });

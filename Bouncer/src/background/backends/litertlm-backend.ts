@@ -1,77 +1,23 @@
-// LiteRT-LM LocalBackend. The Chrome MV3 service worker proxies all calls to
-// an offscreen document because @litertjs/wasm-utils uses <script>-tag
-// injection to load the wasm runner, which a module SW cannot do. Firefox
-// and Safari use background event pages (with a real `document`) and can
-// host the runtime directly — the backend picks the right path at
-// construction time.
+import type { BrowserBackend, BrowserProgress, BrowserState } from './types';
+import type { ChatMessage } from '../../types';
+import { LitertlmProxy } from './litertlm-proxy';
 
-import type { LocalModelDef, ChatMessage } from '../../types';
-import type { LocalBackend, InitProgress } from './types';
-import { LitertlmProxy, forceCloseLitertlmOffscreen } from './litertlm-proxy';
-import { LitertlmRuntime } from '../../offscreen/litertlm-runtime';
-
-interface Impl {
-  initialize(d: LocalModelDef, p: (x: InitProgress) => void, s: AbortSignal): Promise<void>;
-  unload(): Promise<void>;
-  generate(m: ChatMessage[], n: number): Promise<string>;
-  interrupt(): void | Promise<void>;
-  countTokens(t: string): number | Promise<number>;
-  truncateText(t: string, n: number): string | Promise<string>;
+/** Chrome service worker façade. The SDK is imported only by offscreen.js. */
+export class LitertlmBackend implements BrowserBackend {
+  private readonly proxy = new LitertlmProxy();
+  getState(): Promise<BrowserState> { return this.proxy.getState(); }
+  download(progress: (value: BrowserProgress) => void, signal: AbortSignal): Promise<void> { return this.proxy.download(progress, signal); }
+  initialize(progress: (value: BrowserProgress) => void, signal: AbortSignal): Promise<void> { return this.proxy.initialize(progress, signal); }
+  generate(messages: ChatMessage[], maxTokens: number): Promise<string> { return this.proxy.generate(messages, maxTokens); }
+  countTokens(text: string): Promise<number> { return Promise.resolve(Math.ceil(text.length / 3)); }
+  truncateText(text: string, maxTokens: number): Promise<string> {
+    let bounded = text.slice(0, Math.max(0, maxTokens) * 3);
+    if (/[\uD800-\uDBFF]$/.test(bounded)) bounded = bounded.slice(0, -1);
+    return Promise.resolve(bounded);
+  }
+  interrupt(): Promise<void> { return this.proxy.interrupt(); }
+  unload(): Promise<void> { return this.proxy.unload(); }
+  forceClose(): Promise<void> { return this.proxy.forceClose(); }
+  deleteCache(): Promise<void> { return this.proxy.deleteCache(); }
 }
-
-function hasDocument(): boolean {
-  return typeof document !== 'undefined';
-}
-
-export class LitertlmBackend implements LocalBackend {
-  private impl: Impl;
-  readonly unloadAfterSuperseded: boolean;
-
-  constructor() {
-    // Direct mode in any window/event-page context; proxy through the
-    // offscreen document inside Chrome's ESM service worker.
-    const directRuntime = hasDocument();
-    this.impl = directRuntime ? new LitertlmRuntime() : new LitertlmProxy();
-    this.unloadAfterSuperseded = directRuntime;
-  }
-
-  initialize(modelDef: LocalModelDef, onProgress: (p: InitProgress) => void, abortSignal: AbortSignal): Promise<void> {
-    return this.impl.initialize(modelDef, onProgress, abortSignal);
-  }
-
-  unload(): Promise<void> {
-    return this.impl.unload();
-  }
-
-  generate(messages: ChatMessage[], maxTokens: number): Promise<string> {
-    return this.impl.generate(messages, maxTokens);
-  }
-
-  async interrupt(): Promise<void> {
-    await this.impl.interrupt();
-  }
-
-  async countTokens(text: string): Promise<number> {
-    return this.impl.countTokens(text);
-  }
-
-  async truncateText(text: string, maxTokens: number): Promise<string> {
-    return this.impl.truncateText(text, maxTokens);
-  }
-
-}
-
-// Static cache probe used by LocalEngine to query state without loading the
-// model. Routes to the same code path either way: in a window context we can
-// open the Cache Storage directly; in the SW we can too (Cache API is shared).
-export async function isLitertlmCached(modelDef: LocalModelDef): Promise<boolean> {
-  return LitertlmRuntime.isCached(modelDef);
-}
-
-// Delete the cached `.litertlm` blob. Cache Storage is
-// shared between the SW and the offscreen doc, so this works from either.
-export async function deleteLitertlmCache(modelDef: LocalModelDef): Promise<void> {
-  return LitertlmRuntime.deleteCache(modelDef);
-}
-
-export { forceCloseLitertlmOffscreen };
+export { LitertlmBackend as LiteRTLMBackend };

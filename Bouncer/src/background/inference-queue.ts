@@ -1,5 +1,5 @@
 // Serial priority queue for inference tasks.
-// Ensures only one inference runs at a time against the LiteRT-LM engine.
+// Ensures one Bouncer inference operation owns the native request lease at a time.
 // Exported as a class so tests can create isolated instances.
 
 interface QueueTask<T = unknown> {

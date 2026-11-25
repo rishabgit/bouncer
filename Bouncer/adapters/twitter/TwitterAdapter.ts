@@ -341,7 +341,7 @@ window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
     return article.closest<HTMLElement>('[data-testid="cellInnerDiv"]') || article;
   }
 
-  hidePost(article: HTMLElement, includeThread = true) {
+  hidePost(article: HTMLElement, includeThread = true, keepVisible?: (article: HTMLElement) => boolean) {
     const element = this.getPostContainer(article);
     this._hideCell(element);
     if (!includeThread) return;
@@ -350,7 +350,8 @@ window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
     let sibling = element.nextElementSibling as HTMLElement | null;
     while (sibling) {
       if (!this._isReplyInThread(sibling)) break;
-      this._hideCell(sibling);
+      const reply = this._primaryCellArticle(sibling);
+      if (!reply || !keepVisible?.(reply)) this._hideCell(sibling);
       sibling = sibling.nextElementSibling as HTMLElement | null;
     }
   }

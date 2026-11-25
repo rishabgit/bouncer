@@ -1,33 +1,40 @@
 import type { ClassificationDetails } from '../types';
-import { DECISION_MODEL, decisionCutoff } from '../shared/decision-model';
+import { DECISION_MODEL, decideMatches } from '../shared/decision-model';
 import { asyncHandler } from '../shared/async';
 
 /** Only request/decision data belongs in the export, never display metadata. */
-export function createClassificationDetails(classification: ClassificationDetails | undefined, postUrl: string | null): HTMLDetailsElement {
+export function createClassificationDetails(
+  classification: ClassificationDetails | undefined,
+  postUrl: string | null,
+  strictPhrases: readonly string[] | (() => readonly string[]) = [],
+): HTMLDetailsElement {
   const details = document.createElement('details');
   details.className = 'classification-details';
   const summary = document.createElement('summary');
   summary.textContent = 'Details';
   details.appendChild(summary);
 
-  // Older snapshots without a request state used the original global cutoff.
-  const cutoff = typeof classification?.textSent === 'string' ? decisionCutoff(classification.textSent) : DECISION_MODEL.cutoff;
-  const cutoffText = document.createElement('p');
-  cutoffText.textContent = `Matched when score ≥ ${cutoff}`;
-  details.appendChild(cutoffText);
-
-  const scores = (classification?.scores ?? []).map(({ label, score }) => ({
-    label, score, matched: score >= cutoff,
-  }));
-  if (scores.length) {
-    const list = document.createElement('ul');
-    list.className = 'classification-scores';
-    for (const { label, score, matched } of scores) {
+  const currentScores = () => decideMatches(
+    classification?.scores ?? [], classification?.textSent,
+    typeof strictPhrases === 'function' ? strictPhrases() : strictPhrases,
+  ).scores;
+  const list = classification?.scores?.length ? document.createElement('ul') : undefined;
+  if (list) list.className = 'classification-scores';
+  const renderScores = () => {
+    if (!list) return;
+    list.replaceChildren();
+    for (const { label, score, cutoff, strict, shortPost, matched } of currentScores()) {
       const item = document.createElement('li');
-      item.textContent = `${label} · ${score.toFixed(2)} · ${matched ? 'Matched' : 'Not matched'}`;
+      const level = strict ? ' · Strict' : shortPost ? ' · short post' : '';
+      item.textContent = `${label} · ${score.toFixed(2)} · needs ${cutoff.toFixed(2)}${level} · ${matched ? 'Matched' : 'Not matched'}`;
       list.appendChild(item);
     }
+    list.hidden = !list.childElementCount;
+  };
+  if (list) {
+    renderScores();
     details.appendChild(list);
+    details.addEventListener('toggle', renderScores);
   }
 
   const textLabel = document.createElement('p');
@@ -48,11 +55,12 @@ export function createClassificationDetails(classification: ClassificationDetail
   status.setAttribute('role', 'status');
   let fallback: HTMLTextAreaElement | undefined;
   copy.addEventListener('click', asyncHandler(async () => {
+    renderScores();
+    const scores = currentScores().map(({ label, score, cutoff, strict, matched }) => ({ label, score, cutoff, strict, matched }));
     const json = JSON.stringify({
       bouncerVersion: chrome.runtime.getManifest().version,
       model: classification?.model ?? DECISION_MODEL.id,
       templateId: DECISION_MODEL.templateId,
-      cutoff,
       postUrl,
       textSent: classification?.textSent ?? null,
       scores,

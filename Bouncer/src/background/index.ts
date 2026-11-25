@@ -1,7 +1,7 @@
 // Background script entry point: message handler, storage listener, startup, tab tracking
 
 import { generateCacheKey } from '../shared/utils';
-import { getStorage, getDescriptions, setDescriptions } from '../shared/storage';
+import { getStorage, getDescriptions, setDescriptions, setFilterStrictness } from '../shared/storage';
 import type { BackgroundToContentMessage, ContentToBackgroundMessage } from '../types';
 import { localEngine } from './local-model';
 import {
@@ -359,6 +359,40 @@ async function handleMessage(
       return { success: true };
     }
 
+    case 'addFilterPhrase':
+    case 'removeFilterPhrase': {
+      if (message.siteId !== 'twitter') return { success: false, error: 'Unsupported site.' };
+      return runFilterAction(async () => {
+        assertCurrent();
+        // UI submits a delta, never a list built from an earlier storage read.
+        // Read and persist while holding the same queue as Strict and Bounce.
+        const descriptions = await getDescriptions('descriptions_twitter');
+        assertCurrent();
+        let added = false;
+        if (message.type === 'addFilterPhrase' && !descriptions.includes(message.phrase)) {
+          if (descriptions.length >= MAX_ACTIVE_FILTERS) throw new Error(MAX_FILTERS_WARNING);
+          const updated = [...descriptions, message.phrase];
+          if (updated.reduce((total, value) => total + value.length, 0) > MAX_FILTERS_CHARACTERS) {
+            throw new Error('Filter phrases exceed the 1000-character limit.');
+          }
+          await setDescriptions('descriptions_twitter', updated);
+          added = true;
+        } else if (message.type === 'removeFilterPhrase' && descriptions.includes(message.phrase)) {
+          await setDescriptions('descriptions_twitter', descriptions.filter(phrase => phrase !== message.phrase));
+        }
+        // set() can resolve before onChanged. Finish invalidation before the
+        // caller refreshes UI or a later explicit decision enters the queue.
+        await synchronizeFilters();
+        return message.type === 'addFilterPhrase' ? { success: true, added } : { success: true };
+      });
+    }
+
+    case 'setFilterStrictness': {
+      if (message.siteId !== 'twitter') return { success: false, error: 'Unsupported site.' };
+      await runFilterAction(() => setFilterStrictness('descriptions_twitter', message.phrase, message.strict));
+      return { success: true };
+    }
+
     case 'getStats': {
       const data = await getStorage(['stats']);
       return data.stats || { filtered: 0, evaluated: 0, totalCost: 0 };
@@ -457,6 +491,19 @@ function validateMessage(message: ContentToBackgroundMessage, sender: chrome.run
     const phrase = message.phrase.trim();
     if (!phrase) throw new Error('Invalid filter phrase.');
     message = { ...message, phrase };
+  }
+  if (message.type === 'addFilterPhrase' || message.type === 'removeFilterPhrase') {
+    if (message.siteId !== 'twitter') throw new Error('Unsupported site.');
+    if (typeof message.phrase !== 'string' || !message.phrase.trim()
+        || message.phrase.length > MAX_FILTERS_CHARACTERS) {
+      throw new Error('Invalid filter phrase.');
+    }
+    if (message.type === 'addFilterPhrase') message = { ...message, phrase: message.phrase.trim() };
+  }
+  if (message.type === 'setFilterStrictness' && (message.siteId !== 'twitter'
+      || typeof message.phrase !== 'string' || !message.phrase.trim()
+      || message.phrase.length > MAX_FILTERS_CHARACTERS || typeof message.strict !== 'boolean')) {
+    throw new Error('Invalid filter strictness request.');
   }
   if (message.type === 'overrideCacheEntry' && typeof message.shouldHide !== 'boolean') {
     throw new Error('Invalid manual decision.');

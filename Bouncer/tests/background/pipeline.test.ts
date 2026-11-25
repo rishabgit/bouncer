@@ -56,12 +56,12 @@ const DECISION_MODEL_ID = 'synthetic-decision-model';
 type InferenceResult = Awaited<ReturnType<typeof callLocalInference>>;
 function inferenceResult(overrides: Partial<InferenceResult> = {}): InferenceResult {
   return {
-    shouldHide: false, reasoning: 'automatic verdict', category: null, matches: [],
-    rawResponse: 'no', inferenceTime: 0,
+    scores: overrides.scores ?? [{ label: 'Sports', score: 0.1 }],
+    textSent: overrides.textSent ?? 'A full post about sports',
+    rawResponse: overrides.rawResponse ?? 'no', inferenceTime: 0,
     engine: 'llama.app',
     modelId: DECISION_MODEL_ID,
     classifierFingerprint: 'synthetic-decision-fingerprint',
-    ...overrides,
   };
 }
 
@@ -344,7 +344,7 @@ describe('serial processing and tab ownership', () => {
     let finishOldInference!: (result: InferenceResult) => void;
     mockCallLocalInference
       .mockImplementationOnce(() => new Promise(resolve => { finishOldInference = resolve; }))
-      .mockResolvedValueOnce(inferenceResult({ reasoning: 'new tab result' }));
+      .mockResolvedValueOnce(inferenceResult({ }));
     const oldResolve = vi.fn();
     const newResolve = vi.fn();
     enqueuePost(TAB_ID, makePendingItem({
@@ -361,10 +361,10 @@ describe('serial processing and tab ownership', () => {
     scheduleBatch();
     expect(localEngine.operationEpoch).toBe(epoch);
     expect(mockCallLocalInference).toHaveBeenCalledTimes(1);
-    finishOldInference(inferenceResult({ shouldHide: true, reasoning: 'old tab result' }));
+    finishOldInference(inferenceResult({ scores: [{ label: 'Sports', score: 0.9 }]}));
     await vi.advanceTimersByTimeAsync(0);
-    expect(oldResolve).toHaveBeenCalledWith(expect.objectContaining({ shouldHide: true, reasoning: 'old tab result' }));
-    expect(newResolve).toHaveBeenCalledWith(expect.objectContaining({ shouldHide: false, reasoning: 'new tab result' }));
+    expect(oldResolve).toHaveBeenCalledWith(expect.objectContaining({ shouldHide: true, reasoning: 'Matched: Sports' }));
+    expect(newResolve).toHaveBeenCalledWith(expect.objectContaining({ shouldHide: false, reasoning: 'No matching filters' }));
     expect(mockCallLocalInference).toHaveBeenCalledTimes(2);
     expect(isKeyPending(TAB_ID, 'old-active-tab')).toBe(false);
     setActiveTab(null);
@@ -383,8 +383,6 @@ describe('serial processing and tab ownership', () => {
       return Promise.resolve({ positions: {} });
     });
     mockCallLocalInference.mockResolvedValue(inferenceResult({
-      shouldHide: false,
-      reasoning: 'new tab result',
       rawResponse: 'no',
     }));
 
@@ -410,7 +408,7 @@ describe('serial processing and tab ownership', () => {
     releaseOldPositions({ positions: {} });
 
     await vi.waitFor(() => expect(newResolve).toHaveBeenCalledWith(
-      expect.objectContaining({ shouldHide: false, reasoning: 'new tab result' }),
+      expect.objectContaining({ shouldHide: false, reasoning: 'No matching filters' }),
     ));
     expect(mockCallLocalInference).toHaveBeenCalledTimes(1);
     expect(mockCallLocalInference).toHaveBeenCalledWith(
@@ -435,7 +433,7 @@ describe('serial processing and tab ownership', () => {
           releaseOldStart = () => {
             try {
               options?.assertCurrent?.();
-              resolve(inferenceResult({ shouldHide: false, reasoning: 'current post result', rawResponse: 'no' }));
+              resolve(inferenceResult({ rawResponse: 'no' }));
             } catch (error) {
               reject(error);
             }
@@ -443,7 +441,7 @@ describe('serial processing and tab ownership', () => {
         });
       }
       options?.assertCurrent?.();
-      return Promise.resolve(inferenceResult({ shouldHide: false, reasoning: 'new tab result', rawResponse: 'no' }));
+      return Promise.resolve(inferenceResult({ rawResponse: 'no' }));
     });
 
     const oldResolve = vi.fn();
@@ -468,9 +466,9 @@ describe('serial processing and tab ownership', () => {
     releaseOldStart();
 
     await vi.waitFor(() => expect(newResolve).toHaveBeenCalledWith(
-      expect.objectContaining({ shouldHide: false, reasoning: 'new tab result' }),
+      expect.objectContaining({ shouldHide: false, reasoning: 'No matching filters' }),
     ));
-    expect(oldResolve).toHaveBeenCalledWith(expect.objectContaining({ shouldHide: false, reasoning: 'current post result' }));
+    expect(oldResolve).toHaveBeenCalledWith(expect.objectContaining({ shouldHide: false, reasoning: 'No matching filters' }));
     expect(isKeyPending(TAB_ID, 'old-model-load')).toBe(false);
 
     setActiveTab(null);
@@ -479,7 +477,7 @@ describe('serial processing and tab ownership', () => {
   });
 
   it('publishes a completed response when focus changes during stats persistence', async () => {
-    mockCallLocalInference.mockResolvedValueOnce(inferenceResult({ shouldHide: true, matches: ['Sports'] }));
+    mockCallLocalInference.mockResolvedValueOnce(inferenceResult({ scores: [{ label: 'Sports', score: 0.9 }]}));
     let releaseStats!: () => void;
     (globalThis.chrome.storage.local.set as Mock).mockImplementation((items: Record<string, unknown>) => {
       if ('stats' in items) return new Promise<void>(resolve => { releaseStats = resolve; });
@@ -508,8 +506,6 @@ describe('serial processing and tab ownership', () => {
                 descriptions_twitter: ['Sports'],
       });
     mockCallLocalInference.mockResolvedValue(inferenceResult({
-      shouldHide: false,
-      reasoning: 'no match',
       rawResponse: 'no',
     }));
     const resolve = vi.fn();
@@ -543,7 +539,7 @@ describe('serial processing and tab ownership', () => {
     scheduleBatch();
 
     await vi.waitFor(() => expect(recoveredResolve).toHaveBeenCalledWith(
-      expect.objectContaining({ shouldHide: false, reasoning: 'no match' }),
+      expect.objectContaining({ shouldHide: false, reasoning: 'No matching filters' }),
     ));
     expect(mockCallLocalInference).toHaveBeenCalledTimes(1);
     expect(isKeyPending(TAB_ID, 'storage-recovered-request')).toBe(false);
@@ -607,7 +603,7 @@ describe('per-post local runtime failures', () => {
         type: 'detectorResponse', evaluationId: 'eval-default', detectorName: 'filter', error: runtimeError,
       });
 
-      mockCallLocalInference.mockResolvedValueOnce(inferenceResult({ shouldHide: true, matches: ['Sports'] }));
+      mockCallLocalInference.mockResolvedValueOnce(inferenceResult({ scores: [{ label: 'Sports', score: 0.9 }]}));
       const next = vi.fn();
       enqueuePost(TAB_ID, makePendingItem({
         post: `next post after ${runtimeError}`, cacheKey: `next-${runtimeError}`,
@@ -647,7 +643,7 @@ describe('filter cache invalidation', () => {
           try {
             options?.assertCurrent?.();
             decodeStarted = true;
-            resolve(inferenceResult({ shouldHide: true, reasoning: 'stale filter result', rawResponse: 'yes' }));
+            resolve(inferenceResult({ scores: [{ label: 'Sports', score: 0.9 }], rawResponse: 'yes' }));
           } catch (error) {
             reject(error);
           }
@@ -703,10 +699,9 @@ describe('filter cache invalidation', () => {
     expect(evaluationCache.size).toBe(0);
   });
 
-  it('returns retry instead of a stale verdict when filters change during stats storage', async () => {
+  it('keeps an already published verdict when filters change during later stats storage', async () => {
     mockCallLocalInference.mockResolvedValue(inferenceResult({
-      shouldHide: true,
-      reasoning: 'matched old filter',
+      scores: [{ label: 'Sports', score: 0.9 }],
       rawResponse: 'yes',
     }));
     let releaseStatsWrite!: () => void;
@@ -732,20 +727,17 @@ describe('filter cache invalidation', () => {
     await handleFilterChange();
     releaseStatsWrite();
 
-    await vi.waitFor(() => expect(resolve).toHaveBeenCalledWith({
-      retry: true,
-      reasoning: 'Local model or filter settings changed during evaluation.',
-      retryAfterMs: 250,
-    }));
-    expect(resolve).not.toHaveBeenCalledWith(expect.objectContaining({ shouldHide: true }));
+    await vi.waitFor(() => expect(resolve).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      shouldHide: true, matches: ['Sports'],
+    })));
+    expect(resolve).not.toHaveBeenCalledWith(expect.objectContaining({ retry: true }));
     expect(evaluationCache.size).toBe(0);
     setActiveTab(null);
   });
 
   it('publishes a successful verdict when only stats persistence fails', async () => {
     mockCallLocalInference.mockResolvedValue(inferenceResult({
-      shouldHide: true,
-      reasoning: 'healthy model verdict',
+      scores: [{ label: 'Sports', score: 0.9 }],
       rawResponse: 'yes',
     }));
     const statsFailure = new Error('stats storage unavailable');
@@ -767,14 +759,14 @@ describe('filter cache invalidation', () => {
 
     await vi.waitFor(() => expect(resolve).toHaveBeenCalledWith(expect.objectContaining({
       shouldHide: true,
-      reasoning: 'healthy model verdict',
+      reasoning: 'Matched: Sports',
     })));
 
     expect(errorState).toEqual({ type: null, count: 0 });
-    expect(logError).toHaveBeenCalledWith(
+    await vi.waitFor(() => expect(logError).toHaveBeenCalledWith(
       '[Stats] Failed to update evaluation counters:',
       statsFailure,
-    );
+    ));
     logError.mockRestore();
     setActiveTab(null);
   });

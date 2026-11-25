@@ -77,9 +77,10 @@ websites can access localhost.
 Classification sends bare post text as `state` and one `noul` question per
 filter, keyed `f0`, `f1`, and so on in input order, using the frozen
 `matches-category` template. Accept only a complete set of finite probabilities
-in [0, 1], and reject `response.truncated: true`. Match when `probability >= cutoff`:
-use `0.70` for at most three own words in the sent `state`, otherwise
-`0.290813258948728`, regardless of filter phrase. Count own words by removing
+in [0, 1], and reject `response.truncated: true`. Match when `probability >= cutoff`.
+Each filter defaults to Standard (`0.290813258948728`) and can opt into Strict
+(`0.72`). For at most three own words in the sent `state`, use
+`max(filter cutoff, 0.70)`; Strict therefore remains `0.72`. Count own words by removing
 case-insensitive `https?://\S+` http(s) links, then `@\w+` handles, and splitting
 on whitespace. Count each token containing a Unicode letter or digit as one
 own word. Keep this counter identical to the registered holdout's `ownWords` in
@@ -110,6 +111,10 @@ use `storage.local`; filtered snapshots contain HTML, matched phrases, image
 URLs and post URLs. Images are displayed in the UI, never sent to inference.
 Matched categories provide transparency; the classifier produces no free-form
 per-post explanation.
+
+`strictFilters_<site>` stores the Strict phrases. Only the worker writes the
+phrase and Strict keys; level changes rejudge stored scores without flushing the
+evaluation cache.
 
 Bounce adds its required phrase and persists the post’s hide in one serialized
 background action. Duplicate phrases still hide that post. Restore changes

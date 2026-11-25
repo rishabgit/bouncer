@@ -1,4 +1,4 @@
-import type { PlatformAdapter } from '../types';
+import type { FilterScore, PlatformAdapter } from '../types';
 import { formatPostForEvaluation } from '../shared/utils';
 
 export interface LivePostDecision {
@@ -6,6 +6,8 @@ export interface LivePostDecision {
   shouldHide: boolean;
   matches?: string[];
   userOverride?: boolean;
+  /** Complete own text used as the cache key, retained when a scored post becomes visible. */
+  evaluationText?: string;
 }
 
 // This state deliberately does not depend on panel retention and does not keep
@@ -51,4 +53,10 @@ export function survivingMatches(matches: string[] | undefined, phrases: string[
 /** Display only the exact matches supplied by the current decision. */
 export function displayedMatches(value: { matches?: string[] }): string[] {
   return value.matches ?? [];
+}
+
+/** A rule edit can leave old scores in flight; only the current ordered vector is reusable. */
+export function hasScoresForFilters(scores: readonly FilterScore[] | undefined, phrases: readonly string[]): scores is readonly FilterScore[] {
+  return !!scores?.length && scores.length === phrases.length
+    && scores.every((score, index) => score.label === phrases[index]);
 }

@@ -41,17 +41,17 @@ describe('fixed decision request', () => {
         f2: { type: 'noul', instructions: 'Does this social media post match the category "say \\"yes\\" $&"? Answer yes if it matches, otherwise no.' },
       },
     }));
-    expect(result).toMatchObject({ shouldHide: true, matches: ['bird watching', 'say "yes" $&'], category: 'bird watching, say "yes" $&',
-      textSent: 'A post about birds.', scores: [
+    expect(result).toMatchObject({ textSent: 'A post about birds.', scores: [
         { label: 'bird watching', score: 0.91 }, { label: 'Rage Bait', score: 0.12 }, { label: 'say "yes" $&', score: 0.63 },
       ],
     });
+    for (const verdict of ['shouldHide', 'matches', 'category', 'reasoning']) expect(result).not.toHaveProperty(verdict);
   });
   it('maps answers using the request filter snapshot after caller mutation', async () => {
     const filters = ['birds'];
     const pending = engine.classify({ text: 'A post about birds' }, filters);
     filters[0] = 'changed while waiting';
-    await expect(pending).resolves.toMatchObject({ matches: ['birds'], scores: [{ label: 'birds', score: 0.5 }] });
+    await expect(pending).resolves.toMatchObject({ scores: [{ label: 'birds', score: 0.5 }] });
   });
   it.each(['ragebait', 'rage-bait', 'Rage Bait', 'outrage farming'])('includes the curated definition for %s', label => {
     expect(decisionQuestions([label]).f0.instructions).toBe(`Does this social media post match the category ${JSON.stringify(label)}? Answer yes if it matches, otherwise no.\n\n${RAGE}`);
@@ -83,32 +83,36 @@ describe('fixed decision request', () => {
     await expect(engine.classify({ text: 'Visible' }, Array.from({ length: 10 }, (_, index) => `rage bait ${index}`))).rejects.toThrow('input budget');
     expect(fetchMock).not.toHaveBeenCalled();
   });
-  it('uses an inclusive cutoff and retains every matched filter in order', async () => {
+  it('retains ordered raw probabilities on either side of the Standard cutoff', async () => {
     fetchMock.mockImplementation(async (url: string) => ok(url.endsWith('/v1/models') ? inventory()
       : answers(0.290813258948728, 0.2908132589487279, 0.2908132589487281)));
     await expect(engine.classify({ text: 'A post about birds' }, ['at', 'below', 'above'])).resolves.toMatchObject({
-      shouldHide: true, matches: ['at', 'above'],
+      scores: [
+        { label: 'at', score: 0.290813258948728 },
+        { label: 'below', score: 0.2908132589487279 },
+        { label: 'above', score: 0.2908132589487281 },
+      ],
     });
   });
   it.each([
-    ['@alice these are words https://example.test', 0.69, false],
-    ['@alice these are words https://example.test', 0.7, true],
-    ['these are four words', 0.2908, false],
-    ['these are four words', 0.290813258948728, true],
-  ])('uses the post cutoff for %j at %s (hide=%s), regardless of label', async (text, score, shouldHide) => {
+    ['@alice these are words https://example.test', 0.69],
+    ['@alice these are words https://example.test', 0.7],
+    ['these are four words', 0.2908],
+    ['these are four words', 0.290813258948728],
+  ])('retains raw scores and exact state for %j at %s', async (text, score) => {
     fetchMock.mockImplementation(async (url: string) => ok(url.endsWith('/v1/models') ? inventory() : answers(score, score)));
     const labels = ['rage bait', 'bird watching'];
     await expect(engine.classify({ text }, labels)).resolves.toMatchObject({
-      shouldHide, matches: shouldHide ? labels : [], textSent: text,
+      scores: labels.map(label => ({ label, score })), textSent: text,
     });
   });
-  it('chooses the short cutoff from truncated request state rather than the full post', async () => {
+  it('retains truncated request state so publication can choose its own-word cutoff', async () => {
     const text = `${'a'.repeat(1196)} b c fourth`;
     fetchMock.mockImplementation(async (url: string) => ok(url.endsWith('/v1/models') ? inventory() : answers(0.69)));
     const result = await engine.classify({ text }, ['birds']);
     const body = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string);
     expect(body.state).toBe(`${'a'.repeat(1196)} b c`);
-    expect(result).toMatchObject({ shouldHide: false, matches: [], textSent: body.state });
+    expect(result).toMatchObject({ scores: [{ label: 'birds', score: 0.69 }], textSent: body.state });
   });
   it.each([{}, { answers: { f0: { type: 'noul', noul: '0.9' } } }, answers(-1), answers(1.1),
     { answers: { f0: { type: 'choice', noul: 1 } } }, answers(NaN), { answers: { f1: { type: 'noul', noul: 1 } } },
@@ -231,7 +235,7 @@ describe('per-post failure isolation', () => {
     const second = engine.classify({ text: 'second post' }, ['birds']);
     await vi.advanceTimersByTimeAsync(failure === 'timeout' ? REQUEST_TIMEOUT_MS : 0);
     expect(await settled).toMatch(failure === '500' ? /HTTP 500/ : failure === 'timeout' ? /timed out/ : failure === 'truncated' ? /truncated/ : /Start Llama.app/);
-    expect(await second).toMatchObject({ shouldHide: true, matches: ['birds'] });
+    expect(await second).toMatchObject({ scores: [{ label: 'birds', score: 0.9 }] });
     expect(postCalls).toBe(2);
     expect(await engine.getStatus()).toMatchObject({ state: 'ready' });
   });

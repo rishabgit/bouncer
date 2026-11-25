@@ -46,6 +46,17 @@ Do not change an installed everyday profile for this check.
    Bounce phrase should still hide its selected post.
 8. Check the popup, X controls and filtered panel in X’s light, dim and dark
    themes. Verify keyboard access and readable status/error text.
+9. Open a filter's popover in the X sidebar and mobile/bottom filter box.
+   Confirm Standard is the default, Strict applies only to that filter and its
+   pill appears only while Strict is selected. Escape and Done return focus to
+   the phrase; an outside click preserves focus on the clicked control. Removing
+   the filter moves focus to the input. Confirm a long phrase scrolls inside
+   the popover and both segments retain keyboard focus while saving.
+10. With saved automatic scores and live posts, switch a filter between
+    Standard and Strict. Confirm cached and live automatic decisions are
+    rejudged, exact matched phrases update, and missing scores are evaluated
+    when needed. Confirm explicit Bounce, missed-filter and Restore decisions
+    stay unchanged, including across worker recreation.
 
 Record what was actually observed, including failures and any debugger
 instrumentation. Stop test sessions you started when finished. Keep synthetic

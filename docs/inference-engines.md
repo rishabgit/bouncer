@@ -10,10 +10,12 @@ The service worker makes only two kinds of local request:
   advertise context, batch and microbatch 4096, parallelism one and no projector,
   without loading the model.
 - `POST /v1/systemone` sends only the post's own text as `state` and one `noul`
-  question per filter, keyed `f0`, `f1`, and so on in filter order. Every filter
-  matches at a probability of at least `0.70` for at most three own words in the
-  sent `state` or `0.290813258948728` otherwise, excluding http(s) links and
-  @handles; see [quality and limits](models.md#quality-and-limits).
+  question per filter, keyed `f0`, `f1`, and so on in filter order. A filter
+  matches when its probability reaches its cutoff: **Standard** (the default)
+  uses `0.290813258948728`, and opt-in **Strict** uses `0.72`. For at most three
+  own words in the sent `state`, excluding http(s) links and @handles, use
+  `max(filter cutoff, 0.70)`; Strict stays at `0.72`. See
+  [quality and limits](models.md#quality-and-limits).
 
 Model identity, endpoint, question template, rage-bait guidance, cutoffs and
 classifier fingerprint are defined in `Bouncer/src/shared/decision-model.ts`.
@@ -30,6 +32,9 @@ quoted text is not reused for the new input. Details and Copy details retain
 the exact state sent to the model, after input-budget truncation.
 
 Manual decisions and compatible cache entries are read before native readiness.
+Changing a filter's strictness rejudges available automatic scores, including
+live posts, while explicit Bounce, missed-filter and Restore decisions retain
+precedence.
 Opening settings, reading the model list, a cache hit or an empty feed leaves
 weights unloaded. The first eligible uncached classification lets Llama.app
 load the model; Llama.app controls its residency.

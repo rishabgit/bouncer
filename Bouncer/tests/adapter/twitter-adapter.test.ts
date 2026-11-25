@@ -1132,6 +1132,19 @@ describe('hidePost', () => {
     expect(reply.container.style.display).toBe('none');
   });
 
+  it('skips kept-visible thread replies while continuing the automatic cascade', () => {
+    const main = createPostWithContainer(100);
+    const restored = createPostWithContainer(100);
+    const following = createPostWithContainer(100);
+    markThreadedReply(restored.article);
+    markThreadedReply(following.article);
+    adapter.hidePost(main.article, true, article => article === restored.article);
+    expect(main.container.style.display).toBe('none');
+    expect(restored.container.style.display).toBe('');
+    expect(restored.container.dataset.filteredByExtension).toBeUndefined();
+    expect(following.container.style.display).toBe('none');
+  });
+
   it('uses deferred scroll fading for a manual single-post hide without hiding its threaded sibling', () => {
     vi.useFakeTimers();
     try {

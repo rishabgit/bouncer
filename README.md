@@ -58,9 +58,12 @@ Tone filters can overhide or miss posts. Plain descriptions worked better than
 short tone labels in the recorded evaluation; [quality and limits](docs/models.md#quality-and-limits)
 records the results and their boundaries.
 
-Every filter matches at a probability of at least `0.70` for at most three own
-words in the sent text or `0.290813258948728` otherwise, excluding http(s) links
-and @handles; see [quality and limits](docs/models.md#quality-and-limits).
+Click a filter phrase to choose **Standard** (the default) or **Strict** for
+that filter. Strict hides fewer posts and may miss more matches. Standard uses
+a probability cutoff of `0.290813258948728`; Strict uses `0.72`. For posts with
+at most three own words, excluding http(s) links and @handles, the cutoff is
+`max(filter cutoff, 0.70)`. See
+[quality and limits](docs/models.md#quality-and-limits).
 
 ## Development
 

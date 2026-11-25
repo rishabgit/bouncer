@@ -2,10 +2,10 @@
 // Entry point: post processing, observers, init, storage/message listeners
 
 import type { PlatformAdapter, PostContent, PostState, PipelineResponse, BackgroundToContentMessage, DescriptionKey } from '../types';
-import { getStorage } from '../shared/storage';
+import { getStorage, getFilterSettings } from '../shared/storage';
 import { postViewportPriority } from './geometry';
 import { hasScheduledFilteredHide, restoreFilteredContainer, scheduleFilteredHide } from './dom-state';
-import { currentPostDecision, forgetPostDecision, isPostIdentityCurrent, postIdentity, rememberPostDecision } from './filter-actions';
+import { currentPostDecision, forgetPostDecision, hasScoresForFilters, isPostIdentityCurrent, postIdentity, rememberPostDecision } from './filter-actions';
 
 import {
   initUI,
@@ -23,6 +23,8 @@ import {
   initDetectorStates,
   updateDetectorState,
   reconcileFilterChanges,
+  reconcileFilterStrictness,
+  getStrictFilterPhrases,
   removeFilteredPostForArticle,
   resetPostForRecycling,
   clearDetectorStates,
@@ -57,6 +59,9 @@ import { formatPostForEvaluation } from '../shared/utils';
 
   // Site-specific storage key for filter phrases
   const descriptionsKey: DescriptionKey = `descriptions_${adapter.siteId}`;
+  const strictFiltersKey = `strictFilters_${adapter.siteId}` as const;
+  const activePhrases = (value: unknown): string[] => Array.isArray(value)
+    ? value.filter((phrase): phrase is string => typeof phrase === 'string' && !!phrase.trim()) : [];
 
   // ==================== Core State ====================
 
@@ -77,6 +82,23 @@ import { formatPostForEvaluation } from '../shared/utils';
   // storage-change listener below. Defaults to true so the gate is a no-op
   // until the user explicitly opts out.
   let filterReplies = true;
+  let filterPhrases: string[] = [];
+  let pendingStrictnessReconcile = false;
+
+  function reconcileCurrentStrictness(next = getStrictFilterPhrases()): void {
+    const posts = settingsInitialized && enabled && adapter.shouldProcessCurrentPage()
+      ? findPosts().filter(article => !adapter.isMainPost(article) && !replyFilteringIsDisabled(article)) : [];
+    reconcileFilterStrictness(filterPhrases, next, posts);
+  }
+
+  function applyStrictFilters(next: string[]): void {
+    const current = getStrictFilterPhrases();
+    if (current.length === next.length && current.every(phrase => next.includes(phrase))) return;
+    filterGeneration++;
+    reconcileCurrentStrictness(next);
+    pendingStrictnessReconcile = !settingsInitialized || !enabled;
+    reEvaluateAllPosts(true);
+  }
 
   // ==================== Wire up modules ====================
 
@@ -317,7 +339,7 @@ import { formatPostForEvaluation } from '../shared/utils';
         model: response.model,
         timestamp: response.userOverride ? undefined : response.timestamp,
       });
-      rememberPostDecision(article, { identity, shouldHide: response.shouldHide, matches: response.matches, userOverride: response.userOverride });
+      rememberPostDecision(article, { identity, shouldHide: response.shouldHide, matches: response.matches, userOverride: response.userOverride, evaluationText: formatPostForEvaluation(content) });
 
       if (response.shouldHide) {
         if (content.postUrl) {
@@ -434,7 +456,7 @@ import { formatPostForEvaluation } from '../shared/utils';
     posts.forEach(article => processPost(article, forceForYou));
   }
 
-  function reEvaluateAllPosts() {
+  function reEvaluateAllPosts(reuseScored = false) {
     if (!settingsInitialized || !enabled || !adapter.shouldProcessCurrentPage()) return;
     const posts = findPosts();
     const skipReplies = !filterReplies && adapter.isPermalinkView();
@@ -445,6 +467,8 @@ import { formatPostForEvaluation } from '../shared/utils';
       if (adapter.isMainPost(article)) return;
       if (skipReplies) return;
       if (currentPostDecision(adapter, article)?.userOverride) return;
+      if (reuseScored && currentPostDecision(adapter, article)
+          && hasScoresForFilters(postReasonings.get(article)?.scores, filterPhrases)) return;
 
       processedPosts.delete(article);
 
@@ -547,12 +571,17 @@ import { formatPostForEvaluation } from '../shared/utils';
   // ==================== Init ====================
 
   // Listen before the initial snapshot so setting changes outrank that read.
-  chrome.storage.onChanged.addListener((changes) => {
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName && areaName !== 'local') return;
       if (!settingsInitialized) Object.keys(changes).forEach(key => settingsChangedDuringInit.add(key));
       if (changes.enabled) {
         filterGeneration++;
         enabled = changes.enabled.newValue as boolean;
         if (enabled && settingsInitialized) {
+          if (pendingStrictnessReconcile) {
+            reconcileCurrentStrictness();
+            pendingStrictnessReconcile = false;
+          }
           observePosts();
           processExistingPosts();
         } else {
@@ -569,15 +598,20 @@ import { formatPostForEvaluation } from '../shared/utils';
       }
       if (changes[descriptionsKey]) {
         syncFilterPhrases();
-        const activePhrases = (value: unknown): string[] => Array.isArray(value)
-          ? value.filter((phrase): phrase is string => typeof phrase === 'string' && !!phrase.trim()) : [];
         const oldDescs = activePhrases(changes[descriptionsKey].oldValue);
         const newDescs = activePhrases(changes[descriptionsKey].newValue);
+        filterPhrases = newDescs;
         if (oldDescs.length !== newDescs.length || oldDescs.some((phrase, index) => phrase !== newDescs[index])) {
           filterGeneration++;
           reconcileFilterChanges(newDescs, false);
           reEvaluateAllPosts();
         }
+      }
+      if (changes[strictFiltersKey]) {
+        // The descriptions branch owns filterPhrases from the event's own values;
+        // an async read here could land after a newer phrase event.
+        getFilterSettings(descriptionsKey).then(({ strictFilters }) => applyStrictFilters(strictFilters))
+          .catch(error => console.error('[Bouncer] Failed to read filter strictness:', error));
       }
       if (changes.filterReplies) {
         filterReplies = changes.filterReplies.newValue !== false;
@@ -601,10 +635,15 @@ import { formatPostForEvaluation } from '../shared/utils';
 
 
   async function init() {
-    const data = await getStorage(['enabled', 'filterReplies']);
+    const [data, filters] = await Promise.all([
+      getStorage(['enabled', 'filterReplies']), getFilterSettings(descriptionsKey),
+    ]);
     if (!settingsChangedDuringInit.has('enabled')) enabled = data.enabled !== false;
     // Fresh profiles filter replies until the setting is explicitly disabled.
     if (!settingsChangedDuringInit.has('filterReplies')) filterReplies = data.filterReplies !== false;
+    if (!settingsChangedDuringInit.has(descriptionsKey)) filterPhrases = filters.descriptions;
+    const strict = settingsChangedDuringInit.has(strictFiltersKey) ? getStrictFilterPhrases() : filters.strictFilters;
+    reconcileFilterStrictness(filterPhrases, strict, []);
     settingsInitialized = true;
 
     if (enabled) {

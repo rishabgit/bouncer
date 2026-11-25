@@ -212,11 +212,14 @@ describe('live content filter actions', () => {
       getPostUrl: article => article.dataset.url || null,
       getPostContentKey: article => article.dataset.url || '',
       getPostContainer: article => article.closest<HTMLElement>('[data-cell]') || article,
-      hidePost: vi.fn((article, includeThread = true) => {
+      hidePost: vi.fn((article, includeThread = true, keepVisible?: (article: HTMLElement) => boolean) => {
         let cell: HTMLElement | null = adapter.getPostContainer(article);
         do {
-          cell.dataset.filteredByExtension = 'true';
-          cell.style.display = 'none';
+          const reply = cell.querySelector<HTMLElement>('article');
+          if (cell === adapter.getPostContainer(article) || !reply || !keepVisible?.(reply)) {
+            cell.dataset.filteredByExtension = 'true';
+            cell.style.display = 'none';
+          }
           cell = cell.nextElementSibling as HTMLElement | null;
         } while (includeThread && cell?.dataset.threaded === 'true');
       }),
@@ -232,7 +235,7 @@ describe('live content filter actions', () => {
     };
     vi.stubGlobal('BouncerAdapter', class { constructor() { return adapter; } });
 
-    sendMessage = vi.fn(async (message: { type: string; evaluationId: string; post: string; phrase?: string }) => {
+    sendMessage = vi.fn(async (message: { type: string; evaluationId: string; post: string; phrase?: string; strict?: boolean }) => {
       if (message.type === 'evaluatePost') {
         const evaluation = deferred<PipelineResponse>();
         evaluations.push({ message, resolve: evaluation.resolve });
@@ -243,6 +246,23 @@ describe('live content filter actions', () => {
           change('descriptions_twitter', [...storage.descriptions_twitter as string[], message.phrase]);
         }
         return bounceResponse?.promise || { success: true };
+      }
+      if (message.type === 'setFilterStrictness') {
+        const strict = new Set(storage.strictFilters_twitter as string[] | undefined);
+        if (message.strict) strict.add(message.phrase!); else strict.delete(message.phrase!);
+        change('strictFilters_twitter', [...strict]);
+        return { success: true };
+      }
+      if (message.type === 'addFilterPhrase' || message.type === 'removeFilterPhrase') {
+        const descriptions = storage.descriptions_twitter as string[];
+        const added = message.type === 'addFilterPhrase' && !descriptions.includes(message.phrase!);
+        const updated = message.type === 'removeFilterPhrase'
+          ? descriptions.filter(phrase => phrase !== message.phrase)
+          : added ? [...descriptions, message.phrase!] : descriptions;
+        const strict = (storage.strictFilters_twitter as string[] | undefined ?? []).filter(phrase => updated.includes(phrase));
+        change('descriptions_twitter', updated);
+        change('strictFilters_twitter', strict);
+        return { success: true, added };
       }
       if (message.type === 'overrideCacheEntry') return restoreResponse?.promise || { success: true };
       return { success: true };
@@ -267,6 +287,682 @@ describe('live content filter actions', () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  describe('strictness verification regressions', () => {
+    async function score(index: number, scores: Array<{ label: string; score: number }>, matches: string[]) {
+      evaluations[index].resolve({ shouldHide: matches.length > 0, reasoning: 'Synthetic scored decision',
+        matches, category: matches.join(', ') || null, scores, textSent: 'A synthetic post with several words.', cached: true });
+      await flush();
+    }
+
+    it.each([
+      { initialStrict: false, parentScore: 0.9 },
+      { initialStrict: true, parentScore: 0.5 },
+    ])('preserves a manually restored thread reply when rejudging its parent (initialStrict=$initialStrict)', async ({ initialStrict, parentScore }) => {
+      storage.strictFilters_twitter = initialStrict ? ['rage'] : [];
+      const parent = post('1');
+      const reply = post('2', 'A synthetic reply with several words.', true);
+      await start();
+      await score(0, [{ label: 'rage', score: parentScore }], initialStrict ? [] : ['rage']);
+      await score(1, [{ label: 'rage', score: 0.9 }], ['rage']);
+      const panel = document.createElement('div');
+      document.body.appendChild(panel);
+      ui.renderFilteredPostsView(panel);
+      panel.querySelector<HTMLButtonElement>(`a[href="${reply.dataset.url}"] .slop-restore`)!.click();
+      await flush();
+      const { currentPostDecision } = await import('../../src/content/filter-actions.js');
+      expect(currentPostDecision(adapter, reply)).toMatchObject({ shouldHide: false, userOverride: true });
+      expect(adapter.getPostContainer(reply).style.display).toBe('');
+
+      ui.reconcileFilterStrictness(['rage'], initialStrict ? [] : ['rage']);
+      expect(adapter.getPostContainer(parent).style.display).toBe('none');
+      expect(adapter.getPostContainer(reply).style.display).toBe('');
+      expect(adapter.getPostContainer(reply).dataset.filteredByExtension).toBeUndefined();
+      expect(currentPostDecision(adapter, reply)).toMatchObject({ shouldHide: false, userOverride: true });
+      expect(evaluations).toHaveLength(2);
+    });
+
+    it.each([
+      { removedFirst: false, rageScore: 0.9 }, { removedFirst: true, rageScore: 0.9 },
+      { removedFirst: false, rageScore: 0.5 }, { removedFirst: true, rageScore: 0.5 },
+    ])('retains surviving score evidence when removing a Strict phrase (removedFirst=$removedFirst, score=$rageScore)', async ({ removedFirst, rageScore }) => {
+      storage.descriptions_twitter = removedFirst ? ['other', 'rage'] : ['rage', 'other'];
+      storage.strictFilters_twitter = ['other'];
+      const article = post('1');
+      await start();
+      const scores = (storage.descriptions_twitter as string[]).map(label => ({ label, score: label === 'rage' ? rageScore : 0.1 }));
+      await score(0, scores, ['rage']);
+      await ui.removeFilterPhrase('other');
+      await flush();
+      ui.reconcileFilterStrictness(['rage'], []);
+      expect(adapter.getPostContainer(article).style.display).toBe('none');
+      expect(ui.getFilteredPosts()).toHaveLength(1);
+      expect(ui.getFilteredPosts()[0]).toMatchObject({ matches: ['rage'], classification: {
+        scores: [{ label: 'rage', score: rageScore }], textSent: 'A synthetic post with several words.',
+      } });
+      expect(evaluations).toHaveLength(1);
+
+      change('strictFilters_twitter', ['rage']);
+      await flush();
+      expect(adapter.getPostContainer(article).style.display).toBe(rageScore < 0.72 ? '' : 'none');
+      change('strictFilters_twitter', []);
+      await flush();
+      expect(adapter.getPostContainer(article).style.display).toBe('none');
+      expect(ui.getFilteredPosts()[0].classification?.scores).toEqual([{ label: 'rage', score: rageScore }]);
+      expect(evaluations).toHaveLength(1);
+    });
+
+    it('routes content phrase edits through worker actions instead of writing phrase and Strict snapshots', async () => {
+      storage.strictFilters_twitter = ['rage'];
+      await start();
+      vi.mocked(chrome.storage.local.set).mockClear();
+      await expect(ui.addFilterPhrase('birds')).resolves.toBe(true);
+      expect(sendMessage).toHaveBeenCalledWith({ type: 'addFilterPhrase', siteId: 'twitter', phrase: 'birds' });
+      expect(storage.strictFilters_twitter).toEqual(['rage']);
+      await ui.removeFilterPhrase('birds');
+      expect(sendMessage).toHaveBeenCalledWith({ type: 'removeFilterPhrase', siteId: 'twitter', phrase: 'birds' });
+      expect(storage.descriptions_twitter).toEqual(['rage']);
+      expect(storage.strictFilters_twitter).toEqual(['rage']);
+      expect(chrome.storage.local.set).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('strictness delta corrections', () => {
+    async function score(index: number, scores: Array<{ label: string; score: number }>, matches: string[]) {
+      evaluations[index].resolve({ shouldHide: matches.length > 0, reasoning: matches.length ? `Matched: ${matches.join(', ')}` : 'No matching filters',
+        matches, scores, textSent: 'A synthetic post with several words.', cached: true });
+      await flush();
+    }
+    function displays(...articles: HTMLElement[]) { return articles.map(article => adapter.getPostContainer(article).style.display); }
+
+    it('makes a Strict-to-Standard thread switch match fresh evaluations at Standard', async () => {
+      storage.strictFilters_twitter = ['rage'];
+      const parent = post('1');
+      const reply = post('2', 'Synthetic reply with several words.', true);
+      await start();
+      await score(0, [{ label: 'rage', score: 0.5 }], []);
+      await score(1, [{ label: 'rage', score: 0.1 }], []);
+      change('strictFilters_twitter', []);
+      await flush();
+      const switched = displays(parent, reply);
+
+      const freshParent = post('3');
+      const freshReply = post('4', 'Fresh reply with several words.', true);
+      notifyMountedArticle(freshParent);
+      notifyMountedArticle(freshReply);
+      await flush();
+      await score(2, [{ label: 'rage', score: 0.5 }], ['rage']);
+      await score(3, [{ label: 'rage', score: 0.1 }], []);
+      expect(displays(freshParent, freshReply)).toEqual(['none', 'none']);
+      expect(switched).toEqual(displays(freshParent, freshReply));
+    });
+
+    it.each([false, true])('keeps automatic thread replies hidden and explicit restores visible after an unrelated switch (realAdapter=%s)', async realAdapter => {
+      storage.descriptions_twitter = ['rage', 'other'];
+      if (realAdapter) await useRealTwitterAdapter();
+      const parent = post('1');
+      const restored = post('2', 'Restored thread reply with several words.', true);
+      const automatic = post('3', 'Automatic thread reply with several words.', true);
+      for (const reply of [restored, automatic]) {
+        reply.querySelector('[data-text]')!.insertAdjacentHTML('beforeend', '<div><div><div><span></span><span></span></div></div></div>');
+      }
+      await start();
+      if (realAdapter) {
+        vi.spyOn(adapter as unknown as { _isReplyInThread: (cell: HTMLElement) => boolean }, '_isReplyInThread')
+          .mockImplementation(cell => cell.dataset.threaded === 'true');
+      }
+      const scores = (probability: number) => [{ label: 'rage', score: probability }, { label: 'other', score: 0.1 }];
+      await score(1, scores(0.9), ['rage']);
+      renderRestorePanel().click();
+      await flush();
+      await score(2, scores(0.1), []);
+      await score(0, scores(0.9), ['rage']);
+      expect(displays(parent, restored, automatic)).toEqual(['none', '', 'none']);
+      change('strictFilters_twitter', ['other']);
+      await flush();
+      expect(displays(parent, restored, automatic)).toEqual(['none', '', 'none']);
+      const { currentPostDecision } = await import('../../src/content/filter-actions.js');
+      expect(currentPostDecision(adapter, restored)).toMatchObject({ userOverride: true, shouldHide: false });
+      expect(evaluations).toHaveLength(3);
+    });
+
+    it('settles a scored pending keep immediately when its in-flight response is retired', async () => {
+      storage.descriptions_twitter = ['rage', 'other'];
+      const article = post('1');
+      await start();
+      await score(0, [{ label: 'rage', score: 0.1 }, { label: 'other', score: 0.1 }], []);
+      change('descriptions_twitter', ['rage']);
+      await flush();
+      await vi.advanceTimersByTimeAsync(150);
+      expect(article.hasAttribute('data-ff-pending')).toBe(true);
+      expect(evaluations).toHaveLength(2);
+      change('strictFilters_twitter', ['rage']);
+      await flush();
+      expect(article.hasAttribute('data-ff-pending')).toBe(false);
+      expect(article.querySelector('.post-verification-bar')?.classList.contains('verified')).toBe(true);
+      await score(1, [{ label: 'rage', score: 0.1 }], []);
+      await vi.advanceTimersByTimeAsync(10_500);
+      expect(article.hasAttribute('data-ff-pending')).toBe(false);
+      expect(article.querySelector('.post-verification-bar')?.classList.contains('verified')).toBe(true);
+      expect(evaluations).toHaveLength(2);
+    });
+
+    it('re-evaluates an unmatched partial predecessor after Bounce saves its phrase but fails persistence', async () => {
+      const article = post('1');
+      await start();
+      await score(0, [{ label: 'rage', score: 0.1 }], []);
+      bounceResponse = deferred();
+      const action = ui.bouncePost(article, adapter.extractPostContent(article), 'birds');
+      await flush();
+      expect(storage.descriptions_twitter).toEqual(['rage', 'birds']);
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      bounceResponse.resolve({ success: false, error: 'Synthetic failure after phrase save' });
+      await expect(action).resolves.toBe(false);
+      await flush();
+      expect(evaluations).toHaveLength(2);
+      const { currentPostDecision } = await import('../../src/content/filter-actions.js');
+      expect(currentPostDecision(adapter, article)).toBeUndefined();
+      expect(displays(article)).toEqual(['']);
+      await score(1, [{ label: 'rage', score: 0.1 }, { label: 'birds', score: 0.9 }], ['birds']);
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(displays(article)).toEqual(['none']);
+      expect(evaluations).toHaveLength(2);
+    });
+
+    it('re-evaluates after failed Bounce when its predecessor phrase was removed during extraction', async () => {
+      const article = post('1');
+      await start();
+      await score(0, [{ label: 'rage', score: 0.9 }], ['rage']);
+      expect(displays(article)).toEqual(['none']);
+      const content = adapter.extractPostContent(article);
+      const extraction = deferred<PostContent | null>();
+      vi.spyOn(adapter, 'extractPostContentFromStore').mockReturnValueOnce(extraction.promise);
+      bounceResponse = deferred();
+      const action = ui.bouncePost(article, content, 'birds');
+      await flush();
+      await ui.removeFilterPhrase('rage');
+      await flush();
+      expect(storage.descriptions_twitter).toEqual([]);
+      expect(evaluations).toHaveLength(1);
+      extraction.resolve(content);
+      await flush();
+      expect(storage.descriptions_twitter).toEqual(['birds']);
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      bounceResponse.resolve({ success: false, error: 'Synthetic failure after phrase save' });
+      await expect(action).resolves.toBe(false);
+      await flush();
+      expect(evaluations).toHaveLength(2);
+      const { currentPostDecision } = await import('../../src/content/filter-actions.js');
+      expect(currentPostDecision(adapter, article)).toBeUndefined();
+      expect(displays(article)).toEqual(['']);
+      await score(1, [{ label: 'birds', score: 0.9 }], ['birds']);
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(displays(article)).toEqual(['none']);
+      expect(evaluations).toHaveLength(2);
+    });
+
+    it('closes on Escape without moving focus out of a field reached by Tab', async () => {
+      await start();
+      document.querySelector<HTMLButtonElement>('.filter-phrase-inline')!.click();
+      const input = document.querySelector<HTMLInputElement>('.filter-phrases-input')!;
+      input.focus();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      expect(document.querySelector('.filter-strictness-popover')).toBeNull();
+      expect(document.activeElement).toBe(input);
+    });
+  });
+
+  describe('strictness corrections', () => {
+    function anchor(phrase = 'rage') {
+      return [...document.querySelectorAll<HTMLButtonElement>('.filter-phrase-inline')].find(button => button.dataset.filterPhrase === phrase)!;
+    }
+    async function scored(index: number, probability: number, cached = true) {
+      evaluations[index].resolve({ shouldHide: true, matches: ['rage'], reasoning: 'Matched: rage',
+        scores: [{ label: 'rage', score: probability }], textSent: 'A synthetic post with several words.', cached });
+      await flush();
+    }
+    function row(id: string, matches: string[], scores?: Array<{ label: string; score: number }>, textSent = 'A synthetic post with several words.', manual = false) {
+      const content = canonicalXContent(id);
+      ui.storeFilteredPost(document.createElement('article'), content, 'Synthetic saved decision', '', matches.join(', '), matches, manual,
+        content.text, scores ? { scores, textSent } : undefined);
+    }
+
+    it.each(['birds', 'rage'])('keeps live and historical partial-score hides after adding birds then making %s Strict', async phrase => {
+      const hidden = post('1');
+      await start();
+      await scored(0, 0.9);
+      row('77', ['rage'], [{ label: 'rage', score: 0.9 }]);
+      change('descriptions_twitter', ['rage', 'birds']);
+      await flush();
+      change('strictFilters_twitter', [phrase]);
+      await flush();
+      expect(adapter.getPostContainer(hidden).style.display).toBe('none');
+      expect(ui.getFilteredPosts().map(post => post.post.postUrl)).toEqual([
+        'https://x.com/synthetic/status/1', 'https://x.com/synthetic/status/77',
+      ]);
+      const { currentPostDecision } = await import('../../src/content/filter-actions.js');
+      expect(currentPostDecision(adapter, hidden)).toMatchObject({ shouldHide: true, matches: ['rage'] });
+      expect(evaluations).toHaveLength(1);
+    });
+
+    it('releases and evaluates a partial vector only when its present scores cease matching', async () => {
+      const hidden = post('1');
+      await start();
+      await scored(0, 0.5);
+      change('descriptions_twitter', ['rage', 'birds']);
+      await flush();
+      change('strictFilters_twitter', ['rage']);
+      await flush();
+      expect(adapter.getPostContainer(hidden).style.display).toBe('');
+      expect(ui.getFilteredPosts()).toHaveLength(0);
+      expect(evaluations).toHaveLength(2);
+    });
+
+    it.each(['toggle-back', 'delayed-no-change'])('keeps a matching fade hidden across a %s saved-level event', async phase => {
+      if (phase === 'delayed-no-change') storage.strictFilters_twitter = ['rage'];
+      const fading = post('1');
+      await start();
+      await scored(0, 0.95, false);
+      expect(fading.style.opacity).toBe('0');
+      if (phase === 'toggle-back') {
+        change('strictFilters_twitter', ['rage']);
+        change('strictFilters_twitter', []);
+      } else {
+        storageListeners.forEach(listener => listener({ strictFilters_twitter: { oldValue: [], newValue: ['rage'] } }, 'local'));
+      }
+      await flush();
+      await vi.advanceTimersByTimeAsync(400);
+      expect(adapter.getPostContainer(fading).style.display).toBe('none');
+      expect(ui.getFilteredPosts()).toHaveLength(1);
+      expect(evaluations).toHaveLength(1);
+    });
+
+    it('counts the selected phrase with present scores, current other levels and the short-post floor', async () => {
+      storage.descriptions_twitter = ['rage', 'other', 'new'];
+      await start();
+      row('1', ['rage', 'other'], [{ label: 'rage', score: 0.5 }, { label: 'other', score: 0.6 }]);
+      row('2', ['other'], [{ label: 'rage', score: 0.1 }, { label: 'other', score: 0.6 }]);
+      row('3', ['rage'], [{ label: 'rage', score: 0.71 }, { label: 'other', score: 0.6 }], 'one two three');
+      row('4', ['rage'], [{ label: 'rage', score: 0.5 }, { label: 'other', score: 0.1 }]);
+      row('5', ['rage'], [{ label: 'rage', score: 0.5 }]);
+      row('6', ['rage'], [{ label: 'other', score: 0.1 }]);
+      row('7', ['rage'], undefined, undefined, true);
+      row('8', ['rage']);
+      row('9', ['rage'], [{ label: 'rage', score: 0.9 }]);
+      anchor().click();
+      const impact = document.querySelector<HTMLElement>('.filter-strictness-impact')!;
+      expect(impact.textContent).toBe('Strict would bring back 3 of 8 hidden posts.');
+      expect(impact.hidden).toBe(false);
+      document.querySelector<HTMLButtonElement>('[data-strictness="strict"]')!.click();
+      await flush();
+      expect(ui.getFilteredPosts().some(post => post.matches?.includes('rage'))).toBe(true);
+      expect(impact.hidden).toBe(true);
+    });
+
+    it('marks the phrase expanded and repositions on scroll without recounting snapshots', async () => {
+      await start();
+      row('1', ['rage'], [{ label: 'rage', score: 0.5 }]);
+      const button = anchor();
+      let left = 120;
+      let bottom = 140;
+      button.getBoundingClientRect = () => ({ left, right: left + 70, top: bottom - 20, bottom, width: 70, height: 20, x: left, y: bottom - 20, toJSON: () => ({}) });
+      button.click();
+      expect(button.getAttribute('aria-expanded')).toBe('true');
+      const popover = document.querySelector<HTMLElement>('.filter-strictness-popover')!;
+      expect(popover.style.left).toBe('120px');
+      expect(popover.style.top).toBe('148px');
+      const iterate = vi.spyOn(ui.getFilteredPosts(), Symbol.iterator);
+      left = 200;
+      bottom = 240;
+      window.dispatchEvent(new Event('scroll'));
+      expect(popover.style.left).toBe('200px');
+      expect(popover.style.top).toBe('248px');
+      expect(iterate).not.toHaveBeenCalled();
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      expect(button.getAttribute('aria-expanded')).toBe('false');
+      expect(document.activeElement).toBe(button);
+    });
+
+    it.each(['standard', 'strict'])('keeps keyboard focus on the %s segment during and after saving', async segment => {
+      storage.strictFilters_twitter = segment === 'standard' ? ['rage'] : [];
+      await start();
+      const saved = deferred<void>();
+      const original = sendMessage.getMockImplementation()!;
+      sendMessage.mockImplementation(message => message.type === 'setFilterStrictness'
+        ? saved.promise.then(() => original(message)) : original(message));
+      anchor().click();
+      const button = document.querySelector<HTMLButtonElement>(`[data-strictness="${segment}"]`)!;
+      button.focus();
+      button.click();
+      button.click();
+      expect(button.disabled).toBe(false);
+      expect(document.activeElement).toBe(button);
+      expect(sendMessage.mock.calls.filter(([message]) => message.type === 'setFilterStrictness')).toHaveLength(1);
+      saved.resolve();
+      await flush();
+      expect(button.getAttribute('aria-pressed')).toBe('true');
+      expect(document.activeElement).toBe(button);
+    });
+
+    it('leaves outside input focus where the user clicked', async () => {
+      await start();
+      const button = anchor();
+      button.click();
+      const input = document.querySelector<HTMLInputElement>('.filter-phrases-input')!;
+      input.focus();
+      input.click();
+      expect(document.querySelector('.filter-strictness-popover')).toBeNull();
+      expect(document.activeElement).toBe(input);
+      expect(button.getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('removes orphaned strictness popovers during reinjection cleanup', async () => {
+      const orphan = document.createElement('div');
+      orphan.className = 'filter-strictness-popover';
+      document.body.appendChild(orphan);
+      await start();
+      expect(orphan.isConnected).toBe(false);
+    });
+
+    it('preserves pending and errored state when a strictness release needs more evidence', async () => {
+      const pending = post('1');
+      const failed = post('2');
+      await start();
+      ui.markPostPending(pending);
+      evaluations[1].resolve({ error: 'local_model', reasoning: 'Synthetic inference error' });
+      await flush();
+      expect(failed.classList.contains('ff-error')).toBe(true);
+      ui.reconcileFilterStrictness(['rage'], ['rage']);
+      expect(pending.hasAttribute('data-ff-pending')).toBe(true);
+      expect(pending.querySelector('.post-verification-bar')?.classList.contains('pending')).toBe(true);
+      expect(pending.querySelector('.post-verification-bar')?.classList.contains('verified')).toBe(false);
+      expect(failed.classList.contains('ff-error')).toBe(true);
+      expect(failed.querySelector('.post-verification-bar')?.classList.contains('verified')).toBe(false);
+      ui.showReasoningPopup(failed, 0, 0);
+      expect(document.querySelector('.reasoning-status')?.textContent).toBe('ERROR');
+    });
+
+    it('keeps a restored real thread reply visible when its pending parent verdict lands', async () => {
+      await useRealTwitterAdapter();
+      const parent = post('1');
+      const reply = post('2', 'Synthetic thread reply', true);
+      reply.querySelector('[data-text]')!.insertAdjacentHTML('beforeend', '<div><div><div><span></span><span></span></div></div></div>');
+      await start();
+      await scored(1, 0.9);
+      renderRestorePanel().click();
+      await flush();
+      expect(adapter.getPostContainer(reply).style.display).toBe('');
+      await scored(0, 0.9);
+      expect(adapter.getPostContainer(parent).style.display).toBe('none');
+      expect(adapter.getPostContainer(reply).style.display).toBe('');
+      expect(adapter.getPostContainer(reply).dataset.filteredByExtension).toBeUndefined();
+      expect(adapter.hidePost).toHaveBeenLastCalledWith(parent, true, expect.any(Function));
+    });
+  });
+
+  describe('per-filter strictness', () => {
+  function phraseButton(phrase = 'rage', container: ParentNode = document): HTMLButtonElement {
+    return [...container.querySelectorAll<HTMLButtonElement>('.filter-phrase-inline')]
+      .find(button => button.dataset.filterPhrase === phrase)!;
+  }
+
+  async function scoredVerdict(index: number, scores = [{ label: 'rage', score: 0.5 }], textSent = 'A synthetic post with several words.', cached = true): Promise<void> {
+    const { decideMatches } = await import('../../src/shared/decision-model.js');
+    const judged = decideMatches(scores, textSent, storage.strictFilters_twitter as string[] | undefined);
+    evaluations[index].resolve({ shouldHide: judged.shouldHide, matches: judged.matches,
+      category: judged.matches.join(', '), reasoning: judged.shouldHide ? `Matched: ${judged.matches.join(', ')}` : 'No matching filters',
+      scores, textSent, cached, timestamp: 123 });
+    await flush();
+  }
+
+  it('opens a keyboard reachable phrase popover and returns focus on Done, Escape and outside click', async () => {
+    await start();
+    const anchor = phraseButton();
+    expect(anchor.tagName).toBe('BUTTON');
+    expect(anchor.tabIndex).toBe(0);
+    expect(anchor.title).toBe('');
+    anchor.click();
+    let popover = document.querySelector<HTMLElement>('.filter-strictness-popover')!;
+    expect(popover.getAttribute('role')).toBe('dialog');
+    expect(popover.querySelector('strong')?.textContent).toBe('rage');
+    expect(popover.querySelector('[role="group"]')?.getAttribute('aria-label')).toBe('Strictness');
+    expect([...popover.querySelectorAll('[data-strictness]')].map(button => [button.textContent, button.getAttribute('aria-pressed')]))
+      .toEqual([['Standard', 'true'], ['Strict', 'false']]);
+    expect(popover.querySelector<HTMLElement>('.filter-strictness-impact')?.hidden).toBe(true);
+    expect(document.activeElement?.textContent).toBe('Standard');
+    popover.querySelector<HTMLButtonElement>('.filter-strictness-actions button:last-child')!.click();
+    expect(document.querySelector('.filter-strictness-popover')).toBeNull();
+    expect(document.activeElement).toBe(anchor);
+    anchor.click();
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(document.querySelector('.filter-strictness-popover')).toBeNull();
+    expect(document.activeElement).toBe(anchor);
+    anchor.click();
+    popover = document.querySelector<HTMLElement>('.filter-strictness-popover')!;
+    popover.querySelector('strong')!.click();
+    expect(popover.isConnected).toBe(true);
+    document.body.click();
+    expect(popover.isConnected).toBe(false);
+    expect(document.activeElement).toBe(anchor);
+  });
+
+  it('persists Strict through the worker, updates every phrase renderer and removes through the existing path', async () => {
+    document.body.innerHTML = '<aside class="absent-sidebar"><div class="absent-content"></div></aside><nav class="absent-nav"></nav>';
+    await start();
+    expect(document.querySelectorAll('.filter-phrase-inline')).toHaveLength(3);
+    const anchor = phraseButton();
+    anchor.click();
+    document.querySelector<HTMLButtonElement>('[data-strictness="strict"]')!.click();
+    await flush();
+    expect(sendMessage).toHaveBeenCalledWith({ type: 'setFilterStrictness', siteId: 'twitter', phrase: 'rage', strict: true });
+    expect(storage.strictFilters_twitter).toEqual(['rage']);
+    expect(document.querySelectorAll('.filter-strict-pill')).toHaveLength(3);
+    expect([...document.querySelectorAll('.filter-phrase-inline')].every(button => button.lastChild?.textContent === 'Strict')).toBe(true);
+    expect(document.querySelector('[data-strictness="strict"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector<HTMLElement>('.filter-strictness-impact')?.hidden).toBe(true);
+    document.querySelector<HTMLButtonElement>('.filter-strictness-remove')!.click();
+    await flush();
+    expect(storage.descriptions_twitter).toEqual([]);
+    expect(storage.strictFilters_twitter).toEqual([]);
+    expect(document.querySelector('.filter-strictness-popover')).toBeNull();
+    expect(document.querySelector('.filter-phrase-inline')).toBeNull();
+    expect({ tag: document.activeElement?.tagName, className: document.activeElement?.className })
+      .toEqual({ tag: 'INPUT', className: 'filter-phrases-input' });
+  });
+
+  it('keeps Standard and the phrase visible when strictness persistence fails', async () => {
+    await start();
+    phraseButton().click();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    sendMessage.mockResolvedValueOnce({ success: false, error: 'Synthetic level failure' });
+    document.querySelector<HTMLButtonElement>('[data-strictness="strict"]')!.click();
+    await flush();
+    expect(document.querySelector('[data-strictness="standard"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector('.filter-strict-pill')).toBeNull();
+    expect(document.querySelector('.filter-strictness-popover')?.textContent).toBe('rageStandardStrictStrict would bring back 0 of 0 hidden posts.Remove filterDone');
+    expect(document.querySelector<HTMLButtonElement>('[data-strictness="strict"]')?.disabled).toBe(false);
+  });
+
+  it('counts only automatic scored posts that every current filter would release, retaining unknown and manual posts in the denominator', async () => {
+    storage.descriptions_twitter = ['rage', 'other'];
+    storage.strictFilters_twitter = ['other'];
+    const articles = Array.from({ length: 6 }, (_, index) => post(String(index)));
+    await start();
+    await scoredVerdict(0, [{ label: 'rage', score: 0.5 }, { label: 'other', score: 0.2 }]);
+    await scoredVerdict(1, [{ label: 'rage', score: 0.9 }, { label: 'other', score: 0.2 }]);
+    await scoredVerdict(2, [{ label: 'rage', score: 0.5 }, { label: 'other', score: 0.8 }]);
+    await scoredVerdict(3, [{ label: 'rage', score: 0.5 }, { label: 'other', score: 0.5 }]);
+    await verdict(4, ['rage']);
+    await ui.bouncePost(articles[5], adapter.extractPostContent(articles[5]), 'rage');
+    phraseButton().click();
+    expect(document.querySelector('.filter-strictness-impact')?.textContent).toBe('Strict would bring back 2 of 6 hidden posts.');
+    expect(document.querySelector<HTMLElement>('.filter-strictness-impact')?.hidden).toBe(false);
+    change('descriptions_twitter', ['rage']);
+    await flush();
+    expect(document.querySelector('.filter-strictness-impact')?.textContent).toBe('Strict would bring back 3 of 6 hidden posts.');
+  });
+
+  it('rejudges visible and hidden scored posts immediately without another worker evaluation, preserving evidence across repeated switches', async () => {
+    storage.strictFilters_twitter = ['rage'];
+    const visible = post('1');
+    const hidden = post('2');
+    await start();
+    await scoredVerdict(0);
+    await scoredVerdict(1, [{ label: 'rage', score: 0.9 }]);
+    expect(adapter.getPostContainer(visible).style.display).toBe('');
+    expect(adapter.getPostContainer(hidden).style.display).toBe('none');
+    change('strictFilters_twitter', []);
+    await flush();
+    expect(adapter.getPostContainer(visible).style.display).toBe('none');
+    expect(ui.getFilteredPosts()).toHaveLength(2);
+    change('strictFilters_twitter', ['rage']);
+    await flush();
+    expect(adapter.getPostContainer(visible).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(1);
+    change('strictFilters_twitter', []);
+    await flush();
+    expect(adapter.getPostContainer(visible).style.display).toBe('none');
+    expect(evaluations).toHaveLength(2);
+    ui.showReasoningPopup(visible, 0, 0);
+    expect(document.querySelector('.reasoning-match-chip')?.textContent).toBe('rage');
+    expect(document.querySelector('.classification-scores')?.textContent).toContain('0.50');
+  });
+
+  it('cancels a scheduled automatic hide at a Strict boundary and rejects the old in-flight response and detector event', async () => {
+    const fading = post('1');
+    const pending = post('2');
+    await start();
+    const pendingId = evaluations[1].message.evaluationId;
+    await scoredVerdict(0, [{ label: 'rage', score: 0.5 }], 'A synthetic post with several words.', false);
+    expect(fading.style.opacity).toBe('0');
+    change('strictFilters_twitter', ['rage']);
+    await flush();
+    expect(evaluations).toHaveLength(3);
+    await scoredVerdict(1, [{ label: 'rage', score: 0.95 }]);
+    messageListeners.forEach(listener => listener({ type: 'detectorResponse', evaluationId: pendingId, detectorName: 'Local', shouldHide: true, matches: ['rage'], category: 'rage' }, {}, () => {}));
+    await vi.advanceTimersByTimeAsync(300);
+    expect(adapter.getPostContainer(fading).style.display).toBe('');
+    expect(adapter.getPostContainer(pending).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+    await scoredVerdict(2);
+    expect(adapter.getPostContainer(pending).style.display).toBe('');
+  });
+
+  it('keeps manual Bounce and Restore decisions through both level switches', async () => {
+    const bounced = post('1');
+    const restored = post('2');
+    await start();
+    await scoredVerdict(0);
+    await scoredVerdict(1);
+    await ui.bouncePost(bounced, adapter.extractPostContent(bounced), 'rage');
+    const panel = document.createElement('div');
+    document.body.appendChild(panel);
+    ui.renderFilteredPostsView(panel);
+    panel.querySelector<HTMLButtonElement>(`a[href="${restored.dataset.url}"] .slop-restore`)!.click();
+    await flush();
+    change('strictFilters_twitter', ['rage']);
+    change('strictFilters_twitter', []);
+    await vi.advanceTimersByTimeAsync(300);
+    expect(adapter.getPostContainer(bounced).style.display).toBe('none');
+    expect(adapter.getPostContainer(restored).style.display).toBe('');
+    expect(ui.getFilteredPosts().map(post => post.userOverride)).toEqual([true]);
+    expect(evaluations).toHaveLength(2);
+  });
+
+  it('rejudges a scored automatic predecessor after a pending Restore fails at Strict, retaining scores for Standard', async () => {
+    const article = post('1');
+    await start();
+    await scoredVerdict(0);
+    restoreResponse = deferred();
+    renderRestorePanel().click();
+    await flush();
+    change('strictFilters_twitter', ['rage']);
+    await flush();
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    restoreResponse.resolve({ success: false, error: 'Synthetic Restore failure after Strict' });
+    await flush();
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+    change('strictFilters_twitter', []);
+    await flush();
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    expect(ui.getFilteredPosts()[0].matches).toEqual(['rage']);
+    expect(evaluations).toHaveLength(1);
+  });
+
+  it('uses saved levels from storage events and ignores an older event payload', async () => {
+    const hidden = post('1');
+    const pending = post('2');
+    await start();
+    await scoredVerdict(0);
+    const original = sendMessage.getMockImplementation()!;
+    sendMessage.mockImplementation((message: { type: string; strict?: boolean; phrase?: string }) => {
+      if (message.type === 'setFilterStrictness') {
+        const previous = storage.strictFilters_twitter;
+        storage.strictFilters_twitter = message.strict ? [message.phrase] : [];
+        storageListeners.forEach(listener => listener({ strictFilters_twitter: { oldValue: previous, newValue: storage.strictFilters_twitter } }, 'local'));
+        return Promise.resolve({ success: true });
+      }
+      return original(message);
+    });
+    phraseButton().click();
+    document.querySelector<HTMLButtonElement>('[data-strictness="strict"]')!.click();
+    await flush();
+    expect(adapter.getPostContainer(hidden).style.display).toBe('');
+    expect(document.querySelector('.filter-strict-pill')?.textContent).toBe('Strict');
+    await scoredVerdict(1, [{ label: 'rage', score: 0.99 }]);
+    expect(adapter.getPostContainer(pending).style.display).toBe('');
+    storageListeners.forEach(listener => listener({ strictFilters_twitter: { oldValue: ['rage'], newValue: [] } }, 'local'));
+    await flush();
+    expect(adapter.getPostContainer(hidden).style.display).toBe('');
+    expect(document.querySelector('[data-strictness="strict"]')?.getAttribute('aria-pressed')).toBe('true');
+    expect(document.querySelector('.filter-strict-pill')?.textContent).toBe('Strict');
+  });
+
+  it('rejudges a completed score when its pending saved-level read resolves', async () => {
+    const hidden = post('1');
+    const pending = post('2');
+    await start();
+    await scoredVerdict(0);
+    const read = deferred<Record<string, unknown>>();
+    const get = chrome.storage.local.get as ReturnType<typeof vi.fn>;
+    const original = get.getMockImplementation()!;
+    get.mockImplementation((keys: string[]) => keys.includes('strictFilters_twitter') ? read.promise : original(keys));
+    change('strictFilters_twitter', ['rage']);
+    await scoredVerdict(1, [{ label: 'rage', score: 0.99 }]);
+    expect(adapter.getPostContainer(pending).style.display).toBe('none');
+    read.resolve({ descriptions_twitter: ['rage'], strictFilters_twitter: ['rage'] });
+    await flush();
+    expect(adapter.getPostContainer(hidden).style.display).toBe('');
+    expect(adapter.getPostContainer(pending).style.display).toBe('none');
+    expect(evaluations).toHaveLength(2);
+    expect(document.querySelector('.filter-strict-pill')?.textContent).toBe('Strict');
+  });
+
+  it.each([true, false])('preserves a scored predecessor after failed Bounce with a strict change during persistence=%s', async changesDuringBounce => {
+    storage.strictFilters_twitter = changesDuringBounce ? [] : ['rage'];
+    const article = post('1');
+    await start();
+    await scoredVerdict(0);
+    bounceResponse = deferred();
+    const action = ui.bouncePost(article, adapter.extractPostContent(article), 'rage');
+    await flush();
+    if (changesDuringBounce) change('strictFilters_twitter', ['rage']);
+    await flush();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    bounceResponse.resolve({ success: false, error: 'Synthetic Bounce failure with stored scores' });
+    await expect(action).resolves.toBe(false);
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    change('strictFilters_twitter', []);
+    await flush();
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    expect(ui.getFilteredPosts()[0].classification?.scores).toEqual([{ label: 'rage', score: 0.5 }]);
+    expect(evaluations).toHaveLength(1);
+  });
+
   });
 
   it.each([false, true].flatMap(cached => [
@@ -302,9 +998,11 @@ describe('live content filter actions', () => {
     expect(details.open).toBe(false);
     expect(details.closest('a')).toBeNull();
     expect(details.querySelector('summary')?.textContent).toBe('Details');
-    expect(details.textContent).toContain(`Matched when score ≥ ${cutoff}`);
+    expect(details.textContent).not.toContain('Matched when score');
     expect(Array.from(details.querySelectorAll('li'), item => item.textContent)).toEqual([
-      'excessive rudeness · 0.70 · Matched', 'spam, scams · 0.09 · Not matched', `bird watching · 0.29 · ${birdMatched ? 'Matched' : 'Not matched'}`,
+      `excessive rudeness · 0.70 · needs ${cutoff.toFixed(2)}${cutoff === 0.7 ? ' · short post' : ''} · Matched`,
+      `spam, scams · 0.09 · needs ${cutoff.toFixed(2)}${cutoff === 0.7 ? ' · short post' : ''} · Not matched`,
+      `bird watching · 0.29 · needs ${cutoff.toFixed(2)}${cutoff === 0.7 ? ' · short post' : ''} · ${birdMatched ? 'Matched' : 'Not matched'}`,
     ]);
     expect(details.querySelector('pre')?.textContent).toBe(textSent);
     expect(ui.getFilteredPosts()[0].evaluationText).toBe(textSent);
@@ -317,8 +1015,8 @@ describe('live content filter actions', () => {
     expect(writeText).toHaveBeenCalledTimes(1);
     expect(JSON.parse(writeText.mock.calls[0][0])).toEqual({
       bouncerVersion: '2.0.0', model: DECISION_MODEL.id, templateId: DECISION_MODEL.templateId,
-      cutoff, postUrl: 'https://x.com/synthetic/status/1', textSent,
-      scores: [{ ...scores[0], matched: true }, { ...scores[1], matched: false }, { ...scores[2], matched: birdMatched }], classifiedAt: timestamp,
+      postUrl: 'https://x.com/synthetic/status/1', textSent,
+      scores: [{ ...scores[0], cutoff, strict: false, matched: true }, { ...scores[1], cutoff, strict: false, matched: false }, { ...scores[2], cutoff, strict: false, matched: birdMatched }], classifiedAt: timestamp,
     });
     expect(sendMessage).toHaveBeenCalledTimes(messagesBeforeCopy);
     expect(details.querySelector('[role="status"]')?.textContent).toBe('Copied');
@@ -326,7 +1024,7 @@ describe('live content filter actions', () => {
     expect(details.querySelector('[role="status"]')?.textContent).toBe('');
     ui.showReasoningPopup(article, 0, 0);
     expect(document.querySelector('.reasoning-details pre')?.textContent).toBe(textSent);
-    expect(document.querySelector('.reasoning-details')?.textContent).toContain(`Matched when score ≥ ${cutoff}`);
+    expect(document.querySelector('.reasoning-details')?.textContent).toContain(`needs ${cutoff.toFixed(2)}`);
     expect(document.querySelector('.post-filter-reasoning-popup')?.textContent).not.toContain('Raw Model Response');
   });
 
@@ -380,7 +1078,7 @@ describe('live content filter actions', () => {
     expect(fallback.selectionEnd).toBe(fallback.value.length);
     expect(JSON.parse(fallback.value)).toEqual({
       bouncerVersion: '2.0.0', model: DECISION_MODEL.id, templateId: DECISION_MODEL.templateId,
-      cutoff: DECISION_MODEL.cutoff, postUrl: 'https://x.com/synthetic/status/1', textSent: null, scores: [], classifiedAt: null,
+      postUrl: 'https://x.com/synthetic/status/1', textSent: null, scores: [], classifiedAt: null,
     });
   });
 
@@ -879,7 +1577,7 @@ describe('live content filter actions', () => {
     await start();
     await ui.bouncePost(article, adapter.extractPostContent(article), 'rage');
     await vi.advanceTimersByTimeAsync(300);
-    expect(adapter.hidePost).toHaveBeenCalledWith(article, false);
+    expect(adapter.hidePost).toHaveBeenCalledWith(article, false, expect.any(Function));
     expect(cell.dataset.filteredByExtension).toBe('true');
     expect(cell.style.display).toBe('');
 
@@ -1012,7 +1710,7 @@ describe('live content filter actions', () => {
     await useRealTwitterAdapter(canonical);
     const cache = new Map<string, EvaluationResult>();
     let uncachedEvaluations = 0;
-    sendMessage.mockImplementation(async (message: { type: string; post: string; phrase?: string }) => {
+    sendMessage.mockImplementation(async (message: { type: string; post: string; phrase?: string; strict?: boolean }) => {
       const key = generateCacheKey(message.post || '');
       if (message.type === 'evaluatePost') {
         const result = cache.get(key);
@@ -1816,7 +2514,7 @@ describe('live content filter actions', () => {
     await vi.advanceTimersByTimeAsync(50);
     expect(adapter.getPostContainer(reply).style.display).toBe('none');
     expect(adapter.getPostContainer(nextReply).style.display).toBe('');
-    expect(adapter.hidePost).toHaveBeenCalledWith(reply, false);
+    expect(adapter.hidePost).toHaveBeenCalledWith(reply, false, expect.any(Function));
   });
 
   it.each(['inference', 'automatic fade', 'manual fade'])('turning reply filtering off cancels %s and removes panel entries/counts', async stage => {

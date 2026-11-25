@@ -50,9 +50,12 @@ precedence over automatic results.
 
 Readiness uses only `GET /v1/models` to find the fixed model and inspect its
 configured arguments. Classification uses `POST /v1/systemone` with bare post
-text and one `noul` question per filter. Every filter matches at a probability
-of at least `0.70` for at most three own words in the sent text or
-`0.290813258948728` otherwise, excluding http(s) links and @handles; see
+text and one `noul` question per filter. Each filter defaults to **Standard**
+(`0.290813258948728`) and can opt into **Strict** (`0.72`) from its filter menu.
+A match requires `probability >= cutoff`. For at most three own words in the
+sent text, excluding http(s) links and @handles, the cutoff is
+`max(filter cutoff, 0.70)`, so Strict remains `0.72`. Strict hides fewer posts
+and may miss more matches; see
 [quality and limits](../docs/models.md#quality-and-limits).
 A transport error, timeout, truncated response or malformed
 answer leaves that post visible and later filtering continues.

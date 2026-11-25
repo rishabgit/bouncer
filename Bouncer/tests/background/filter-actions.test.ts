@@ -111,7 +111,7 @@ beforeEach(async () => {
     windows: { WINDOW_ID_NONE: -1, onFocusChanged: { addListener: vi.fn() } },
   } as unknown as typeof chrome;
   runtime.infer.mockImplementation(async () => ({
-    shouldHide: false, reasoning: 'automatic verdict', category: null, matches: [],
+    scores: [{ label: 'Sports', score: 0.1 }], textSent: 'A full post about sports',
     rawResponse: 'no', inferenceTime: 0,
     modelId: 'synthetic-decision-model',
     engine: 'llama.app',
@@ -129,6 +129,104 @@ afterEach(async () => {
   // Retired module timers must not write into a later test's Chrome fixture.
   await pipeline.clearEvaluationCache().catch(() => undefined);
   vi.useRealTimers();
+});
+
+describe('serialized filter phrase deltas', () => {
+  function edit(type: 'addFilterPhrase' | 'removeFilterPhrase', phrase: string): Promise<unknown> {
+    return send({ type, siteId: 'twitter', phrase });
+  }
+
+  it('adds trimmed phrases, reports duplicates, and removes only exact phrases with same-write Strict pruning', async () => {
+    await expect(edit('addFilterPhrase', '  Crypto  ')).resolves.toEqual({ success: true, added: true });
+    expect(stored.descriptions_twitter).toEqual(['Sports', 'Crypto']);
+    await expect(send({ type: 'setFilterStrictness', siteId: 'twitter', phrase: 'Crypto', strict: true }))
+      .resolves.toEqual({ success: true });
+    writeStorage.mockClear();
+    await expect(edit('addFilterPhrase', 'Crypto')).resolves.toEqual({ success: true, added: false });
+    await expect(edit('removeFilterPhrase', ' Crypto ')).resolves.toEqual({ success: true });
+    expect(writeStorage).not.toHaveBeenCalled();
+    expect(stored.strictFilters_twitter).toEqual(['Crypto']);
+    await expect(edit('removeFilterPhrase', 'Crypto')).resolves.toEqual({ success: true });
+    expect(writeStorage).toHaveBeenCalledWith({ descriptions_twitter: ['Sports'], strictFilters_twitter: [] });
+    await expect(edit('addFilterPhrase', 'Crypto')).resolves.toEqual({ success: true, added: true });
+    expect(stored.strictFilters_twitter).toEqual([]);
+    expect(runtime.infer).not.toHaveBeenCalled();
+  });
+
+  it('reads each concurrent addition inside the action queue so neither phrase is lost', async () => {
+    const firstRead = deferred<void>();
+    let paused = false;
+    readStorage.mockImplementation(async (keys: string[]) => {
+      const snapshot = Object.fromEntries(keys.filter(key => key in stored).map(key => [key, structuredClone(stored[key])]));
+      if (!paused && keys.length === 1 && keys[0] === 'descriptions_twitter') {
+        paused = true;
+        await firstRead.promise;
+      }
+      return snapshot;
+    });
+    const first = edit('addFilterPhrase', 'Crypto');
+    await vi.waitFor(() => expect(paused).toBe(true));
+    const readsBeforeSecond = readStorage.mock.calls.length;
+    const second = edit('addFilterPhrase', 'Politics');
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    expect(readStorage).toHaveBeenCalledTimes(readsBeforeSecond);
+    firstRead.resolve();
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      { success: true, added: true }, { success: true, added: true },
+    ]);
+    expect(stored.descriptions_twitter).toEqual(['Sports', 'Crypto', 'Politics']);
+    expect(stored.strictFilters_twitter).toEqual([]);
+  });
+
+  it('enforces both active-count and aggregate-character limits against the current queued list', async () => {
+    const phrases = Array.from({ length: MAX_ACTIVE_FILTERS }, (_, index) => `filter ${index}`);
+    stored.descriptions_twitter = phrases;
+    await deliverFilterEvent(['Sports'], phrases);
+    writeStorage.mockClear();
+    await expect(edit('addFilterPhrase', 'another')).resolves.toEqual({ success: false, error: MAX_FILTERS_WARNING });
+    await expect(edit('addFilterPhrase', phrases[0])).resolves.toEqual({ success: true, added: false });
+    expect(writeStorage).not.toHaveBeenCalled();
+    stored.descriptions_twitter = ['x'.repeat(999)];
+    await deliverFilterEvent(phrases, stored.descriptions_twitter as string[]);
+    writeStorage.mockClear();
+    await expect(edit('addFilterPhrase', 'ab')).resolves.toEqual({
+      success: false, error: 'Filter phrases exceed the 1000-character limit.',
+    });
+    expect(writeStorage).not.toHaveBeenCalled();
+    expect(stored.descriptions_twitter).toEqual(['x'.repeat(999)]);
+  });
+
+  it.each(['addFilterPhrase', 'removeFilterPhrase'] as const)('rejects invalid %s requests before storage changes', async type => {
+    const before = structuredClone(stored);
+    writeStorage.mockClear();
+    for (const phrase of ['', ' \n\t ', 17, 'x'.repeat(1001)]) {
+      await expect(send({ type, siteId: 'twitter', phrase } as unknown as ContentToBackgroundMessage))
+        .resolves.toEqual({ success: false, error: 'Invalid filter phrase.' });
+    }
+    await expect(send({ type, phrase: 'Crypto' } as unknown as ContentToBackgroundMessage))
+      .resolves.toEqual({ success: false, error: 'Unsupported site.' });
+    await expect(send({ type, siteId: 'elsewhere', phrase: 'Crypto' } as unknown as ContentToBackgroundMessage))
+      .resolves.toEqual({ success: false, error: 'Unsupported site.' });
+    await expect(send({ type, siteId: 'twitter', phrase: 'Crypto' }, { ...contentSender, id: 'another-extension' }))
+      .resolves.toEqual({ success: false, error: 'Untrusted Bouncer sender.' });
+    expect(writeStorage).not.toHaveBeenCalled();
+    expect(stored).toEqual(before);
+    expect(runtime.infer).not.toHaveBeenCalled();
+  });
+
+  it.each(['addFilterPhrase', 'removeFilterPhrase'] as const)('rejects a retired document during a paused %s phrase read', async type => {
+    const read = deferred<Record<string, unknown>>();
+    readStorage.mockImplementationOnce(() => read.promise);
+    const before = structuredClone(stored);
+    writeStorage.mockClear();
+    const action = edit(type, type === 'addFilterPhrase' ? 'Crypto' : 'Sports');
+    await vi.waitFor(() => expect(readStorage).toHaveBeenLastCalledWith(['descriptions_twitter']));
+    onUpdated(1, { status: 'loading' });
+    read.resolve({ descriptions_twitter: ['Sports'] });
+    await expect(action).resolves.toMatchObject({ success: false, error: expect.stringContaining('document') });
+    expect(stored).toEqual(before);
+    expect(writeStorage).not.toHaveBeenCalled();
+  });
 });
 
 describe('atomic local Bounce actions', () => {
@@ -196,7 +294,7 @@ describe('atomic local Bounce actions', () => {
     expect(runtime.infer).not.toHaveBeenCalled();
     expect(runtime.engine.operationEpoch).toBe(epoch);
     onActivated({ tabId: 1 });
-    await expect(evaluation).resolves.toMatchObject({ shouldHide: false, reasoning: 'automatic verdict' });
+    await expect(evaluation).resolves.toMatchObject({ shouldHide: false, reasoning: 'No matching filters' });
     expect(runtime.infer).toHaveBeenCalledOnce();
   });
 
@@ -327,6 +425,7 @@ describe('atomic local Bounce actions', () => {
     const action = bounce('chosen post', 'Crypto');
     await vi.waitFor(() => expect(writeStorage).toHaveBeenCalledWith({
       descriptions_twitter: ['Sports', 'Crypto'],
+      strictFilters_twitter: [],
     }));
     expect(pipeline.evaluationCache.has('old-result')).toBe(true);
     expect(cached('chosen post')).toBeUndefined();
@@ -418,9 +517,11 @@ describe('atomic local Bounce actions', () => {
       Object.assign(stored, structuredClone(items));
     });
     const first = bounce('first chosen post', 'Crypto');
-    const second = bounce('second chosen post', 'Politics');
     await vi.waitFor(() => expect(writeStorage).toHaveBeenCalledTimes(1));
-    expect(readStorage.mock.calls.filter(([keys]) => keys.includes('descriptions_twitter'))).toHaveLength(2);
+    const readsBeforeSecond = readStorage.mock.calls.length;
+    const second = bounce('second chosen post', 'Politics');
+    await new Promise<void>(resolve => setTimeout(resolve, 0));
+    expect(readStorage).toHaveBeenCalledTimes(readsBeforeSecond);
     firstWrite.resolve();
     await expect(Promise.all([first, second])).resolves.toEqual([{ success: true }, { success: true }]);
     expect(stored.descriptions_twitter).toEqual(['Sports', 'Crypto', 'Politics']);
@@ -665,7 +766,7 @@ describe('explicit post decisions fence automatic work', () => {
     await expect(action).resolves.toEqual({ success: false, error: 'manual cache unavailable' });
     await expect(automatic).resolves.toMatchObject({ shouldHide: false });
     expect(cached('manual post with failing write')).toBeUndefined();
-    expect(cached('unrelated automatic post')?.reasoning).toBe('unrelated automatic result');
+    expect(cached('unrelated automatic post')?.reasoning).toBe('No matching filters');
     errorLog.mockRestore();
   });
 
@@ -683,7 +784,7 @@ describe('explicit post decisions fence automatic work', () => {
     }));
   });
 
-  it.each(['stats read', 'stats write'])('preserves Bounce across a pending automatic %s', async (pauseStage) => {
+  it.each(['stats read', 'stats write'])('preserves a later Bounce after verdict publication during automatic %s', async (pauseStage) => {
     const pause = deferred<void>();
     let reachedPause = false;
     if (pauseStage === 'stats read') {
@@ -709,7 +810,7 @@ describe('explicit post decisions fence automatic work', () => {
     await vi.waitFor(() => expect(pipeline.evaluationCache.get(generateCacheKey('post with pending persistence'))?.userOverride).toBe(true));
     pause.resolve();
     await expect(action).resolves.toEqual({ success: true });
-    await expect(result).resolves.toMatchObject({ shouldHide: true, userOverride: true });
+    await expect(result).resolves.toMatchObject({ shouldHide: false, matches: [] });
     expect(cached('post with pending persistence')).toMatchObject({ shouldHide: true, userOverride: true });
   });
 
@@ -727,7 +828,7 @@ describe('explicit post decisions fence automatic work', () => {
     });
     const result = evaluate(post);
     await vi.advanceTimersByTimeAsync(0);
-    await expect(result).resolves.toMatchObject({ shouldHide: false, reasoning: 'automatic verdict' });
+    await expect(result).resolves.toMatchObject({ shouldHide: false, reasoning: 'No matching filters' });
     expect(stored.evaluationCache).toEqual({});
     expect(writingAutomatic).toBe(false);
     await vi.advanceTimersByTimeAsync(3000);
@@ -773,8 +874,10 @@ describe('explicit post decisions fence automatic work', () => {
 
   it('carries exact comma-containing matches through responses, snapshots, cache replay, and reasoning', async () => {
     const matches = ['Markets, crypto and NFTs', 'Sports'];
+    stored.descriptions_twitter = matches;
+    await deliverFilterEvent(['Sports'], matches);
     runtime.infer.mockResolvedValue({
-      shouldHide: true, reasoning: 'matched', category: matches.join(', '), matches,
+      scores: matches.map(label => ({ label, score: 0.9 })), textSent: 'A full post matching both labels',
       engine: 'llama.app', classifierFingerprint: 'synthetic-decision-fingerprint',
     });
     await expect(evaluate('post matching comma label')).resolves.toMatchObject({

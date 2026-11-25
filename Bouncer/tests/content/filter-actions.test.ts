@@ -1,5 +1,5 @@
 /**
- * @vitest-environment happy-dom
+ * @vitest-environment jsdom
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import DOMPurify from 'dompurify';
@@ -292,6 +292,7 @@ describe('live content filter actions', () => {
     const panel = document.createElement('div');
     document.body.appendChild(panel);
     ui.renderFilteredPostsView(panel);
+    expect(panel.querySelector('.slop-post-text')?.textContent).toBe(textSent);
     expect(panel.querySelector('.slop-post-reasoning')?.textContent).toBe('Matched: excessive rudeness · 0.80, bird watching · 0.29');
     const details = panel.querySelector<HTMLDetailsElement>('.classification-details')!;
     expect(details.open).toBe(false);

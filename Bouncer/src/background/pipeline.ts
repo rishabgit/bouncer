@@ -544,7 +544,7 @@ export async function prioritizeByViewportDistance(queue: PendingEvaluation[]): 
       chrome.tabs.sendMessage(tabId!, { type: 'getPositions', postUrls, evaluationIds })
         .then((response: { positions?: Record<string, number> } | undefined) => ({ tabId, positions: response?.positions || {} }))
         .catch(() => {
-          return { tabId, positions: {} as Record<string, number> };
+          return { tabId, positions: {} };
         })
     );
   }

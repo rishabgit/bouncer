@@ -1,0 +1,5498 @@
+{
+  "schemaVersion": 1,
+  "studyId": "tone-label-2026-11-25",
+  "authors": {
+    "discovery": "author-d",
+    "holdout": "author-h"
+  },
+  "counts": {
+    "discovery": {
+      "posts": 112,
+      "intents": 18,
+      "pairs": 2016,
+      "twins": 23,
+      "ambiguousPairs": 92,
+      "eligiblePairs": 1924,
+      "positivePairs": 48,
+      "negativePairs": 1968,
+      "byPart": {
+        "rudeness": 64,
+        "short": 48
+      },
+      "byKind": {
+        "clear-positive": 38,
+        "near-miss": 56,
+        "subtle-positive": 10,
+        "unrelated": 8
+      },
+      "bySubtype": {
+        "angry-complaint": 3,
+        "banter": 4,
+        "blunt-critique": 3,
+        "casual-slur": 3,
+        "criticises-rudeness": 5,
+        "death-wish": 2,
+        "edgy-contempt": 5,
+        "group-slur": 2,
+        "hate-speech-news": 2,
+        "low-content": 18,
+        "name-calling": 4,
+        "ordinary": 8,
+        "quotes-to-object": 5,
+        "sarcastic-contempt": 4,
+        "short-behaviour": 6,
+        "short-rude": 8,
+        "short-slang": 6,
+        "short-topic": 10,
+        "slur-insult": 4,
+        "untargeted-profanity": 5,
+        "violent-slang-praise": 3,
+        "word-discussion": 2
+      },
+      "byIntent": {
+        "excessive-rudeness": 96,
+        "fresh-doom": 1,
+        "fresh-engagement": 2,
+        "fresh-hustle": 1,
+        "orig-ai": 1,
+        "orig-celebrity": 1,
+        "orig-crypto": 2,
+        "orig-engagement": 1,
+        "orig-fitness": 1,
+        "orig-food": 2,
+        "orig-politics": 1,
+        "orig-promotion": 1,
+        "orig-sports": 2
+      }
+    },
+    "holdout": {
+      "posts": 112,
+      "intents": 18,
+      "pairs": 2016,
+      "twins": 23,
+      "ambiguousPairs": 110,
+      "eligiblePairs": 1906,
+      "positivePairs": 48,
+      "negativePairs": 1968,
+      "byPart": {
+        "rudeness": 64,
+        "short": 48
+      },
+      "byKind": {
+        "clear-positive": 38,
+        "near-miss": 56,
+        "subtle-positive": 10,
+        "unrelated": 8
+      },
+      "bySubtype": {
+        "angry-complaint": 3,
+        "banter": 4,
+        "blunt-critique": 3,
+        "casual-slur": 3,
+        "criticises-rudeness": 5,
+        "death-wish": 2,
+        "edgy-contempt": 5,
+        "group-slur": 2,
+        "hate-speech-news": 2,
+        "low-content": 18,
+        "name-calling": 4,
+        "ordinary": 8,
+        "quotes-to-object": 5,
+        "sarcastic-contempt": 4,
+        "short-behaviour": 6,
+        "short-rude": 8,
+        "short-slang": 6,
+        "short-topic": 10,
+        "slur-insult": 4,
+        "untargeted-profanity": 5,
+        "violent-slang-praise": 3,
+        "word-discussion": 2
+      },
+      "byIntent": {
+        "excessive-rudeness": 96,
+        "fresh-doom": 1,
+        "fresh-engagement": 1,
+        "fresh-hustle": 1,
+        "orig-ai": 2,
+        "orig-celebrity": 1,
+        "orig-crypto": 2,
+        "orig-engagement": 2,
+        "orig-fitness": 1,
+        "orig-food": 1,
+        "orig-politics": 1,
+        "orig-promotion": 1,
+        "orig-sports": 2
+      }
+    }
+  },
+  "agreement": {
+    "ownIntent": [
+      {
+        "labeler": "labeler-a",
+        "total": 224,
+        "agreed": 223,
+        "disagreed": 1,
+        "borderline": 0,
+        "splits": {
+          "discovery": {
+            "total": 112,
+            "agreed": 112,
+            "disagreed": 0,
+            "borderline": 0
+          },
+          "holdout": {
+            "total": 112,
+            "agreed": 111,
+            "disagreed": 1,
+            "borderline": 0
+          }
+        }
+      },
+      {
+        "labeler": "labeler-b",
+        "total": 224,
+        "agreed": 220,
+        "disagreed": 0,
+        "borderline": 4,
+        "splits": {
+          "discovery": {
+            "total": 112,
+            "agreed": 112,
+            "disagreed": 0,
+            "borderline": 0
+          },
+          "holdout": {
+            "total": 112,
+            "agreed": 108,
+            "disagreed": 0,
+            "borderline": 4
+          }
+        }
+      }
+    ],
+    "allPairs": {
+      "total": 4032,
+      "agreed": 3944,
+      "disagreed": 88,
+      "splits": [
+        {
+          "split": "discovery",
+          "total": 2016,
+          "agreed": 1981,
+          "disagreed": 35,
+          "matrix": {
+            "yes": {
+              "yes": 104,
+              "no": 18,
+              "borderline": 7
+            },
+            "no": {
+              "yes": 6,
+              "no": 1876,
+              "borderline": 4
+            },
+            "borderline": {
+              "yes": 0,
+              "no": 0,
+              "borderline": 1
+            }
+          }
+        },
+        {
+          "split": "holdout",
+          "total": 2016,
+          "agreed": 1963,
+          "disagreed": 53,
+          "matrix": {
+            "yes": {
+              "yes": 101,
+              "no": 27,
+              "borderline": 13
+            },
+            "no": {
+              "yes": 6,
+              "no": 1862,
+              "borderline": 6
+            },
+            "borderline": {
+              "yes": 0,
+              "no": 1,
+              "borderline": 0
+            }
+          }
+        }
+      ]
+    }
+  },
+  "ambiguous": [
+    {
+      "split": "discovery",
+      "postId": "d-r-05",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-07",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "borderline"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-08",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-11",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-11",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-12",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-12",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-14",
+      "intentId": "fresh-dunking",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-14",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-14",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-15",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-18",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-18",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-19",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-19",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-20",
+      "intentId": "fresh-dunking",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-20",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-20",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-21",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-21",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-22",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-23",
+      "intentId": "fresh-dunking",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-23",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-23",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-25",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-25",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-26",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-26",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-27",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-27",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-28",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-28",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-31",
+      "intentId": "orig-politics",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-32",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-32",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-35",
+      "intentId": "fresh-dunking",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-35",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-35",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-39",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-39",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-40",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-40",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-41",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-43",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-45",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "borderline"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-46",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-46",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-49",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-50",
+      "intentId": "fresh-dunking",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-50",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-50",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-50",
+      "intentId": "orig-rage",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-51",
+      "intentId": "orig-politics",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "borderline",
+        "borderline"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-52",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "borderline"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-55",
+      "intentId": "fresh-dunking",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-55",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-55",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-57",
+      "intentId": "orig-food",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-58",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-60",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-60",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-61",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-62",
+      "intentId": "fresh-dunking",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-62",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-62",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-63",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-r-64",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-01",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-01",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-03",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-03",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-05",
+      "intentId": "orig-engagement",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-08",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-08",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-10",
+      "intentId": "orig-engagement",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-12",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-12",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-14",
+      "intentId": "orig-engagement",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-16",
+      "intentId": "orig-engagement",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-22",
+      "intentId": "orig-engagement",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-24",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-24",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-30",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-30",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-31",
+      "intentId": "orig-engagement",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-32",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-32",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-39",
+      "intentId": "orig-engagement",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-42",
+      "intentId": "fresh-engagement",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "borderline"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-45",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-45",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "discovery",
+      "postId": "d-s-46",
+      "intentId": "orig-engagement",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-03",
+      "intentId": "orig-food",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-04",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-05",
+      "intentId": "orig-food",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-07",
+      "intentId": "fresh-dunking",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-07",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-07",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-08",
+      "intentId": "excessive-rudeness",
+      "ownIntent": true,
+      "gold": true,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-08",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-08",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-09",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-10",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-10",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-11",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-11",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-11",
+      "intentId": "orig-rage",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "borderline"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-12",
+      "intentId": "orig-politics",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-13",
+      "intentId": "fresh-dunking",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-13",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-13",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-14",
+      "intentId": "fresh-dunking",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-14",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-14",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-18",
+      "intentId": "excessive-rudeness",
+      "ownIntent": true,
+      "gold": true,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-18",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-18",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-19",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-19",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-20",
+      "intentId": "excessive-rudeness",
+      "ownIntent": true,
+      "gold": true,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-20",
+      "intentId": "fresh-dunking",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-20",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-20",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-22",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-23",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-24",
+      "intentId": "fresh-dunking",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-24",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-24",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-25",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-25",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-27",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-28",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-28",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-29",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-29",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-31",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-31",
+      "intentId": "orig-politics",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-34",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-35",
+      "intentId": "fresh-dunking",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-35",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-35",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-37",
+      "intentId": "fresh-dunking",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-37",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-37",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-39",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-40",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "borderline"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-48",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-48",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-51",
+      "intentId": "fresh-dunking",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-51",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-51",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-52",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-52",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-54",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-55",
+      "intentId": "orig-food",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-56",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-56",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-57",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-58",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-59",
+      "intentId": "fresh-dunking",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-59",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-59",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-60",
+      "intentId": "fresh-dunking",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-60",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-60",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-60",
+      "intentId": "orig-politics",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "borderline",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-62",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-63",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "borderline"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-63",
+      "intentId": "orig-food",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "no"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-64",
+      "intentId": "fresh-dunking",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-64",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-r-64",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-03",
+      "intentId": "orig-engagement",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-03",
+      "intentId": "orig-food",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-06",
+      "intentId": "orig-engagement",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-07",
+      "intentId": "orig-engagement",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-09",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-09",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-11",
+      "intentId": "orig-engagement",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-17",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-17",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-19",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-19",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-22",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-22",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-28",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-28",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-29",
+      "intentId": "orig-engagement",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-31",
+      "intentId": "orig-engagement",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-32",
+      "intentId": "fresh-engagement",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "borderline"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-33",
+      "intentId": "orig-celebrity",
+      "ownIntent": true,
+      "gold": true,
+      "answers": [
+        "no",
+        "borderline"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-34",
+      "intentId": "orig-engagement",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-35",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-35",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-39",
+      "intentId": "fresh-engagement",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "no",
+        "borderline"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-40",
+      "intentId": "fresh-dunking",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-40",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-40",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-40",
+      "intentId": "orig-engagement",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "borderline"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-40",
+      "intentId": "orig-rage",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-44",
+      "intentId": "fresh-rudeness",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    },
+    {
+      "split": "holdout",
+      "postId": "h-s-44",
+      "intentId": "orig-drama",
+      "ownIntent": false,
+      "gold": false,
+      "answers": [
+        "yes",
+        "yes"
+      ]
+    }
+  ],
+  "labelers": [
+    {
+      "labeler": "labeler-a",
+      "posts": [
+        {
+          "id": "h-r-35",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-39",
+          "yes": [
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-20",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-34",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-47",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-08",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-50",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-18",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-40",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-38",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-42",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-28",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-19",
+          "yes": [
+            "orig-crypto"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-50",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-rage",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-16",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-52",
+          "yes": [
+            "excessive-rudeness"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-33",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-28",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-16",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-64",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-45",
+          "yes": [
+            "excessive-rudeness"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-56",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-12",
+          "yes": [
+            "orig-politics"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-06",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-27",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-47",
+          "yes": [
+            "orig-promotion"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-23",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-09",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-34",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-21",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-17",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-55",
+          "yes": [
+            "orig-food"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-35",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-36",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-11",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-19",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-26",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-25",
+          "yes": [
+            "orig-food"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-04",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-23",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-02",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-04",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-24",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-19",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-26",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-29",
+          "yes": [
+            "orig-food"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-24",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-48",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-37",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-03",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-25",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-33",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-57",
+          "yes": [
+            "orig-food"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-10",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-32",
+          "yes": [
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-17",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-02",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-24",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-21",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-44",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-38",
+          "yes": [
+            "orig-food"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-13",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-45",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-54",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-05",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-27",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-21",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-49",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-60",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-44",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-11",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-49",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-43",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-38",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-23",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-15",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-34",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-23",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-06",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-27",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-18",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-26",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-39",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-03",
+          "yes": [
+            "orig-food"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-64",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-54",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-10",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-40",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-rage",
+            "orig-engagement",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-04",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-29",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-46",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-07",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-31",
+          "yes": [
+            "orig-politics",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-41",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-06",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-25",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-43",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-42",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-62",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-22",
+          "yes": [
+            "fresh-engagement",
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-55",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-01",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-30",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-42",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-11",
+          "yes": [
+            "orig-sports"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-36",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-37",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-29",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-09",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-35",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-14",
+          "yes": [
+            "fresh-doom"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-39",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-12",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-15",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-12",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-34",
+          "yes": [
+            "orig-crypto"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-41",
+          "yes": [
+            "orig-ai"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-22",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-30",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-15",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-27",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-33",
+          "yes": [
+            "orig-sports"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-08",
+          "yes": [
+            "orig-politics"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-58",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-53",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-05",
+          "yes": [
+            "orig-food"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-28",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-43",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-61",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-18",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-44",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-42",
+          "yes": [
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-06",
+          "yes": [
+            "orig-celebrity"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-30",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-20",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-01",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-30",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-36",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-44",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-16",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-01",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-08",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-36",
+          "yes": [
+            "orig-fitness"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-08",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-24",
+          "yes": [
+            "orig-crypto"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-57",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-31",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-46",
+          "yes": [
+            "orig-ai"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-37",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-48",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-28",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-40",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-26",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-58",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-35",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-19",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-14",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-14",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-63",
+          "yes": [
+            "excessive-rudeness",
+            "orig-food"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-29",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-13",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-53",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-41",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-51",
+          "yes": [],
+          "borderline": [
+            "orig-politics"
+          ]
+        },
+        {
+          "id": "h-r-61",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-43",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-59",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-39",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-02",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-31",
+          "yes": [
+            "orig-politics"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-07",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-37",
+          "yes": [
+            "orig-fitness"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-01",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-46",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-25",
+          "yes": [
+            "orig-sports"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-02",
+          "yes": [
+            "fresh-hustle"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-05",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-09",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-40",
+          "yes": [
+            "excessive-rudeness"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-05",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-03",
+          "yes": [
+            "fresh-engagement",
+            "orig-food",
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-32",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-31",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-13",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-20",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-59",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-48",
+          "yes": [
+            "fresh-doom"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-07",
+          "yes": [
+            "fresh-hustle"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-62",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-22",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-21",
+          "yes": [
+            "orig-sports"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-46",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-33",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-56",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-10",
+          "yes": [
+            "orig-ai"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-09",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-47",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-07",
+          "yes": [
+            "excessive-rudeness"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-12",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-15",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-52",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-16",
+          "yes": [
+            "fresh-engagement",
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-18",
+          "yes": [
+            "orig-crypto"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-51",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-45",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-14",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-17",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-45",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-48",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-13",
+          "yes": [
+            "orig-politics"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-32",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-20",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-11",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-60",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": [
+            "orig-politics"
+          ]
+        },
+        {
+          "id": "d-r-47",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-38",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-22",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-10",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-63",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-32",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-04",
+          "yes": [
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-17",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-03",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-41",
+          "yes": [
+            "orig-promotion"
+          ],
+          "borderline": []
+        }
+      ]
+    },
+    {
+      "labeler": "labeler-b",
+      "posts": [
+        {
+          "id": "h-r-35",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-39",
+          "yes": [
+            "orig-engagement"
+          ],
+          "borderline": [
+            "fresh-engagement"
+          ]
+        },
+        {
+          "id": "d-r-20",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": [
+            "fresh-dunking"
+          ]
+        },
+        {
+          "id": "h-r-34",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-47",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-08",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-50",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-18",
+          "yes": [
+            "fresh-rudeness"
+          ],
+          "borderline": [
+            "excessive-rudeness"
+          ]
+        },
+        {
+          "id": "d-r-40",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-38",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-42",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-28",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-19",
+          "yes": [
+            "orig-crypto"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-50",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": [
+            "orig-rage"
+          ]
+        },
+        {
+          "id": "h-r-16",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-52",
+          "yes": [
+            "excessive-rudeness"
+          ],
+          "borderline": [
+            "fresh-rudeness"
+          ]
+        },
+        {
+          "id": "d-r-33",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-28",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-16",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-64",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": [
+            "fresh-dunking"
+          ]
+        },
+        {
+          "id": "d-r-45",
+          "yes": [
+            "excessive-rudeness"
+          ],
+          "borderline": [
+            "fresh-rudeness"
+          ]
+        },
+        {
+          "id": "d-r-56",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-12",
+          "yes": [
+            "orig-politics"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-06",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-27",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-47",
+          "yes": [
+            "orig-promotion"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-23",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-09",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-34",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-21",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-17",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-55",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-35",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": [
+            "fresh-dunking"
+          ]
+        },
+        {
+          "id": "d-s-36",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-11",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-19",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-26",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-25",
+          "yes": [
+            "orig-food"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-04",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-23",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": [
+            "fresh-dunking"
+          ]
+        },
+        {
+          "id": "d-r-02",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-04",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-24",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-19",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-26",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-29",
+          "yes": [
+            "orig-food"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-24",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-48",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-37",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-03",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-25",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-33",
+          "yes": [],
+          "borderline": [
+            "orig-celebrity"
+          ]
+        },
+        {
+          "id": "d-r-57",
+          "yes": [
+            "orig-food"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-10",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-32",
+          "yes": [
+            "orig-engagement"
+          ],
+          "borderline": [
+            "fresh-engagement"
+          ]
+        },
+        {
+          "id": "h-r-17",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-02",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-24",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": [
+            "fresh-dunking"
+          ]
+        },
+        {
+          "id": "h-r-21",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-44",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-38",
+          "yes": [
+            "orig-food"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-13",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-45",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-54",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-05",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-27",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-21",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-49",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-60",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-44",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-11",
+          "yes": [
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-49",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-43",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-38",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-23",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-15",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-34",
+          "yes": [
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-23",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-06",
+          "yes": [
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-27",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-18",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-26",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-39",
+          "yes": [
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-03",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-64",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-54",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-10",
+          "yes": [
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-40",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama",
+            "orig-rage",
+            "fresh-dunking"
+          ],
+          "borderline": [
+            "orig-engagement"
+          ]
+        },
+        {
+          "id": "d-r-04",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-29",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-46",
+          "yes": [
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-07",
+          "yes": [
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-31",
+          "yes": [
+            "orig-politics"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-41",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-06",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-25",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-43",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-42",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-62",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-22",
+          "yes": [
+            "fresh-engagement",
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-55",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": [
+            "fresh-dunking"
+          ]
+        },
+        {
+          "id": "d-r-01",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-30",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-42",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-11",
+          "yes": [
+            "orig-sports"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-36",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-37",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-29",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-09",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-35",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-14",
+          "yes": [
+            "fresh-doom"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-39",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-12",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-15",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-12",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-34",
+          "yes": [
+            "orig-crypto"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-41",
+          "yes": [
+            "orig-ai"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-22",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-30",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-15",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-27",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-33",
+          "yes": [
+            "orig-sports"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-08",
+          "yes": [
+            "orig-politics"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-58",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-53",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-05",
+          "yes": [
+            "orig-food"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-28",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-43",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-61",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-18",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-44",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-42",
+          "yes": [
+            "orig-engagement"
+          ],
+          "borderline": [
+            "fresh-engagement"
+          ]
+        },
+        {
+          "id": "d-s-06",
+          "yes": [
+            "orig-celebrity"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-30",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-20",
+          "yes": [],
+          "borderline": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "fresh-dunking",
+            "orig-drama"
+          ]
+        },
+        {
+          "id": "d-s-01",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-30",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-36",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-44",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-16",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-01",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-08",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-36",
+          "yes": [
+            "orig-fitness"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-08",
+          "yes": [
+            "fresh-rudeness"
+          ],
+          "borderline": [
+            "excessive-rudeness"
+          ]
+        },
+        {
+          "id": "h-s-24",
+          "yes": [
+            "orig-crypto"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-57",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-31",
+          "yes": [
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-46",
+          "yes": [
+            "orig-ai"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-37",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": [
+            "fresh-dunking"
+          ]
+        },
+        {
+          "id": "d-r-48",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-28",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-40",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-26",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-58",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-35",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-19",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-14",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-14",
+          "yes": [
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-63",
+          "yes": [
+            "excessive-rudeness"
+          ],
+          "borderline": [
+            "fresh-rudeness"
+          ]
+        },
+        {
+          "id": "h-s-29",
+          "yes": [
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-13",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-53",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-41",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-51",
+          "yes": [],
+          "borderline": [
+            "orig-politics"
+          ]
+        },
+        {
+          "id": "h-r-61",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-43",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-59",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-39",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-02",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-31",
+          "yes": [
+            "orig-politics"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-07",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-37",
+          "yes": [
+            "orig-fitness"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-01",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-46",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-25",
+          "yes": [
+            "orig-sports"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-02",
+          "yes": [
+            "fresh-hustle"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-05",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-09",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-40",
+          "yes": [
+            "excessive-rudeness"
+          ],
+          "borderline": [
+            "fresh-rudeness"
+          ]
+        },
+        {
+          "id": "d-s-05",
+          "yes": [
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-03",
+          "yes": [
+            "fresh-engagement",
+            "orig-food",
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-32",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-31",
+          "yes": [
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-13",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-20",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-59",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": [
+            "fresh-dunking"
+          ]
+        },
+        {
+          "id": "d-s-48",
+          "yes": [
+            "fresh-doom"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-07",
+          "yes": [
+            "fresh-hustle"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-62",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": [
+            "fresh-dunking"
+          ]
+        },
+        {
+          "id": "d-r-22",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-21",
+          "yes": [
+            "orig-sports"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-46",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-33",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-56",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-10",
+          "yes": [
+            "orig-ai"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-09",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-47",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-07",
+          "yes": [
+            "excessive-rudeness"
+          ],
+          "borderline": [
+            "fresh-rudeness"
+          ]
+        },
+        {
+          "id": "d-r-12",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-15",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-52",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-16",
+          "yes": [
+            "fresh-engagement",
+            "orig-engagement"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-18",
+          "yes": [
+            "orig-crypto"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-r-51",
+          "yes": [
+            "excessive-rudeness"
+          ],
+          "borderline": [
+            "fresh-rudeness"
+          ]
+        },
+        {
+          "id": "h-r-45",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-14",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": [
+            "fresh-dunking"
+          ]
+        },
+        {
+          "id": "h-s-17",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-45",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-48",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness",
+            "orig-drama"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-s-13",
+          "yes": [
+            "orig-politics"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "d-r-32",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness"
+          ],
+          "borderline": []
+        },
+        {
+          "id": "h-s-20",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-11",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness"
+          ],
+          "borderline": [
+            "orig-rage"
+          ]
+        },
+        {
+          "id": "h-r-60",
+          "yes": [
+            "excessive-rudeness",
+            "fresh-rudeness"
+          ],
+          "borderline": [
+            "fresh-dunking"
+          ]
+        },
+        {
+          "id": "d-r-47",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-38",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-22",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-10",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-63",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-32",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-r-04",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-s-17",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "d-r-03",
+          "yes": [],
+          "borderline": []
+        },
+        {
+          "id": "h-s-41",
+          "yes": [
+            "orig-promotion"
+          ],
+          "borderline": []
+        }
+      ]
+    }
+  ],
+  "corpora": {
+    "discovery": {
+      "file": "scripts/decision-eval/corpora/tone-label-discovery-2026-11-25.json",
+      "sha256": "a9b46487c5d4107134f73645413955bf8e07a664393bf28cd47097f2c8a19d2f"
+    },
+    "holdout": {
+      "file": "scripts/decision-eval/corpora/tone-label-holdout-2026-11-25.json",
+      "sha256": "3ad112fd60c7666599a83e79f04d77b9df50de93b482d2ff2d10ed8e77271031"
+    }
+  }
+}

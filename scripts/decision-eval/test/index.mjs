@@ -13,3 +13,7 @@ import './guidance-report.test.mjs';
 import './capacity-analysis.test.mjs';
 import './capacity-pipeline.test.mjs';
 import './capacity-report.test.mjs';
+import './tone-label-corpus.test.mjs';
+import './tone-label-metrics.test.mjs';
+import './tone-label-study.test.mjs';
+import './tone-label.test.mjs';

@@ -1368,3 +1368,9 @@ Pinned corpus hashes:
 - `native-benchmark-corpus.ts`: `a5db3bf30aa3039a3e571020c111797e1cfdd675872514a40139e66db6038603`
 - `native-isolation-holdout.json`: `18841a6609d9e68493c629880bc03eeaa233eab890245e5cfd5c2eaa9e9d4159`
 - `native-migration-validation.json`: `354e80566fdf889e213aec9072387c42f8286a48347379b1142073cba3fa4e27`
+
+<!-- tone-label-study:start -->
+## Tone label study
+
+No tone label study results have been recorded.
+<!-- tone-label-study:end -->

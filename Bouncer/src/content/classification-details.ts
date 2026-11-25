@@ -1,5 +1,5 @@
 import type { ClassificationDetails } from '../types';
-import { DECISION_MODEL } from '../shared/decision-model';
+import { DECISION_MODEL, decisionCutoff } from '../shared/decision-model';
 import { asyncHandler } from '../shared/async';
 
 /** Only request/decision data belongs in the export, never display metadata. */
@@ -10,12 +10,14 @@ export function createClassificationDetails(classification: ClassificationDetail
   summary.textContent = 'Details';
   details.appendChild(summary);
 
-  const cutoff = document.createElement('p');
-  cutoff.textContent = `Matched when score ≥ ${DECISION_MODEL.cutoff}`;
-  details.appendChild(cutoff);
+  // Older snapshots without a request state used the original global cutoff.
+  const cutoff = typeof classification?.textSent === 'string' ? decisionCutoff(classification.textSent) : DECISION_MODEL.cutoff;
+  const cutoffText = document.createElement('p');
+  cutoffText.textContent = `Matched when score ≥ ${cutoff}`;
+  details.appendChild(cutoffText);
 
   const scores = (classification?.scores ?? []).map(({ label, score }) => ({
-    label, score, matched: score >= DECISION_MODEL.cutoff,
+    label, score, matched: score >= cutoff,
   }));
   if (scores.length) {
     const list = document.createElement('ul');
@@ -50,7 +52,7 @@ export function createClassificationDetails(classification: ClassificationDetail
       bouncerVersion: chrome.runtime.getManifest().version,
       model: classification?.model ?? DECISION_MODEL.id,
       templateId: DECISION_MODEL.templateId,
-      cutoff: DECISION_MODEL.cutoff,
+      cutoff,
       postUrl,
       textSent: classification?.textSent ?? null,
       scores,

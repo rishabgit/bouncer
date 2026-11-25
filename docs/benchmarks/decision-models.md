@@ -1368,3 +1368,171 @@ Pinned corpus hashes:
 - `native-benchmark-corpus.ts`: `a5db3bf30aa3039a3e571020c111797e1cfdd675872514a40139e66db6038603`
 - `native-isolation-holdout.json`: `18841a6609d9e68493c629880bc03eeaa233eab890245e5cfd5c2eaa9e9d4159`
 - `native-migration-validation.json`: `354e80566fdf889e213aec9072387c42f8286a48347379b1142073cba3fa4e27`
+
+## Tone label study findings
+
+This study asked why a rudeness filter hides harmless posts, and whether label wording, the question template or a label-agnostic rule can fix it. It used two independently authored synthetic splits (discovery and holdout, 112 posts each, slurs masked), gold for 18 filter intents confirmed by two blind labelers, and a holdout registered before inference and run once.
+
+- **Vocabulary, not acts.** Under the typed label, posts that swear at things, criticise rudeness, quote an insult to object to it or tease friends were hidden at rates of 60 to 100%. The same posts rewritten without the rude-sounding words were rarely hidden: 16 of 23 originals against 1 of 23 rewrites on discovery, and 16 against 3 on the holdout. Sarcastic contempt without rude words was mostly missed.
+- **Almost no words of their own.** Mean scores on five content-free inputs ranged from 0.11 to 0.36 across labels, at or above the general cutoff for some, and changing only the @handle of a short reply moved its typed-label score by up to about 0.28 (0.36 when the variant with no handle is included).
+- **Wording and templates.** Thirteen wordings made 27 to 31 errors on the 112 discovery posts; pooled over both splits, no tested wording beat the label as typed (54 errors against 54 to 57). Three of four alternative templates ranked posts almost identically (Spearman 0.94 to 0.99); the fourth agreed less (0.74) and was worse.
+- **Stricter cutoffs trade errors.** A uniform 0.72 cutoff cut the owner label's false hides on the holdout from 21 to 3 but raised misses from 6 to 12, three of them slur posts, and missed 30 topic decisions on the earlier validation set. It is not adopted.
+- **Short-post rule adopted.** Requiring 0.70 for posts with at most three own words passed every registered gate: tone-holdout errors fell from 231 to 177 with no added misses, and the owner label was unchanged. The earlier validation and behaviour corpora contain no posts with three or fewer own words, so they could not show an effect; short topical posts were thinly covered (one scored positive decision in the holdout; a second was excluded as ambiguous). The extension now applies it.
+
+<!-- tone-label-study:start -->
+## Tone label study
+
+Single-filter decisions; ambiguous pairs excluded. Discovery cutoffs are exploratory. Holdout uses the registered cutoffs and gates.
+
+**Discovery**
+
+| Wording | Label | n | Errors | FP / FN | AUC | Best cutoff / errors |
+| --- | --- | --- | --- | --- | --- | --- |
+| W0 | performative rudeness that are execessive like unnecessary usage of slurs | 112 | 27 | 19 / 8 | 0.8422 | 0.7151 / 20 |
+| W1 | performative rudeness that are excessive like unnecessary usage of slurs | 112 | 27 | 19 / 8 | 0.8383 | 0.7049 / 20 |
+| W2 | excessive rudeness | 112 | 31 | 23 / 8 | 0.8086 | 0.5777 / 22 |
+| W3 | rude posts | 112 | 31 | 24 / 7 | 0.8086 | 0.6860 / 23 |
+| W4 | posts being deliberately rude or edgy to get attention | 112 | 30 | 24 / 6 | 0.8355 | 0.7390 / 19 |
+| W5 | posts insulting people or using slurs | 112 | 28 | 20 / 8 | 0.8355 | 0.6526 / 19 |
+| W6 | posts that insult someone or use slurs | 112 | 29 | 20 / 9 | 0.8340 | 0.6084 / 19 |
+| W7 | insults, slurs and name-calling aimed at people | 112 | 28 | 21 / 7 | 0.8266 | 0.7261 / 20 |
+| W8 | posts where the author insults people or uses slurs | 112 | 28 | 19 / 9 | 0.8258 | 0.7178 / 20 |
+| W9 | slurs or insults | 112 | 30 | 22 / 8 | 0.8219 | 0.8972 / 21 |
+| W10 | posts with slurs | 112 | 30 | 20 / 10 | 0.8137 | 0.7150 / 21 |
+| W11 | posts mocking or insulting people to look edgy | 112 | 27 | 20 / 7 | 0.8566 | 0.7685 / 17 |
+| W12 | posts insulting or attacking a person | 112 | 28 | 19 / 9 | 0.8379 | 0.8626 / 18 |
+
+| Policy | Template | State transform | Calibration | n | Cutoff | Errors | FP / FN | Low-content FP | Short-positive FN |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| P0 | T0 | none | none | 2192 | 0.290813258948728 | 240 | 228 / 12 | 44 | 0 |
+| P1 | T1 | none | none | 2192 | 0.7411908547670589 | 63 | 12 / 51 | 0 | 5 |
+| P2 | T2 | none | none | 2192 | 0.6863968387955592 | 96 | 26 / 70 | 3 | 3 |
+| P3 | T3 | none | none | 2192 | 0.6765923102275773 | 109 | 35 / 74 | 5 | 4 |
+| P4 | T4 | none | none | 2192 | 0.7763282897323603 | 72 | 19 / 53 | 0 | 4 |
+| P5 | T0 | none | content-free | 2192 | 0.9313052169208927 | 73 | 25 / 48 | 3 | 2 |
+| P6 | T0 | strip-leading-mentions | none | 2192 | 0.290813258948728 | 213 | 200 / 13 | 25 | 1 |
+
+[Discovery summary](data/decision-tone-discovery-summary.json).
+
+Short-rule grid: saved best cutoffs for posts with at most N own words.
+
+| N | Short cutoff | Errors | FP | FN |
+| --- | --- | --- | --- | --- |
+| 0 | 0.7643 | 221 | 209 | 12 |
+| 1 | 0.8717 | 200 | 186 | 14 |
+| 2 | 0.8717 | 190 | 176 | 14 |
+| 3 | 0.8184 | 167 | 152 | 15 |
+| 4 | 0.8184 | 163 | 146 | 17 |
+| 5 | 0.8184 | 156 | 138 | 18 |
+
+W0 subtype probabilities; shares use the recorded cutoff of 0.290813258948728.
+
+| Subtype | n | Median | Share ≥ cutoff |
+| --- | --- | --- | --- |
+| blunt-critique | 3 | 0.0113 | 0.0000 |
+| violent-slang-praise | 3 | 0.0600 | 0.0000 |
+| hate-speech-news | 2 | 0.0539 | 0.0000 |
+| ordinary | 8 | 0.0246 | 0.0000 |
+| criticises-rudeness | 5 | 0.5034 | 0.8000 |
+| angry-complaint | 3 | 0.0149 | 0.0000 |
+| casual-slur | 3 | 0.6147 | 1.0000 |
+| quotes-to-object | 5 | 0.5528 | 0.6000 |
+| banter | 4 | 0.3680 | 0.5000 |
+| death-wish | 2 | 0.3193 | 0.5000 |
+| edgy-contempt | 5 | 0.1803 | 0.4000 |
+| sarcastic-contempt | 4 | 0.0520 | 0.0000 |
+| untargeted-profanity | 5 | 0.7066 | 1.0000 |
+| name-calling | 4 | 0.7879 | 1.0000 |
+| slur-insult | 4 | 0.7046 | 1.0000 |
+| group-slur | 2 | 0.5920 | 1.0000 |
+| word-discussion | 2 | 0.3122 | 1.0000 |
+| short-rude | 8 | 0.7904 | 1.0000 |
+| low-content | 18 | 0.0930 | 0.1111 |
+| short-topic | 10 | 0.0329 | 0.0000 |
+| short-behaviour | 6 | 0.0567 | 0.0000 |
+| short-slang | 6 | 0.0620 | 0.1667 |
+
+Source-to-twin probability drops.
+
+| Wording | Pairs | Median source − twin |
+| --- | --- | --- |
+| W0 | 23 | 0.3833 |
+| W5 | 23 | 0.3146 |
+
+Handle-noise probabilities across the saved variants.
+
+| Wording | Texts | Probability min–max | Median text range | Max text range | Texts crossing cutoff |
+| --- | --- | --- | --- | --- | --- |
+| W0 | 26 | 0.0123–0.9490 | 0.0773 | 0.3550 | 4 |
+| W5 | 26 | 0.0041–0.9832 | 0.0586 | 0.5626 | 2 |
+
+Template sensitivity.
+
+| Template | n | AUC n | Spearman vs T0 | AUC |
+| --- | --- | --- | --- | --- |
+| T0 | 2284 | 2192 | 1.0000 | 0.9626 |
+| T1 | 2284 | 2192 | 0.9810 | 0.9646 |
+| T2 | 2284 | 2192 | 0.9375 | 0.9445 |
+| T3 | 2284 | 2192 | 0.7389 | 0.8980 |
+| T4 | 2284 | 2192 | 0.9922 | 0.9612 |
+
+Content-free prior probabilities by intent and wording ID.
+
+| Template | Label IDs | . | … | - | N/A | ? |
+| --- | --- | --- | --- | --- | --- | --- |
+| T0 | excessive-rudeness, W0 | 0.1684 | 0.2076 | 0.1088 | 0.0981 | 0.2027 |
+| T0 | fresh-doom | 0.3207 | 0.3601 | 0.2507 | 0.2000 | 0.1969 |
+| T0 | fresh-dunking | 0.1514 | 0.1853 | 0.1476 | 0.1102 | 0.1188 |
+| T0 | fresh-engagement | 0.2817 | 0.3478 | 0.1806 | 0.2012 | 0.4167 |
+| T0 | fresh-humblebrag | 0.1931 | 0.2677 | 0.1634 | 0.1559 | 0.1563 |
+| T0 | fresh-hustle | 0.3793 | 0.4894 | 0.3699 | 0.2971 | 0.2774 |
+| T0 | fresh-rudeness, W4 | 0.2174 | 0.2282 | 0.1912 | 0.1339 | 0.2352 |
+| T0 | orig-ai | 0.2476 | 0.3368 | 0.1616 | 0.1698 | 0.1460 |
+| T0 | orig-celebrity | 0.1458 | 0.2464 | 0.1071 | 0.1225 | 0.0968 |
+| T0 | orig-crypto | 0.2195 | 0.3047 | 0.1727 | 0.2029 | 0.1281 |
+| T0 | orig-drama | 0.1839 | 0.2361 | 0.1194 | 0.1260 | 0.1225 |
+| T0 | orig-engagement | 0.2631 | 0.3225 | 0.1708 | 0.1394 | 0.2152 |
+| T0 | orig-fitness | 0.2580 | 0.3827 | 0.2578 | 0.2050 | 0.1466 |
+| T0 | orig-food | 0.3027 | 0.3959 | 0.2278 | 0.2274 | 0.1525 |
+| T0 | orig-politics | 0.1565 | 0.2562 | 0.1312 | 0.1423 | 0.0806 |
+| T0 | orig-promotion | 0.1696 | 0.2311 | 0.1358 | 0.1298 | 0.0926 |
+| T0 | orig-rage | 0.1243 | 0.1698 | 0.1192 | 0.0573 | 0.1609 |
+| T0 | orig-sports | 0.1802 | 0.2941 | 0.1406 | 0.1250 | 0.0947 |
+| T0 | W1 | 0.1841 | 0.2245 | 0.1248 | 0.1087 | 0.2375 |
+| T0 | W2 | 0.2354 | 0.2642 | 0.1523 | 0.1432 | 0.2637 |
+| T0 | W3 | 0.2344 | 0.2877 | 0.1684 | 0.1359 | 0.1840 |
+| T0 | W5 | 0.1494 | 0.2096 | 0.1062 | 0.1000 | 0.1022 |
+| T0 | W6 | 0.1535 | 0.2004 | 0.1020 | 0.0969 | 0.0929 |
+| T0 | W7 | 0.1479 | 0.1973 | 0.1005 | 0.1037 | 0.0853 |
+| T0 | W8 | 0.1369 | 0.1697 | 0.0891 | 0.0678 | 0.0888 |
+| T0 | W9 | 0.1745 | 0.2025 | 0.1086 | 0.1106 | 0.1077 |
+| T0 | W10 | 0.1516 | 0.1983 | 0.0937 | 0.0920 | 0.0967 |
+| T0 | W11 | 0.2011 | 0.2595 | 0.1754 | 0.1531 | 0.1458 |
+| T0 | W12 | 0.1914 | 0.2364 | 0.1347 | 0.1170 | 0.1122 |
+
+**Holdout**
+
+| Wording | Label | n | Errors | FP / FN | AUC |
+| --- | --- | --- | --- | --- | --- |
+| W0 | performative rudeness that are execessive like unnecessary usage of slurs | 109 | 27 | 21 / 6 | 0.8681 |
+| W5 | posts insulting people or using slurs | 109 | 26 | 21 / 5 | 0.8776 |
+| W11 | posts mocking or insulting people to look edgy | 109 | 30 | 26 / 4 | 0.8961 |
+| W12 | posts insulting or attacking a person | 109 | 28 | 23 / 5 | 0.8763 |
+
+| Policy | Template | State transform | Calibration | n | Cutoff | Errors | FP / FN | Low-content FP | Short-positive FN |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| P0 | T0 | none | none | 3060 | 0.290813258948728 | 299 | 273 / 26 | 38 | 1 |
+| Q | T0 | none | none | 3060 | 0.290813258948728; ≤3 words: 0.7 | 245 | 219 / 26 | 3 | 1 |
+| S | T0 | none | none | 3060 | 0.72 | 125 | 45 / 80 | 3 | 3 |
+
+[Holdout summary](data/decision-tone-holdout-summary.json).
+
+| Gate | Scope | Actual | Comparator | factor × ref + slack | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| G1 fewer errors on the tone holdout, all intents | corpus:tone-holdout | 177 | <= | 0.85 × 231 + 0 = 196.35 | PASS |
+| G2 bounded extra misses on the tone holdout | corpus:tone-holdout | 6 | <= | 1 × 6 + 2 = 8 | PASS |
+| G3 original validation not worse | corpus:original-validation | 2 | <= | 1 × 2 + 1 = 3 | PASS |
+| G4 earlier behaviour corpus not worse | corpus:fresh-behaviour | 66 | <= | 1 × 66 + 1 = 67 | PASS |
+| G5 owner label errors not worse | group:excessive-rudeness | 27 | <= | 1 × 27 + 0 = 27 | PASS |
+| G6 owner label at most one extra miss | group:excessive-rudeness | 6 | <= | 1 × 6 + 1 = 7 | PASS |
+<!-- tone-label-study:end -->

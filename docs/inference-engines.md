@@ -10,10 +10,12 @@ The service worker makes only two kinds of local request:
   advertise context, batch and microbatch 4096, parallelism one and no projector,
   without loading the model.
 - `POST /v1/systemone` sends only the post's own text as `state` and one `noul`
-  question per filter, keyed `f0`, `f1`, and so on in filter order. Valid probabilities at or
-  above `0.290813258948728` match the corresponding phrase.
+  question per filter, keyed `f0`, `f1`, and so on in filter order. Every filter
+  matches at a probability of at least `0.70` for at most three own words in the
+  sent `state` or `0.290813258948728` otherwise, excluding http(s) links and
+  @handles; see [quality and limits](models.md#quality-and-limits).
 
-Model identity, endpoint, question template, rage-bait guidance, cutoff and
+Model identity, endpoint, question template, rage-bait guidance, cutoffs and
 classifier fingerprint are defined in `Bouncer/src/shared/decision-model.ts`.
 Requests time out after 25 seconds and use `credentials: "omit"` and
 `redirect: "error"`. Content scripts submit typed post/filter operations.

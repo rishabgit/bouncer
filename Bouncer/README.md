@@ -27,7 +27,7 @@ websites can access localhost; review the prompt for the requesting site.
 ## Source and build
 
 `src/shared/decision-model.ts` is the single source for the model, endpoint,
-System One request template, probability cutoff, input limits and classifier
+System One request template, probability cutoffs, input limits and classifier
 fingerprint. The service worker owns local `fetch` calls; content scripts
 submit typed post and filter operations. X extraction, selectors and theme
 behavior live in `adapters/twitter/`. DOMPurify sanitizes displayed post HTML.
@@ -50,8 +50,11 @@ precedence over automatic results.
 
 Readiness uses only `GET /v1/models` to find the fixed model and inspect its
 configured arguments. Classification uses `POST /v1/systemone` with bare post
-text and one `noul` question per filter. Each valid probability is matched with
-the frozen cutoff. A transport error, timeout, truncated response or malformed
+text and one `noul` question per filter. Every filter matches at a probability
+of at least `0.70` for at most three own words in the sent text or
+`0.290813258948728` otherwise, excluding http(s) links and @handles; see
+[quality and limits](../docs/models.md#quality-and-limits).
+A transport error, timeout, truncated response or malformed
 answer leaves that post visible and later filtering continues.
 
 Settings, compatible cache reads and empty feeds leave model weights unloaded.

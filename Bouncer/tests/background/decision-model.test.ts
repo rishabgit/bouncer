@@ -49,7 +49,7 @@ describe('fixed decision request', () => {
   });
   it('maps answers using the request filter snapshot after caller mutation', async () => {
     const filters = ['birds'];
-    const pending = engine.classify({ text: 'A post' }, filters);
+    const pending = engine.classify({ text: 'A post about birds' }, filters);
     filters[0] = 'changed while waiting';
     await expect(pending).resolves.toMatchObject({ matches: ['birds'], scores: [{ label: 'birds', score: 0.5 }] });
   });
@@ -86,7 +86,29 @@ describe('fixed decision request', () => {
   it('uses an inclusive cutoff and retains every matched filter in order', async () => {
     fetchMock.mockImplementation(async (url: string) => ok(url.endsWith('/v1/models') ? inventory()
       : answers(0.290813258948728, 0.2908132589487279, 0.2908132589487281)));
-    await expect(engine.classify({ text: 'A post' }, ['at', 'below', 'above'])).resolves.toMatchObject({ matches: ['at', 'above'] });
+    await expect(engine.classify({ text: 'A post about birds' }, ['at', 'below', 'above'])).resolves.toMatchObject({
+      shouldHide: true, matches: ['at', 'above'],
+    });
+  });
+  it.each([
+    ['@alice these are words https://example.test', 0.69, false],
+    ['@alice these are words https://example.test', 0.7, true],
+    ['these are four words', 0.2908, false],
+    ['these are four words', 0.290813258948728, true],
+  ])('uses the post cutoff for %j at %s (hide=%s), regardless of label', async (text, score, shouldHide) => {
+    fetchMock.mockImplementation(async (url: string) => ok(url.endsWith('/v1/models') ? inventory() : answers(score, score)));
+    const labels = ['rage bait', 'bird watching'];
+    await expect(engine.classify({ text }, labels)).resolves.toMatchObject({
+      shouldHide, matches: shouldHide ? labels : [], textSent: text,
+    });
+  });
+  it('chooses the short cutoff from truncated request state rather than the full post', async () => {
+    const text = `${'a'.repeat(1196)} b c fourth`;
+    fetchMock.mockImplementation(async (url: string) => ok(url.endsWith('/v1/models') ? inventory() : answers(0.69)));
+    const result = await engine.classify({ text }, ['birds']);
+    const body = JSON.parse((fetchMock.mock.calls[1][1] as RequestInit).body as string);
+    expect(body.state).toBe(`${'a'.repeat(1196)} b c`);
+    expect(result).toMatchObject({ shouldHide: false, matches: [], textSent: body.state });
   });
   it.each([{}, { answers: { f0: { type: 'noul', noul: '0.9' } } }, answers(-1), answers(1.1),
     { answers: { f0: { type: 'choice', noul: 1 } } }, answers(NaN), { answers: { f1: { type: 'noul', noul: 1 } } },
@@ -98,7 +120,11 @@ describe('fixed decision request', () => {
   });
   it('binds model, question rules, state format, cutoff and budgets into cache identity', () => {
     const original = decisionModelFingerprint();
+    expect(engine.getClassifierFingerprint()).toBe(original);
     for (const change of [{ id: 'new-model' }, { templateId: 'new-template' }, { template: 'new words' }, { cutoff: 0.3 },
+      { shortRule: { ...DECISION_MODEL.shortRule, maxOwnWords: 2 } },
+      { shortRule: { ...DECISION_MODEL.shortRule, cutoff: 0.8 } },
+      { shortRule: { ...DECISION_MODEL.shortRule, ownWords: 'new-counter-version' } },
       { postWeightCap: 100 }, { requestTextByteCap: 1024 }, { rageSeparator: '\\n\\n' }, { ragePattern: 'rage bait' }, { stateFormat: 'author-prefixed' }]) {
       expect(decisionModelFingerprint({ ...DECISION_MODEL, ...change })).not.toBe(original);
     }

@@ -1,0 +1,111 @@
+{
+  "intents": [
+    {
+      "id": "excessive-rudeness",
+      "source": "tone",
+      "rubric": "Test-only rubric for excessive-rudeness."
+    },
+    {
+      "id": "fresh-rudeness",
+      "source": "guidance-fresh",
+      "rubric": "Test-only rubric for fresh-rudeness.",
+      "label": "posts about fresh-rudeness"
+    },
+    {
+      "id": "fresh-humblebrag",
+      "source": "guidance-fresh",
+      "rubric": "Test-only rubric for fresh-humblebrag.",
+      "label": "posts about fresh-humblebrag"
+    },
+    {
+      "id": "fresh-doom",
+      "source": "guidance-fresh",
+      "rubric": "Test-only rubric for fresh-doom.",
+      "label": "posts about fresh-doom"
+    },
+    {
+      "id": "fresh-hustle",
+      "source": "guidance-fresh",
+      "rubric": "Test-only rubric for fresh-hustle.",
+      "label": "posts about fresh-hustle"
+    },
+    {
+      "id": "fresh-dunking",
+      "source": "guidance-fresh",
+      "rubric": "Test-only rubric for fresh-dunking.",
+      "label": "posts about fresh-dunking"
+    },
+    {
+      "id": "fresh-engagement",
+      "source": "guidance-fresh",
+      "rubric": "Test-only rubric for fresh-engagement.",
+      "label": "posts about fresh-engagement"
+    },
+    {
+      "id": "orig-crypto",
+      "source": "original",
+      "rubric": "Test-only rubric for orig-crypto.",
+      "label": "posts about orig-crypto"
+    },
+    {
+      "id": "orig-politics",
+      "source": "original",
+      "rubric": "Test-only rubric for orig-politics.",
+      "label": "posts about orig-politics"
+    },
+    {
+      "id": "orig-engagement",
+      "source": "original",
+      "rubric": "Test-only rubric for orig-engagement.",
+      "label": "posts about orig-engagement"
+    },
+    {
+      "id": "orig-sports",
+      "source": "original",
+      "rubric": "Test-only rubric for orig-sports.",
+      "label": "posts about orig-sports"
+    },
+    {
+      "id": "orig-ai-hype",
+      "source": "original",
+      "rubric": "Test-only rubric for orig-ai-hype.",
+      "label": "posts about orig-ai-hype"
+    },
+    {
+      "id": "orig-celebrity",
+      "source": "original",
+      "rubric": "Test-only rubric for orig-celebrity.",
+      "label": "posts about orig-celebrity"
+    },
+    {
+      "id": "orig-self-promotion",
+      "source": "original",
+      "rubric": "Test-only rubric for orig-self-promotion.",
+      "label": "posts about orig-self-promotion"
+    },
+    {
+      "id": "orig-food",
+      "source": "original",
+      "rubric": "Test-only rubric for orig-food.",
+      "label": "posts about orig-food"
+    },
+    {
+      "id": "orig-fitness",
+      "source": "original",
+      "rubric": "Test-only rubric for orig-fitness.",
+      "label": "posts about orig-fitness"
+    },
+    {
+      "id": "orig-drama",
+      "source": "original",
+      "rubric": "Test-only rubric for orig-drama.",
+      "label": "posts about orig-drama"
+    },
+    {
+      "id": "orig-news",
+      "source": "original",
+      "rubric": "Test-only rubric for orig-news.",
+      "label": "posts about orig-news"
+    }
+  ]
+}

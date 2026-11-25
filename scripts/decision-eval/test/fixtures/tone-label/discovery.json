@@ -1,0 +1,175 @@
+{
+  "split": "discovery",
+  "author": "Test author discovery",
+  "posts": [
+    {
+      "id": "d-00",
+      "part": "tone",
+      "text": "Test-only discovery statement 00 about excessive-rudeness.",
+      "authoredFor": "excessive-rudeness",
+      "kind": "clear-positive",
+      "subtype": "direct",
+      "ownIntentGold": true
+    },
+    {
+      "id": "d-01",
+      "part": "fresh",
+      "text": "Test-only discovery statement 01 about fresh-rudeness.",
+      "authoredFor": "fresh-rudeness",
+      "kind": "near-miss",
+      "subtype": "specific-criticism",
+      "ownIntentGold": false
+    },
+    {
+      "id": "d-02",
+      "part": "fresh",
+      "text": "Test-only discovery statement 02 about fresh-humblebrag.",
+      "authoredFor": "fresh-humblebrag",
+      "kind": "clear-positive",
+      "subtype": "direct",
+      "ownIntentGold": true
+    },
+    {
+      "id": "d-03",
+      "part": "fresh",
+      "text": "Test-only discovery statement 03 about fresh-doom.",
+      "authoredFor": "fresh-doom",
+      "kind": "near-miss",
+      "subtype": "specific-criticism",
+      "ownIntentGold": false
+    },
+    {
+      "id": "d-04",
+      "part": "fresh",
+      "text": "Test-only discovery statement 04 about fresh-hustle.",
+      "authoredFor": "fresh-hustle",
+      "kind": "clear-positive",
+      "subtype": "direct",
+      "ownIntentGold": true
+    },
+    {
+      "id": "d-05",
+      "part": "fresh",
+      "text": "Test-only discovery statement 05 about fresh-dunking.",
+      "authoredFor": "fresh-dunking",
+      "kind": "near-miss",
+      "subtype": "specific-criticism",
+      "ownIntentGold": false
+    },
+    {
+      "id": "d-06",
+      "part": "fresh",
+      "text": "Test-only discovery statement 06 about fresh-engagement.",
+      "authoredFor": "fresh-engagement",
+      "kind": "clear-positive",
+      "subtype": "direct",
+      "ownIntentGold": true
+    },
+    {
+      "id": "d-07",
+      "part": "original",
+      "text": "Test-only discovery statement 07 about orig-crypto.",
+      "authoredFor": "orig-crypto",
+      "kind": "near-miss",
+      "subtype": "specific-criticism",
+      "ownIntentGold": false
+    },
+    {
+      "id": "d-08",
+      "part": "original",
+      "text": "Test-only discovery statement 08 about orig-politics.",
+      "authoredFor": "orig-politics",
+      "kind": "clear-positive",
+      "subtype": "direct",
+      "ownIntentGold": true
+    },
+    {
+      "id": "d-09",
+      "part": "original",
+      "text": "Test-only discovery statement 09 about orig-engagement.",
+      "authoredFor": "orig-engagement",
+      "kind": "near-miss",
+      "subtype": "specific-criticism",
+      "ownIntentGold": false
+    },
+    {
+      "id": "d-10",
+      "part": "original",
+      "text": "Test-only discovery statement 10 about orig-sports.",
+      "authoredFor": "orig-sports",
+      "kind": "clear-positive",
+      "subtype": "direct",
+      "ownIntentGold": true
+    },
+    {
+      "id": "d-11",
+      "part": "original",
+      "text": "Test-only discovery statement 11 about orig-ai-hype.",
+      "authoredFor": "orig-ai-hype",
+      "kind": "near-miss",
+      "subtype": "specific-criticism",
+      "ownIntentGold": false
+    },
+    {
+      "id": "d-12",
+      "part": "original",
+      "text": "Test-only discovery statement 12 about orig-celebrity.",
+      "authoredFor": "orig-celebrity",
+      "kind": "clear-positive",
+      "subtype": "direct",
+      "ownIntentGold": true
+    },
+    {
+      "id": "d-13",
+      "part": "original",
+      "text": "Test-only discovery statement 13 about orig-self-promotion.",
+      "authoredFor": "orig-self-promotion",
+      "kind": "near-miss",
+      "subtype": "specific-criticism",
+      "ownIntentGold": false
+    },
+    {
+      "id": "d-14",
+      "part": "original",
+      "text": "Test-only discovery statement 14 about orig-food.",
+      "authoredFor": "orig-food",
+      "kind": "clear-positive",
+      "subtype": "direct",
+      "ownIntentGold": true
+    },
+    {
+      "id": "d-15",
+      "part": "original",
+      "text": "Test-only discovery statement 15 about orig-fitness.",
+      "authoredFor": "orig-fitness",
+      "kind": "near-miss",
+      "subtype": "specific-criticism",
+      "ownIntentGold": false
+    },
+    {
+      "id": "d-16",
+      "part": "original",
+      "text": "Test-only discovery statement 16 about orig-drama.",
+      "authoredFor": "orig-drama",
+      "kind": "clear-positive",
+      "subtype": "direct",
+      "ownIntentGold": true
+    },
+    {
+      "id": "d-17",
+      "part": "original",
+      "text": "Test-only discovery statement 17 about orig-news.",
+      "authoredFor": "orig-news",
+      "kind": "near-miss",
+      "subtype": "specific-criticism",
+      "ownIntentGold": false
+    }
+  ],
+  "twins": [
+    {
+      "id": "d-twin",
+      "sourceId": "d-00",
+      "text": "Test-only discovery twin with changed typography."
+    }
+  ]
+}

@@ -1,0 +1,221 @@
+{
+  "labeler": "Blind test labeler 2",
+  "posts": [
+    {
+      "id": "d-00",
+      "yes": [
+        "excessive-rudeness"
+      ],
+      "borderline": []
+    },
+    {
+      "id": "d-01",
+      "yes": [],
+      "borderline": []
+    },
+    {
+      "id": "d-02",
+      "yes": [
+        "fresh-humblebrag"
+      ],
+      "borderline": []
+    },
+    {
+      "id": "d-03",
+      "yes": [],
+      "borderline": []
+    },
+    {
+      "id": "d-04",
+      "yes": [
+        "fresh-hustle"
+      ],
+      "borderline": []
+    },
+    {
+      "id": "d-05",
+      "yes": [],
+      "borderline": []
+    },
+    {
+      "id": "d-06",
+      "yes": [
+        "fresh-engagement"
+      ],
+      "borderline": []
+    },
+    {
+      "id": "d-07",
+      "yes": [],
+      "borderline": []
+    },
+    {
+      "id": "d-08",
+      "yes": [
+        "orig-politics"
+      ],
+      "borderline": []
+    },
+    {
+      "id": "d-09",
+      "yes": [],
+      "borderline": []
+    },
+    {
+      "id": "d-10",
+      "yes": [
+        "orig-sports"
+      ],
+      "borderline": []
+    },
+    {
+      "id": "d-11",
+      "yes": [],
+      "borderline": []
+    },
+    {
+      "id": "d-12",
+      "yes": [
+        "orig-celebrity"
+      ],
+      "borderline": []
+    },
+    {
+      "id": "d-13",
+      "yes": [],
+      "borderline": []
+    },
+    {
+      "id": "d-14",
+      "yes": [
+        "orig-food"
+      ],
+      "borderline": []
+    },
+    {
+      "id": "d-15",
+      "yes": [],
+      "borderline": []
+    },
+    {
+      "id": "d-16",
+      "yes": [
+        "orig-drama"
+      ],
+      "borderline": []
+    },
+    {
+      "id": "d-17",
+      "yes": [],
+      "borderline": []
+    },
+    {
+      "id": "h-00",
+      "yes": [
+        "excessive-rudeness"
+      ],
+      "borderline": []
+    },
+    {
+      "id": "h-01",
+      "yes": [],
+      "borderline": []
+    },
+    {
+      "id": "h-02",
+      "yes": [
+        "fresh-humblebrag"
+      ],
+      "borderline": []
+    },
+    {
+      "id": "h-03",
+      "yes": [],
+      "borderline": []
+    },
+    {
+      "id": "h-04",
+      "yes": [
+        "fresh-hustle"
+      ],
+      "borderline": []
+    },
+    {
+      "id": "h-05",
+      "yes": [],
+      "borderline": []
+    },
+    {
+      "id": "h-06",
+      "yes": [
+        "fresh-engagement"
+      ],
+      "borderline": []
+    },
+    {
+      "id": "h-07",
+      "yes": [],
+      "borderline": []
+    },
+    {
+      "id": "h-08",
+      "yes": [
+        "orig-politics"
+      ],
+      "borderline": []
+    },
+    {
+      "id": "h-09",
+      "yes": [],
+      "borderline": []
+    },
+    {
+      "id": "h-10",
+      "yes": [
+        "orig-sports"
+      ],
+      "borderline": []
+    },
+    {
+      "id": "h-11",
+      "yes": [],
+      "borderline": []
+    },
+    {
+      "id": "h-12",
+      "yes": [
+        "orig-celebrity"
+      ],
+      "borderline": []
+    },
+    {
+      "id": "h-13",
+      "yes": [],
+      "borderline": []
+    },
+    {
+      "id": "h-14",
+      "yes": [
+        "orig-food"
+      ],
+      "borderline": []
+    },
+    {
+      "id": "h-15",
+      "yes": [],
+      "borderline": []
+    },
+    {
+      "id": "h-16",
+      "yes": [
+        "orig-drama"
+      ],
+      "borderline": []
+    },
+    {
+      "id": "h-17",
+      "yes": [],
+      "borderline": []
+    }
+  ]
+}

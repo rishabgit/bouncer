@@ -73,8 +73,15 @@ Manual decisions and compatible cached results remain available.
 ## Quality and limits
 
 The selected operating point is the `matches-category` template with
-`probability >= 0.290813258948728`, context/batch/microbatch 4096, one slot and
-no projector. Its recorded Llama.app version was 0.49.0.
+`probability >= cutoff`: `0.70` for at most three own words in the exact sent
+text, otherwise `0.290813258948728`, regardless of filter phrase. To count own
+words, remove case-insensitive `https?://\S+` http(s) links, then `@\w+` handles,
+and split on whitespace. Count each token containing a Unicode letter or digit
+as one own word, exactly as the registered holdout's `ownWords` in
+`scripts/decision-eval/tone-label-metrics.mjs`. The counter version is part of
+the classifier fingerprint. See the [tone label study](benchmarks/decision-models.md#tone-label-study).
+Context/batch/microbatch remain 4096, with one slot and no projector. The recorded
+Llama.app version was 0.49.0.
 
 On the two original corpora, d1 returned the exact expected filter vector for
 72 of 72 and 119 of 120 posts. The previous Gemma classifier returned 60 of 72
@@ -87,6 +94,15 @@ across 482 decisions, including 46 false hides; short labels produced 141
 errors. Larger decision models did not resolve the problem at acceptable
 latency. Tone filters can still overhide or miss posts. Describe what a post
 does or is about in plain words, and treat the results as fallible.
+
+A later tone label study found why. d1-2B responds to rude-sounding words more
+than to rude acts: posts that swear at things, criticise rudeness, quote an insult
+to object to it, or tease friends are often hidden by a rudeness filter, while
+polite contempt is usually missed. No tested label wording or question template
+changed this. On posts with almost no words of their own, scores mostly reflect
+the filter phrase and the @handle rather than the post, which is why such posts
+need the higher cutoff above. Details are in the
+[tone label study](benchmarks/decision-models.md#tone-label-study).
 
 Quality was evaluated with at most ten active filters. Bouncer enforces that
 limit and caps request text to fit the model’s context. Recorded model results

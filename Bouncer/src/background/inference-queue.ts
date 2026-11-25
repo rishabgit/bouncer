@@ -1,97 +1,36 @@
-// Serial priority queue for inference tasks.
-// Ensures one Bouncer inference operation owns the native request lease at a time.
-// Exported as a class so tests can create isolated instances.
+// One request at a time; each finite task settles before the next starts.
+export const STALE_WORK_ERROR = 'Stale work';
 
-interface QueueTask<T = unknown> {
-  fn: () => Promise<T>;
-  resolve: (value: T) => void;
-  reject: (reason?: unknown) => void;
-  priority: number;
+interface QueueTask {
+  run: () => Promise<void>;
+  reject: (reason: Error) => void;
 }
 
 export class InferenceQueue {
-  private _pending: QueueTask[];
-  private _processing: boolean;
-  private _drainPromise: Promise<unknown> | null;
+  private readonly _pending: QueueTask[] = [];
+  private _processing = false;
 
-  constructor() {
-    this._pending = [];
-    this._processing = false;
-    this._drainPromise = null;
-  }
-
-  // Queue an async function to run serially. Higher priority values run first
-  // among pending tasks. Returns a promise that resolves with the function's result.
-  enqueue<T>(fn: () => Promise<T>, { priority = 0 } = {}): Promise<T> {
+  enqueue<T>(fn: () => Promise<T>): Promise<T> {
     return new Promise<T>((resolve, reject) => {
-      const task: QueueTask<T> = { fn, resolve, reject, priority };
-      const idx = this._pending.findIndex(t => t.priority < priority);
-      if (idx === -1) {
-        this._pending.push(task as QueueTask);
-      } else {
-        this._pending.splice(idx, 0, task as QueueTask);
-      }
+      this._pending.push({ run: async () => { resolve(await fn()); }, reject });
       void this._process();
     });
   }
 
-  // Clear all pending (not currently executing) tasks.
-  // The in-flight task (already shifted out) is unaffected.
   clear(): void {
-    while (this._pending.length > 0) {
-      const task = this._pending.shift()!;
-      task.reject(new Error('Inference queue cleared'));
-    }
-  }
-
-  // Wait for any in-flight task to finish, then run `fn`.
-  // Pending tasks are cleared first so only the in-flight task must complete.
-  // Used to safely dispose the engine without racing with active inference.
-  // Serialized: concurrent drain calls chain instead of racing.
-  drain<T>(fn: () => Promise<T>): Promise<T> {
-    if (this._drainPromise) {
-      // Chain after in-progress drain to prevent clear() from rejecting it
-      this._drainPromise = this._drainPromise
-        .catch(() => {}) // Don't let previous drain errors block the chain
-        .then(() => this._executeDrain(fn));
-    } else {
-      this._drainPromise = this._executeDrain(fn);
-    }
-    const current = this._drainPromise;
-    return (current as Promise<T>).finally(() => {
-      if (this._drainPromise === current) {
-        this._drainPromise = null;
-      }
-    });
-  }
-
-  private _executeDrain<T>(fn: () => Promise<T>): Promise<T> {
-    this.clear();
-    return this.enqueue(fn, { priority: Infinity });
-  }
-
-  // Reset the queue to its initial empty state.
-  // Rejects all pending tasks and clears internal state.
-  reset(): void {
-    this.clear();
-    this._processing = false;
-    this._drainPromise = null;
+    for (const task of this._pending.splice(0)) task.reject(new Error(STALE_WORK_ERROR));
   }
 
   private async _process(): Promise<void> {
     if (this._processing) return;
     this._processing = true;
-    while (this._pending.length > 0) {
-      const task = this._pending.shift()!;
-      try {
-        task.resolve(await task.fn());
-      } catch (err) {
-        task.reject(err);
+    try {
+      while (this._pending.length) {
+        const task = this._pending.shift()!;
+        try { await task.run(); } catch (error) {
+          task.reject(error instanceof Error ? error : new Error(String(error)));
+        }
       }
-    }
-    this._processing = false;
+    } finally { this._processing = false; }
   }
 }
-
-// Singleton instance used by the production background script
-export const inferenceQueue: InferenceQueue = new InferenceQueue();

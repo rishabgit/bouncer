@@ -3,28 +3,22 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { generateManifest } from './generate-manifests.mjs';
-import { packageLitertlmRuntime } from './litertlm-assets.mjs';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 
-export async function build({ root = ROOT, dev = false, watch = false } = {}) {
-  const env = dev ? 'dev' : 'prod';
-  console.log(`Building local-only Chrome extension (env: ${env})`);
+export async function build({ root = ROOT, watch = false } = {}) {
+  console.log('Building local-only Chromium extension');
 
-  // Recreate generated output so retired platforms and diagnostics cannot leak.
+  // Recreate generated output so stale bundles cannot leak into the extension.
   const distDir = path.join(root, 'dist');
   fs.rmSync(distDir, { recursive: true, force: true });
   fs.mkdirSync(distDir, { recursive: true });
   generateManifest({ root });
-  packageLitertlmRuntime(root, distDir);
 
   const define = {
     'process.env.NODE_ENV': '"production"',
-    // Actual-extension diagnostics are stripped from production bundles.
-    '__DEV__': String(dev),
   };
-  const entries = ['background.js', 'popup.js', 'content.js', 'offscreen.js'];
-  if (dev) entries.push('benchmark.js');
+  const entries = ['background.js', 'popup.js', 'content.js'];
 
   const contexts = [];
   let watching = false;
@@ -54,10 +48,10 @@ export async function build({ root = ROOT, dev = false, watch = false } = {}) {
     if (watch) {
       await Promise.all(contexts.map(context => context.watch()));
       watching = true;
-      console.log(`Watching for changes... (env: ${env})`);
+      console.log('Watching for changes...');
     } else {
       await Promise.all(contexts.map(context => context.rebuild()));
-      console.log(`Build complete (env: ${env}): ${entries.map(entry => `dist/${entry}`).join(', ')}, dist/TwitterAdapter.js`);
+      console.log(`Build complete: ${entries.map(entry => `dist/${entry}`).join(', ')}, dist/TwitterAdapter.js`);
     }
   } finally {
     if (!watching) await Promise.all(contexts.map(context => context.dispose()));
@@ -66,12 +60,12 @@ export async function build({ root = ROOT, dev = false, watch = false } = {}) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const args = process.argv.slice(2);
-  const unsupported = args.find(arg => !['--dev', '--watch'].includes(arg));
+  const unsupported = args.find(arg => arg !== '--watch');
   if (unsupported) {
-    console.error(`Unsupported build option: ${unsupported}. This fork builds only Chrome.`);
+    console.error(`Unsupported build option: ${unsupported}. This fork builds only Chromium.`);
     process.exitCode = 1;
   } else {
-    build({ dev: args.includes('--dev'), watch: args.includes('--watch') }).catch(error => {
+    build({ watch: args.includes('--watch') }).catch(error => {
       console.error('Build failed:', error);
       process.exitCode = 1;
     });

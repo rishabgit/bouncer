@@ -48,9 +48,7 @@ export function survivingMatches(matches: string[] | undefined, phrases: string[
   return matches.filter(match => active.has(match));
 }
 
-/** Legacy labels are a display fallback, never evidence for a hide decision. */
-export function displayedMatches(value: { matches?: string[]; category?: string | null }): string[] {
-  return value.matches !== undefined
-    ? value.matches
-    : (value.category || '').split(',').map(match => match.trim()).filter(Boolean);
+/** Display only the exact matches supplied by the current decision. */
+export function displayedMatches(value: { matches?: string[] }): string[] {
+  return value.matches ?? [];
 }

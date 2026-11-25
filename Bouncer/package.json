@@ -6,16 +6,12 @@
   "type": "module",
   "scripts": {
     "build": "node build.js",
-    "build:dev": "node build.js --dev",
     "gen-manifests": "node generate-manifests.mjs",
     "watch": "node build.js --watch",
-    "watch:dev": "node build.js --watch --dev",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint . && tsc --noEmit",
     "lint:fix": "eslint . --fix",
-    "cut-chrome": "node cut.js",
-    "cut-chrome:same": "node cut.js --same-version",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
@@ -31,13 +27,6 @@
     "vitest": "^4.0.18"
   },
   "dependencies": {
-    "@litert-lm/core": "0.17.0",
-    "@litertjs/wasm-utils": "2.5.0",
-    "@noble/hashes": "2.4.0",
-    "dompurify": "^3.3.1",
-    "html-to-image": "^1.11.13"
-  },
-  "overrides": {
-    "@litertjs/wasm-utils": "2.5.0"
+    "dompurify": "^3.3.1"
   }
 }

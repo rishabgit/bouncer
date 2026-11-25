@@ -3,7 +3,8 @@
  */
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { loadTwitterFixture } from '../fixtures/twitter-dom';
-import { formatPostForEvaluation } from '../../src/shared/utils';
+import { formatPostForEvaluation, generateCacheKey } from '../../src/shared/utils';
+import { buildDecisionRequest } from '../../src/background/local-model';
 import type { PlatformAdapter } from '../../src/types';
 
 let TwitterAdapter: new () => PlatformAdapter;
@@ -116,6 +117,33 @@ describe('canonical store bridge startup', () => {
       }
     });
   }
+
+  it.each(['This rudeness is unacceptable.', ''])('keeps quoted store text out of classification for own text %j', async ownText => {
+    const { article, cell } = initialPost();
+    const adapter = new TwitterAdapter();
+    listen('ff-extract-tweet-data', () => {
+      const requestId = cell.getAttribute('data-ff-request')!;
+      const result = storeResult(requestId);
+      document.dispatchEvent(new CustomEvent('ff-tweet-data-result', {
+        detail: JSON.stringify({ ...result, data: { ...result.data, fullText: ownText, quotedTweet: {
+          fullText: 'A rude quoted post.', userName: 'Quoted author', userHandle: '@quoted',
+          userAvatarUrl: 'https://pbs.twimg.com/profile_images/quoted.jpg', imageUrls: [],
+        } } }),
+      }));
+    });
+    const pending = adapter.extractPostContentFromStore(article);
+    scripts[0].onload?.(new Event('load'));
+    const result = (await pending)!;
+    expect(formatPostForEvaluation(result)).toBe(ownText);
+    expect(result.quote).toEqual({
+      textHtml: '', author: 'Quoted author', handle: '@quoted',
+      avatarUrl: 'https://pbs.twimg.com/profile_images/quoted.jpg', timeText: null,
+    });
+    expect(generateCacheKey(formatPostForEvaluation(result))).not.toBe(generateCacheKey(`${ownText} [Quoted: A rude quoted post.]`));
+    if (ownText) {
+      expect(buildDecisionRequest({ text: formatPostForEvaluation(result) }, ['excessive rudeness']).state).toBe(ownText);
+    }
+  });
 
   it('waits for delayed script load before dispatching the first unchanged DOM post', async () => {
     const { article, cell } = initialPost();
@@ -452,6 +480,44 @@ describe('extractPostContent', () => {
     articles = [...document.querySelectorAll(adapter.selectors.post)] as HTMLElement[];
   });
 
+  it('classifies only the first own text block and preserves quote display data', () => {
+    const article = articles[0];
+    article.innerHTML = `
+      <div data-testid="tweetText">This rudeness is unacceptable.</div>
+      <div role="link">
+        <div data-testid="User-Name"><a role="link">Quoted author</a><a role="link">@quoted</a></div>
+        <div data-testid="tweetText"><b>A rude quoted post.</b></div>
+      </div>
+      <div data-testid="tweetText">Other embedded text.</div>`;
+    const result = adapter.extractPostContent(article);
+    const ownText = 'This rudeness is unacceptable.';
+    expect(formatPostForEvaluation(result)).toBe(ownText);
+    expect(buildDecisionRequest({ text: formatPostForEvaluation(result) }, ['excessive rudeness']).state).toBe(ownText);
+    expect(result.textHtml).toBe(ownText);
+    expect(result.quote).toMatchObject({ textHtml: '<b>A rude quoted post.</b>', author: 'Quoted author', handle: '@quoted' });
+    expect(generateCacheKey(formatPostForEvaluation(result))).not.toBe(generateCacheKey(`${ownText} [Quoted: A rude quoted post.] [Quoted: Other embedded text.]`));
+  });
+
+  it.each([
+    '<div role="link"><div data-testid="tweetText">A rude quoted post.</div></div>',
+    '<a role="link" href="/quoted/status/2"><div data-testid="tweetText">A rude quoted post.</div></a>',
+    '<article data-testid="tweet"><div data-testid="tweetText">A rude quoted post.</div></article>',
+    '<div data-testid="card.wrapper"><div data-testid="tweetText">A rude quoted post.</div></div>',
+  ])('does not treat a bare embedded post as own text: %s', quoteHtml => {
+    articles[0].innerHTML = quoteHtml;
+    const result = adapter.extractPostContent(articles[0]);
+    expect(formatPostForEvaluation(result)).toBe('');
+    expect(result.textHtml).toBe('');
+    expect(result.quote?.textHtml).toBe('A rude quoted post.');
+  });
+
+  it('finds the first own text block even when a quoted card precedes it', () => {
+    articles[0].innerHTML = '<div role="link"><div data-testid="tweetText">Quoted first.</div></div><div data-testid="tweetText">Own words.</div>';
+    const result = adapter.extractPostContent(articles[0]);
+    expect(formatPostForEvaluation(result)).toBe('Own words.');
+    expect(result.quote?.textHtml).toBe('Quoted first.');
+  });
+
   it('extracts text and author from a text + video tweet', () => {
     // Article 0: Thariq's Claude Code voice mode tweet
     const result = adapter.extractPostContent(articles[0]);
@@ -460,7 +526,9 @@ describe('extractPostContent', () => {
     expect(result.text).toContain('Voice mode is rolling out now in Claude Code');
     expect(result.text).toContain('/voice to toggle it on!');
     const evalText = formatPostForEvaluation(result);
-    expect(evalText).toContain('Thariq');
+    expect(evalText).toBe(result.text);
+    expect(evalText).not.toContain('Thariq');
+    expect(evalText).not.toContain('@trq212');
     expect(evalText).toContain('Voice mode');
   });
 
@@ -934,7 +1002,7 @@ describe('post action controls', () => {
   it.each([0, 1, 2, 3])('inserts Bounce into the native action bar with %i share wrappers', wrapperDepth => {
     const { article, group, shareAction } = buildActions(wrapperDepth);
     const bounce = document.createElement('div');
-    bounce.className = 'ff-why-annoying-btn';
+    bounce.className = 'ff-bounce-button';
     adapter.insertActionButton(article, bounce);
     expect(bounce.parentElement).toBe(group);
     expect(shareAction.nextElementSibling).toBe(bounce);

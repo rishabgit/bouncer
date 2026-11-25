@@ -1,12 +1,8 @@
 // Post processing pipeline: queue, cache, error/latency state
 
 import { generateCacheKey } from '../shared/utils';
-import { NATIVE_SUGGESTION_TOKENS } from '../shared/models';
-import { NativeModelError } from '../shared/ollama-contract';
-import { buildSuggestionSystemPrompt, parseCandidatePhrases } from '../shared/suggestions';
 import { runDetector, type DetectorResult } from './detectors';
-import { callLocalInference, localEngine, LocalAvailabilityError, MODEL_MAINTENANCE_ERROR } from './local-model';
-import { BrowserModelError } from './backends/types';
+import { callLocalInference, localEngine, STALE_WORK_ERROR } from './local-model';
 import { getStorage, setStorage, getDescriptions } from '../shared/storage';
 import type {
   EvaluationResult, PipelineResponse, PipelineError, PendingEvaluation,
@@ -18,12 +14,7 @@ import type {
 
 const CACHE_SIZE = 500; // Increased for persistent storage
 const AUTOMATIC_CACHE_WRITE_DELAY_MS = 3000;
-const BATCH_DELAY_MS = 1000; // Wait time to collect posts before sending batch
 const MAX_CONCURRENT_BATCHES = 1; // One active batch preserves fresh viewport order
-
-// Error retry
-const LOCAL_ERROR_RETRY_INTERVAL_MS = 5000;
-const LOCAL_ERROR_MAX_AUTO_RETRIES = 2;
 
 
 // =============================================================================
@@ -127,7 +118,6 @@ function buildDetectorStates(
 // ==================== Pipeline State ====================
 
 export let evaluationCache = new Map<string, EvaluationResult>();
-let batchTimeout: ReturnType<typeof setTimeout> | null = null;
 let inFlightBatches = 0; // Counter for concurrent batch processing
 let cacheLoaded = false;
 let cacheWriteChain: Promise<void> = Promise.resolve();
@@ -138,8 +128,8 @@ const tabQueues = new Map<number, PendingEvaluation[]>();      // tabId -> array
 const tabPendingKeys = new Map<number, Set<string>>(); // tabId -> Set of cacheKeys
 const tabDuplicateResolvers = new Map<number, Map<string, Array<(result: PipelineResponse) => void>>>(); // tabId -> Map<cacheKey, [resolve]>
 // Invalidates processBatch closures that were captured before a queue flush.
-// This is separate from LocalEngine maintenance because settings/filter flushes
-// also must not allow a stale batch to write cache entries after they return.
+// Settings/filter flushes must not allow a stale batch to write cache
+// entries after they return.
 let pipelineGeneration = 0;
 // Only active automatic evaluations own fences. User actions retire these
 // tokens without accumulating a per-post generation map over a long session.
@@ -189,8 +179,8 @@ async function retiredEvaluationResponse(fence: PostEvaluationFence | null): Pro
 let activeTabId: number | null = null;
 
 function assertPipelineGeneration(expected: number): void {
-  if (pipelineGeneration !== expected || localEngine.isMaintaining()) {
-    throw new Error(MODEL_MAINTENANCE_ERROR);
+  if (pipelineGeneration !== expected) {
+    throw new Error(STALE_WORK_ERROR);
   }
 }
 
@@ -199,8 +189,6 @@ export let errorState: ErrorState = {
   type: null,
   count: 0,
 };
-let errorRetryTimeout: ReturnType<typeof setTimeout> | null = null;
-let localErrorAutoRetryCount = 0;
 
 // Tab set reference (set from index.ts)
 let activeContentTabsRef: Set<number> | null = null;
@@ -219,16 +207,10 @@ export function requiresLocalInference(
 
 // ==================== Per-tab queue management ====================
 
-// Update active tab. Clears inference queue (stale closures) and schedules batch for new tab.
+// Update queue priority. The current finite post operation finishes normally.
 export function setActiveTab(tabId: number | null): void {
   if (tabId === activeTabId) return;
-  if (activeTabId !== null) {
-    // Retire work for the departed tab. The native lease drains its finite
-    // response before the newly active tab can submit another request.
-    localEngine.preempt();
-  }
   activeTabId = tabId;
-  localEngine.clearQueue();
   if (tabId !== null && tabQueues.has(tabId) && tabQueues.get(tabId)!.length > 0) {
     scheduleBatch();
   }
@@ -305,10 +287,7 @@ export function sendToTab(tabId: number, message: BackgroundToContentMessage): P
   return chrome.tabs.sendMessage(tabId, message);
 }
 
-// Replay a cached evaluation as per-tab messages so the popup looks the same
-// for cache hits as for fresh runs. New entries with `detectorStates` replay
-// exactly; legacy entries get synthesized two-tab output where the cached
-// reasoning is attributed to the right detector by category.
+// Replay classifier snapshots or a current manual decision for the post UI.
 export function replayDetectorStates(tabId: number, evaluationId: string, evalResult: EvaluationResult): void {
   if (evalResult.detectorStates) {
     const { names, map } = evalResult.detectorStates;
@@ -333,9 +312,9 @@ export function replayDetectorStates(tabId: number, evaluationId: string, evalRe
     return;
   }
 
-  // Legacy entry without per-detector state — replay as a single filter tab with
-  // the cached reasoning. (Pre-strip entries could also carry an AI-text detector,
-  // which no longer exists in this local-only fork.)
+  // Manual Bounce/Restore writes have no classifier snapshots. Present their
+  // explicit decision in the filter tab; automatic results replay only snapshots.
+  if (evalResult.userOverride !== true) return;
   void sendToTab(tabId, { type: 'evaluationStarted', evaluationId, detectorNames: ['filter'] });
   void sendToTab(tabId, {
     type: 'detectorResponse',
@@ -392,71 +371,9 @@ export function broadcastErrorStatus(): Promise<void> {
 }
 
 // Reset error state and broadcast
-export async function clearErrorState(resetRetryBudget = true): Promise<void> {
+export async function clearErrorState(): Promise<void> {
   errorState = { type: null, count: 0 };
-  if (resetRetryBudget) localErrorAutoRetryCount = 0;
-  if (errorRetryTimeout) {
-    clearTimeout(errorRetryTimeout);
-    errorRetryTimeout = null;
-  }
   await broadcastErrorStatus();
-}
-
-// Trigger re-evaluation of error posts in content scripts
-export async function triggerErrorRetry(
-  resetRetryBudget = true,
-  forceBroadcast = false,
-): Promise<void> {
-  if (errorState.count === 0 && !forceBroadcast) return;
-  errorState.count = 0;
-  errorState.type = null;
-  if (resetRetryBudget) localErrorAutoRetryCount = 0;
-  if (errorRetryTimeout) {
-    clearTimeout(errorRetryTimeout);
-    errorRetryTimeout = null;
-  }
-  await broadcastErrorStatus();
-  broadcastToTabs({ type: 'reEvaluateErrors' });
-}
-
-// Retry local runtime failures after a short recovery window. The retry event
-// clears content-side error markers so posts cannot remain permanently skipped.
-export function localErrorRetryDelay(
-  error: unknown,
-  completedAutoRetries: number,
-): number | null {
-  // Only a proved connection failure before submission is automatically
-  // retryable. Invalid metadata/output and uncertain native work need Retry or
-  // qualified recovery, regardless of how long the client has waited.
-  if (!(error instanceof NativeModelError)
-      || error.reason !== 'service_unreachable'
-      || error.submission !== 'not_submitted'
-      || completedAutoRetries >= LOCAL_ERROR_MAX_AUTO_RETRIES) return null;
-  return LOCAL_ERROR_RETRY_INTERVAL_MS * (2 ** completedAutoRetries);
-}
-
-function scheduleLocalErrorRetry(error: unknown): void {
-  if (errorRetryTimeout) clearTimeout(errorRetryTimeout);
-  const delay = localErrorRetryDelay(error, localErrorAutoRetryCount);
-  if (delay === null) {
-    errorRetryTimeout = null;
-    // Native failures already publish their specific paused/setup/recovery
-    // status. Preserve that reason instead of replacing it with generic error.
-    if (!(error instanceof NativeModelError) || error.reason === 'service_unreachable') {
-      void localEngine.markTerminalError(
-        localEngine.getSelectedModel()?.name ?? '',
-        (error as Error).message || 'Local filtering failed. Retry from the Bouncer popup.',
-      ).catch(err => console.error('[Error] Failed to publish native status:', err));
-    }
-    return;
-  }
-  errorRetryTimeout = setTimeout(() => {
-    errorRetryTimeout = null;
-    if (errorState.count > 0 && errorState.type === 'local_model') {
-      localErrorAutoRetryCount++;
-      void triggerErrorRetry(false).catch(err => console.error('[Error] Retry failed:', err));
-    }
-  }, delay);
 }
 
 // ==================== Cache ====================
@@ -468,10 +385,8 @@ export async function readCachedEvaluation(cacheKey: string): Promise<Evaluation
   const cached = evaluationCache.get(cacheKey);
   if (!cached) return undefined;
   if (cached.userOverride === true) return cached;
-  const selection = localEngine.getSelection();
   return typeof cached.shouldHide === 'boolean' && typeof cached.reasoning === 'string'
-    && !cached.malformed && localEngine.getClassifierFingerprint() !== null
-    && cached.engine === selection.engine && cached.selectionRevision === selection.revision
+    && cached.engine === 'llama.app'
     && cached.classifierFingerprint === localEngine.getClassifierFingerprint() ? cached : undefined;
 }
 
@@ -654,18 +569,14 @@ export async function prioritizeByViewportDistance(queue: PendingEvaluation[]): 
 }
 
 
-// ==================== Error classification ====================
-
 // ==================== Batch processing ====================
 
 // Process a batch of posts
 async function processBatch(): Promise<void> {
-  batchTimeout = null; // Clear timeout first, before any early returns
-
   if (activeTabId === null) return;
 
-  // The active batch owns the next wakeup. Repeated schedule calls must not
-  // install a stale timer that can later process a replacement document.
+  // The current batch owns the serial slot and wakes the next eligible post
+  // after its finite operation settles.
   if (inFlightBatches >= MAX_CONCURRENT_BATCHES) return;
 
   // Capture tab ID before any async work
@@ -678,7 +589,6 @@ async function processBatch(): Promise<void> {
   inFlightBatches++;
   const batchGeneration = pipelineGeneration;
   let suppressWakeOnExit = false;
-  let deferWakeOnExit = false;
   let postFence: PostEvaluationFence | null = null;
 
   try {
@@ -738,29 +648,20 @@ async function processBatch(): Promise<void> {
   }
 
   const postData = { text: item.post };
+  const inferenceEpoch = localEngine.operationEpoch;
   try {
     // The fixed native classifier.
     const runFilter = async (): Promise<DetectorResult> => {
-      const postUrl = item.postUrl;
-      const onInferenceStart = (): void => {
-        // Model loading and token preparation both await. A tab switch in that
-        // window cannot be interrupted because decode has not started yet, so
-        // enforce ownership again at the last boundary before generation.
-        if (activeTabId !== batchTabId) throw new Error('Inference queue cleared');
-        // The same cold-load window exists for filter/settings changes. A
-        // preempt issued before an engine exists cannot interrupt anything, so
-        // fence the stale batch again immediately before the expensive decode.
-        assertPipelineGeneration(batchGeneration);
-        if (!postFence!.current) throw new Error(MODEL_MAINTENANCE_ERROR);
-        if (postUrl) void sendToTab(batchTabId, { type: 'processingPost', postUrl });
-      };
-      const result = await callLocalInference(
-        postData, settings.descriptions, localEngine.getSelectedModel(), undefined, { onInferenceStart },
+      return callLocalInference(
+        postData, settings.descriptions, {
+          assertCurrent: () => {
+            assertPipelineGeneration(batchGeneration);
+            if (!postFence!.current || tabQueues.get(batchTabId) !== pendingEvaluations) {
+              throw new Error(STALE_WORK_ERROR);
+            }
+          },
+        },
       );
-      if (result.malformed) {
-        throw new NativeModelError('response_invalid', 'The classifier returned malformed output. Retry from the popup.', 'terminal');
-      }
-      return result;
     };
 
     const tabPlan = buildTabPlan(filterEnabled);
@@ -776,6 +677,7 @@ async function processBatch(): Promise<void> {
       return;
     }
 
+    localEngine.assertOperationEpoch(inferenceEpoch);
     console.log(`[Eval] shouldHide=${result.shouldHide}, category="${result.category}", reasoning="${result.reasoning?.substring(0, 80)}"`);
 
     const evalResult: EvaluationResult = {
@@ -783,18 +685,18 @@ async function processBatch(): Promise<void> {
       reasoning: result.reasoning,
       category: result.category || null,
       ...(result.matches !== undefined && { matches: result.matches }),
+      ...(result.scores !== undefined && { scores: result.scores }),
+      ...(result.textSent !== undefined && { textSent: result.textSent }),
       rawResponse: result.rawResponse || null,
       ...(result.modelId !== undefined && { model: result.modelId }),
       ...(result.engine !== undefined && { engine: result.engine }),
-      ...(result.selectionRevision !== undefined && { selectionRevision: result.selectionRevision }),
       ...(result.classifierFingerprint !== undefined && { classifierFingerprint: result.classifierFingerprint }),
       timestamp: Date.now(),
       detectorStates: buildDetectorStates(tabPlan, snapshots),
     };
 
-    // Stats are ancillary persistence, not part of model inference. A transient
-    // storage failure must not poison the local-model error budget or force a
-    // healthy multi-GB engine through terminal Retry/reload recovery.
+    // Stats persistence does not change the classification decision. A failed
+    // counter write must not turn a successful evaluation into a model error.
     try {
       const statsData = await getStorage(['stats']);
       const stats = statsData.stats || { filtered: 0, evaluated: 0, totalCost: 0 };
@@ -815,6 +717,7 @@ async function processBatch(): Promise<void> {
       return;
     }
 
+    localEngine.assertOperationEpoch(inferenceEpoch);
     evaluationCache.set(cacheKey, evalResult);
     if (evaluationCache.size > CACHE_SIZE) {
       const firstKey = evaluationCache.keys().next().value;
@@ -831,13 +734,11 @@ async function processBatch(): Promise<void> {
       return;
     }
 
-    // Successful evaluation — clear error state and re-evaluate stuck error posts
-    if (errorState.type) {
-      await clearErrorState();
-      broadcastToTabs({ type: 'reEvaluateErrors' });
-    }
+    // A successful post clears the connection indicator. Earlier failed posts
+    // stay visible; they do not block or automatically retry later work.
+    if (errorState.type) await clearErrorState();
 
-    if (!isEvaluationCurrent()) {
+    if (!isEvaluationCurrent() || localEngine.operationEpoch !== inferenceEpoch) {
       if (evaluationCache.get(cacheKey) === evalResult) {
         evaluationCache.delete(cacheKey);
         scheduleAutomaticCacheSave();
@@ -853,61 +754,8 @@ async function processBatch(): Promise<void> {
       resolveWithDuplicates(batchTabId, item, null);
       return;
     }
-    if (!isEvaluationCurrent()
-        || errorMessage === MODEL_MAINTENANCE_ERROR
-        || (localEngine.isMaintaining()
-          && (errorMessage === 'Inference preempted' || errorMessage === 'Inference queue cleared'))) {
-      resolveWithDuplicates(batchTabId, item, postFence && !postFence.current ? await retiredEvaluationResponse(postFence) : {
-        retry: true,
-        reasoning: 'Local model maintenance in progress.',
-        retryAfterMs: 250,
-      });
-      return;
-    }
-    // Handle inference preempted (user scrolled past) — re-queue and process next
-    if (errorMessage === 'Inference preempted') {
-      deferWakeOnExit = true;
-      const currentQueue = tabQueues.get(batchTabId);
-      const currentKeys = tabPendingKeys.get(batchTabId);
-      // A reload can replace both collections under the same numeric tab id
-      // before the interrupted decode settles. Never inject an old-document
-      // item into that replacement queue.
-      if (currentQueue === pendingEvaluations
-          && currentKeys !== undefined
-          && currentKeys === pendingKeys) {
-        currentQueue.push(item);
-        if (item.cacheKey) currentKeys.add(item.cacheKey);
-      } else {
-        resolveWithDuplicates(batchTabId, item, null);
-      }
-      return;
-    }
-
-    // Handle inference queue cleared (tab switch) — re-queue item to original tab
-    if (errorMessage === 'Inference queue cleared') {
-      suppressWakeOnExit = true;
-      const currentQueue = tabQueues.get(batchTabId);
-      const currentKeys = tabPendingKeys.get(batchTabId);
-
-      // Only re-queue if the tab's queue is the SAME object we shifted from.
-      // If it was deleted (tab closed) or replaced (page reload), resolve gracefully.
-      if (currentQueue === pendingEvaluations
-          && currentKeys !== undefined
-          && currentKeys === pendingKeys) {
-        currentQueue.push(item);
-        if (item.cacheKey) currentKeys.add(item.cacheKey);
-      } else {
-        resolveWithDuplicates(batchTabId, item, null);
-      }
-      return; // setActiveTab handles scheduling for the new tab
-    }
-
-    if (error instanceof LocalAvailabilityError
-        || (error instanceof BrowserModelError && error.reason === 'needs_download')) {
-      resolveWithDuplicates(batchTabId, item, {
-        error: 'local_model', reasoning: error.message,
-        availabilityReason: error instanceof LocalAvailabilityError ? error.reason : 'needs_download',
-      });
+    if (!isEvaluationCurrent() || errorMessage === STALE_WORK_ERROR) {
+      resolveWithDuplicates(batchTabId, item, await retiredEvaluationResponse(postFence));
       return;
     }
 
@@ -916,11 +764,10 @@ async function processBatch(): Promise<void> {
     errorState.type = 'local_model';
     errorState.count++;
     broadcastErrorStatus().catch(err => console.error('[Error] Broadcast failed:', err));
-    scheduleLocalErrorRetry(error);
 
     const errorResult: PipelineError = {
       error: 'local_model',
-      reasoning: errorMessage || 'The local model failed. Bouncer will retry this post.',
+      reasoning: errorMessage || 'Local filtering failed for this post. The post remains visible.',
     };
     resolveWithDuplicates(batchTabId, item, errorResult);
   }
@@ -962,22 +809,13 @@ async function processBatch(): Promise<void> {
         && inFlightBatches === 0
         && activeQueue
         && activeQueue.length > 0) {
-      if (deferWakeOnExit) {
-        batchTimeout = setTimeout(() => {
-          processBatch().catch(err => console.error('[Pipeline] processBatch failed:', err));
-        }, BATCH_DELAY_MS);
-      } else {
-        scheduleBatch();
-      }
+      scheduleBatch();
     }
   }
 }
 
 // Schedule processing for the next pending post
 export function scheduleBatch(): void {
-  if (batchTimeout) {
-    return;
-  }
   if (activeTabId === null) {
     return;
   }
@@ -997,14 +835,9 @@ export function scheduleBatch(): void {
 // classifications intact.
 function flushPipelineQueues(reason: string): void {
   pipelineGeneration++;
-  // A queue flush retires the active batch as well as pending items. Interrupt
-  // an already-running Gemma decode so fresh work does not sit behind a stale
-  // operation for the remainder of the inference deadline.
-  localEngine.preempt();
-  if (batchTimeout) {
-    clearTimeout(batchTimeout);
-    batchTimeout = null;
-  }
+  // A queue flush retires active and pending results. An in-flight request
+  // settles or times out before the serial client submits fresh work.
+  localEngine.invalidate();
   for (const [tabId, queue] of tabQueues.entries()) {
     const result: PipelineResponse = {
       retry: true as const,
@@ -1029,34 +862,6 @@ function flushPipelineQueues(reason: string): void {
     tabPendingKeys.delete(tabId);
     tabDuplicateResolvers.delete(tabId);
   }
-  localEngine.clearQueue();
-}
-
-/** Retire old-engine work synchronously at the choice-message boundary. */
-export function invalidateEngineWork(): void {
-  flushPipelineQueues('The inference engine changed, re-evaluating…');
-  errorState.count = 0;
-  errorState.type = null;
-  localErrorAutoRetryCount = 0;
-  if (errorRetryTimeout) clearTimeout(errorRetryTimeout);
-  errorRetryTimeout = null;
-}
-
-/** Engine choice invalidates automatic answers, never explicit user decisions. */
-export async function handleEngineChoiceChange(): Promise<void> {
-  await loadCache();
-  for (const [key, value] of evaluationCache) {
-    if (value.userOverride !== true
-        && (value.classifierFingerprint !== localEngine.getClassifierFingerprint()
-          || value.selectionRevision !== localEngine.getSelection().revision)) evaluationCache.delete(key);
-  }
-  await saveCache(true);
-  await broadcastErrorStatus();
-}
-
-// Metadata/recovery maintenance also retires all captured verdicts.
-export function runModelMaintenance<T>(fn: () => Promise<T>): Promise<T> {
-  return localEngine.runMaintenance(fn, () => flushPipelineQueues('Local model maintenance in progress.'));
 }
 
 export function handleSettingsChange(_changes: Record<string, chrome.storage.StorageChange>): Promise<void> {
@@ -1070,7 +875,7 @@ export function handleSettingsChange(_changes: Record<string, chrome.storage.Sto
 
 // Called when the filter phrase list changed. Clears the cache and flushes in-flight
 // batches so they re-run against the updated phrase set.
-export async function handleFilterPackChange(): Promise<void> {
+export async function handleFilterChange(): Promise<void> {
   flushPipelineQueues('Filter phrases changed, re-evaluating...');
   await clearEvaluationCache();
 }
@@ -1083,13 +888,9 @@ export function handlePageLoad(tabId: number): void {
   }
 }
 
-// ==================== Suggest annoying reasons ====================
-
-export const SUGGESTION_FLOW_DEADLINE_MS = 25_000;
+// ==================== Request ownership ====================
 
 export interface InferenceRequestFence {
-  startedAt: number;
-  deadlineManaged?: true;
   assertCurrent: () => void;
 }
 
@@ -1100,155 +901,10 @@ export function captureInferenceRequest(
   const generation = pipelineGeneration;
   const epoch = localEngine.operationEpoch;
   return {
-    startedAt: Date.now(),
     assertCurrent: () => {
       assertPipelineGeneration(generation);
       localEngine.assertOperationEpoch(epoch);
       assertDocumentCurrent();
     },
   };
-}
-
-/** Own one whole-flow deadline, including startup waits at the message boundary. */
-export async function runInferenceRequest<T>(
-  request: InferenceRequestFence,
-  operation: (boundedRequest: InferenceRequestFence) => Promise<T>,
-): Promise<T> {
-  const deadlineAt = request.startedAt + SUGGESTION_FLOW_DEADLINE_MS;
-  let retired = false;
-  const timeoutError = (): NativeModelError => new NativeModelError(
-    'inference_preempted',
-    'Suggestions took too long. Any active local request is still settling; try again shortly.',
-  );
-  const boundedRequest: InferenceRequestFence = {
-    startedAt: request.startedAt,
-    deadlineManaged: true,
-    assertCurrent: () => {
-      if (retired || Date.now() >= deadlineAt) throw timeoutError();
-      request.assertCurrent();
-    },
-  };
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const deadline = new Promise<never>((_resolve, reject) => {
-    timer = setTimeout(() => { retired = true; reject(timeoutError()); }, Math.max(0, deadlineAt - Date.now()));
-  });
-  try {
-    boundedRequest.assertCurrent();
-    return await Promise.race([operation(boundedRequest), deadline]);
-  } finally {
-    retired = true;
-    if (timer !== undefined) clearTimeout(timer);
-  }
-}
-
-// Validation is part of the same user operation, even though each phase leases
-// the serial native queue separately.
-async function validateFilterPhrase(postText: string, phrase: string, assertCurrent: () => void): Promise<boolean> {
-  assertCurrent();
-  const result = await callLocalInference(
-    { text: postText }, [phrase], localEngine.getSelectedModel(), undefined,
-    { priority: 1, assertCurrent },
-  );
-  assertCurrent();
-  if (result.malformed) throw new NativeModelError('response_invalid', 'A suggested phrase could not be validated.', 'terminal');
-  return result.shouldHide === true;
-}
-
-// Compatibility re-export for existing tests/callers; implementation is shared
-// with the live-model comparison so the two cannot silently drift.
-export { parseCandidatePhrases } from '../shared/suggestions';
-
-async function generateCandidatePhrases(postText: string, count: number, rejectPhrases: string[], assertCurrent: () => void): Promise<string[]> {
-  assertCurrent();
-  const systemPrompt = buildSuggestionSystemPrompt(count, rejectPhrases);
-  const rawText = await localEngine.runInferenceOperation(async lease => {
-    // Reserve the complete system prompt and framing separator before bounding
-    // only the post. Short requests retain their exact pre-migration payload.
-    assertCurrent();
-    const overhead = await lease.countTokens(`${systemPrompt}\n`);
-    assertCurrent();
-    const model = localEngine.getSelectedModel();
-    if (!model) throw new LocalAvailabilityError('not_configured', 'Choose where Bouncer should run.');
-    const budget = model.contextTokens - overhead - NATIVE_SUGGESTION_TOKENS;
-    if (budget <= 0) {
-      throw new NativeModelError('input_budget', 'The suggestion instructions exceed the local input budget.');
-    }
-    const boundedPost = await lease.truncateText(postText, budget);
-    assertCurrent();
-    return lease.generate([
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: boundedPost },
-    ], NATIVE_SUGGESTION_TOKENS);
-  }, { priority: 1, assertCurrent });
-  assertCurrent();
-  return parseCandidatePhrases(rawText, count);
-}
-
-// Batched suggestion validation may fall back only on malformed verdicts.
-// Transport/readiness failures propagate without fanning out new native work.
-async function validatePhrasesBatched(
-  postText: string,
-  phrases: string[],
-  assertCurrent: () => void,
-): Promise<string[] | null> {
-  assertCurrent();
-  const result = await callLocalInference(
-    { text: postText }, phrases, localEngine.getSelectedModel(), undefined, { priority: 1, assertCurrent },
-  );
-  assertCurrent();
-  return result.malformed ? null : result.matches ?? [];
-}
-
-// A deadline bounds the complete caller flow. It retires only this continuation;
-// an active native lease keeps draining and retains its durable fence normally.
-export async function suggestAnnoyingReasons(
-  postText: string,
-  siteId?: SiteId,
-  tabId?: number,
-  request: InferenceRequestFence = captureInferenceRequest(),
-): Promise<string[]> {
-  if (!postText.trim()) return [];
-  if (!request.deadlineManaged) {
-    return runInferenceRequest(request, bounded => suggestAnnoyingReasons(postText, siteId, tabId, bounded));
-  }
-  const assertCurrent = request.assertCurrent;
-  const runFlow = async (): Promise<string[]> => {
-    assertCurrent();
-    await getSettings(siteId);
-    assertCurrent();
-    const candidates = await generateCandidatePhrases(postText, 9, [], assertCurrent);
-    assertCurrent();
-    const uniqueCandidates = [...new Set(candidates)];
-    let validatedCount = 0;
-    const sendProgress = (): void => {
-      assertCurrent();
-      if (tabId !== undefined) {
-        void sendToTab(tabId, { type: 'annoyingProgress', verified: validatedCount, total: 3 });
-      }
-    };
-    if (uniqueCandidates.length > 1) {
-      const batchedMatches = await validatePhrasesBatched(postText, uniqueCandidates, assertCurrent);
-      assertCurrent();
-      if (batchedMatches !== null) {
-        const matched = new Set(batchedMatches);
-        const accepted = uniqueCandidates.filter(phrase => matched.has(phrase)).slice(0, 3);
-        for (let index = 0; index < accepted.length; index++) { validatedCount++; sendProgress(); }
-        return accepted;
-      }
-    }
-    const finalValidated: string[] = [];
-    for (const phrase of uniqueCandidates) {
-      assertCurrent();
-      const passes = await validateFilterPhrase(postText, phrase, assertCurrent);
-      assertCurrent();
-      if (passes) {
-        finalValidated.push(phrase);
-        validatedCount++;
-        sendProgress();
-        if (finalValidated.length === 3) break;
-      }
-    }
-    return finalValidated;
-  };
-  return runFlow();
 }

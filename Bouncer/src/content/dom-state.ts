@@ -53,9 +53,3 @@ export function restoreFilteredContainer(
   }
   return true;
 }
-
-export function isRendered(element: HTMLElement): boolean {
-  return typeof element.checkVisibility === 'function'
-    ? element.checkVisibility()
-    : element.offsetParent !== null;
-}

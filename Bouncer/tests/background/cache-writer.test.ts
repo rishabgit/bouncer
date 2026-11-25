@@ -2,23 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EvaluationResult } from '../../src/types';
 
 const engine = vi.hoisted(() => ({
-  isMaintaining: vi.fn(() => false),
-  getSelection: () => ({ engine: 'ollama' as const, revision: 0 }),
-  getClassifierFingerprint: () => 'synthetic-native-fingerprint',
-  markTerminalError: vi.fn(),
+  getClassifierFingerprint: () => 'synthetic-decision-fingerprint',
 }));
-vi.mock('../../src/shared/models.js', async importOriginal => {
-  const original = await importOriginal<typeof import('../../src/shared/models')>();
-  return { ...original,
-    ACCEPTED_NATIVE_MANIFEST_DIGEST: 'a'.repeat(64),
-    PRIMARY_LOCAL_MODEL: { ...original.PRIMARY_LOCAL_MODEL, manifestDigest: 'a'.repeat(64) },
-    NATIVE_CLASSIFIER_FINGERPRINT: 'synthetic-native-fingerprint',
-  };
-});
 vi.mock('../../src/background/local-model.js', () => ({
   localEngine: engine,
   callLocalInference: vi.fn(),
-  MODEL_MAINTENANCE_ERROR: 'Local model maintenance in progress',
+  STALE_WORK_ERROR: 'Stale work',
 }));
 
 let pipeline: typeof import('../../src/background/pipeline');
@@ -183,7 +172,7 @@ describe('automatic cache persistence', () => {
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const post = 'post whose manual write fails';
     const key = generateCacheKey(post);
-    const previous: EvaluationResult = { shouldHide: false, reasoning: 'previous settled verdict', classifierFingerprint: 'synthetic-native-fingerprint', engine: 'ollama', selectionRevision: 0 };
+    const previous: EvaluationResult = { shouldHide: false, reasoning: 'previous settled verdict', classifierFingerprint: 'synthetic-decision-fingerprint', engine: 'llama.app' };
     pipeline.evaluationCache.set(key, previous);
     await pipeline.saveCache(true);
     const manualWrite = deferred();
@@ -228,7 +217,6 @@ describe('automatic cache persistence', () => {
     await vi.advanceTimersByTimeAsync(3000);
     expect(errorLog).toHaveBeenCalledWith('Failed to save cache:', error);
     expect(pipeline.errorState).toEqual({ type: null, count: 0 });
-    expect(engine.markTerminalError).not.toHaveBeenCalled();
     markAutomatic('second');
     await vi.advanceTimersByTimeAsync(2999);
     expect(writeStorage).toHaveBeenCalledTimes(1);

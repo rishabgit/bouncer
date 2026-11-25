@@ -1,21 +1,19 @@
 // All UI injection, modals, alerts, theming, filter phrase management
 
-import { toBlob } from 'html-to-image';
 import { asyncHandler } from '../shared/async';
-import { cleanReasoning, escapeHtml, formatPostForEvaluation, parseHTML } from '../shared/utils';
-import {
-  encodeFilterPackCode, decodeFilterPackCode, buildFilterPackShareUrl,
-  FILTER_PACK_SHARE_URL_REGEX,
-} from '../shared/share-encoding';
-import type { ContentUIDeps, EngineSelection, FilteredPost, PostContent, LocalModelStatus } from '../types';
-import { engineStatusView, statusMatchesSelection } from '../shared/engine-status-view';
+import { escapeHtml, formatPostForEvaluation, parseHTML } from '../shared/utils';
+import { FILTER_LABEL_GUIDANCE } from '../shared/filter-guidance';
+import { MAX_ACTIVE_FILTERS, MAX_FILTERS_CHARACTERS, MAX_FILTERS_WARNING } from '../shared/decision-model';
+import type { ClassificationDetails, ContentUIDeps, FilteredPost, PostContent, LocalModelStatus } from '../types';
+import { createClassificationDetails } from './classification-details';
+import { localModelStatusView, normalizeLocalModelStatus } from '../shared/engine-status-view';
 import { getStorage, getDescriptions, setDescriptions } from '../shared/storage';
 import {
   tooltipContentMaxHeight,
   tooltipHorizontalPosition,
   tooltipVerticalPosition,
 } from './geometry';
-import { cancelScheduledFilteredHide, hasScheduledFilteredHide, isRendered, restoreFilteredContainer, scheduleFilteredHide } from './dom-state';
+import { cancelScheduledFilteredHide, hasScheduledFilteredHide, restoreFilteredContainer, scheduleFilteredHide } from './dom-state';
 import {
   currentPostDecision, displayedMatches, forgetPostDecision, getPostDecision,
   isPostIdentityCurrent, postIdentity, rememberPostDecision, survivingMatches,
@@ -40,7 +38,7 @@ export function initUI(deps: ContentUIDeps) {
 
   // Register the single page-wide tooltip-dismissal listener (replaces a
   // per-post capture-phase listener that used to accumulate with each post).
-  setupAnnoyingTooltipCloser();
+  setupBounceTooltipCloser();
 }
 
 // ==================== UI State ====================
@@ -71,19 +69,11 @@ interface DecisionPersistence {
   result?: SettledPostDecision;
   previousDecision?: LivePostDecision;
   previousReasoning?: PostReasoning;
-  automaticRevision: number;
 }
 type ExplicitPostDecision = LivePostDecision & { persistence?: DecisionPersistence };
-let automaticDecisionRevision = 0;
 
 function completeDecisionPersistence(persistence: DecisionPersistence, state: 'committed' | 'canceled' | 'failed', result: SettledPostDecision): void {
   let decision = result.decision;
-  // A manual action keeps ownership while an engine switch restores automatic
-  // work. Its failure must not resurrect the previous engine's automatic hide.
-  if (decision && !decision.userOverride && persistence.automaticRevision !== automaticDecisionRevision) {
-    decision = { ...decision, shouldHide: false, matches: undefined };
-    result = { ...result, reasoning: undefined };
-  }
   // Provisional manual ownership can delay the automatic rule-edit handling.
   // Recheck its predecessor against the latest observed rules after all awaits,
   // including outcomes retained by an earlier failed reservation.
@@ -134,104 +124,12 @@ let activePopupArticle: HTMLElement | null = null;
 // Persists across in-place re-renders so the user's tab selection isn't lost
 // when a late-arriving detectorResponse triggers a refresh.
 let activePopupTab: string | null = null;
-let activePopupSuggestionCleanup: (() => void) | null = null;
-export interface SuggestionResponse {
-  reasons?: string[];
-  retry?: boolean;
-  error?: string;
-  engine?: EngineSelection['engine'];
-  selectionRevision?: number;
-  classifierFingerprint?: string;
-}
+const bounceTooltipCleanup = new WeakMap<HTMLElement, () => void>();
 
-export function suggestionResponseError(response: SuggestionResponse | null | undefined): string | null {
-  if (!response) return 'The local model did not respond. Try again.';
-  if (response.retry) return response.error || 'The local model is busy. Try again.';
-  return response.error || null;
-}
-
-export interface SuggestionRequestEntry {
-  postKey: string;
-  engineKey: string;
-  promise: Promise<SuggestionResponse>;
-}
-
-const annoyingReasonsCache: WeakMap<HTMLElement, SuggestionRequestEntry> = new WeakMap();
-const annoyingTooltipCleanup = new WeakMap<HTMLElement, () => void>();
-let contentEngineSelection: EngineSelection | undefined;
-let contentLocalModelStatus: LocalModelStatus | undefined;
-const suggestionSelectionListeners = new Set<() => void>();
-
-function suggestionEngineKey(): string {
-  return contentEngineSelection ? `${contentEngineSelection.engine}:${contentEngineSelection.revision}` : 'legacy';
-}
-
-export function updateContentEngineSelection(selection: EngineSelection): void {
-  if (contentEngineSelection && selection.revision <= contentEngineSelection.revision) return;
-  contentEngineSelection = { ...selection };
-  if (contentLocalModelStatus && !statusMatchesSelection(contentLocalModelStatus, selection)) contentLocalModelStatus = undefined;
-  suggestionSelectionListeners.forEach(listener => listener());
-}
-
-function suggestionSetupMessage(): string | null {
-  // Legacy unit fixtures have no engine selection. Production always supplies
-  // the committed choice, so an absent browser artifact cannot start a fetch.
-  if (!contentEngineSelection) return null;
-  if (!contentEngineSelection.engine) return 'Choose Browser AI or Ollama in Settings to find filter suggestions.';
-  const status = contentLocalModelStatus;
-  if (status && statusMatchesSelection(status, contentEngineSelection)
-      && ['ready', 'filtering', 'loading'].includes(status.state)) return null;
-  if (status?.state === 'switching') return 'The engine is switching. Open Settings for its status.';
-  if (status?.state === 'recovery_required') return 'A previous local request needs recovery. Open Settings; manual Bounce and Restore still work.';
-  return contentEngineSelection.engine === 'litertlm'
-    ? 'Browser AI setup is needed for suggestions. Open Settings.'
-    : 'Suggestions need an Ollama connection. Open Settings.';
-}
-
-function requestSuggestions(article: HTMLElement, postKey: string, post: string): SuggestionRequestEntry {
-  return getSuggestionRequest(article, postKey, () => {
-    const setup = suggestionSetupMessage();
-    return setup ? Promise.resolve({ retry: true, error: setup }) : chrome.runtime.sendMessage({
-      type: 'suggestAnnoyingReasons', post, siteId: _deps.adapter.siteId,
-    });
-  });
-}
-
-export function getSuggestionRequest(
-  article: HTMLElement,
-  postKey: string,
-  create: () => Promise<SuggestionResponse>,
-): SuggestionRequestEntry {
-  const cached = annoyingReasonsCache.get(article);
-  const engineKey = suggestionEngineKey();
-  if (cached?.postKey === postKey && cached.engineKey === engineKey) return cached;
-  const entry = { postKey, engineKey, promise: create() };
-  annoyingReasonsCache.set(article, entry);
-  return entry;
-}
-
-export function isSuggestionRequestCurrent(
-  article: HTMLElement,
-  entry: SuggestionRequestEntry,
-  currentPostKey: string,
-): boolean {
-  return annoyingReasonsCache.get(article) === entry && entry.postKey === currentPostKey
-    && entry.engineKey === suggestionEngineKey();
-}
-
-function suggestionResponseMatchesSelection(response: SuggestionResponse | null | undefined): boolean {
-  return !response || !contentEngineSelection || response.engine === undefined && response.selectionRevision === undefined
-    || response.engine === contentEngineSelection.engine && response.selectionRevision === contentEngineSelection.revision;
-}
-
-function clearSuggestionRequest(article: HTMLElement, entry: SuggestionRequestEntry): void {
-  if (annoyingReasonsCache.get(article) === entry) annoyingReasonsCache.delete(article);
-}
-
-function removeAnnoyingTooltip(tooltip: Element): void {
+function removeBounceTooltip(tooltip: Element): void {
   if (tooltip instanceof HTMLElement) {
-    annoyingTooltipCleanup.get(tooltip)?.();
-    annoyingTooltipCleanup.delete(tooltip);
+    bounceTooltipCleanup.get(tooltip)?.();
+    bounceTooltipCleanup.delete(tooltip);
   }
   tooltip.remove();
 }
@@ -248,7 +146,7 @@ let modelStatusDismissed: string | null = null; // derived state the user dismis
 
 // ==================== Placeholder animation ====================
 
-const PLACEHOLDER_PHRASES = ['politics', 'negativity', 'pessimism', 'political outrage', 'ragebait', 'humblebragging', 'virtue signaling', 'idolizing elites', 'Elon Musk'];
+const PLACEHOLDER_PHRASES = ['posts asking for likes or reposts', 'celebrity gossip', 'crypto price predictions', 'posts mocking strangers'];
 const PLACEHOLDER_DURATION = 10; // seconds for full cycle
 
 // Build placeholder HTML and inject dynamic keyframes once
@@ -279,8 +177,7 @@ function injectPlaceholderKeyframes() {
 // Inject keyframes on load
 injectPlaceholderKeyframes();
 
-// X-style share-up icon used by the circular share button on the actions row.
-const shareIconSVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g><path d="M12 2.59l5.7 5.7-1.41 1.42L13 6.41V16h-2V6.41l-3.3 3.3-1.41-1.42L12 2.59zM21 15l-.02 3.51c0 1.38-1.12 2.49-2.5 2.49H5.5C4.11 21 3 19.88 3 18.5V15h2v3.5c0 .28.22.5.5.5h12.98c.28 0 .5-.22.5-.5L19 15h2z"></path></g></svg>';
+
 
 // X-style horizontal ellipsis icon used by the settings button on the actions row.
 const settingsIconSVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g><path d="M3 12c0-1.1.9-2 2-2s2 .9 2 2-.9 2-2 2-2-.9-2-2zm9 2c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm7 0c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"></path></g></svg>';
@@ -425,51 +322,6 @@ export function reconcileFilterChanges(phrases: string[], processRestoredPosts =
   if (shouldProcessRestoredPosts && processRestoredPosts) _deps.processExistingPosts();
 }
 
-/** Engine identity invalidates every automatic verdict, even when its phrases survive. */
-export function reconcileEngineChange(): void {
-  automaticDecisionRevision++;
-  const posts = _deps.findPosts();
-  const manualContainers = new Set<HTMLElement>();
-  const manualKeys = new Set<string>();
-  for (const article of posts) {
-    if (!currentPostDecision(_deps.adapter, article)?.userOverride) continue;
-    manualContainers.add(_deps.adapter.getPostContainer(article));
-    const key = filteredKeyByArticle.get(article);
-    if (key) manualKeys.add(key);
-  }
-  for (const article of posts) {
-    const container = _deps.adapter.getPostContainer(article);
-    if (manualContainers.has(container)) continue;
-    restoreFilteredContainer(container, article);
-    forgetPostDecision(article);
-    _deps.processedPosts.delete(article);
-    _deps.postReasonings.delete(article);
-    postDetectorStates.delete(article);
-    _deps.pendingPosts.delete(article);
-    clearPendingDimTimer(article);
-    article.removeAttribute('data-ff-pending');
-    delete article.dataset.pendingStartTime;
-    delete article.dataset.errorType;
-    article.classList.remove('ff-error');
-    article.querySelector('.post-verification-bar')?.remove();
-    filteredKeyByArticle.delete(article);
-    refreshActivePopupIfFor(article);
-  }
-  // Thread siblings and temporarily unmounted cells can carry only the hiding
-  // marker. Restore them as well, retaining live explicit action ownership.
-  document.querySelectorAll<HTMLElement>('[data-filtered-by-extension="true"]').forEach(container => {
-    if (!manualContainers.has(container)) restoreFilteredContainer(container);
-  });
-  for (let index = filteredPosts.length - 1; index >= 0; index--) {
-    const post = filteredPosts[index];
-    if (post.userOverride || manualKeys.has(filteredPostKey(post)) || filteredRestoreStatuses.get(post)?.pending) continue;
-    filteredRestoreStatuses.delete(post);
-    filteredPosts.splice(index, 1);
-    filteredPostKeys.delete(filteredPostKey(post));
-  }
-  refreshFilteredPostsView();
-}
-
 // ==================== Theme ====================
 
 export function updateTheme() {
@@ -519,7 +371,6 @@ function buildFilterContainerHTML(): string {
           </button>
         </div>
         <div class="filter-phrases-actions-right">
-          <button class="filter-pack-share-btn" type="button" aria-label="Share your filters">${shareIconSVG}</button>
           <button class="filter-settings-btn" type="button" aria-label="Settings">${settingsIconSVG}</button>
         </div>
       </div>
@@ -685,7 +536,7 @@ function setupFilterBoxEventHandlers(container: HTMLElement) {
   const phrasesListContainer = container.querySelector('.filter-phrases-list')!;
   const input = container.querySelector<HTMLInputElement>('.filter-phrases-input')!;
   const placeholderCycle = container.querySelector('.filter-placeholder-cycle');
-  const toggleBtn = container.querySelector('.filtered-toggle-btn:not(.filter-pack-toggle-btn)')!;
+  const toggleBtn = container.querySelector('.filtered-toggle-btn')!;
   const settingsBtn = container.querySelector('.filter-settings-btn')!;
 
   // Show/hide animated placeholder based on input state and existing phrases
@@ -705,14 +556,6 @@ function setupFilterBoxEventHandlers(container: HTMLElement) {
     toggleFilteredTab(!filteredTabActive);
     updateFilteredToggleButtons();
   });
-
-  // "Share filters" button triggers the share flow
-  const shareBtn = container.querySelector<HTMLButtonElement>('.filter-pack-share-btn');
-  if (shareBtn) {
-    shareBtn.addEventListener('click', () => {
-      shareFilterPack(container).catch(err => console.error('[UI] shareFilterPack failed:', err));
-    });
-  }
 
   // Load and render saved descriptions
   getDescriptions(_deps.descriptionsKey).then((descriptions) => {
@@ -740,8 +583,12 @@ function setupFilterBoxEventHandlers(container: HTMLElement) {
       e.preventDefault();
       (async () => {
         const phrases = pasted.split(',').map(s => s.trim()).filter(Boolean);
-        for (const phrase of phrases) {
-          await addFilterPhrase(phrase);
+        for (let index = 0; index < phrases.length; index++) {
+          if (!await addFilterPhrase(phrases[index]) && !(await getDescriptions(_deps.descriptionsKey)).includes(phrases[index])) {
+            input.value = phrases.slice(index).join(', ');
+            updatePlaceholderVisibility();
+            return;
+          }
         }
         input.value = '';
         updatePlaceholderVisibility();
@@ -917,418 +764,12 @@ export function syncFilterPhrases() {
   }).catch(err => console.error('[UI] Failed to sync filter phrases:', err));
 }
 
-// ==================== Share Filter Pack ====================
-
-
-
-let sharingFilterPackInProgress = false;
-
-async function shareFilterPack(container: HTMLElement): Promise<void> {
-  if (sharingFilterPackInProgress) return;
-  sharingFilterPackInProgress = true;
-
-  const box = container.querySelector<HTMLElement>('.filter-phrases-container');
-  if (!box) { sharingFilterPackInProgress = false; return; }
-
-  try {
-    const file = await screenshotFilterBox(box);
-    const sharedPhrases = await getDescriptions(_deps.descriptionsKey);
-    const shareCode = await encodeFilterPackCode({ phrases: sharedPhrases });
-    await openComposerWithImage(file, shareCode);
-  } catch (err) {
-    console.error('[Bouncer] shareFilterPack error:', err);
-  } finally {
-    sharingFilterPackInProgress = false;
-  }
-}
-
-async function screenshotFilterBox(box: HTMLElement): Promise<File> {
-  box.classList.add('ff-capture');
-  let blob: Blob | null;
-  try {
-    blob = await toBlob(box, {
-      pixelRatio: Math.max(window.devicePixelRatio || 1, 3),
-      cacheBust: true,
-    });
-  } finally {
-    box.classList.remove('ff-capture');
-  }
-  if (!blob) throw new Error('html-to-image returned null');
-  return new File([blob], 'bouncer-filter-pack.png', { type: 'image/png' });
-}
-
-// Open the X composer and drop the image into it via a synthetic paste event
-// on the composer's contenteditable. X's DraftJS composer runs its paste handler
-// on any ClipboardEvent whose clipboardData carries a File, which is the same
-// code path as a real Cmd-V of an image — so we just drive that path directly
-// instead of fighting with React-controlled <input type="file"> semantics.
-const SHARE_TWEET_TEXT = 'I use Bouncer to remove this from my feed.';
-
-async function openComposerWithImage(file: File, shareCode: string): Promise<void> {
-  // Click the sidebar Post link the same way a user would — this triggers X's
-  // React Router to open the composer as a modal overlay.
-  const composeLink = document.querySelector<HTMLElement>('a[href="/compose/post"]');
-  if (!composeLink) throw new Error('Compose link not found on page');
-  composeLink.click();
-
-  // Scope to the modal dialog — on /home there's also an inline "What's
-  // happening?" composer with the same tweetTextarea_0 testid earlier in the
-  // DOM, which would otherwise win the querySelector race and steal the paste.
-  const textbox = await waitForElement<HTMLElement>('[role="dialog"] [data-testid="tweetTextarea_0"]', 5000);
-  if (!textbox) throw new Error('Compose textbox did not appear');
-
-  textbox.focus();
-
-  // Paste image first, then text — DraftJS' paste handler is more reliable
-  // with one data type at a time than with a combined file + text/plain
-  // payload, which some builds only read one of.
-  const imageDt = new DataTransfer();
-  imageDt.items.add(file);
-  textbox.dispatchEvent(new ClipboardEvent('paste', {
-    clipboardData: imageDt,
-    bubbles: true,
-    cancelable: true,
-  }));
-
-  // Let DraftJS finish ingesting the image before the text paste — mixing the
-  // two synchronously can make the text land inside the media-attach flow.
-  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-
-  textbox.focus();
-  const shareUrl = buildFilterPackShareUrl(shareCode);
-  const captionWithCode = `${SHARE_TWEET_TEXT}\n\n${shareUrl}`;
-  const textDt = new DataTransfer();
-  textDt.setData('text/plain', captionWithCode);
-  textbox.dispatchEvent(new ClipboardEvent('paste', {
-    clipboardData: textDt,
-    bubbles: true,
-    cancelable: true,
-  }));
-}
-
-function waitForElement<T extends Element>(selector: string, timeoutMs: number): Promise<T | null> {
-  return new Promise((resolve) => {
-    const existing = document.querySelector<T>(selector);
-    if (existing) { resolve(existing); return; }
-    const observer = new MutationObserver(() => {
-      const el = document.querySelector<T>(selector);
-      if (el) {
-        observer.disconnect();
-        clearTimeout(timer);
-        resolve(el);
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    const timer = setTimeout(() => {
-      observer.disconnect();
-      resolve(null);
-    }, timeoutMs);
-  });
-}
-
-// ==================== Import Shared Filter Packs ====================
-
-// Tracks tweetText elements we've already swapped a button into so MutationObservers
-// don't re-wrap on every React re-render. WeakMap auto-cleans when the tweet element
-// leaves the DOM (recycled by Twitter's virtualizer).
-const processedImportElements = new WeakSet<HTMLElement>();
-
-// Scan a tweet's text for an imbue.com filter-pack share URL and, if found,
-// replace the link (and its leading sentence) with a compact "Import filter
-// pack" button. No-op if the tweet has no link or we've already handled it.
-export function processImportCodeInPost(article: HTMLElement): void {
-  const tweetTextEls = article.querySelectorAll<HTMLElement>('[data-testid="tweetText"]');
-  for (const tweetText of tweetTextEls) {
-    if (processedImportElements.has(tweetText)) continue;
-    const found = findFirstImportLink(tweetText);
-    if (!found) {
-      // No link in the visible text, but the sentence's opening words might
-      // still be visible before a "Show more" truncation — if so, click it so
-      // the full tweet (with the link) lands in the DOM and the next observer
-      // pass picks it up. We don't mark processedImportElements here, on
-      // purpose, so re-scanning works after X re-renders the expanded text.
-      maybeExpandForImportCode(article, tweetText);
-      continue;
-    }
-    processedImportElements.add(tweetText);
-    // Decode async; if decoding fails we leave the original text alone.
-    decodeFilterPackCode(found.code).then((pack) => {
-      if (!pack) return;
-      if (!tweetText.isConnected || !found.link.isConnected) return;
-      swapImportSentenceForButton(found.link, pack.phrases);
-    }).catch((err) => console.error('[Bouncer] decodeFilterPackCode failed:', err));
-  }
-}
-
-// Derive a short signature from SHARE_TWEET_TEXT — the prose the share flow
-// always writes before the link — so a partial view (truncated by X's "Show
-// more") is still recognizable as the share format and worth expanding. First
-// four words are distinctive enough to avoid accidental matches.
-const IMPORT_SENTENCE_SIGNATURE = SHARE_TWEET_TEXT.split(' ').slice(0, 4).join(' ');
-
-function maybeExpandForImportCode(article: HTMLElement, tweetText: HTMLElement): void {
-  const visible = tweetText.textContent || '';
-  if (!visible.includes(IMPORT_SENTENCE_SIGNATURE)) return;
-  const showMore = article.querySelector<HTMLElement>('[data-testid="tweet-text-show-more-link"]');
-  if (!showMore) return;
-  // One-shot per article — don't re-click if the first expansion already
-  // happened (even if the re-rendered DOM somehow still includes a "Show more").
-  if (article.dataset.bouncerExpandedForImport) return;
-  article.dataset.bouncerExpandedForImport = '1';
-  showMore.click();
-
-  // X expands the tweet by mutating text nodes inside the existing tweetText
-  // element. Our page-level MutationObserver filters to ELEMENT_NODE additions
-  // so it misses those, which is why the button didn't appear after the first
-  // click. Poll the article for a short window and re-run the transform until
-  // the import button lands (or we time out if the expansion never happens —
-  // e.g. X navigated to the status page instead).
-  let attempts = 0;
-  const tick = () => {
-    if (++attempts > 30) return; // ~3s at 100ms per tick
-    if (!article.isConnected) return;
-    if (article.querySelector('.bouncer-import-btn')) return;
-    processImportCodeInPost(article);
-    setTimeout(tick, 100);
-  };
-  setTimeout(tick, 50);
-}
-
-// Scan <a> elements within `root` for an imbue.com filter-pack share URL.
-// Twitter splits the rendered URL across plain text and aria-hidden spans, but
-// `innerText` reads them all back as a single string (with stray newlines from
-// the inline-block layout that we strip before matching).
-function findFirstImportLink(
-  root: HTMLElement,
-): { code: string; link: HTMLAnchorElement } | null {
-  const links = root.querySelectorAll<HTMLAnchorElement>('a');
-  for (const link of links) {
-    const text = (link.innerText || '').replace(/\n/g, '');
-    const m = FILTER_PACK_SHARE_URL_REGEX.exec(text);
-    if (m) return { code: m[1], link };
-  }
-  return null;
-}
-
-// Replace the share <a> with the Import button and trim surrounding whitespace
-// / <br>s so the button doesn't float on its own line with a visually empty
-// gap above. The tweet's preceding prose stays untouched.
-function swapImportSentenceForButton(
-  link: HTMLAnchorElement,
-  phrases: string[],
-): void {
-  const parent = link.parentNode;
-  if (!parent) return;
-
-  const btn = buildImportButton(phrases);
-  parent.replaceChild(btn, link);
-
-  // Clean up leading whitespace / <br>s immediately before the button.
-  let prev = btn.previousSibling;
-  while (prev) {
-    if (prev.nodeType === Node.ELEMENT_NODE && (prev as HTMLElement).tagName === 'BR') {
-      const toRemove = prev;
-      prev = prev.previousSibling;
-      toRemove.parentNode?.removeChild(toRemove);
-      continue;
-    }
-    if (prev.nodeType === Node.TEXT_NODE) {
-      const t = prev as Text;
-      const trimmed = t.data.replace(/\s+$/, '');
-      if (trimmed.length < t.data.length) t.data = trimmed;
-      if (t.data.length === 0) {
-        const toRemove = t;
-        prev = t.previousSibling;
-        toRemove.parentNode?.removeChild(toRemove);
-        continue;
-      }
-    }
-    break;
-  }
-}
-
-function buildImportButton(phrases: string[]): HTMLElement {
-  const btn = document.createElement('button');
-  btn.type = 'button';
-  btn.className = 'bouncer-import-btn';
-  btn.setAttribute('aria-label', 'Import filter pack');
-  const phraseCount = phrases.length;
-  btn.replaceChildren(parseHTML(`<span>Import filter pack</span><span class="bouncer-import-btn-meta">${phraseCount} ${phraseCount === 1 ? 'phrase' : 'phrases'}</span>`));
-  btn.addEventListener('click', (e) => {
-    // Stop the click from falling through to the tweet's own click handler
-    // (which would navigate into the tweet's permalink page).
-    e.stopPropagation();
-    e.preventDefault();
-    const article = btn.closest<HTMLElement>('article');
-    flyScreenshotAndImport(article, phrases).catch((err) =>
-      console.error('[Bouncer] import failed:', err),
-    );
-  });
-  return btn;
-}
-
-// Three Bouncer layout variants live in the DOM at all times — sidebar (wide),
-// bottom (medium), mobile (narrow) — and media queries display:none all but
-// one. Returns the variant that's currently rendered so the import-flight
-// animation lands on a real, on-screen box. offsetParent is null when the
-// element or any ancestor is display:none, which is the rule the media-query
-// gating relies on.
-function pickVisibleBouncerLayout(): HTMLElement | null {
-  const layouts = document.querySelectorAll<HTMLElement>(
-    '.filter-phrases-sidebar, .filter-phrases-bottom, .filter-phrases-mobile',
-  );
-  for (const layout of layouts) {
-    if (isRendered(layout)) return layout;
-  }
-  return null;
-}
-
-// Animate the tweet's screenshot image flying into the user's Bouncer box,
-// then run the actual import. The flight takes ~700ms; we kick the storage
-// writes off in parallel so the new phrases land in the box right as the
-// flier dissolves into it. Falls back to a plain import (no animation) if we
-// can't find either the source image or the destination box.
-async function flyScreenshotAndImport(
-  article: HTMLElement | null,
-  phrases: string[],
-): Promise<void> {
-  console.log('[Bouncer/import-anim] click', { hasArticle: !!article, phraseCount: phrases.length });
-
-  // Three layout variants live in the DOM simultaneously (sidebar, bottom,
-  // mobile); media queries display:none all but the active one. Pick the
-  // visible variant via offsetParent — querySelectorAll('.filter-phrases-
-  // container') would return the first in document order, which is often a
-  // hidden one with a zero-size rect.
-  const visibleLayout = pickVisibleBouncerLayout();
-  const containerInLayout = visibleLayout?.querySelector<HTMLElement>('.filter-phrases-container') ?? null;
-  // Use the container when it has real dimensions; otherwise the layout pill
-  // (.filter-phrases-bottom collapses its inner container to max-height: 0,
-  // but the outer pill is still on screen and is what the user perceives as
-  // "the Bouncer UI").
-  const containerRect = containerInLayout?.getBoundingClientRect();
-  const useContainer = containerInLayout && containerRect && containerRect.height >= 24 && containerRect.width >= 24;
-  const destEl: HTMLElement | null = useContainer ? containerInLayout : visibleLayout;
-
-  const tweetPhotoImg = article?.querySelector<HTMLImageElement>('[data-testid="tweetPhoto"] img') ?? null;
-  const twimgImg = article?.querySelector<HTMLImageElement>('img[src*="pbs.twimg.com/media"]') ?? null;
-  const tweetImg = tweetPhotoImg ?? twimgImg;
-
-  console.log('[Bouncer/import-anim] lookups', {
-    visibleLayoutClass: visibleLayout?.className,
-    containerInLayoutFound: !!containerInLayout,
-    containerRect: containerRect ? { w: containerRect.width, h: containerRect.height } : null,
-    chosenDestKind: destEl === containerInLayout ? 'container' : destEl ? 'layout-pill' : 'none',
-    tweetPhotoImgFound: !!tweetPhotoImg,
-    twimgImgFound: !!twimgImg,
-    tweetImgSrc: tweetImg?.src,
-    articleImgCount: article?.querySelectorAll('img').length,
-  });
-
-  if (!destEl || !tweetImg) {
-    console.log('[Bouncer/import-anim] bailing — falling back to plain import', {
-      reason: !destEl ? 'no visible Bouncer layout on screen' : 'no tweet image found in article',
-    });
-    await confirmAndImportPack(phrases);
-    return;
-  }
-
-  const sourceRect = tweetImg.getBoundingClientRect();
-  const destRect = destEl.getBoundingClientRect();
-  console.log('[Bouncer/import-anim] rects', {
-    source: { x: sourceRect.left, y: sourceRect.top, w: sourceRect.width, h: sourceRect.height },
-    dest: { x: destRect.left, y: destRect.top, w: destRect.width, h: destRect.height },
-  });
-
-  if (sourceRect.width < 4 || destRect.width < 4) {
-    console.log('[Bouncer/import-anim] bailing — degenerate rect', {
-      sourceWidth: sourceRect.width,
-      destWidth: destRect.width,
-    });
-    await confirmAndImportPack(phrases);
-    return;
-  }
-  console.log('[Bouncer/import-anim] starting flight');
-
-  const flier = document.createElement('div');
-  flier.className = 'bouncer-import-flier';
-  Object.assign(flier.style, {
-    position: 'fixed',
-    left: `${sourceRect.left}px`,
-    top: `${sourceRect.top}px`,
-    width: `${sourceRect.width}px`,
-    height: `${sourceRect.height}px`,
-    zIndex: '2147483646',
-    pointerEvents: 'none',
-    transformOrigin: 'top left',
-    willChange: 'transform, opacity',
-    borderRadius: '14px',
-    overflow: 'hidden',
-    boxShadow: '0 16px 48px rgba(0, 0, 0, 0.45)',
-  } satisfies Partial<CSSStyleDeclaration>);
-
-  const imgClone = document.createElement('img');
-  imgClone.src = tweetImg.src;
-  imgClone.alt = '';
-  imgClone.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;';
-  flier.appendChild(imgClone);
-  document.body.appendChild(flier);
-
-  // Hide the source image during the flight so the screenshot doesn't appear
-  // to be in two places at once.
-  const originalSourceVis = tweetImg.style.visibility;
-  tweetImg.style.visibility = 'hidden';
-
-  const dx = destRect.left - sourceRect.left;
-  const dy = destRect.top - sourceRect.top;
-  const sx = destRect.width / sourceRect.width;
-  const sy = destRect.height / sourceRect.height;
-
-  // Run the storage writes alongside the animation so the new phrases appear
-  // in the destination box right as the flier reaches it. Errors during the
-  // import are surfaced by the outer catch via the click handler.
-  const importPromise = confirmAndImportPack(phrases);
-
-  const flightMs = 720;
-  const animation = flier.animate(
-    [
-      { transform: 'translate(0, 0) scale(1, 1)', opacity: 1, filter: 'blur(0px)' },
-      // Mid-flight: lift slightly off the original path with a soft bloom so
-      // the eye reads it as movement rather than a linear lerp.
-      { transform: `translate(${dx * 0.5}px, ${dy * 0.5 - Math.min(80, Math.abs(dy) * 0.2)}px) scale(${(1 + sx) / 2}, ${(1 + sy) / 2})`, opacity: 0.95, filter: 'blur(0px)', offset: 0.55 },
-      { transform: `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`, opacity: 0, filter: 'blur(2px)' },
-    ],
-    { duration: flightMs, easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)', fill: 'forwards' },
-  );
-
-  try {
-    await animation.finished;
-  } catch {
-    // Animation can be canceled if the page navigates mid-flight — fall through
-    // and ensure cleanup still runs.
-  }
-  flier.remove();
-  tweetImg.style.visibility = originalSourceVis;
-
-  // Brief pulse on the destination so the user's eye lands on the place where
-  // the new pack just appeared.
-  destEl.classList.add('bouncer-import-landing');
-  setTimeout(() => destEl.classList.remove('bouncer-import-landing'), 700);
-
-  // Make sure storage writes are surfaced before we return so callers see real
-  // failures and not a silently-completed flight.
-  await importPromise;
-}
-
-async function confirmAndImportPack(phrases: string[]): Promise<void> {
-  const existing = await getDescriptions(_deps.descriptionsKey);
-  const newPhrases = phrases.filter(p => !existing.includes(p));
-  if (newPhrases.length === 0) return;
-  await setDescriptions(_deps.descriptionsKey, [...existing, ...newPhrases]);
-  syncFilterPhrases();
-  _deps.reEvaluateAllPosts();
+function activeFilterPhrases(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((phrase): phrase is string => typeof phrase === 'string' && !!phrase.trim()) : [];
 }
 
 function renderPhrasesInContainer(container: Element, descriptions: string[]) {
+  descriptions = activeFilterPhrases(descriptions);
   container.replaceChildren();
   const len = descriptions.length;
   descriptions.forEach((desc, index) => {
@@ -1360,10 +801,17 @@ function renderPhrasesInContainer(container: Element, descriptions: string[]) {
   }
 }
 
-const MAX_CATEGORIES_LENGTH = 1000;
+const CATEGORY_LIMIT_WARNING = 'You have too many filter categories - please remove some before adding more';
+
+function filterLimitWarning(descriptions: string[], phrase: string): string | undefined {
+  if (descriptions.includes(phrase)) return;
+  if (descriptions.length >= MAX_ACTIVE_FILTERS) return MAX_FILTERS_WARNING;
+  if (descriptions.reduce((total, value) => total + value.length, phrase.length) > MAX_FILTERS_CHARACTERS) return CATEGORY_LIMIT_WARNING;
+}
 
 export async function addFilterPhrase(text: string) {
   console.log('[Bouncer] addFilterPhrase called with:', text);
+  text = text.trim();
   if (!text) return false;
 
   try {
@@ -1372,10 +820,9 @@ export async function addFilterPhrase(text: string) {
 
     if (descriptions.includes(text)) { console.log('[Bouncer] Already exists'); return false; }
 
-    // Check total character length with the new phrase
-    const totalLength = [...descriptions, text].reduce((sum, d) => sum + d.length, 0);
-    if (totalLength > MAX_CATEGORIES_LENGTH) {
-      showCategoryLimitWarning();
+    const warning = filterLimitWarning(descriptions, text);
+    if (warning) {
+      showCategoryLimitWarning(warning);
       return false;
     }
 
@@ -1488,7 +935,7 @@ export function updateFilteredToggleButtons() {
   const containers = [filterPhrasesContainer, bottomFilterContainer, mobileFilterContainer];
   containers.forEach(container => {
     if (container && container.isConnected) {
-      const toggleBtn = container.querySelector('.filtered-toggle-btn:not(.filter-pack-toggle-btn)');
+      const toggleBtn = container.querySelector('.filtered-toggle-btn');
       if (toggleBtn) {
         if (filteredTabActive) {
           toggleBtn.classList.add('active');
@@ -1523,7 +970,7 @@ export function updateFilteredTabCount() {
 
 }
 
-// ==================== Selected engine status ====================
+// ==================== Local model status ====================
 
 interface ModelStatusView {
   variant: 'info' | 'progress' | 'warning';
@@ -1531,14 +978,14 @@ interface ModelStatusView {
   dismissible: boolean;
 }
 
-export function modelStatusView(status: LocalModelStatus, selection?: EngineSelection): ModelStatusView | null {
-  if (selection && !statusMatchesSelection(status, selection)) return null;
-  if (status.state === 'ready' || status.state === 'filtering') return null;
-  const view = engineStatusView(status, selection);
-  const progress = ['loading', 'downloading', 'canceling', 'switching'].includes(status.state);
+export function modelStatusView(status: LocalModelStatus): ModelStatusView | null {
+  status = normalizeLocalModelStatus(status);
+  if (status.state === 'ready') return null;
+  const view = localModelStatusView(status);
+  const progress = status.state === 'checking';
   return {
     variant: progress ? 'progress' : view.tone === 'error' ? 'warning' : 'info',
-    body: [view.text, view.progressText].filter(Boolean).join(' '),
+    body: view.text,
     dismissible: !progress,
   };
 }
@@ -1555,16 +1002,13 @@ let statusFilteringEnabled = true;
 let statusHasFilters = false;
 let modelStatusPresentationRevision = 0;
 
-export function updateModelStatusIndicator(status: LocalModelStatus, selection?: EngineSelection): void {
+export function updateModelStatusIndicator(status: LocalModelStatus): void {
+  status = normalizeLocalModelStatus(status);
   const presentationRevision = ++modelStatusPresentationRevision;
-  contentLocalModelStatus = status;
-  if (selection) updateContentEngineSelection(selection);
-  // Each committed choice has its own dismissal; inactive engine snapshots
-  // cannot redisplay a warning or replace the selected engine's status.
-  const condition = `${selection?.engine ?? status.engine ?? 'legacy'}:${selection?.revision ?? status.selectionRevision ?? 0}:${status.state}:${status.reason || ''}`;
+  const condition = status.state;
   if (modelStatusDismissed !== condition) modelStatusDismissed = null;
   const view = !statusFilteringEnabled || !statusHasFilters || modelStatusDismissed === condition
-    ? null : modelStatusView(status, selection);
+    ? null : modelStatusView(status);
   if (!view) {
     modelStatusEl?.classList.remove('visible');
     return;
@@ -1590,67 +1034,45 @@ export function updateModelStatusIndicator(status: LocalModelStatus, selection?:
 }
 
 interface ModelLoadingStorageSnapshot {
-  engineSelection?: EngineSelection;
-  localModelStatus?: LocalModelStatus;
-  nativeModelStatus?: LocalModelStatus;
+  nativeModelStatus?: unknown;
 }
 interface ModelLoadingCoordinator {
   handleChanges: (changes: Record<string, chrome.storage.StorageChange>) => void;
   finishInitialLoad: (snapshot: ModelLoadingStorageSnapshot) => void;
   getStatus: () => LocalModelStatus;
-  getSelection: () => EngineSelection | undefined;
 }
 
-const disconnectedStatus = (): LocalModelStatus => ({ state: 'not_connected', message: '', revision: 0 });
-const selectionStatus = (selection: EngineSelection): LocalModelStatus => ({
-  state: selection.engine ? 'switching' : 'not_configured', message: '', revision: 0,
-  engine: selection.engine, selectionRevision: selection.revision,
-});
-const needsRecovery = (status: LocalModelStatus | undefined): boolean => !!status
-  && !['ready', 'filtering', 'loading'].includes(status.state);
+const initialModelStatus = (): LocalModelStatus => ({ state: 'checking', message: '', revision: 0 });
+const wasUnavailable = (status: LocalModelStatus | undefined): boolean => !!status
+  && ['unavailable', 'missing_model', 'settings_required'].includes(status.state);
 
-/** Listener-before-snapshot initialization compares revisions only within one selected engine. */
+/** Listener-before-snapshot initialization retains newer model status revisions. */
 export function createModelLoadingCoordinator(
   render: (status: LocalModelStatus) => void,
   processExistingPosts: () => void,
 ): ModelLoadingCoordinator {
-  let selection: EngineSelection | undefined;
-  let currentStatus = disconnectedStatus();
-  let legacyNative = true;
+  let currentStatus = initialModelStatus();
   let initialLoadFinished = false;
   const queuedChanges: Array<Record<string, chrome.storage.StorageChange>> = [];
-  let lastRecoveredReadyRevision: string | undefined;
-  const matches = (status: LocalModelStatus): boolean => selection
-    ? statusMatchesSelection(status, selection)
-    : legacyNative && status.engine === undefined && status.selectionRevision === undefined;
+  let lastReprocessedReadyRevision: number | undefined;
+  let reprocessWhenReady = false;
   const applyChanges = (changes: Record<string, chrome.storage.StorageChange>, shouldRender: boolean) => {
-    let changed = false;
-    const nextSelection = changes.engineSelection?.newValue as EngineSelection | undefined;
-    if (nextSelection && (!selection || nextSelection.revision > selection.revision)) {
-      selection = { ...nextSelection };
-      legacyNative = false;
-      currentStatus = selectionStatus(selection);
-      changed = true;
-    }
-    const storageChange = changes.localModelStatus || (legacyNative ? changes.nativeModelStatus : undefined);
-    if (storageChange) {
-      const next = storageChange.newValue as LocalModelStatus | undefined;
-      // Status counters belong to the engine/selection pair. Never compare a
-      // browser progress revision with an Ollama revision or accept old Ready.
-      if (next && matches(next) && (next.revision > currentStatus.revision || changed
-          || !shouldRender && next.revision === currentStatus.revision && next.state === currentStatus.state)) {
-        const eventPrevious = storageChange.oldValue as LocalModelStatus | undefined;
-        const previous = eventPrevious && matches(eventPrevious) ? eventPrevious : currentStatus;
-        currentStatus = next;
-        changed = true;
-        const recoveryKey = `${selection?.engine ?? 'legacy'}:${selection?.revision ?? 0}:${next.revision}`;
-        if (next.state === 'ready' && needsRecovery(previous) && lastRecoveredReadyRevision !== recoveryKey) {
-          lastRecoveredReadyRevision = recoveryKey;
-          processExistingPosts();
-        }
+    const storageChange = changes.nativeModelStatus;
+    if (!storageChange) return;
+    const next = normalizeLocalModelStatus(storageChange.newValue);
+    if (!(next.revision > currentStatus.revision
+        || !shouldRender && next.revision === currentStatus.revision && next.state === currentStatus.state)) return;
+    const previous = storageChange.oldValue === undefined ? currentStatus : normalizeLocalModelStatus(storageChange.oldValue);
+    currentStatus = next;
+    if (wasUnavailable(previous) || wasUnavailable(next)) reprocessWhenReady = true;
+    if (next.state === 'ready' && reprocessWhenReady) {
+      reprocessWhenReady = false;
+      if (lastReprocessedReadyRevision !== next.revision) {
+        lastReprocessedReadyRevision = next.revision;
+        processExistingPosts();
       }
     }
-    if (changed && shouldRender) render(currentStatus);
+    if (shouldRender) render(currentStatus);
   };
   return {
     handleChanges(changes) {
@@ -1659,17 +1081,25 @@ export function createModelLoadingCoordinator(
     },
     finishInitialLoad(snapshot) {
       if (initialLoadFinished) return;
-      selection = snapshot.engineSelection ? { ...snapshot.engineSelection } : undefined;
-      legacyNative = !selection && !snapshot.localModelStatus;
-      const status = snapshot.localModelStatus || (legacyNative ? snapshot.nativeModelStatus : undefined);
-      currentStatus = status && matches(status) ? status : selection ? selectionStatus(selection) : disconnectedStatus();
+      currentStatus = snapshot.nativeModelStatus === undefined ? initialModelStatus() : normalizeLocalModelStatus(snapshot.nativeModelStatus);
+      reprocessWhenReady = wasUnavailable(currentStatus) || queuedChanges.some(changes => {
+        const change = changes.nativeModelStatus;
+        return wasUnavailable(normalizeLocalModelStatus(change?.oldValue))
+          || wasUnavailable(normalizeLocalModelStatus(change?.newValue));
+      });
       for (const changes of queuedChanges) applyChanges(changes, false);
       queuedChanges.length = 0;
+      if (currentStatus.state === 'ready' && reprocessWhenReady) {
+        reprocessWhenReady = false;
+        if (lastReprocessedReadyRevision !== currentStatus.revision) {
+          lastReprocessedReadyRevision = currentStatus.revision;
+          processExistingPosts();
+        }
+      }
       initialLoadFinished = true;
       render(currentStatus);
     },
     getStatus: () => currentStatus,
-    getSelection: () => selection,
   };
 }
 
@@ -1681,26 +1111,26 @@ export function initModelLoadingListener(): void {
   let snapshotPending = true;
   const changedContext = new Set<string>();
   const coordinator = createModelLoadingCoordinator(
-    status => updateModelStatusIndicator(status, coordinator.getSelection()),
+    status => updateModelStatusIndicator(status),
     () => _deps.processExistingPosts(),
   );
   chrome.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== 'local') return;
     if (snapshotPending) Object.keys(changes).forEach(key => changedContext.add(key));
     if (changes.enabled) statusFilteringEnabled = changes.enabled.newValue !== false;
-    if (changes[descriptionsKey]) statusHasFilters = !!(changes[descriptionsKey].newValue as string[] | undefined)?.length;
+    if (changes[descriptionsKey]) statusHasFilters = activeFilterPhrases(changes[descriptionsKey].newValue).length > 0;
     coordinator.handleChanges(changes);
-    if (changes.enabled || changes[descriptionsKey]) updateModelStatusIndicator(coordinator.getStatus(), coordinator.getSelection());
+    if (changes.enabled || changes[descriptionsKey]) updateModelStatusIndicator(coordinator.getStatus());
   });
-  getStorage(['engineSelection', 'localModelStatus', 'nativeModelStatus', 'enabled', descriptionsKey])
+  getStorage(['nativeModelStatus', 'enabled', descriptionsKey])
     .then(data => {
       if (!changedContext.has('enabled')) statusFilteringEnabled = data.enabled !== false;
-      if (!changedContext.has(descriptionsKey)) statusHasFilters = !!data[descriptionsKey]?.length;
+      if (!changedContext.has(descriptionsKey)) statusHasFilters = activeFilterPhrases(data[descriptionsKey]).length > 0;
       snapshotPending = false;
       coordinator.finishInitialLoad(data);
     })
     .catch(err => {
-      console.error('[UI] Failed to load local engine status:', err);
+      console.error('[UI] Failed to load local model status:', err);
       snapshotPending = false;
       coordinator.finishInitialLoad({});
     });
@@ -1941,15 +1371,16 @@ export function renderFilteredPostsView(container: Element) {
       body.appendChild(mediaContainer);
     }
 
-    // Reasoning — table_yesno (Gemma) posts carry matched categories in
-    // `post.category` and a terse pipe-row in `post.reasoning`; show the clean
-    // "Matched: …" summary instead of running the pipe-row through cleanReasoning.
-    // Keep a fallback for malformed/legacy cache entries without a category.
+    // Show exact matches for classifications and labeled manual actions.
+    // A manual action without a label uses its current action text instead.
     const reasoning = document.createElement('div');
     reasoning.className = 'slop-post-reasoning';
     reasoning.textContent = displayedMatches(post).length
-      ? `Matched: ${displayedMatches(post).join(', ')}`
-      : (cleanReasoning(post.reasoning) || 'Filtered');
+      ? `Matched: ${displayedMatches(post).map(label => {
+        const score = post.classification?.scores?.find(entry => entry.label === label)?.score;
+        return score === undefined ? label : `${label} · ${score.toFixed(2)}`;
+      }).join(', ')}`
+      : (post.reasoning || 'Filtered');
     body.appendChild(reasoning);
 
     // Actions row
@@ -1990,6 +1421,9 @@ export function renderFilteredPostsView(container: Element) {
       wrapper.appendChild(postRow);
     }
 
+    // Keep interactive details outside the post link so selecting text or
+    // opening the disclosure cannot navigate to X.
+    wrapper.appendChild(createClassificationDetails(post.classification, postContent.postUrl));
     postsContainer.appendChild(wrapper);
   });
 }
@@ -2011,7 +1445,6 @@ async function restorePostSnapshot(post: FilteredPost, button: HTMLButtonElement
     const persistence: DecisionPersistence = {
       state: 'writing', settled: new Promise(resolve => { settlePersistence = resolve; }),
       previousDecision: decision, previousReasoning: _deps.postReasonings.get(article),
-      automaticRevision: automaticDecisionRevision,
     };
     // Claim this explicit action immediately, while preserving the current
     // hide until persistence succeeds. Earlier canonical lookups must yield.
@@ -2099,17 +1532,23 @@ async function restorePostSnapshot(post: FilteredPost, button: HTMLButtonElement
 
 // ==================== Filtered Post Storage ====================
 
-export function storeFilteredPost(article: HTMLElement, contentObj: PostContent, reasoning: string, rawResponse = '', category: string | null = null, matches?: string[], userOverride?: boolean, evaluationText?: string) {
+export function storeFilteredPost(article: HTMLElement, contentObj: PostContent, reasoning: string, rawResponse = '', category: string | null = null, matches?: string[], userOverride?: boolean, evaluationText?: string, classification?: ClassificationDetails) {
   // Use postUrl or content hash as dedup key
   const evalText = evaluationText ?? formatPostForEvaluation(contentObj);
   const key = contentObj.postUrl || evalText.substring(0, 200);
+  const classificationSnapshot = classification && !userOverride ? {
+    scores: classification.scores?.map(({ label, score }) => ({ label, score })),
+    textSent: classification.textSent,
+    model: classification.model,
+    timestamp: classification.timestamp,
+  } : undefined;
   filteredKeyByArticle.set(article, key);
   if (filteredPostKeys.has(key)) {
     const index = filteredPosts.findIndex(post => filteredPostKey(post) === key);
     if (index !== -1) {
       const previous = filteredPosts[index];
       const status = filteredRestoreStatuses.get(previous);
-      const replacement = { ...previous, evaluationText: evaluationText ?? previous.evaluationText, reasoning, rawResponse, category, matches: matches ? [...matches] : undefined, userOverride };
+      const replacement = { ...previous, evaluationText: evaluationText ?? previous.evaluationText, reasoning, rawResponse, category, matches: matches ? [...matches] : undefined, userOverride, classification: classificationSnapshot };
       filteredPosts[index] = replacement;
       if (status && !userOverride) filteredRestoreStatuses.set(replacement, status);
       filteredRestoreStatuses.delete(previous);
@@ -2127,6 +1566,7 @@ export function storeFilteredPost(article: HTMLElement, contentObj: PostContent,
     category: category || null,
     matches: matches ? [...matches] : undefined,
     userOverride,
+    classification: classificationSnapshot,
     timestamp: Date.now()
   });
   let evictedSnapshot = false;
@@ -2235,22 +1675,25 @@ export function hidePost(article: HTMLElement) {
 }
 
 /** One atomic background action establishes both the rule and durable override. */
-export async function bouncePost(article: HTMLElement, content: PostContent, phrase?: string, reasoning = phrase ? `User blocked: ${phrase}` : 'User reported: should have been filtered'): Promise<boolean> {
+export async function bouncePost(article: HTMLElement, content: PostContent, phrase: string, reasoning?: string): Promise<boolean> {
+  if (typeof phrase !== 'string') return false;
+  phrase = phrase.trim();
+  if (!phrase) return false;
+  reasoning ??= `User blocked: ${phrase}`;
   const identity = postIdentity(_deps.adapter, article);
   const currentContent = _deps.extractPostContent(article);
   if (!article.isConnected || currentContent.postUrl !== content.postUrl || formatPostForEvaluation(currentContent) !== formatPostForEvaluation(content)) return false;
-  const matches = phrase ? [phrase] : undefined;
+  const matches = [phrase];
   let settlePersistence!: () => void;
   const persistence: DecisionPersistence = {
     state: 'extracting', settled: new Promise(resolve => { settlePersistence = resolve; }),
     previousDecision: getPostDecision(article), previousReasoning: _deps.postReasonings.get(article),
-    automaticRevision: automaticDecisionRevision,
   };
   const decision = { identity, shouldHide: true, matches, userOverride: true, persistence };
   rememberPostDecision(article, decision);
   const manualDecision = getPostDecision(article);
   postDetectorStates.delete(article);
-  const manualReasoning = { shouldHide: true, reasoning, category: phrase || null, matches, userOverride: true };
+  const manualReasoning = { shouldHide: true, reasoning, category: phrase, matches, userOverride: true };
   _deps.postReasonings.set(article, manualReasoning);
   article.style.transition = 'opacity 0.3s ease';
   article.style.opacity = '0';
@@ -2262,17 +1705,25 @@ export async function bouncePost(article: HTMLElement, content: PostContent, phr
     else restoreFilteredContainer(_deps.adapter.getPostContainer(article), article);
   });
   try {
-    // Durable feedback must use the same author and complete text as automatic
-    // evaluation. DOM author labels include handles/times and text may be cut.
-    const evaluationContent = await _deps.adapter.extractPostContentFromStore(article);
+    // Durable feedback uses the same complete post text as automatic evaluation;
+    // the DOM display may contain only an excerpt.
+    const [evaluationContent, descriptions] = await Promise.all([
+      _deps.adapter.extractPostContentFromStore(article),
+      getDescriptions(_deps.descriptionsKey),
+    ]);
     if (!isPostIdentityCurrent(_deps.adapter, article, identity) || getPostDecision(article) !== manualDecision) {
       const previous = await settledPostDecision(persistence.previousDecision, persistence.previousReasoning);
       completeDecisionPersistence(persistence, 'canceled', previous);
       return false;
     }
+    const warning = filterLimitWarning(descriptions, phrase);
+    if (warning) {
+      showCategoryLimitWarning(warning);
+      throw new Error(warning);
+    }
     if (!evaluationContent) throw new Error('Could not extract post data from store. Try Bounce again.');
     const evaluationText = formatPostForEvaluation(evaluationContent);
-    storeFilteredPost(article, content, reasoning, '', phrase || null, matches, true, evaluationText);
+    storeFilteredPost(article, content, reasoning, '', phrase, matches, true, evaluationText);
     persistence.state = 'writing';
     const response: { success?: boolean; error?: string } | undefined = await chrome.runtime.sendMessage({
       type: 'bouncePost', post: evaluationText, phrase, reasoning, siteId: _deps.adapter.siteId,
@@ -2284,6 +1735,8 @@ export async function bouncePost(article: HTMLElement, content: PostContent, phr
     return true;
   } catch (err) {
     completeDecisionPersistence(persistence, 'failed', {});
+    if (err instanceof Error && err.message === 'Filter phrases exceed the 1000-character limit.') showCategoryLimitWarning();
+    if (err instanceof Error && err.message === MAX_FILTERS_WARNING) showCategoryLimitWarning(MAX_FILTERS_WARNING);
     console.error('[Bouncer] Bounce action error:', err);
     // A failed durable write must not leave a pretend-success hidden post.
     if (isPostIdentityCurrent(_deps.adapter, article, identity) && getPostDecision(article) === manualDecision) {
@@ -2305,7 +1758,6 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
   hideReasoningPopup();
 
   const content = _deps.extractPostContent(article);
-  const openedPostIdentity = postIdentity(_deps.adapter, article);
   const stored = _deps.postReasonings.get(article);
 
   const popup = document.createElement('div');
@@ -2330,13 +1782,6 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
   }
 
   const detectorEntry = postDetectorStates.get(article);
-  const rawResponseSection = stored?.rawResponse ? `
-    <details class="reasoning-debug">
-      <summary>Raw Model Response</summary>
-      <pre class="reasoning-debug-html">${escapeHtml(stored.rawResponse)}</pre>
-    </details>
-  ` : '';
-
   let bodyHtml: string;
   if (detectorEntry && detectorEntry.names.length > 0) {
     // Pick which tab is active. Preserve user selection if still valid;
@@ -2373,13 +1818,11 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
     } else {
       const verdict = active.shouldHide ? 'HIDE' : 'KEEP';
       const verdictClass = active.shouldHide ? 'verdict-hide' : 'verdict-keep';
-      // table_yesno (Gemma) returns matched categories in `category` and a terse
-      // pipe-row in `reasoning`. Render the matches as chips rather than running
-      // the pipe-row through cleanReasoning (which splits on "|" and would mangle
-      // it). Keep a text fallback for malformed/legacy cache entries.
+      // Show the classifier's exact matches without splitting labels on commas.
+      // Current keeps and failed results can have no matches; show their text.
       const reasoningBody = displayedMatches(active).length
         ? `<div class="reasoning-match-label">Matched categories</div><div class="reasoning-match-chips">${displayedMatches(active).map(c => `<span class="reasoning-match-chip">${escapeHtml(c)}</span>`).join('')}</div>`
-        : `<div class="reasoning-text">${escapeHtml(cleanReasoning(active.reasoning ?? '') ?? '')}</div>`;
+        : `<div class="reasoning-text">${escapeHtml(active.reasoning ?? '')}</div>`;
       tabBody = `
         <div class="reasoning-tab-verdict ${verdictClass}">${verdict}</div>
         ${reasoningBody}
@@ -2391,11 +1834,11 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
       <div class="reasoning-tab-body">${tabBody}</div>
     `;
   } else {
-    // Fallback: single-reason render for cache hits / no-rules / disabled.
+    // Current cached/manual decisions and unevaluated posts have no detector tabs.
     const reasoning = stored?.reasoning ?? 'Post not yet evaluated. It may be queued or no filter rules are set.';
     bodyHtml = displayedMatches(stored || {}).length
       ? `<div class="reasoning-match-label">Matched categories</div><div class="reasoning-match-chips">${displayedMatches(stored!).map(c => `<span class="reasoning-match-chip">${escapeHtml(c)}</span>`).join('')}</div>`
-      : `<div class="reasoning-text">${escapeHtml(cleanReasoning(reasoning) ?? '')}</div>`;
+      : `<div class="reasoning-text">${escapeHtml(reasoning ?? '')}</div>`;
   }
 
   popup.replaceChildren(parseHTML(`
@@ -2405,11 +1848,12 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
     </div>
     ${bodyHtml}
     <div class="reasoning-post">${escapeHtml(content.text.substring(0, 100))}${content.text.length > 100 ? '...' : ''}</div>
-    ${rawResponseSection}
+    <div class="reasoning-details"></div>
     <button class="reasoning-reeval-btn">${stored ? 'Re-evaluate' : 'Evaluate Now'}</button>
-    <button class="reasoning-suggest-btn">Find filter suggestions</button>
-    <div class="reasoning-suggestions"></div>
   `));
+  if (stored && !stored.isModelError) {
+    popup.querySelector('.reasoning-details')!.appendChild(createClassificationDetails(stored, content.postUrl));
+  }
 
   popup.style.left = `${x}px`;
   popup.style.top = `${y}px`;
@@ -2441,77 +1885,6 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
     })().catch(err => console.error('[UI] reeval handler failed:', err));
   });
 
-  const suggestButton = popup.querySelector<HTMLButtonElement>('.reasoning-suggest-btn')!;
-  const suggestionsDiv = popup.querySelector<HTMLElement>('.reasoning-suggestions')!;
-  const openedPostKey = `${_deps.adapter.getPostUrl(article) || ''}\n${formatPostForEvaluation(content)}`;
-  const showSuggestionSetup = (message: string) => {
-    suggestionsDiv.replaceChildren();
-    const label = document.createElement('span');
-    label.textContent = message;
-    const settings = document.createElement('button');
-    settings.type = 'button';
-    settings.textContent = 'Settings';
-    settings.addEventListener('click', showSettingsModal);
-    suggestionsDiv.append(label, settings);
-    suggestButton.disabled = false;
-    suggestButton.style.display = '';
-    suggestButton.textContent = 'Find filter suggestions';
-  };
-  const onSelectionChange = () => showSuggestionSetup(suggestionSetupMessage() || 'The engine changed. Find filter suggestions again.');
-  suggestionSelectionListeners.add(onSelectionChange);
-  activePopupSuggestionCleanup = () => suggestionSelectionListeners.delete(onSelectionChange);
-  suggestButton.addEventListener('click', () => {
-    (async () => {
-      const setup = suggestionSetupMessage();
-      if (setup) { showSuggestionSetup(setup); return; }
-      suggestButton.disabled = true;
-      suggestButton.textContent = 'Finding suggestions…';
-      suggestionsDiv.replaceChildren();
-      const entry = requestSuggestions(article, openedPostKey, content.text);
-      try {
-        const response = await entry.promise;
-        if (!isPostIdentityCurrent(_deps.adapter, article, openedPostIdentity) || !popup.isConnected
-            || !isSuggestionRequestCurrent(article, entry, openedPostKey)) return;
-        if (!suggestionResponseMatchesSelection(response)) {
-          clearSuggestionRequest(article, entry);
-          showSuggestionSetup('The engine changed. Find filter suggestions again.');
-          return;
-        }
-        const responseError = suggestionResponseError(response);
-        if (responseError) {
-          clearSuggestionRequest(article, entry);
-          showSuggestionSetup(responseError);
-        } else if (response.reasons?.length) {
-          suggestButton.style.display = 'none';
-          suggestionsDiv.replaceChildren(parseHTML(response.reasons.map(r =>
-            `<button class="reasoning-suggestion-chip">${escapeHtml(r)}</button>`
-          ).join('')));
-          suggestionsDiv.querySelectorAll('.reasoning-suggestion-chip').forEach(chip => {
-            chip.addEventListener('click', asyncHandler(async () => {
-              const phrase = chip.textContent ?? '';
-              if (!isPostIdentityCurrent(_deps.adapter, article, openedPostIdentity)
-                  || !isSuggestionRequestCurrent(article, entry, openedPostKey)) return;
-              (chip as HTMLButtonElement).disabled = true;
-              if (await bouncePost(article, content, phrase)) {
-                chip.classList.add('suggestion-added');
-                chip.textContent = `+ ${phrase}`;
-              } else {
-                (chip as HTMLButtonElement).disabled = false;
-              }
-            }));
-          });
-        } else {
-          suggestButton.textContent = 'No useful suggestions';
-          suggestButton.disabled = true;
-        }
-      } catch (err) {
-        if (!popup.isConnected || !isSuggestionRequestCurrent(article, entry, openedPostKey)) return;
-        clearSuggestionRequest(article, entry);
-        showSuggestionSetup(err instanceof Error ? err.message : 'Try again.');
-      }
-    })().catch(err => console.error('[UI] suggest handler failed:', err));
-  });
-
   const rect = popup.getBoundingClientRect();
   if (rect.right > window.innerWidth) {
     popup.style.left = `${window.innerWidth - rect.width - 10}px`;
@@ -2526,8 +1899,6 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
 }
 
 export function hideReasoningPopup() {
-  activePopupSuggestionCleanup?.();
-  activePopupSuggestionCleanup = null;
   if (activePopup) {
     activePopup.remove();
     activePopup = null;
@@ -2540,9 +1911,8 @@ export function hideReasoningPopup() {
 //
 // Each evaluated post gets a small map of detector name → state. The popup
 // renders one tab per detector and reads each tab's content from this map.
-// Posts that don't go through the multi-detector pipeline (cache hits, the
-// "no filter rules" early return, etc.) won't have an entry here, and the
-// popup falls back to the legacy single-reason rendering.
+// Cache hits, manual decisions and no-filter results have no detector entry;
+// the popup renders their current decision text directly.
 
 interface DetectorPopupState {
   status: 'pending' | 'success' | 'error' | 'skipped';
@@ -2616,21 +1986,24 @@ function handleOutsideClick(e: MouseEvent) {
   }
 }
 
-function showCategoryLimitWarning() {
-  // Show warning in all filter box containers
-  const containers = [filterPhrasesContainer, bottomFilterContainer, mobileFilterContainer].filter(Boolean) as HTMLElement[];
+function showCategoryLimitWarning(message = CATEGORY_LIMIT_WARNING) {
+  // Keep the same limit warning beside both filter entry controls and Bounce.
+  const containers = [filterPhrasesContainer, bottomFilterContainer, mobileFilterContainer,
+    ...document.querySelectorAll<HTMLElement>('.ff-bounce-tooltip-content')].filter(Boolean) as HTMLElement[];
   for (const container of containers) {
     // Don't add duplicate warnings
-    if (container.querySelector('.ff-category-limit-warning')) continue;
+    const existing = container.querySelector('.ff-category-limit-warning');
+    if (existing) { existing.textContent = message; continue; }
     const warning = document.createElement('div');
     warning.className = 'ff-category-limit-warning';
-    warning.textContent = 'You have too many filter categories - please remove some before adding more';
-    const actionsRow = container.querySelector('.filter-phrases-actions');
+    warning.setAttribute('role', 'alert');
+    warning.textContent = message;
+    const actionsRow = container.querySelector('.filter-phrases-actions, .ff-bounce-actions');
     if (actionsRow) {
       actionsRow.parentNode!.insertBefore(warning, actionsRow);
     }
     // Remove when user types or clicks elsewhere
-    const input = container.querySelector<HTMLInputElement>('.filter-phrases-input');
+    const input = container.querySelector<HTMLInputElement>('.filter-phrases-input, .ff-bounce-input');
     if (input) {
       const dismiss = () => {
         warning.remove();
@@ -2677,19 +2050,18 @@ async function fetchReasoningIfNeeded(article: HTMLElement) {
 
   const identity = postIdentity(_deps.adapter, article);
   const decision = getPostDecision(article);
-  const engineKey = suggestionEngineKey();
 
   try {
     const content = await _deps.adapter.extractPostContentFromStore(article);
     if (!content?.text.trim() || !isPostIdentityCurrent(_deps.adapter, article, identity)
-        || getPostDecision(article) !== decision || _deps.postReasonings.has(article) || engineKey !== suggestionEngineKey()) return;
-    const response: { found?: boolean; shouldHide?: boolean; reasoning?: string; rawResponse?: string; matches?: string[]; category?: string | null; userOverride?: boolean } | undefined = await chrome.runtime.sendMessage({
+        || getPostDecision(article) !== decision || _deps.postReasonings.has(article)) return;
+    const response: (ClassificationDetails & { found?: boolean; shouldHide?: boolean; reasoning?: string; rawResponse?: string; matches?: string[]; category?: string | null; userOverride?: boolean }) | undefined = await chrome.runtime.sendMessage({
       type: 'getReasoning',
       post: formatPostForEvaluation(content)
     });
 
     if (response && response.found && isPostIdentityCurrent(_deps.adapter, article, identity)
-        && getPostDecision(article) === decision && !_deps.postReasonings.has(article) && engineKey === suggestionEngineKey()) {
+        && getPostDecision(article) === decision && !_deps.postReasonings.has(article)) {
       _deps.postReasonings.set(article, {
         shouldHide: response.shouldHide ?? false,
         reasoning: response.reasoning ?? '',
@@ -2697,6 +2069,10 @@ async function fetchReasoningIfNeeded(article: HTMLElement) {
         matches: response.matches,
         category: response.category,
         userOverride: response.userOverride,
+        scores: response.scores,
+        textSent: response.textSent,
+        model: response.model,
+        timestamp: response.userOverride ? undefined : response.timestamp,
       });
     }
   } catch (err) {
@@ -2706,98 +2082,147 @@ async function fetchReasoningIfNeeded(article: HTMLElement) {
 
 // ==================== DOM Mutation Handler ====================
 
-// ==================== Why Annoying Button ====================
+// ==================== Bounce Label Entry ====================
 
-interface BounceSuggestionState {
-  pending?: boolean;
-  reasons?: string[];
-  error?: string;
-  settings?: boolean;
-}
+let bounceComposerId = 0;
 
-/** Suggestions are optional; the user's explicit manual decision always remains available. */
+/** This form records only the label the user enters or selects. */
 export function createBounceComposer(
   container: HTMLElement,
-  onBounce: (phrase?: string) => void,
+  onBounce: (phrase: string) => void | Promise<boolean>,
   onCancel: () => void,
-): { setState: (state: BounceSuggestionState) => void } {
-  const suggestions = document.createElement('div');
-  suggestions.className = 'ff-annoying-suggestions';
-  suggestions.setAttribute('aria-live', 'polite');
+  loadExistingFilters: () => Promise<string[]> = () => Promise.resolve([]),
+): { focus: () => void } {
+  const form = document.createElement('form');
+  form.className = 'ff-bounce-form';
+  const label = document.createElement('label');
+  label.className = 'ff-bounce-label';
+  label.textContent = 'Filter label';
   const input = document.createElement('input');
   input.type = 'text';
-  input.className = 'ff-annoying-custom-input';
-  input.placeholder = 'Filter phrase (optional)';
-  input.setAttribute('aria-label', 'Filter phrase (optional)');
+  input.className = 'ff-bounce-input';
+  input.placeholder = 'What should Bouncer hide?';
+  input.required = true;
+  input.id = `bouncer-filter-label-${++bounceComposerId}`;
+  label.htmlFor = input.id;
+  const guidance = document.createElement('p');
+  guidance.className = 'filter-label-guidance';
+  guidance.id = `${input.id}-guidance`;
+  guidance.textContent = FILTER_LABEL_GUIDANCE;
+  input.setAttribute('aria-describedby', guidance.id);
   const actions = document.createElement('div');
-  actions.className = 'ff-annoying-actions';
+  actions.className = 'ff-bounce-actions';
   const bounce = document.createElement('button');
-  bounce.type = 'button';
-  bounce.className = 'ff-annoying-bounce';
+  bounce.type = 'submit';
+  bounce.className = 'ff-bounce-confirm';
   bounce.textContent = 'Bounce';
+  bounce.disabled = true;
   const cancel = document.createElement('button');
   cancel.type = 'button';
-  cancel.className = 'ff-annoying-cancel';
+  cancel.className = 'ff-bounce-cancel';
   cancel.textContent = 'Cancel';
   actions.append(bounce, cancel);
-  container.replaceChildren(suggestions, input, actions);
+  const missed = document.createElement('button');
+  missed.type = 'button';
+  missed.className = 'ff-missed-link';
+  missed.textContent = 'Bouncer missed an existing filter?';
+  const filters = document.createElement('div');
+  filters.className = 'ff-existing-filters';
+  filters.hidden = true;
+  filters.setAttribute('aria-live', 'polite');
+  missed.setAttribute('aria-expanded', 'false');
+  const error = document.createElement('div');
+  error.className = 'ff-bounce-error';
+  error.hidden = true;
+  error.setAttribute('role', 'alert');
+  form.append(label, input, guidance, error, actions, missed, filters);
+  container.replaceChildren(form);
+  let submitting = false;
+  const updateInput = () => { input.setCustomValidity(''); error.hidden = true; bounce.disabled = submitting || !input.value.trim(); };
+  const setSubmitting = (pending: boolean) => {
+    submitting = pending;
+    input.disabled = pending;
+    cancel.disabled = pending;
+    missed.disabled = pending;
+    filters.querySelectorAll<HTMLButtonElement>('button').forEach(button => { button.disabled = pending; });
+    bounce.disabled = pending || !input.value.trim();
+  };
+  const showFailure = () => {
+    if (container.querySelector('.ff-category-limit-warning')) return;
+    error.textContent = 'Couldn’t save this filter. Try again.';
+    error.hidden = false;
+  };
+  input.addEventListener('input', updateInput);
   input.addEventListener('click', event => event.stopPropagation());
-  bounce.addEventListener('click', event => {
+  form.addEventListener('submit', event => {
+    event.preventDefault();
     event.stopPropagation();
-    onBounce(input.value.trim() || undefined);
+    if (submitting) return;
+    const phrase = input.value.trim();
+    if (!phrase) {
+      input.setCustomValidity('Enter a filter label.');
+      input.reportValidity();
+      return;
+    }
+    error.hidden = true;
+    setSubmitting(true);
+    void (async () => {
+      try {
+        if (await onBounce(phrase) === false) showFailure();
+      } catch {
+        showFailure();
+      } finally {
+        setSubmitting(false);
+      }
+    })();
   });
   cancel.addEventListener('click', event => { event.stopPropagation(); onCancel(); });
-  return {
-    setState(state) {
-      suggestions.replaceChildren();
-      const reasons = [...new Set((state.reasons || []).map(reason => reason.trim()).filter(Boolean))].slice(0, 3);
-      if (state.pending || state.error || !reasons.length) {
-        const label = document.createElement('span');
-        label.className = 'ff-annoying-empty';
-        label.textContent = state.pending ? 'Finding suggestions…'
-          : state.error ? `Suggestions unavailable. ${state.error}` : 'No useful suggestions';
-        suggestions.appendChild(label);
-        if (state.settings) {
-          const settings = document.createElement('button');
-          settings.type = 'button';
-          settings.textContent = 'Settings';
-          settings.addEventListener('click', event => { event.stopPropagation(); showSettingsModal(); });
-          suggestions.appendChild(settings);
-        }
-        return;
-      }
-      const label = document.createElement('span');
-      label.className = 'ff-annoying-label';
-      label.textContent = 'Choose or edit a filter phrase:';
-      suggestions.appendChild(label);
-      reasons.forEach(reason => {
-        const chip = document.createElement('button');
-        chip.type = 'button';
-        chip.className = 'ff-annoying-chip';
-        chip.textContent = reason;
-        chip.addEventListener('click', event => {
-          event.stopPropagation();
-          input.value = reason;
+  let filtersRead = 0;
+  missed.addEventListener('click', event => {
+    event.stopPropagation();
+    filters.hidden = !filters.hidden;
+    missed.setAttribute('aria-expanded', String(!filters.hidden));
+    const read = ++filtersRead;
+    if (filters.hidden) return;
+    filters.replaceChildren();
+    void loadExistingFilters().then(phrases => {
+      if (read !== filtersRead) return;
+      const heading = document.createElement('span');
+      heading.className = 'ff-existing-filters-label';
+      heading.textContent = phrases.length ? 'Which filter should have matched?' : 'No saved filters yet. Enter a label above.';
+      filters.appendChild(heading);
+      [...new Set(phrases)].forEach(phrase => {
+        const choice = document.createElement('button');
+        choice.type = 'button';
+        choice.className = 'ff-existing-filter';
+        choice.textContent = phrase;
+        choice.addEventListener('click', choiceEvent => {
+          choiceEvent.stopPropagation();
+          input.value = phrase;
+          updateInput();
           input.focus();
         });
-        suggestions.appendChild(chip);
+        filters.appendChild(choice);
       });
-    },
-  };
+    }).catch(() => {
+      if (read === filtersRead) filters.textContent = 'Couldn’t read your filters. Close and reopen this list to try again.';
+    });
+  });
+  return { focus: () => input.focus() };
 }
 
-// Add inline "why annoying" button next to Share post button
-export function addWhyAnnoyingButton(article: HTMLElement) {
+// Add a local Bounce action beside the post controls.
+export function addBounceButton(article: HTMLElement) {
   if (!_deps.adapter.getShareButton(article)) {
     return;
   }
   // Don't add twice
-  if (article.querySelector('.ff-why-annoying-btn')) {
+  if (article.querySelector('.ff-bounce-button')) {
     return;
   }
 
   const btn = document.createElement('div');
-  btn.className = 'ff-why-annoying-btn';
+  btn.className = 'ff-bounce-button';
   btn.setAttribute('role', 'button');
   btn.title = 'Bounce this tweet';
   btn.replaceChildren(parseHTML(`<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M5 6v13a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V6"/><line x1="10" y1="10" x2="10" y2="17"/><line x1="14" y1="10" x2="14" y2="17"/></svg>`));
@@ -2813,13 +2238,13 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
 
     // If tooltip already open on this button, close it
     if (btnTooltip && btnTooltip.isConnected) {
-      removeAnnoyingTooltip(btnTooltip);
+      removeBounceTooltip(btnTooltip);
       btnTooltip = null;
       return;
     }
 
     // Close any other open tooltips
-    document.querySelectorAll('.ff-annoying-tooltip').forEach(removeAnnoyingTooltip);
+    document.querySelectorAll('.ff-bounce-tooltip').forEach(removeBounceTooltip);
 
     const content = _deps.extractPostContent(article);
     const openedPostKey = `${_deps.adapter.getPostUrl(article) || ''}\n${formatPostForEvaluation(content)}`;
@@ -2827,15 +2252,15 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
     // Create tooltip — append to body with fixed positioning so it escapes
     // any overflow:hidden ancestors in Twitter's DOM
     const tooltip = document.createElement('div');
-    tooltip.className = 'ff-annoying-tooltip';
+    tooltip.className = 'ff-bounce-tooltip';
     const tooltipContent = document.createElement('div');
-    tooltipContent.className = 'ff-annoying-tooltip-content';
+    tooltipContent.className = 'ff-bounce-tooltip-content';
     tooltip.appendChild(tooltipContent);
     document.body.appendChild(tooltip);
     btnTooltip = tooltip;
 
     // Keep the tooltip inside both viewport axes. A ResizeObserver reruns this
-    // when async content replaces the spinner and changes its dimensions.
+    // when the local existing-filter chooser changes its dimensions.
     const positionTooltip = () => {
       if (!tooltip.isConnected || !btn.isConnected) return;
       const btnRect = btn.getBoundingClientRect();
@@ -2855,20 +2280,20 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
       tooltip.style.position = 'fixed';
       tooltip.style.left = '';
       tooltip.style.right = '';
-      tooltip.classList.remove('ff-annoying-tooltip--align-left', 'ff-annoying-tooltip--align-center');
+      tooltip.classList.remove('ff-bounce-tooltip--align-left', 'ff-bounce-tooltip--align-center');
       tooltip.style.removeProperty('--ff-notch-x');
       if (horizontal.alignment === 'right') {
         tooltip.style.right = `${horizontal.right}px`;
       } else {
         tooltip.style.left = `${horizontal.left}px`;
-        tooltip.classList.add(`ff-annoying-tooltip--align-${horizontal.alignment}`);
+        tooltip.classList.add(`ff-bounce-tooltip--align-${horizontal.alignment}`);
         if (horizontal.notchX !== undefined) {
           tooltip.style.setProperty('--ff-notch-x', `${horizontal.notchX}px`);
         }
       }
       tooltip.style.bottom = '';
       tooltip.style.top = `${vertical.top}px`;
-      tooltip.classList.toggle('ff-annoying-tooltip--flipped', vertical.flipped);
+      tooltip.classList.toggle('ff-bounce-tooltip--flipped', vertical.flipped);
     };
 
     let positionFrame: number | null = null;
@@ -2880,15 +2305,13 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
       });
     };
     const removeTooltip = () => {
-      removeAnnoyingTooltip(tooltip);
+      removeBounceTooltip(tooltip);
       if (btnTooltip === tooltip) btnTooltip = null;
     };
 
-    let requestEntry: SuggestionRequestEntry | null = null;
     const identityObserver = new MutationObserver(() => {
       const currentPostKey = `${_deps.adapter.getPostUrl(article) || ''}\n${formatPostForEvaluation(_deps.extractPostContent(article))}`;
       if (currentPostKey === openedPostKey) return;
-      if (requestEntry) clearSuggestionRequest(article, requestEntry);
       btn.title = 'Bounce this tweet';
       removeTooltip();
     });
@@ -2919,8 +2342,7 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
     resizeObserver?.observe(tooltip);
     window.addEventListener('scroll', onViewportChange, true);
     window.addEventListener('resize', onViewportChange);
-    annoyingTooltipCleanup.set(tooltip, () => {
-      selectionCleanup?.();
+    bounceTooltipCleanup.set(tooltip, () => {
       window.removeEventListener('scroll', onViewportChange, true);
       window.removeEventListener('resize', onViewportChange);
       resizeObserver?.disconnect();
@@ -2930,55 +2352,45 @@ export function addWhyAnnoyingButton(article: HTMLElement) {
     });
     schedulePosition();
 
-    const composer = createBounceComposer(tooltipContent, phrase => {
-      removeTooltip();
-      void bouncePost(article, content, phrase);
-    }, removeTooltip);
-    const onSelectionChange = () => {
-      composer.setState({ error: suggestionSetupMessage() || 'The engine changed. Reopen Bounce to find suggestions.', settings: true });
-      schedulePosition();
-    };
-    suggestionSelectionListeners.add(onSelectionChange);
-    const selectionCleanup = () => suggestionSelectionListeners.delete(onSelectionChange);
-    composer.setState({ pending: true });
-    // Only this explicit user action asks for suggestions. Their completion
-    // replaces the suggestion area, preserving any phrase the user is editing.
-    requestEntry = requestSuggestions(article, openedPostKey, content.text);
-    const entry = requestEntry;
-    void entry.promise.then(response => {
-      const currentPostKey = `${_deps.adapter.getPostUrl(article) || ''}\n${formatPostForEvaluation(_deps.extractPostContent(article))}`;
-      if (!tooltip.isConnected || !isSuggestionRequestCurrent(article, entry, currentPostKey)) return;
-      const error = suggestionResponseMatchesSelection(response) ? suggestionResponseError(response) : 'The engine changed. Reopen Bounce to find suggestions.';
-      if (error) clearSuggestionRequest(article, entry);
-      composer.setState(error ? { error, settings: true } : { reasons: response.reasons || [] });
-      schedulePosition();
-    }).catch(err => {
-      if (!tooltip.isConnected || !isSuggestionRequestCurrent(article, entry, openedPostKey)) return;
-      clearSuggestionRequest(article, entry);
-      composer.setState({ error: err instanceof Error ? err.message : 'Try again.' });
-      schedulePosition();
-    });
+    const composer = createBounceComposer(tooltipContent, async phrase => {
+      const isCurrent = () => tooltip.isConnected
+        && `${_deps.adapter.getPostUrl(article) || ''}\n${formatPostForEvaluation(_deps.extractPostContent(article))}` === openedPostKey;
+      if (!isCurrent()) { removeTooltip(); return false; }
+      const descriptions = await getDescriptions(_deps.descriptionsKey);
+      if (!isCurrent()) { removeTooltip(); return false; }
+      const warning = filterLimitWarning(descriptions, phrase);
+      if (warning) {
+        showCategoryLimitWarning(warning);
+        schedulePosition();
+        return false;
+      }
+      const saved = await bouncePost(article, content, phrase);
+      if (saved) removeTooltip();
+      else schedulePosition();
+      return saved;
+    }, removeTooltip, () => getDescriptions(_deps.descriptionsKey));
+    composer.focus();
   });
 
   // Outside-click tooltip dismissal is handled by a single module-level
-  // listener registered via setupAnnoyingTooltipCloser — do NOT register a
+  // listener registered via setupBounceTooltipCloser — do NOT register a
   // per-button document listener here (it would accumulate one per post and
   // fire for every click on the page).
 }
 
-// Close any open .ff-annoying-tooltip when the user clicks outside of its
+// Close any open .ff-bounce-tooltip when the user clicks outside of its
 // button and the tooltip itself. Registered once per page from initUI.
-export function setupAnnoyingTooltipCloser() {
+export function setupBounceTooltipCloser() {
   document.addEventListener('click', (e) => {
     const target = e.target as Node;
-    // If the click is on any why-annoying button, let that button's own
+    // If the click is on any Bounce button, let that button's own
     // click handler manage the tooltip. Skip.
-    if (target instanceof Element && target.closest('.ff-why-annoying-btn')) return;
-    const tooltips = document.querySelectorAll('.ff-annoying-tooltip');
+    if (target instanceof Element && target.closest('.ff-bounce-button')) return;
+    const tooltips = document.querySelectorAll('.ff-bounce-tooltip');
     if (tooltips.length === 0) return;
     tooltips.forEach((t) => {
       if (!t.contains(target)) {
-        removeAnnoyingTooltip(t);
+        removeBounceTooltip(t);
       }
     });
   }, true);

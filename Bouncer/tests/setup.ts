@@ -1,3 +1,6 @@
+// Live local APIs are forbidden in unit tests; each transport test supplies its own mock.
+globalThis.fetch = vi.fn(() => Promise.reject(new Error('Unexpected fetch: provide a unit-test mock')));
+
 // Global mocks for Chrome extension APIs
 globalThis.chrome = {
   runtime: {

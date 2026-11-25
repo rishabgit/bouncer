@@ -3,7 +3,6 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 import {
-  isRendered,
   restoreFilteredContainer,
   scheduleFilteredHide,
 } from '../../src/content/dom-state.js';
@@ -64,21 +63,5 @@ describe('restoreFilteredContainer', () => {
     expect(container.style.display).toBe('none');
     expect(article.style.opacity).toBe('');
     vi.useRealTimers();
-  });
-});
-
-describe('isRendered', () => {
-  it('prefers checkVisibility so fixed-position layouts can be visible', () => {
-    const element = document.createElement('div');
-    element.checkVisibility = vi.fn(() => true);
-    Object.defineProperty(element, 'offsetParent', { value: null });
-    expect(isRendered(element)).toBe(true);
-  });
-
-  it('falls back to offsetParent when checkVisibility is unavailable', () => {
-    const element = document.createElement('div');
-    Object.defineProperty(element, 'checkVisibility', { value: undefined });
-    Object.defineProperty(element, 'offsetParent', { value: document.body });
-    expect(isRendered(element)).toBe(true);
   });
 });

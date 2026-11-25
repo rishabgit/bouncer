@@ -17,3 +17,4 @@ import './tone-label-corpus.test.mjs';
 import './tone-label-metrics.test.mjs';
 import './tone-label-study.test.mjs';
 import './tone-label.test.mjs';
+import './strictness.test.mjs';

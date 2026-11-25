@@ -1,6 +1,6 @@
 // Fixed System One client. Metadata never loads weights; failures affect one post.
 import type { EvaluationPostData, FilterScore, LocalModelStatus } from '../types';
-import { DECISION_MODEL, DECISION_CLASSIFIER_FINGERPRINT, LLAMA_ENDPOINT, decisionCutoff, decisionQuestions } from '../shared/decision-model';
+import { DECISION_MODEL, DECISION_CLASSIFIER_FINGERPRINT, LLAMA_ENDPOINT, decisionQuestions } from '../shared/decision-model';
 import { truncateText } from '../shared/utils';
 import { getStorage, setStorage } from '../shared/storage';
 import { InferenceQueue, STALE_WORK_ERROR } from './inference-queue';
@@ -204,14 +204,9 @@ export class LocalEngine {
         const response = await request('/v1/systemone', body);
         assertCurrent();
         const scores = parseDecisionAnswers(response, requestFilters);
-        const cutoff = decisionCutoff(body.state);
-        const matches = scores.filter(({ score }) => score >= cutoff).map(({ label }) => label);
         assertCurrent();
         return {
-          shouldHide: matches.length > 0,
-          reasoning: matches.length ? `Matched: ${matches.join(', ')}` : 'No matching filters',
-          category: matches.length ? matches.join(', ') : null,
-          matches, scores, textSent: body.state,
+          scores, textSent: body.state,
           rawResponse: JSON.stringify(response), inferenceTime: (performance.now() - started) / 1000,
           classifierFingerprint: this.getClassifierFingerprint(), modelId: DECISION_MODEL.id,
           engine: 'llama.app' as const,

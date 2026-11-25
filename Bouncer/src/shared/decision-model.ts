@@ -1,4 +1,6 @@
-// Fixed operating point from the recorded decision-model evaluation.
+import type { FilterScore } from '../types';
+
+// Fixed operating points from the recorded decision-model evaluation.
 // Keep the evaluated question wording and construction fixed with the cutoff.
 // Keep all model-specific choices together so changing the model is one bundle swap.
 export interface DecisionModel {
@@ -10,6 +12,7 @@ export interface DecisionModel {
   templateId: string;
   template: string;
   cutoff: number;
+  strictCutoff: number;
   shortRule: Readonly<{ maxOwnWords: number; cutoff: number; ownWords: string }>;
   settings: Readonly<Record<'ctx-size' | 'parallel' | 'batch-size' | 'ubatch-size', number>>;
   noProjector: boolean;
@@ -30,6 +33,7 @@ export const DECISION_MODEL: Readonly<DecisionModel> = Object.freeze({
   templateId: 'matches-category',
   template: 'Does this social media post match the category {category}? Answer yes if it matches, otherwise no.',
   cutoff: 0.290813258948728,
+  strictCutoff: 0.72,
   shortRule: Object.freeze({ maxOwnWords: 3, cutoff: 0.7, ownWords: 'v1-whitespace-letters-digits' }),
   settings: Object.freeze({ 'ctx-size': 4096, parallel: 1, 'batch-size': 4096, 'ubatch-size': 4096 }),
   noProjector: true,
@@ -77,6 +81,33 @@ export function ownWords(text: string): number {
 export function decisionCutoff(textSent: string): number {
   return ownWords(textSent) <= DECISION_MODEL.shortRule.maxOwnWords
     ? DECISION_MODEL.shortRule.cutoff : DECISION_MODEL.cutoff;
+}
+
+export interface JudgedFilterScore extends FilterScore {
+  cutoff: number;
+  strict: boolean;
+  /** True only when the short-post floor raised this filter's cutoff. */
+  shortPost: boolean;
+  matched: boolean;
+}
+
+/** The sole score-to-verdict rule, also used for cached scores and decision details. */
+export function decideMatches(
+  scores: readonly FilterScore[],
+  textSent: string | undefined,
+  strictPhrases: readonly string[] = [],
+): { scores: JudgedFilterScore[]; matches: string[]; shouldHide: boolean } {
+  const strictSet = new Set(strictPhrases);
+  // Old snapshots without a request state used the original general cutoff.
+  const postCutoff = typeof textSent === 'string' ? decisionCutoff(textSent) : DECISION_MODEL.cutoff;
+  const judged = scores.map(({ label, score }) => {
+    const strict = strictSet.has(label);
+    const baseCutoff = strict ? DECISION_MODEL.strictCutoff : DECISION_MODEL.cutoff;
+    const cutoff = Math.max(baseCutoff, postCutoff);
+    return { label, score, cutoff, strict, shortPost: cutoff > baseCutoff, matched: score >= cutoff };
+  });
+  const matches = judged.filter(({ matched }) => matched).map(({ label }) => label);
+  return { scores: judged, matches, shouldHide: matches.length > 0 };
 }
 
 export function decisionQuestions(filters: string[]): Record<string, { type: 'noul'; instructions: string }> {

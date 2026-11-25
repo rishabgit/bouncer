@@ -3,7 +3,8 @@
 import { generateCacheKey } from '../shared/utils';
 import { runDetector, type DetectorResult } from './detectors';
 import { callLocalInference, localEngine, STALE_WORK_ERROR } from './local-model';
-import { getStorage, setStorage, getDescriptions } from '../shared/storage';
+import { getStorage, setStorage, getDescriptions, getFilterSettings } from '../shared/storage';
+import { decideMatches } from '../shared/decision-model';
 import type {
   EvaluationResult, PipelineResponse, PipelineError, PendingEvaluation,
   ErrorState, Settings, BackgroundToContentMessage,
@@ -71,8 +72,7 @@ function dispatchInitialTabs(
   return snapshots;
 }
 
-// The sole classifier keeps the same started/result/error dispatch and cached
-// snapshot contract without racing unused sibling detectors.
+// Capture evidence now; publish success only after the final saved-level read.
 async function runFilterAndCaptureSnapshot(
   runFilter: () => Promise<DetectorResult>,
   snapshots: Map<string, DetectorSnapshot>,
@@ -83,21 +83,13 @@ async function runFilterAndCaptureSnapshot(
   return runDetector('filter', runFilter(), (name, value, error) => {
     if (!isCurrent()) return;
     if (value) {
-      snapshots.set(name, {
-        status: 'success', shouldHide: value.shouldHide, reasoning: value.reasoning,
-        category: value.category ?? null,
-        ...(value.matches !== undefined && { matches: value.matches }),
-      });
+      snapshots.set(name, { status: 'success' });
     } else if (error) {
       snapshots.set(name, { status: 'error', error: error.message });
+      void sendToTab(tabId, {
+        type: 'detectorResponse', evaluationId, detectorName: name, error: error.message,
+      });
     }
-    void sendToTab(tabId, {
-      type: 'detectorResponse', evaluationId, detectorName: name,
-      ...(value && { shouldHide: value.shouldHide, reasoning: value.reasoning,
-        category: value.category ?? null,
-        ...(value.matches !== undefined && { matches: value.matches }) }),
-      ...(error && { error: error.message }),
-    });
   });
 }
 
@@ -348,7 +340,7 @@ export async function getSettings(siteId?: SiteId): Promise<Settings> {
   ] as const;
   const [data, descriptions] = await Promise.all([
     getStorage([...settingsKeys]),
-    descriptionsKey ? getDescriptions(descriptionsKey) : Promise.resolve([] as string[])
+    descriptionsKey ? getDescriptions(descriptionsKey) : Promise.resolve([] as string[]),
   ]);
   return {
     enabled: data.enabled !== false,
@@ -380,14 +372,39 @@ export async function clearErrorState(): Promise<void> {
 
 /** Read only settled cache state; re-read after explicit persistence/rollback. */
 export async function readCachedEvaluation(cacheKey: string): Promise<EvaluationResult | undefined> {
+  const { descriptions, strictFilters } = await getFilterSettings('descriptions_twitter');
   let decision: Promise<void> | undefined;
   while ((decision = pendingPostDecisions.get(cacheKey))) await decision;
   const cached = evaluationCache.get(cacheKey);
   if (!cached) return undefined;
   if (cached.userOverride === true) return cached;
-  return typeof cached.shouldHide === 'boolean' && typeof cached.reasoning === 'string'
-    && cached.engine === 'llama.app'
-    && cached.classifierFingerprint === localEngine.getClassifierFingerprint() ? cached : undefined;
+  if (typeof cached.shouldHide !== 'boolean' || typeof cached.reasoning !== 'string'
+      || cached.engine !== 'llama.app'
+      || cached.classifierFingerprint !== localEngine.getClassifierFingerprint()) return undefined;
+  if (cached.scores) {
+    const labels = new Set(cached.scores.map(({ label }) => label));
+    const phrases = new Set(descriptions);
+    if (labels.size !== phrases.size || [...labels].some(label => !phrases.has(label))) return undefined;
+  }
+  return rejudgeEvaluation(cached, strictFilters);
+}
+
+/** Scores are evidence; strictness changes only their derived verdict. */
+function rejudgeEvaluation<T extends EvaluationResult>(result: T, strictFilters: readonly string[]): T {
+  if (result.userOverride || !result.scores) return result;
+  const { shouldHide, matches } = decideMatches(result.scores, result.textSent, strictFilters);
+  const reasoning = matches.length ? `Matched: ${matches.join(', ')}` : 'No matching filters';
+  const category = matches.length ? matches.join(', ') : null;
+  const filterSnapshot = result.detectorStates?.map.filter;
+  return {
+    ...result, shouldHide, matches, reasoning, category,
+    ...(filterSnapshot?.status === 'success' && {
+      detectorStates: {
+        ...result.detectorStates!,
+        map: { ...result.detectorStates!.map, filter: { ...filterSnapshot, shouldHide, matches, reasoning, category } },
+      },
+    }),
+  };
 }
 
 // Load cache from persistent storage on startup
@@ -668,7 +685,7 @@ async function processBatch(): Promise<void> {
     const snapshots = dispatchInitialTabs(batchTabId, item.evaluationId, tabPlan);
     const result = filterEnabled
       ? await runFilterAndCaptureSnapshot(runFilter, snapshots, batchTabId, item.evaluationId, isEvaluationCurrent)
-      : { shouldHide: false, reasoning: 'No filter phrases set.' };
+      : null;
 
     // A settings/model flush may have happened while inference was running.
     // Never persist or publish a result computed under the retired generation.
@@ -678,75 +695,60 @@ async function processBatch(): Promise<void> {
     }
 
     localEngine.assertOperationEpoch(inferenceEpoch);
-    console.log(`[Eval] shouldHide=${result.shouldHide}, category="${result.category}", reasoning="${result.reasoning?.substring(0, 80)}"`);
 
-    const evalResult: EvaluationResult = {
-      shouldHide: result.shouldHide,
-      reasoning: result.reasoning,
-      category: result.category || null,
-      ...(result.matches !== undefined && { matches: result.matches }),
-      ...(result.scores !== undefined && { scores: result.scores }),
-      ...(result.textSent !== undefined && { textSent: result.textSent }),
-      rawResponse: result.rawResponse || null,
-      ...(result.modelId !== undefined && { model: result.modelId }),
-      ...(result.engine !== undefined && { engine: result.engine }),
-      ...(result.classifierFingerprint !== undefined && { classifierFingerprint: result.classifierFingerprint }),
+    let evalResult: EvaluationResult = {
+      // This placeholder is private until the final saved-level read below.
+      shouldHide: false,
+      reasoning: filterEnabled ? 'No matching filters' : 'No filter phrases set.',
+      category: null,
+      matches: [],
+      ...(result && { scores: result.scores, textSent: result.textSent }),
+      rawResponse: result?.rawResponse || null,
+      ...(result?.modelId !== undefined && { model: result.modelId }),
+      ...(result?.engine !== undefined && { engine: result.engine }),
+      ...(result?.classifierFingerprint !== undefined && { classifierFingerprint: result.classifierFingerprint }),
       timestamp: Date.now(),
       detectorStates: buildDetectorStates(tabPlan, snapshots),
     };
-
-    // Stats persistence does not change the classification decision. A failed
-    // counter write must not turn a successful evaluation into a model error.
-    try {
-      const statsData = await getStorage(['stats']);
-      const stats = statsData.stats || { filtered: 0, evaluated: 0, totalCost: 0 };
-      stats.evaluated++;
-      if (evalResult.shouldHide) {
-        stats.filtered++;
-      }
-      await setStorage({ stats });
-    } catch (statsError) {
-      console.error('[Stats] Failed to update evaluation counters:', statsError);
-    }
-
-    // A filter/model change can arrive while stats storage is pending. Do not
-    // repopulate the just-invalidated cache or publish a verdict from the old
-    // rules after that boundary.
-    if (!isEvaluationCurrent()) {
-      resolveWithDuplicates(batchTabId, item, await retiredEvaluationResponse(postFence));
-      return;
-    }
-
-    localEngine.assertOperationEpoch(inferenceEpoch);
-    evaluationCache.set(cacheKey, evalResult);
-    if (evaluationCache.size > CACHE_SIZE) {
-      const firstKey = evaluationCache.keys().next().value;
-      if (firstKey !== undefined) evaluationCache.delete(firstKey);
-    }
-    scheduleAutomaticCacheSave();
-
-    if (!isEvaluationCurrent()) {
-      if (evaluationCache.get(cacheKey) === evalResult) {
-        evaluationCache.delete(cacheKey);
-        scheduleAutomaticCacheSave();
-      }
-      resolveWithDuplicates(batchTabId, item, await retiredEvaluationResponse(postFence));
-      return;
-    }
 
     // A successful post clears the connection indicator. Earlier failed posts
     // stay visible; they do not block or automatically retry later work.
     if (errorState.type) await clearErrorState();
 
     if (!isEvaluationCurrent() || localEngine.operationEpoch !== inferenceEpoch) {
-      if (evaluationCache.get(cacheKey) === evalResult) {
-        evaluationCache.delete(cacheKey);
-        scheduleAutomaticCacheSave();
-      }
       resolveWithDuplicates(batchTabId, item, await retiredEvaluationResponse(postFence));
       return;
     }
+    // This is the final await before synchronous cache acceptance/publication.
+    const { strictFilters } = await getFilterSettings('descriptions_twitter');
+    if (!isEvaluationCurrent() || localEngine.operationEpoch !== inferenceEpoch) {
+      resolveWithDuplicates(batchTabId, item, await retiredEvaluationResponse(postFence));
+      return;
+    }
+    evalResult = rejudgeEvaluation(evalResult, strictFilters);
+    replayDetectorStates(batchTabId, item.evaluationId, evalResult);
+    evaluationCache.set(cacheKey, evalResult);
+    if (evaluationCache.size > CACHE_SIZE) {
+      const firstKey = evaluationCache.keys().next().value;
+      if (firstKey !== undefined) evaluationCache.delete(firstKey);
+    }
+    scheduleAutomaticCacheSave();
     resolveWithDuplicates(batchTabId, item, evalResult);
+
+    // Count the verdict actually published at the saved level. Keep this finite
+    // update inside the serial batch so subsequent posts cannot lose increments.
+    // Later level changes do not rewrite this historical observation.
+    try {
+      const statsData = await getStorage(['stats']);
+      const stats = statsData.stats || { filtered: 0, evaluated: 0, totalCost: 0 };
+      await setStorage({ stats: {
+        ...stats,
+        evaluated: stats.evaluated + 1,
+        filtered: stats.filtered + (evalResult.shouldHide ? 1 : 0),
+      } });
+    } catch (statsError) {
+      console.error('[Stats] Failed to update evaluation counters:', statsError);
+    }
   } catch (error) {
     const errorMessage = (error as Error).message;
     if (tabQueues.get(batchTabId) !== pendingEvaluations && batchGeneration === pipelineGeneration) {

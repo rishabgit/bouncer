@@ -169,7 +169,7 @@ export interface PlatformAdapter {
   getPostUrl(article: HTMLElement): string | null;
   getPostContentKey(article: HTMLElement): string;
   getPostContainer(article: HTMLElement): HTMLElement;
-  hidePost(article: HTMLElement, includeThread?: boolean): void;
+  hidePost(article: HTMLElement, includeThread?: boolean, keepVisible?: (article: HTMLElement) => boolean): void;
   /** Restore stale Bouncer cell state when X mounts different content in it. */
   restoreRecycledPost(article: HTMLElement): boolean;
   getThemeMode(): 'light' | 'dim' | 'dark';
@@ -207,6 +207,8 @@ export type ContentToBackgroundMessage =
   | { type: 'clearCache' }
   | { type: 'clearSinglePost'; post: string }
   | { type: 'bouncePost'; post: string; phrase: string; reasoning?: string; siteId: SiteId }
+  | { type: 'addFilterPhrase' | 'removeFilterPhrase'; siteId: SiteId; phrase: string }
+  | { type: 'setFilterStrictness'; siteId: SiteId; phrase: string; strict: boolean }
   | { type: 'getStats' }
   | { type: 'getReasoning'; post: string }
   | { type: 'getErrorStatus' }
@@ -248,13 +250,15 @@ export interface ContentUIDeps extends PlatformContext, PostOperations, PostStat
 
 /** Per-site description keys, derived from SiteId. */
 type DescriptionKeys = { [K in SiteId as `descriptions_${K}`]: string[] };
+type StrictFilterKeys = { [K in SiteId as `strictFilters_${K}`]: string[] };
 
 /** Valid storage keys for site-specific descriptions. */
 export type DescriptionKey = `descriptions_${SiteId}`;
+export type StrictFiltersKey = `strictFilters_${SiteId}`;
 
 /** Typed schema for chrome.storage.local keys. */
 export type StorageSchema = SettingsBase & {
   nativeModelStatus: LocalModelStatus;
   evaluationCache: Record<string, EvaluationResult>;
   stats: { filtered: number; evaluated: number; totalCost: number };
-} & DescriptionKeys;
+} & DescriptionKeys & StrictFilterKeys;

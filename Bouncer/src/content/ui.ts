@@ -3,11 +3,11 @@
 import { asyncHandler } from '../shared/async';
 import { escapeHtml, formatPostForEvaluation, parseHTML } from '../shared/utils';
 import { FILTER_LABEL_GUIDANCE } from '../shared/filter-guidance';
-import { MAX_ACTIVE_FILTERS, MAX_FILTERS_CHARACTERS, MAX_FILTERS_WARNING } from '../shared/decision-model';
+import { decideMatches, MAX_ACTIVE_FILTERS, MAX_FILTERS_CHARACTERS, MAX_FILTERS_WARNING } from '../shared/decision-model';
 import type { ClassificationDetails, ContentUIDeps, FilteredPost, PostContent, LocalModelStatus } from '../types';
 import { createClassificationDetails } from './classification-details';
 import { localModelStatusView, normalizeLocalModelStatus } from '../shared/engine-status-view';
-import { getStorage, getDescriptions, setDescriptions } from '../shared/storage';
+import { getStorage, getDescriptions } from '../shared/storage';
 import {
   tooltipContentMaxHeight,
   tooltipHorizontalPosition,
@@ -15,7 +15,7 @@ import {
 } from './geometry';
 import { cancelScheduledFilteredHide, hasScheduledFilteredHide, restoreFilteredContainer, scheduleFilteredHide } from './dom-state';
 import {
-  currentPostDecision, displayedMatches, forgetPostDecision, getPostDecision,
+  currentPostDecision, displayedMatches, forgetPostDecision, getPostDecision, hasScoresForFilters,
   isPostIdentityCurrent, postIdentity, rememberPostDecision, survivingMatches,
   type LivePostDecision,
 } from './filter-actions';
@@ -31,7 +31,7 @@ export function initUI(deps: ContentUIDeps) {
   // injection guards think no box exists — resulting in duplicate UI.
   // Proactively remove any leftover boxes from a prior injection.
   const stale = document.querySelectorAll(
-    '.filter-phrases-sidebar, .filter-phrases-bottom, .filter-phrases-mobile'
+    '.filter-phrases-sidebar, .filter-phrases-bottom, .filter-phrases-mobile, .filter-strictness-popover'
   );
   console.log('[Bouncer] initUI: clearing', stale.length, 'stale filter box(es) from prior injection');
   stale.forEach((el) => el.remove());
@@ -57,6 +57,10 @@ interface RestoreStatus {
 const filteredRestoreStatuses = new WeakMap<FilteredPost, RestoreStatus>();
 const renderedFilteredSnapshots = new WeakMap<HTMLElement, FilteredPost>();
 let reconciledFilterPhrases: string[] | undefined;
+let strictFilterPhrases: readonly string[] = [];
+let phraseSyncRead = 0;
+
+export function getStrictFilterPhrases(): readonly string[] { return strictFilterPhrases; }
 
 type PostReasoning = ReturnType<ContentUIDeps['postReasonings']['get']>;
 interface SettledPostDecision {
@@ -77,7 +81,14 @@ function completeDecisionPersistence(persistence: DecisionPersistence, state: 'c
   // Provisional manual ownership can delay the automatic rule-edit handling.
   // Recheck its predecessor against the latest observed rules after all awaits,
   // including outcomes retained by an earlier failed reservation.
-  if (decision?.shouldHide && !decision.userOverride && reconciledFilterPhrases) {
+  const scores = result.reasoning?.scores?.filter(({ label }) => reconciledFilterPhrases?.includes(label));
+  if (decision && !decision.userOverride && scores?.length) {
+    const judged = decideMatches(scores, result.reasoning?.textSent, strictFilterPhrases);
+    decision = { ...decision, shouldHide: judged.shouldHide, matches: judged.matches };
+    result = { ...result, reasoning: { ...result.reasoning!, scores, shouldHide: judged.shouldHide,
+      matches: judged.matches, category: judged.matches.join(', ') || null,
+      reasoning: judged.shouldHide ? `Matched: ${judged.matches.join(', ')}` : 'No matching filters' } };
+  } else if (decision?.shouldHide && !decision.userOverride && reconciledFilterPhrases) {
     const matches = survivingMatches(decision.matches, reconciledFilterPhrases);
     decision = { ...decision, shouldHide: !!matches?.length, matches: matches ?? undefined };
     result = { ...result, reasoning: matches?.length && result.reasoning
@@ -88,7 +99,7 @@ function completeDecisionPersistence(persistence: DecisionPersistence, state: 'c
     ...result,
     // Settled outcomes contain no action lineage, so retries cannot retain an
     // ever-growing chain of completed reservations and provisional Bounces.
-    decision: decision ? { identity: decision.identity, shouldHide: decision.shouldHide, matches: decision.matches ? [...decision.matches] : undefined, userOverride: decision.userOverride } : undefined,
+    decision: decision ? { identity: decision.identity, shouldHide: decision.shouldHide, matches: decision.matches ? [...decision.matches] : undefined, userOverride: decision.userOverride, evaluationText: decision.evaluationText } : undefined,
   };
   persistence.state = state;
   delete persistence.previousDecision;
@@ -320,6 +331,78 @@ export function reconcileFilterChanges(phrases: string[], processRestoredPosts =
   }
   refreshFilteredPostsView();
   if (shouldProcessRestoredPosts && processRestoredPosts) _deps.processExistingPosts();
+}
+
+/** Apply a level edit to retained probabilities, including posts currently visible. */
+export function reconcileFilterStrictness(phrases: string[], strictPhrases: readonly string[], posts: HTMLElement[] = _deps.findPosts()): void {
+  reconciledFilterPhrases = [...phrases];
+  strictFilterPhrases = [...strictPhrases];
+  const hides: HTMLElement[] = [];
+  for (const article of posts) {
+    const decision = currentPostDecision(_deps.adapter, article);
+    if (decision?.userOverride) continue;
+    const stored = _deps.postReasonings.get(article);
+    // A removal leaves usable evidence for every surviving phrase. Retired
+    // labels must neither reject that evidence nor participate in its verdict.
+    const scores = stored?.scores?.filter(({ label }) => phrases.includes(label));
+    const judged = decideMatches(scores ?? [], stored?.textSent, strictFilterPhrases);
+    if (decision && stored && scores?.length && (judged.shouldHide || hasScoresForFilters(scores, phrases))) {
+      stored.scores = scores;
+      Object.assign(stored, { shouldHide: judged.shouldHide, matches: judged.matches, category: judged.matches.join(', ') || null,
+        reasoning: judged.shouldHide ? `Matched: ${judged.matches.join(', ')}` : 'No matching filters' });
+      rememberPostDecision(article, { ...decision, shouldHide: judged.shouldHide, matches: judged.matches });
+      postDetectorStates.delete(article);
+      if (judged.shouldHide) {
+        const content = _deps.extractPostContent(article);
+        storeFilteredPost(article, content, stored.reasoning, stored.rawResponse || '', stored.category || null,
+          judged.matches, false, decision.evaluationText || formatPostForEvaluation(content), stored);
+        cancelScheduledFilteredHide(article);
+        hides.push(article);
+      } else {
+        restoreFilteredContainer(_deps.adapter.getPostContainer(article), article);
+        removeFilteredPostForArticle(article, false);
+        if (!stored.isModelError) markPostVerified(article);
+      }
+      _deps.processedPosts.add(article);
+      refreshActivePopupIfFor(article);
+    } else {
+      // A nonmatching partial vector cannot rule out the missing filters.
+      // Preserve pending/error UI while the worker supplies the missing evidence.
+      restoreFilteredContainer(_deps.adapter.getPostContainer(article), article);
+      forgetPostDecision(article);
+      _deps.processedPosts.delete(article);
+      if (!_deps.pendingPosts.has(article) && !stored?.isModelError && !article.classList.contains('ff-error')) {
+        _deps.postReasonings.delete(article);
+        postDetectorStates.delete(article);
+        markPostVerified(article);
+      }
+      removeFilteredPostForArticle(article, false);
+      refreshActivePopupIfFor(article);
+    }
+  }
+  // Restore/release individual replies before applying their parents' thread
+  // hides, just as a fresh evaluation would. Explicit restores remain exempt.
+  hides.forEach(hidePost);
+  for (let index = filteredPosts.length - 1; index >= 0; index--) {
+    const post = filteredPosts[index];
+    if (post.userOverride) continue;
+    const classification = post.classification;
+    const scores = classification?.scores?.filter(({ label }) => phrases.includes(label));
+    const judged = decideMatches(scores ?? [], classification?.textSent, strictFilterPhrases);
+    if (classification) classification.scores = scores;
+    if (judged.shouldHide) {
+      post.matches = judged.matches;
+      post.category = judged.matches.join(', ');
+      post.reasoning = `Matched: ${judged.matches.join(', ')}`;
+    } else {
+      filteredRestoreStatuses.delete(post);
+      filteredPosts.splice(index, 1);
+      filteredPostKeys.delete(filteredPostKey(post));
+    }
+  }
+  refreshFilteredPostsView();
+  refreshPhrasePopover();
+  syncFilterPhrases();
 }
 
 // ==================== Theme ====================
@@ -558,11 +641,7 @@ function setupFilterBoxEventHandlers(container: HTMLElement) {
   });
 
   // Load and render saved descriptions
-  getDescriptions(_deps.descriptionsKey).then((descriptions) => {
-    if (descriptions.length > 0) {
-      renderPhrasesInContainer(phrasesListContainer, descriptions);
-    }
-  }).catch(err => console.error('[UI] Failed to load descriptions:', err));
+  syncFilterPhrases();
 
   // Enter or comma key to add phrase
   input.addEventListener('keypress', (e) => {
@@ -749,7 +828,9 @@ export function injectMobileFilterBox() {
 // ==================== Filter Phrases ====================
 
 export function syncFilterPhrases() {
-  getDescriptions(_deps.descriptionsKey).then((descriptions) => {
+  const read = ++phraseSyncRead;
+  getDescriptions(_deps.descriptionsKey).then(descriptions => {
+    if (read !== phraseSyncRead) return;
 
     // Update desktop/tablet/mobile containers
     [filterPhrasesContainer, bottomFilterContainer, mobileFilterContainer].forEach(container => {
@@ -760,6 +841,7 @@ export function syncFilterPhrases() {
         }
       }
     });
+    refreshPhrasePopover();
 
   }).catch(err => console.error('[UI] Failed to sync filter phrases:', err));
 }
@@ -770,15 +852,32 @@ function activeFilterPhrases(value: unknown): string[] {
 
 function renderPhrasesInContainer(container: Element, descriptions: string[]) {
   descriptions = activeFilterPhrases(descriptions);
+  const previousAnchor = phrasePopover?.anchor;
+  const replacesAnchor = previousAnchor && container.contains(previousAnchor);
   container.replaceChildren();
   const len = descriptions.length;
   descriptions.forEach((desc, index) => {
-    const phrase = document.createElement('span');
+    const phrase = document.createElement('button');
+    phrase.type = 'button';
     phrase.className = 'filter-phrase-inline';
+    phrase.dataset.filterPhrase = desc;
     phrase.textContent = desc;
-    phrase.title = 'Click to remove';
-    phrase.addEventListener('click', asyncHandler(() => removeFilterPhrase(desc)));
+    phrase.setAttribute('aria-haspopup', 'dialog');
+    phrase.setAttribute('aria-expanded', String(!!(phrasePopover?.phrase === desc && replacesAnchor)));
+    if (strictFilterPhrases.includes(desc)) {
+      const pill = document.createElement('span');
+      pill.className = 'filter-strict-pill';
+      pill.textContent = 'Strict';
+      phrase.appendChild(pill);
+    }
+    phrase.addEventListener('click', () => {
+      if (phrasePopover?.anchor === phrase) closePhrasePopover();
+      else openPhrasePopover(phrase, desc);
+    });
     container.appendChild(phrase);
+    if (replacesAnchor && phrasePopover?.phrase === desc) {
+      phrasePopover.anchor = phrase;
+    }
 
     if (index < len - 1) {
       const separator = document.createElement('span');
@@ -799,6 +898,151 @@ function renderPhrasesInContainer(container: Element, descriptions: string[]) {
   if (placeholderCycle) {
     placeholderCycle.classList.toggle('hidden', len > 0);
   }
+  if (replacesAnchor && phrasePopover && !descriptions.includes(phrasePopover.phrase)) closePhrasePopover();
+}
+
+interface PhrasePopover {
+  element: HTMLElement;
+  phrase: string;
+  anchor: HTMLButtonElement;
+  returnFocus: HTMLElement;
+  saving: boolean;
+  cleanup: () => void;
+}
+let phrasePopover: PhrasePopover | undefined;
+let phrasePopoverId = 0;
+
+function closePhrasePopover(returnFocus = true): void {
+  const current = phrasePopover;
+  if (!current) return;
+  phrasePopover = undefined;
+  current.cleanup();
+  current.element.remove();
+  current.anchor.setAttribute('aria-expanded', 'false');
+  if (returnFocus || document.activeElement === document.body || current.element.contains(document.activeElement)) {
+    if (current.anchor.isConnected) current.anchor.focus();
+    else if (current.returnFocus.isConnected) current.returnFocus.focus();
+  }
+}
+
+function refreshPhrasePopover(): void {
+  const current = phrasePopover;
+  if (!current) return;
+  if (!current.anchor.isConnected) {
+    closePhrasePopover();
+    return;
+  }
+  const strict = strictFilterPhrases.includes(current.phrase);
+  current.element.querySelectorAll<HTMLButtonElement>('[data-strictness]').forEach(button => {
+    button.setAttribute('aria-pressed', String((button.dataset.strictness === 'strict') === strict));
+  });
+  let total = 0;
+  let restored = 0;
+  const projectedStrict = [...new Set([...strictFilterPhrases, current.phrase])];
+  const activePhrases = reconciledFilterPhrases ?? [];
+  for (const post of filteredPosts) {
+    if (!displayedMatches(post).includes(current.phrase)) continue;
+    total++;
+    const scores = post.classification?.scores?.filter(score => activePhrases.includes(score.label));
+    if (!post.userOverride && scores?.some(score => score.label === current.phrase)
+        && !decideMatches(scores, post.classification?.textSent, projectedStrict).shouldHide) restored++;
+  }
+  const impact = current.element.querySelector<HTMLElement>('.filter-strictness-impact')!;
+  impact.hidden = strict || total === 0;
+  impact.textContent = `Strict would bring back ${restored} of ${total} hidden posts.`;
+  positionPhrasePopover();
+}
+
+function positionPhrasePopover(): void {
+  const current = phrasePopover;
+  if (!current) return;
+  const rect = current.anchor.getBoundingClientRect();
+  const width = current.element.getBoundingClientRect().width || 264;
+  const height = current.element.getBoundingClientRect().height || 180;
+  current.element.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
+  const below = rect.bottom + 8;
+  current.element.style.top = `${below + height <= window.innerHeight ? below : Math.max(8, rect.top - height - 8)}px`;
+}
+
+function openPhrasePopover(anchor: HTMLButtonElement, phrase: string): void {
+  closePhrasePopover();
+  const element = document.createElement('div');
+  element.className = 'filter-strictness-popover';
+  element.setAttribute('role', 'dialog');
+  const title = document.createElement('strong');
+  title.id = `filter-strictness-title-${++phrasePopoverId}`;
+  title.textContent = phrase;
+  element.setAttribute('aria-labelledby', title.id);
+  const group = document.createElement('div');
+  group.className = 'filter-strictness-options';
+  group.setAttribute('role', 'group');
+  group.setAttribute('aria-label', 'Strictness');
+  for (const strict of [false, true]) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.strictness = strict ? 'strict' : 'standard';
+    button.textContent = strict ? 'Strict' : 'Standard';
+    button.addEventListener('click', asyncHandler(async () => {
+      const current = phrasePopover;
+      if (!current || current.element !== element || current.saving || strictFilterPhrases.includes(phrase) === strict) return;
+      current.saving = true;
+      refreshPhrasePopover();
+      try {
+        const response: { success?: boolean; error?: string } | undefined = await chrome.runtime.sendMessage({
+          type: 'setFilterStrictness', siteId: _deps.adapter.siteId, phrase, strict,
+        });
+        if (!response?.success) throw new Error(response?.error || 'Filter strictness could not be saved.');
+      } catch (error) {
+        console.error('[Bouncer] Filter strictness save failed:', error);
+      } finally {
+        current.saving = false;
+        refreshPhrasePopover();
+      }
+    }));
+    group.appendChild(button);
+  }
+  const impact = document.createElement('p');
+  impact.className = 'filter-strictness-impact';
+  const actions = document.createElement('div');
+  actions.className = 'filter-strictness-actions';
+  const remove = document.createElement('button');
+  remove.type = 'button';
+  remove.className = 'filter-strictness-remove';
+  remove.textContent = 'Remove filter';
+  remove.addEventListener('click', asyncHandler(async () => {
+    const returnFocus = phrasePopover?.returnFocus;
+    await removeFilterPhrase(phrase);
+    if (phrasePopover?.element === element) closePhrasePopover();
+    if (!phrasePopover && returnFocus?.isConnected) returnFocus.focus();
+  }));
+  const done = document.createElement('button');
+  done.type = 'button';
+  done.textContent = 'Done';
+  done.addEventListener('click', () => closePhrasePopover());
+  actions.append(remove, done);
+  element.append(title, group, impact, actions);
+  const outside = (event: Event) => {
+    if (event.target instanceof Node && !element.contains(event.target) && !phrasePopover?.anchor.contains(event.target)) closePhrasePopover(false);
+  };
+  const escape = (event: KeyboardEvent) => {
+    if (event.key === 'Escape') { event.preventDefault(); closePhrasePopover(false); }
+  };
+  document.addEventListener('click', outside, true);
+  document.addEventListener('keydown', escape);
+  window.addEventListener('resize', positionPhrasePopover);
+  window.addEventListener('scroll', positionPhrasePopover, true);
+  phrasePopover = { element, phrase, anchor,
+    returnFocus: anchor.closest('.filter-phrases-container')?.querySelector<HTMLElement>('.filter-phrases-input') || anchor,
+    saving: false, cleanup: () => {
+    document.removeEventListener('click', outside, true);
+    document.removeEventListener('keydown', escape);
+    window.removeEventListener('resize', positionPhrasePopover);
+    window.removeEventListener('scroll', positionPhrasePopover, true);
+  } };
+  anchor.setAttribute('aria-expanded', 'true');
+  document.body.appendChild(element);
+  refreshPhrasePopover();
+  group.querySelector<HTMLButtonElement>('[aria-pressed="true"]')?.focus();
 }
 
 const CATEGORY_LIMIT_WARNING = 'You have too many filter categories - please remove some before adding more';
@@ -826,25 +1070,27 @@ export async function addFilterPhrase(text: string) {
       return false;
     }
 
-    descriptions.push(text);
-    console.log('[Bouncer] Saving descriptions:', descriptions);
-    await setDescriptions(_deps.descriptionsKey, descriptions);
+    const response: { success?: boolean; added?: boolean; error?: string } | undefined = await chrome.runtime.sendMessage({
+      type: 'addFilterPhrase', siteId: _deps.adapter.siteId, phrase: text,
+    });
+    if (!response?.success) throw new Error(response?.error || 'The local filter action did not complete.');
+    if (!response.added) return false;
     console.log('[Bouncer] addFilterPhrase complete');
     syncFilterPhrases();
     return true;
   } catch (err) {
+    if (err instanceof Error && err.message === MAX_FILTERS_WARNING) showCategoryLimitWarning(MAX_FILTERS_WARNING);
+    if (err instanceof Error && err.message === 'Filter phrases exceed the 1000-character limit.') showCategoryLimitWarning(CATEGORY_LIMIT_WARNING);
     console.error('[Bouncer] addFilterPhrase error:', err);
     return false;
   }
 }
 
 export async function removeFilterPhrase(phrase: string) {
-  const descriptions = await getDescriptions(_deps.descriptionsKey);
-  if (!descriptions.includes(phrase)) {
-    syncFilterPhrases();
-    return;
-  }
-  await setDescriptions(_deps.descriptionsKey, descriptions.filter((d: string) => d !== phrase));
+  const response: { success?: boolean; error?: string } | undefined = await chrome.runtime.sendMessage({
+    type: 'removeFilterPhrase', siteId: _deps.adapter.siteId, phrase,
+  });
+  if (!response?.success) throw new Error(response?.error || 'The local filter action did not complete.');
   syncFilterPhrases();
 }
 
@@ -967,7 +1213,7 @@ export function updateFilteredTabCount() {
       }
     }
   });
-
+  refreshPhrasePopover();
 }
 
 // ==================== Local model status ====================
@@ -1423,7 +1669,7 @@ export function renderFilteredPostsView(container: Element) {
 
     // Keep interactive details outside the post link so selecting text or
     // opening the disclosure cannot navigate to X.
-    wrapper.appendChild(createClassificationDetails(post.classification, postContent.postUrl));
+    wrapper.appendChild(createClassificationDetails(post.classification, postContent.postUrl, () => strictFilterPhrases));
     postsContainer.appendChild(wrapper);
   });
 }
@@ -1517,9 +1763,13 @@ async function restorePostSnapshot(post: FilteredPost, button: HTMLButtonElement
         _deps.postReasonings.delete(target.article);
       }
       if (rollback.decision && !rollback.decision.userOverride && !rollback.decision.shouldHide) {
-        _deps.processedPosts.delete(target.article);
         postDetectorStates.delete(target.article);
-        _deps.processExistingPosts();
+        if (reconciledFilterPhrases && hasScoresForFilters(rollback.reasoning?.scores, reconciledFilterPhrases)) {
+          _deps.processedPosts.add(target.article);
+        } else {
+          _deps.processedPosts.delete(target.article);
+          _deps.processExistingPosts();
+        }
       }
     }
     status.error = `Restore failed: ${err instanceof Error ? err.message : 'Try again.'}`;
@@ -1553,6 +1803,7 @@ export function storeFilteredPost(article: HTMLElement, contentObj: PostContent,
       if (status && !userOverride) filteredRestoreStatuses.set(replacement, status);
       filteredRestoreStatuses.delete(previous);
       refreshRestoreControls();
+      refreshPhrasePopover();
     }
     return; // Already stored
   }
@@ -1671,7 +1922,8 @@ export function hidePost(article: HTMLElement) {
   clearPendingDimTimer(article);
 
   // The adapter owns deferred scroll hiding; explicit actions target one cell.
-  _deps.adapter.hidePost(article, !currentPostDecision(_deps.adapter, article)?.userOverride);
+  _deps.adapter.hidePost(article, !currentPostDecision(_deps.adapter, article)?.userOverride,
+    reply => { const decision = currentPostDecision(_deps.adapter, reply); return !!decision?.userOverride && !decision.shouldHide; });
 }
 
 /** One atomic background action establishes both the rule and durable override. */
@@ -1734,7 +1986,11 @@ export async function bouncePost(article: HTMLElement, content: PostContent, phr
     syncFilterPhrases();
     return true;
   } catch (err) {
-    completeDecisionPersistence(persistence, 'failed', {});
+    const predecessor = persistence.previousDecision;
+    const previousReasoning = persistence.previousReasoning;
+    const scoredPredecessor = predecessor && !predecessor.userOverride && previousReasoning?.scores?.length;
+    completeDecisionPersistence(persistence, 'failed', scoredPredecessor
+      ? { decision: predecessor, reasoning: previousReasoning } : {});
     if (err instanceof Error && err.message === 'Filter phrases exceed the 1000-character limit.') showCategoryLimitWarning();
     if (err instanceof Error && err.message === MAX_FILTERS_WARNING) showCategoryLimitWarning(MAX_FILTERS_WARNING);
     console.error('[Bouncer] Bounce action error:', err);
@@ -1745,6 +2001,25 @@ export async function bouncePost(article: HTMLElement, content: PostContent, phr
       removeFilteredPostForArticle(article);
       _deps.postReasonings.delete(article);
       markPostVerified(article);
+      if (scoredPredecessor && previousReasoning) {
+        const restored = persistence.result!;
+        if (restored.decision && restored.reasoning) {
+          rememberPostDecision(article, restored.decision);
+          _deps.postReasonings.set(article, restored.reasoning);
+          if (restored.decision.shouldHide) {
+            storeFilteredPost(article, content, restored.reasoning.reasoning, restored.reasoning.rawResponse || '',
+              restored.reasoning.category || null, restored.decision.matches, false, predecessor.evaluationText, restored.reasoning);
+            hidePost(article);
+          } else if (!reconciledFilterPhrases || !hasScoresForFilters(restored.reasoning.scores, reconciledFilterPhrases)) {
+            forgetPostDecision(article);
+            _deps.processedPosts.delete(article);
+            _deps.processExistingPosts();
+          }
+        } else {
+          _deps.processedPosts.delete(article);
+          _deps.processExistingPosts();
+        }
+      }
     }
     return false;
   } finally {
@@ -1852,7 +2127,7 @@ export function showReasoningPopup(article: HTMLElement, x: number, y: number) {
     <button class="reasoning-reeval-btn">${stored ? 'Re-evaluate' : 'Evaluate Now'}</button>
   `));
   if (stored && !stored.isModelError) {
-    popup.querySelector('.reasoning-details')!.appendChild(createClassificationDetails(stored, content.postUrl));
+    popup.querySelector('.reasoning-details')!.appendChild(createClassificationDetails(stored, content.postUrl, () => strictFilterPhrases));
   }
 
   popup.style.left = `${x}px`;

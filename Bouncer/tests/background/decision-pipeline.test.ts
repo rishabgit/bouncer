@@ -35,6 +35,30 @@ function queue(post: string, tabId = 11): Promise<PipelineResponse> {
 }
 
 describe('real decision client through the serial post pipeline (mocked fetch only)', () => {
+  it('uses each saved phrase level for real classification and reuses the same scores when levels change', async () => {
+    storage.descriptions_twitter = ['birds', 'sports'];
+    storage.strictFilters_twitter = ['sports'];
+    const fetchMock = vi.fn(async (url: string) => new Response(JSON.stringify(url.endsWith('/v1/models')
+      ? { data: [{ id: DECISION_MODEL.id, status: { value: 'unloaded', args: [
+        '--model', `/cache/${DECISION_MODEL.fileName}`, '--ctx-size', '4096', '--parallel', '1',
+        '--batch-size', '4096', '--ubatch-size', '4096', '--no-mmproj-auto',
+      ] } }] }
+      : { answers: { f0: { type: 'noul', noul: 0.5 }, f1: { type: 'noul', noul: 0.5 } } })));
+    vi.stubGlobal('fetch', fetchMock);
+    const post = 'A full post about birds and sports';
+    const result = queue(post);
+    pipeline.setActiveTab(11);
+    await vi.advanceTimersByTimeAsync(0);
+    await expect(result).resolves.toMatchObject({ shouldHide: true, matches: ['birds'], scores: [
+      { label: 'birds', score: 0.5 }, { label: 'sports', score: 0.5 },
+    ] });
+    storage.strictFilters_twitter = ['birds', 'sports'];
+    await expect(pipeline.readCachedEvaluation(generateCacheKey(post))).resolves.toMatchObject({ shouldHide: false, matches: [] });
+    storage.strictFilters_twitter = [];
+    await expect(pipeline.readCachedEvaluation(generateCacheKey(post))).resolves.toMatchObject({ shouldHide: true, matches: ['birds', 'sports'] });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
   it('persists ordered scores and exact truncated request text across worker restart and cache hits', async () => {
     storage.descriptions_twitter = ['birds', 'excessive rudeness', 'spam, scams'];
     const sentBodies: Array<{ state: string }> = [];

@@ -1,13 +1,9 @@
-// The fixed classifier result and its one-result dispatch boundary.
+// The fixed classifier's evidence and its one-result dispatch boundary.
 import type { FilterScore } from '../types';
 
 export interface DetectorResult {
-  shouldHide: boolean;
-  reasoning: string;
-  category?: string | null;
-  matches?: string[];
-  scores?: FilterScore[];
-  textSent?: string;
+  scores: FilterScore[];
+  textSent: string;
   rawResponse?: string | null;
   inferenceTime?: number;
   classifierFingerprint?: string;

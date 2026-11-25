@@ -72,9 +72,11 @@ Manual decisions and compatible cached results remain available.
 
 ## Quality and limits
 
-The selected operating point is the `matches-category` template with
-`probability >= cutoff`: `0.70` for at most three own words in the exact sent
-text, otherwise `0.290813258948728`, regardless of filter phrase. To count own
+The selected template is `matches-category`, with `probability >= cutoff`.
+Each filter defaults to **Standard** (`0.290813258948728`) and can opt into
+**Strict** (`0.72`) from its filter menu. For at most three own words in the
+exact sent text, the cutoff is `max(filter cutoff, 0.70)`: Standard uses `0.70`
+and Strict stays at `0.72`. To count own
 words, remove case-insensitive `https?://\S+` http(s) links, then `@\w+` handles,
 and split on whitespace. Count each token containing a Unicode letter or digit
 as one own word, exactly as the registered holdout's `ownWords` in
@@ -103,6 +105,14 @@ changed this. On posts with almost no words of their own, scores mostly reflect
 the filter phrase and the @handle rather than the post, which is why such posts
 need the higher cutoff above. Details are in the
 [tone label study](benchmarks/decision-models.md#tone-label-study).
+
+Strict trades fewer false hides for more missed matches. Re-scoring the saved
+holdout probabilities for the exact typed label “performative rudeness that are
+execessive like unnecessary usage of slurs” as the only filter gives 3 harmless
+posts hidden and 12 rude posts missed, compared with 21 and 6 under Standard.
+These counts exclude 3 ambiguous decisions from 112 posts. This is a bounded
+single-filter result, not a general quality claim for Strict or browser
+verification.
 
 Quality was evaluated with at most ten active filters. Bouncer enforces that
 limit and caps request text to fit the model’s context. Recorded model results

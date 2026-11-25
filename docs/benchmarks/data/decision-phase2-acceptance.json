@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "phase": "phase2-acceptance",
+  "recordedAt": "2026-11-24T19:27:13.345Z",
+  "preregistrationSha256": "804e8f2ed5ce151e4cc71429e0652600f23ebf5f78c023585b4b747b4d6b0561",
+  "baselineSha256": "6814f37a9dae4c918507533a24087ab6c117a57a8634bf6763ac0834e0731852",
+  "corpusHashes": {
+    "eval-corpus.ts": "4a2dacac7271704addb5c06d953021b8c8c7f20108cfa002ce11942a6e907214",
+    "native-benchmark-corpus.ts": "a5db3bf30aa3039a3e571020c111797e1cfdd675872514a40139e66db6038603",
+    "native-isolation-holdout.json": "18841a6609d9e68493c629880bc03eeaa233eab890245e5cfd5c2eaa9e9d4159",
+    "native-migration-validation.json": "354e80566fdf889e213aec9072387c42f8286a48347379b1142073cba3fa4e27"
+  },
+  "candidates": [
+    "llama-d1-2b-q8",
+    "ollama-d1-2b-nvfp4"
+  ],
+  "attemptsPerCandidate": 1,
+  "validationCasesPerCandidate": 192,
+  "totalValidationRequests": 384,
+  "discoveryPreflightRequests": 2,
+  "retries": 0,
+  "retuning": false,
+  "settings": {
+    "effectiveContext": 4096,
+    "parallel": 1
+  },
+  "maximumValidationInputTokens": 528,
+  "tests": {
+    "command": "node --test scripts/decision-eval/",
+    "heavyWrapperUsed": true,
+    "pass": 48,
+    "fail": 0
+  },
+  "results": {
+    "decision-validation-llama-d1-2b-q8-isolation.json": "97dae5221633af7fa7681909c919ace57933ec4d47cb5ac154219f09d1872538",
+    "decision-validation-llama-d1-2b-q8-migration.json": "703ae1c58c9cabe42f3c5d6475b3a46d4a8196f9f5221e39d8580b467acde613",
+    "decision-validation-ollama-d1-2b-nvfp4-isolation.json": "83ea254d79aa2ee801470fc6e7ac10f3fb6199e51c1e4e4f8b18720a1828ad34",
+    "decision-validation-ollama-d1-2b-nvfp4-migration.json": "f4e03b1b3316fe4c78a2dc1dc31329173aee16b33719c90e25a314ca079f4803"
+  },
+  "attempts": {
+    "decision-validation-attempt-llama-d1-2b-q8.json": "bfc11e0320fb10908aee41024c767bd785e8a8814121fdcb8b3426d4d5047f9c",
+    "decision-validation-attempt-ollama-d1-2b-nvfp4.json": "cea27fa5a86d7a97ab844dac2e7e898a86a44a6dd52ee05740660b10da6745ff"
+  },
+  "gateOutcomes": [
+    {
+      "variant": "llama-d1-2b-q8",
+      "corpus": "isolation",
+      "pass": true,
+      "gates": {
+        "G1": {
+          "metric": "newFalseHides",
+          "actual": 0,
+          "max": 1,
+          "pass": true
+        },
+        "G2": {
+          "metric": "exactVectors",
+          "actual": 72,
+          "min": 60,
+          "pass": true
+        },
+        "G3": {
+          "metric": "correctHideDecisions",
+          "actual": 72,
+          "min": 68,
+          "pass": true
+        }
+      }
+    },
+    {
+      "variant": "llama-d1-2b-q8",
+      "corpus": "migration",
+      "pass": true,
+      "gates": {
+        "G1": {
+          "metric": "newFalseHides",
+          "actual": 0,
+          "max": 1,
+          "pass": true
+        },
+        "G2": {
+          "metric": "exactVectors",
+          "actual": 119,
+          "min": 110,
+          "pass": true
+        },
+        "G3": {
+          "metric": "correctHideDecisions",
+          "actual": 120,
+          "min": 117,
+          "pass": true
+        }
+      }
+    },
+    {
+      "variant": "ollama-d1-2b-nvfp4",
+      "corpus": "isolation",
+      "pass": true,
+      "gates": {
+        "G1": {
+          "metric": "newFalseHides",
+          "actual": 0,
+          "max": 1,
+          "pass": true
+        },
+        "G2": {
+          "metric": "exactVectors",
+          "actual": 70,
+          "min": 60,
+          "pass": true
+        },
+        "G3": {
+          "metric": "correctHideDecisions",
+          "actual": 71,
+          "min": 68,
+          "pass": true
+        }
+      }
+    },
+    {
+      "variant": "ollama-d1-2b-nvfp4",
+      "corpus": "migration",
+      "pass": true,
+      "gates": {
+        "G1": {
+          "metric": "newFalseHides",
+          "actual": 0,
+          "max": 1,
+          "pass": true
+        },
+        "G2": {
+          "metric": "exactVectors",
+          "actual": 119,
+          "min": 110,
+          "pass": true
+        },
+        "G3": {
+          "metric": "correctHideDecisions",
+          "actual": 120,
+          "min": 117,
+          "pass": true
+        }
+      }
+    }
+  ],
+  "report": {
+    "command": "node scripts/decision-eval/report.mjs",
+    "sha256": "3c12c53b83e132e6ea40c19a83b05d959afea2110f3ae1bd99713ae11377d8e6"
+  },
+  "onlyOwnedPathsChanged": true,
+  "privatePathScanPassed": true,
+  "servers": {
+    "llama": {
+      "running": true,
+      "loadedModels": 0
+    },
+    "ollama": {
+      "running": true,
+      "loadedModels": 0,
+      "cloudDisabled": true
+    }
+  }
+}

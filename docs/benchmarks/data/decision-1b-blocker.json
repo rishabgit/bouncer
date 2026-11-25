@@ -1,0 +1,258 @@
+{
+  "schemaVersion": 2,
+  "status": "resolved",
+  "kind": "missing-host-model-bindings",
+  "recordedAt": "2026-11-24T18:52:49.030Z",
+  "file": "<llama-user-config>/models.user.ini",
+  "evidence": {
+    "download": {
+      "endpoint": "POST /models",
+      "status": 400,
+      "message": "model 'LiquidAI/d1-2B-GGUF:Q8_0' already exists"
+    },
+    "load": {
+      "endpoint": "POST /models/load + GET /props",
+      "status": 500,
+      "message": "failed to load empty model path"
+    },
+    "presets": [
+      {
+        "name": "LiquidAI/d1-2B-GGUF:Q8_0",
+        "args": [
+          "<llama-app-executable>",
+          "serve",
+          "--host",
+          "127.0.0.1",
+          "--log-colors",
+          "off",
+          "--no-mmproj-auto",
+          "--port",
+          "57652",
+          "--sleep-idle-seconds",
+          "300",
+          "--spec-default",
+          "--alias",
+          "LiquidAI/d1-2B-GGUF:Q8_0",
+          "--batch-size",
+          "4096",
+          "--ctx-size",
+          "4096",
+          "--fit-target",
+          "1024",
+          "--parallel",
+          "1",
+          "--ubatch-size",
+          "4096"
+        ]
+      },
+      {
+        "name": "LiquidAI/d1-2B-GGUF:Q4_K_M",
+        "args": [
+          "<llama-app-executable>",
+          "serve",
+          "--host",
+          "127.0.0.1",
+          "--log-colors",
+          "off",
+          "--no-mmproj-auto",
+          "--port",
+          "0",
+          "--sleep-idle-seconds",
+          "300",
+          "--spec-default",
+          "--alias",
+          "LiquidAI/d1-2B-GGUF:Q4_K_M",
+          "--batch-size",
+          "4096",
+          "--ctx-size",
+          "4096",
+          "--fit-target",
+          "1024",
+          "--parallel",
+          "1",
+          "--ubatch-size",
+          "4096"
+        ]
+      },
+      {
+        "name": "LiquidAI/d1-omni-600M-GGUF:Q8_0",
+        "args": [
+          "<llama-app-executable>",
+          "serve",
+          "--host",
+          "127.0.0.1",
+          "--log-colors",
+          "off",
+          "--no-mmproj-auto",
+          "--port",
+          "0",
+          "--sleep-idle-seconds",
+          "300",
+          "--spec-default",
+          "--alias",
+          "LiquidAI/d1-omni-600M-GGUF:Q8_0",
+          "--batch-size",
+          "4096",
+          "--ctx-size",
+          "4096",
+          "--fit-target",
+          "1024",
+          "--parallel",
+          "1",
+          "--ubatch-size",
+          "4096"
+        ]
+      }
+    ]
+  },
+  "requiredSections": [
+    {
+      "section": "LiquidAI/d1-2B-GGUF:Q8_0",
+      "add": "hf-repo = LiquidAI/d1-2B-GGUF:Q8_0",
+      "preserve": {
+        "ctx-size": 4096,
+        "parallel": 1,
+        "batch-size": 4096,
+        "ubatch-size": 4096,
+        "no-mmproj": true
+      }
+    },
+    {
+      "section": "LiquidAI/d1-2B-GGUF:Q4_K_M",
+      "add": "hf-repo = LiquidAI/d1-2B-GGUF:Q4_K_M",
+      "preserve": {
+        "ctx-size": 4096,
+        "parallel": 1,
+        "batch-size": 4096,
+        "ubatch-size": 4096,
+        "no-mmproj": true
+      }
+    },
+    {
+      "section": "LiquidAI/d1-omni-600M-GGUF:Q8_0",
+      "add": "hf-repo = LiquidAI/d1-omni-600M-GGUF:Q8_0",
+      "preserve": {
+        "ctx-size": 4096,
+        "parallel": 1,
+        "batch-size": 4096,
+        "ubatch-size": 4096,
+        "no-mmproj": true
+      }
+    }
+  ],
+  "hostAction": "Add the missing hf-repo key to each existing section in models.user.ini, preserving its other options; relaunch Llama.app or reload its generated presets. Do not append duplicate sections.",
+  "reason": "The router refuses downloads over preset entries; these three presets have no --hf-repo or --model, so loading has no model path. HTTP cannot edit the preset file.",
+  "resolution": {
+    "recordedAt": "2026-11-24T18:57:34.524Z",
+    "authority": "User confirms matching hf-repo keys added without duplicate sections and Llama.app relaunched.",
+    "readback": [
+      {
+        "model": "LiquidAI/d1-2B-GGUF:Q4_K_M",
+        "status": {
+          "value": "unloaded",
+          "args": [
+            "<llama-app-executable>",
+            "serve",
+            "--host",
+            "127.0.0.1",
+            "--log-colors",
+            "off",
+            "--no-mmproj-auto",
+            "--port",
+            "0",
+            "--sleep-idle-seconds",
+            "300",
+            "--spec-default",
+            "--alias",
+            "LiquidAI/d1-2B-GGUF:Q4_K_M",
+            "--batch-size",
+            "4096",
+            "--ctx-size",
+            "4096",
+            "--fit-target",
+            "1024",
+            "--hf-repo",
+            "LiquidAI/d1-2B-GGUF:Q4_K_M",
+            "--parallel",
+            "1",
+            "--ubatch-size",
+            "4096"
+          ],
+          "preset": "[LiquidAI/d1-2B-GGUF:Q4_K_M]\nlog-colors = off\nmmproj-auto = false\nsleep-idle-seconds = 300\nspec-default = 1\nbatch-size = 4096\nctx-size = 4096\nfit-target = 1024\nhf-repo = LiquidAI/d1-2B-GGUF:Q4_K_M\nparallel = 1\nubatch-size = 4096\n\n"
+        }
+      },
+      {
+        "model": "LiquidAI/d1-2B-GGUF:Q8_0",
+        "status": {
+          "value": "unloaded",
+          "args": [
+            "<llama-app-executable>",
+            "serve",
+            "--host",
+            "127.0.0.1",
+            "--log-colors",
+            "off",
+            "--no-mmproj-auto",
+            "--port",
+            "0",
+            "--sleep-idle-seconds",
+            "300",
+            "--spec-default",
+            "--alias",
+            "LiquidAI/d1-2B-GGUF:Q8_0",
+            "--batch-size",
+            "4096",
+            "--ctx-size",
+            "4096",
+            "--fit-target",
+            "1024",
+            "--hf-repo",
+            "LiquidAI/d1-2B-GGUF:Q8_0",
+            "--parallel",
+            "1",
+            "--ubatch-size",
+            "4096"
+          ],
+          "preset": "[LiquidAI/d1-2B-GGUF:Q8_0]\nlog-colors = off\nmmproj-auto = false\nsleep-idle-seconds = 300\nspec-default = 1\nbatch-size = 4096\nctx-size = 4096\nfit-target = 1024\nhf-repo = LiquidAI/d1-2B-GGUF:Q8_0\nparallel = 1\nubatch-size = 4096\n\n"
+        }
+      },
+      {
+        "model": "LiquidAI/d1-omni-600M-GGUF:Q8_0",
+        "status": {
+          "value": "unloaded",
+          "args": [
+            "<llama-app-executable>",
+            "serve",
+            "--host",
+            "127.0.0.1",
+            "--log-colors",
+            "off",
+            "--no-mmproj-auto",
+            "--port",
+            "0",
+            "--sleep-idle-seconds",
+            "300",
+            "--spec-default",
+            "--alias",
+            "LiquidAI/d1-omni-600M-GGUF:Q8_0",
+            "--batch-size",
+            "4096",
+            "--ctx-size",
+            "4096",
+            "--fit-target",
+            "1024",
+            "--hf-repo",
+            "LiquidAI/d1-omni-600M-GGUF:Q8_0",
+            "--parallel",
+            "1",
+            "--ubatch-size",
+            "4096"
+          ],
+          "preset": "[LiquidAI/d1-omni-600M-GGUF:Q8_0]\nlog-colors = off\nmmproj-auto = false\nsleep-idle-seconds = 300\nspec-default = 1\nbatch-size = 4096\nctx-size = 4096\nfit-target = 1024\nhf-repo = LiquidAI/d1-omni-600M-GGUF:Q8_0\nparallel = 1\nubatch-size = 4096\n\n"
+        }
+      }
+    ],
+    "phase1bCompleted": true
+  },
+  "remainingAtResolution": "All nine phase1b discovery reruns, freezes, pinned performance measurements and token-parity observations; no validation inference."
+}

@@ -1,0 +1,2693 @@
+{
+  "schemaVersion": 1,
+  "corpusId": "native-migration-sealed-v1",
+  "authoredDate": "2026-10-12",
+  "provenance": "New synthetic author-labeled cases for the native migration. No model output was used to author or relabel this corpus.",
+  "labelPolicy": {
+    "orderedLabels": "expectedVerdicts is one boolean per input filter in exact input order. expectedMatches is the exact matching phrase subset in that same order.",
+    "rageBait": "Anger amplification, hostile public targeting or engineered argument are positive. Sincere frustration, fair criticism, hardship, civic requests and ordinary sarcasm are negative without that amplification.",
+    "broadTopics": "Discussing a topic can match even when the author criticizes it. AI use alone is not exaggerated AI hype. A substantive help request is not engagement boosting. An ordinary recommendation is not promotion of the author's own paid product.",
+    "suggestions": "Accept zero through three distinct grounded actionable phrases. acceptablePhrases are illustrative semantic anchors, not an exhaustive string-match whitelist. Neutral fixtures may validly return zero through three accurate topics. Unsupported scam, criminality and ideology allegations are forbidden.",
+    "syntheticNames": "People, products and organizations are synthetic or unspecified; no factual claim about a real person or business is intended."
+  },
+  "cases": [
+    {
+      "id": "migration-rage-p01",
+      "text": "The cinema raised its booking fee again. Screenshot the manager's announcement and bury it under furious quotes; I want opening night to be a wall of people tearing the place apart.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Solicits hostile quote-posts and public shaming over a fee rather than seeking a remedy."
+    },
+    {
+      "id": "migration-rage-p02",
+      "text": "Everyone who buys that ugly desk lamp deserves to be laughed out of the room. Put your worst insults below and send this to its designer so they cannot escape the ridicule.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Invites insults and directs the resulting pile-on at a designer."
+    },
+    {
+      "id": "migration-rage-p03",
+      "text": "A bakery put raisins in the holiday loaf. Pick a side, call the other side tasteless idiots, and keep the fighting going until this reaches the top of the feed.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Engineers an insulting argument and asks readers to sustain it for attention."
+    },
+    {
+      "id": "migration-rage-p04",
+      "text": "The club moved our reserved seats. I have the organizer's profile ready: bring your angriest friends here and make sure nobody lets them forget this humiliation.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Recruits angry participants to target an organizer for sustained humiliation."
+    },
+    {
+      "id": "migration-rage-p05",
+      "text": "That new logo is a crime against eyeballs. Do not offer design feedback; I want a thousand people publicly dunking on whoever approved it. Pass it around.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Explicitly replaces constructive criticism with a mass public dunking campaign; crime is figurative here."
+    },
+    {
+      "id": "migration-rage-p06",
+      "text": "A shop closed five minutes early. Quote their cheerful sign with the nastiest comment you can manage. If we get enough angry shares, the owner will spend all day answering us.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Requests nasty quote-posts and angry sharing to overwhelm an owner."
+    },
+    {
+      "id": "migration-rage-p07",
+      "text": "Anyone still praising that calendar app is a pathetic little coward who needs a machine to think for them. There is no honest disagreement here: its fans are either brainless sheep or liars pretending to be smart.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Sweeping personal contempt and a dishonest false binary target app users to provoke conflict; this exceeds criticism of the app and contains no request for replies or dissemination."
+    },
+    {
+      "id": "migration-rage-p08",
+      "text": "The building committee chose beige paint. This is your invitation to roast every member by name. Keep adding insults until they lock the comments.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Coordinates named insults and a public pile-on over an ordinary decision."
+    },
+    {
+      "id": "migration-rage-p09",
+      "text": "Someone praised the delayed update. Feed them to the replies: nobody who defends this mess should get a peaceful afternoon online.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Urges readers to attack a person in replies and deprive them of a peaceful experience."
+    },
+    {
+      "id": "migration-rage-p10",
+      "text": "The cafe removed the big mugs. Make this their public embarrassment of the week: quote the menu, mock their staff, and tell your friends to join in.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Calls for coordinated public embarrassment and mockery of staff."
+    },
+    {
+      "id": "migration-rage-p11",
+      "text": "The theater's seating chart is ridiculous. I am pinning the director's reply so everyone can take turns humiliating them. Keep the angry comments coming.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Amplifies a target's reply to organize repeated humiliation."
+    },
+    {
+      "id": "migration-rage-p12",
+      "text": "A neighbor likes the new gate. That tells you everything about their intelligence. Drag them in the comments and share the thread so the whole street gets a laugh.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Invites public insults and wider sharing to ridicule a neighbor."
+    },
+    {
+      "id": "migration-rage-p13",
+      "text": "Their support team sent a canned answer. Let's turn this into a spectacle: flood the announcement with furious replies and make other customers hate them too.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Seeks a spectacle and directs angry replies intended to amplify hostility."
+    },
+    {
+      "id": "migration-rage-p14",
+      "text": "The convention chose a boring poster. Every designer defending it should be ashamed. Quote their defenses with insults; I want this feud all over the timeline.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Pushes shame, insulting quote-posts and widespread conflict."
+    },
+    {
+      "id": "migration-rage-p15",
+      "text": "That columnist called our hobby childish. Gather the loudest accounts you know and drown their next post in ridicule. We can make today miserable for them.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Organizes a hostile public response aimed at making a target miserable."
+    },
+    {
+      "id": "migration-rage-p16",
+      "text": "The store used plastic wrapping. Take a photo, tag the staff account, and unleash your best abuse. Civil feedback will not get this thread the attention it deserves.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Explicitly asks for abuse and treats outrage as a means to get attention."
+    },
+    {
+      "id": "migration-rage-p17",
+      "text": "The seminar changed its slides. Anyone saying this is fine is a spineless clown. Find those replies and dogpile them until the argument spreads.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Insults dissenters and recruits a spreading dogpile."
+    },
+    {
+      "id": "migration-rage-p18",
+      "text": "The gardener trimmed the hedge unevenly. I want their proud photo covered in mocking quotes by dinner. Bring friends; the humiliation is the entertainment.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Defines humiliation as entertainment and organizes hostile amplification."
+    },
+    {
+      "id": "migration-rage-p19",
+      "text": "Yellow station benches are all the proof I need that the people running this place are useless clowns. Anyone defending them is a spineless bootlicker; there is no respectable person on that side of this argument.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Disproportionate insults at staff and all defenders turn a trivial design choice into a contempt-driven argument; there is no request for replies, tags, shares or a pile-on."
+    },
+    {
+      "id": "migration-rage-p20",
+      "text": "My parcel arrived dented. I have posted the courier's reply below for a reason: tear them to pieces in public and keep forwarding it until their mentions are unusable.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Solicits a public pile-on and amplification intended to overwhelm mentions."
+    },
+    {
+      "id": "migration-rage-n01",
+      "text": "I am furious that the lift is broken again. Carrying groceries up six floors hurts my knees. I have reported the fault and really hope someone repairs it this week.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Sincere frustration and hardship with a requested repair; no hostile amplification."
+    },
+    {
+      "id": "migration-rage-n02",
+      "text": "Wonderful, another printer jam right before the meeting. Apparently my most reliable coworker is now a blinking red light.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Ordinary sarcasm about equipment, without a target or a pile-on request."
+    },
+    {
+      "id": "migration-rage-n03",
+      "text": "The subscription price went up while the feature I use disappeared. I cancelled and explained why in the feedback form. That is a disappointing tradeoff.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "A concrete consumer complaint and personal decision, without outrage farming."
+    },
+    {
+      "id": "migration-rage-n04",
+      "text": "I disagree with the school board's timetable. The public meeting is Tuesday; I plan to ask how they accounted for parents working late shifts.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Civic participation and a policy question, without calls for harassment or attention farming."
+    },
+    {
+      "id": "migration-rage-n05",
+      "text": "My application was rejected after three interviews. I feel embarrassed and exhausted, even though I know other candidates may have been a better fit.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Personal disappointment and self-reflection; no effort to mobilize angry readers."
+    },
+    {
+      "id": "migration-rage-n06",
+      "text": "The reviewer's comparison seems unfair: one device had a fresh battery and the other did not. Repeating the test under equal conditions would help.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Fair criticism supported by a concrete methodological concern."
+    },
+    {
+      "id": "migration-rage-n07",
+      "text": "Oh good, the train announcement is quieter than the espresso machine again. I would love to know whether my platform has changed.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Ordinary sarcasm and a practical complaint; it does not seek a public dogpile."
+    },
+    {
+      "id": "migration-rage-n08",
+      "text": "I am angry about the new visitor hours. My father cannot travel that early. I wrote the clinic to ask whether they can make an exception.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Sincere frustration tied to family hardship and a direct remedy."
+    },
+    {
+      "id": "migration-rage-n09",
+      "text": "This sequel bored me. The middle drags, the jokes repeat, and the ending barely follows from the story. Other viewers may enjoy it more than I did.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Ordinary artistic criticism with no hostile mobilization."
+    },
+    {
+      "id": "migration-rage-n10",
+      "text": "I doubt the promised repair deadline will hold. We have missed two already, so I am making a backup plan instead of relying on the announcement.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Calm pessimism about a deadline, without outrage amplification."
+    },
+    {
+      "id": "migration-rage-n11",
+      "text": "Please sign the request for a safer pedestrian crossing if you agree with it. The letter asks the council to publish a traffic study, and includes the collision figures.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "A substantive civic petition seeking a defined policy response, not anger or a pile-on."
+    },
+    {
+      "id": "migration-rage-n12",
+      "text": "I cannot stand how that chair feels after an hour. The seller accepted my return, so I will try something with a firmer seat next time.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Strong but ordinary product dissatisfaction with a resolved return."
+    },
+    {
+      "id": "migration-rage-n13",
+      "text": "The help desk misunderstood my question twice. I am irritated, but the person replying probably has a heavy queue. I will send a clearer explanation.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Frustration paired with empathy and a practical follow-up; no public targeting."
+    },
+    {
+      "id": "migration-rage-n14",
+      "text": "Our rehearsal ran late because the room key was missing. Classic planning excellence. We have agreed to keep a spare with the venue from now on.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Sarcasm about a logistical mistake followed by an agreed solution."
+    },
+    {
+      "id": "migration-rage-n15",
+      "text": "The council's rent estimate seems too low for this neighborhood. My lease and three nearby listings are all higher; I will submit them during the consultation.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Evidence-based government criticism and consultation, without engineered hostility."
+    },
+    {
+      "id": "migration-rage-n16",
+      "text": "I miss the old library hours. Working evenings means I seldom get there now. Does anyone know another place where I can borrow large-print books?",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "A sincere complaint and request for useful information; replies are sought for help rather than amplification."
+    },
+    {
+      "id": "migration-rage-n17",
+      "text": "That comment about beginners was unkind. I told the instructor privately that it made the class harder to join. I hope the next session feels more welcoming.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Criticism of conduct with private feedback; it does not recruit public abuse."
+    },
+    {
+      "id": "migration-rage-n18",
+      "text": "Today was rough: a cancelled appointment, a leaking tap, and almost no sleep. I am putting my phone away and starting again tomorrow.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Personal hardship and frustration without a hostile target."
+    },
+    {
+      "id": "migration-rage-n19",
+      "text": "Excellent timing: the umbrella gave up exactly when the downpour started. At least my notebook stayed dry.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Benign sarcasm about an object and an unlucky situation."
+    },
+    {
+      "id": "migration-rage-n20",
+      "text": "I think the museum's new display labels are harder to read. The smaller type and glare make them inaccessible for me, so I sent a suggestion for larger print.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb",
+      "stratum": "rage",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Specific accessibility criticism seeking improvement, without rage amplification."
+    },
+    {
+      "id": "migration-broad-1-01",
+      "text": "I moved part of my savings into ether and keep it in a hardware wallet. The lending yield looks tempting, but I am setting a strict limit on how much I risk.",
+      "filters": [
+        "cryptocurrency investing or promotion"
+      ],
+      "expectedMatches": [
+        "cryptocurrency investing or promotion"
+      ],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Describes cryptocurrency investment and lending risk, without requiring the literal category name."
+    },
+    {
+      "id": "migration-broad-1-02",
+      "text": "The visitors equalized in stoppage time, then won on penalties. Their keeper guessed the final shot perfectly; that save changed the whole cup final.",
+      "filters": [
+        "sports results or commentary"
+      ],
+      "expectedMatches": [
+        "sports results or commentary"
+      ],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Reports a competitive sporting result and comments on play."
+    },
+    {
+      "id": "migration-broad-1-03",
+      "text": "A new sentence generator means every school, hospital and law firm can fire its experts by next month. It will fix education, medicine and justice without any human help.",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expectedMatches": [
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Makes sweeping, exaggerated claims that AI removes human expertise and solves multiple fields."
+    },
+    {
+      "id": "migration-broad-1-04",
+      "text": "This week I am alternating weighted squats with easy cycling days. Start with two light sets, add a little load only when the reps feel controlled, and rest between sessions.",
+      "filters": [
+        "exercise routines and fitness training"
+      ],
+      "expectedMatches": [
+        "exercise routines and fitness training"
+      ],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Describes a progressive exercise routine and training guidance."
+    },
+    {
+      "id": "migration-broad-1-05",
+      "text": "Toast the cumin first, soften the onions, then stir in lentils and stock. Simmer until tender and finish with lemon; the last squeeze makes the whole pot brighter.",
+      "filters": [
+        "food and cooking"
+      ],
+      "expectedMatches": [
+        "food and cooking"
+      ],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Gives cooking instructions for a dish."
+    },
+    {
+      "id": "migration-broad-1-06",
+      "text": "People backstage say the film star arrived wearing the singer's jacket after their supposed split. Neither has addressed the reunion rumor, and the fan accounts are speculating.",
+      "filters": [
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expectedMatches": [
+        "gossip about famous entertainers or celebrities"
+      ],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Discusses unverified relationship rumors about famous entertainers."
+    },
+    {
+      "id": "migration-broad-1-07",
+      "text": "The city council will vote on a higher parking levy next week. I prefer the proposal that reserves part of the revenue for bus shelters rather than general spending.",
+      "filters": [
+        "government policy or election politics"
+      ],
+      "expectedMatches": [
+        "government policy or election politics"
+      ],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Discusses government policy and a pending council vote."
+    },
+    {
+      "id": "migration-broad-1-08",
+      "text": "Luca, your smug reply was pathetic. You mocked my work in public, so here is my answer: stop pretending you are the competent one in this partnership.",
+      "filters": [
+        "personal feuds or public insults between people"
+      ],
+      "expectedMatches": [
+        "personal feuds or public insults between people"
+      ],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Contains direct public personal insults within an interpersonal dispute."
+    },
+    {
+      "id": "migration-broad-1-09",
+      "text": "I built a paid invoicing template pack for freelancers. It is available in my shop today, and the launch price is twelve dollars through Friday.",
+      "filters": [
+        "promotion of the author's own product or paid service"
+      ],
+      "expectedMatches": [
+        "promotion of the author's own product or paid service"
+      ],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Promotes the author's own paid product and gives a purchase offer."
+    },
+    {
+      "id": "migration-broad-1-10",
+      "text": "Drop a single star in the replies, like this post and send it onward. I am trying to push this photo into as many timelines as possible tonight.",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expectedMatches": [
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        true
+      ],
+      "labelRationale": "Explicitly requests likes, replies and redistribution to increase reach."
+    },
+    {
+      "id": "migration-broad-1-11",
+      "text": "The museum's bronze coin has a worn portrait on one side and a ship on the other. The curator dated it from the lettering, not from its market value.",
+      "filters": [
+        "cryptocurrency investing or promotion"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "A historical physical coin is discussed; there is no cryptocurrency investment or promotion."
+    },
+    {
+      "id": "migration-broad-1-12",
+      "text": "Our support team finished the migration overnight. The last server came back before dawn, and the customer dashboard stayed available throughout.",
+      "filters": [
+        "sports results or commentary"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "A workplace team completing a technical task is not sporting commentary."
+    },
+    {
+      "id": "migration-broad-1-13",
+      "text": "The speech recognizer got two street names wrong during testing. We corrected the transcript by hand and will report the error rate alongside the speed measurements.",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "A measured AI limitation is described without exaggerated claims."
+    },
+    {
+      "id": "migration-broad-1-14",
+      "text": "I sorted the spare keyboard keys into three sets by size. The missing escape key finally turned up behind the monitor.",
+      "filters": [
+        "exercise routines and fitness training"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Sets and keys refer to desk objects rather than exercise."
+    },
+    {
+      "id": "migration-broad-1-15",
+      "text": "The still-life painting uses warm browns against a pale blue wall. I like how the brush strokes change direction around the glass jar.",
+      "filters": [
+        "food and cooking"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Comments on painting technique, without discussing food or preparing a meal."
+    },
+    {
+      "id": "migration-broad-1-16",
+      "text": "The new record's percussion sits too far back in the mix for my taste. The harmonies are lovely, though, and the quiet final track sounds carefully recorded.",
+      "filters": [
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "An artistic review concerns the recording itself, without celebrity personal-life gossip."
+    },
+    {
+      "id": "migration-broad-1-17",
+      "text": "Our workshop changed the tool checkout policy: borrowed drill bits now go in labeled boxes so the next shift can find them.",
+      "filters": [
+        "government policy or election politics"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "An internal workplace rule is not government policy or election politics."
+    },
+    {
+      "id": "migration-broad-1-18",
+      "text": "The report has a weak conclusion because it skips the control group. Reanalyzing that comparison would make the argument more convincing.",
+      "filters": [
+        "personal feuds or public insults between people"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Critiques an argument and method rather than insulting or feuding with people."
+    },
+    {
+      "id": "migration-broad-1-19",
+      "text": "I bought a notebook from a local maker and love its paper. I have no connection to the seller; it simply handles fountain-pen ink better than my old one.",
+      "filters": [
+        "promotion of the author's own product or paid service"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Recommends someone else's product and explicitly disclaims ownership."
+    },
+    {
+      "id": "migration-broad-1-20",
+      "text": "Has anyone successfully removed a stripped screw from a camera mount? I need a practical method that will not damage the threads.",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-1",
+      "expectedVerdicts": [
+        false
+      ],
+      "labelRationale": "Requests useful technical help rather than likes, empty replies or engagement amplification."
+    },
+    {
+      "id": "migration-broad-3-01",
+      "text": "The league final ended 2-1 after a brilliant late header. During the break I also added a small bitcoin holding to my long-term savings; I am keeping the two decisions separate.",
+      "filters": [
+        "sports results or commentary",
+        "cryptocurrency investing or promotion",
+        "food and cooking"
+      ],
+      "expectedMatches": [
+        "sports results or commentary",
+        "cryptocurrency investing or promotion"
+      ],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        true,
+        true,
+        false
+      ],
+      "labelRationale": "Sports commentary and cryptocurrency investment are independently explicit; there is no cooking topic."
+    },
+    {
+      "id": "migration-broad-3-02",
+      "text": "My paid writing assistant launches today. Buy a subscription and you can replace every editor, teacher and researcher overnight; this system makes all expertise unnecessary.",
+      "filters": [
+        "exercise routines and fitness training",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service"
+      ],
+      "expectedMatches": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service"
+      ],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        false,
+        true,
+        true
+      ],
+      "labelRationale": "Promotes an owned paid AI service with exaggerated replacement claims; exercise is absent."
+    },
+    {
+      "id": "migration-broad-3-03",
+      "text": "After my three sets of lunges, I made a bowl of roasted chickpeas with tahini and parsley. The training was gentle today; the dressing needed extra lemon.",
+      "filters": [
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "exercise routines and fitness training"
+      ],
+      "expectedMatches": [
+        "food and cooking",
+        "exercise routines and fitness training"
+      ],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        true,
+        false,
+        true
+      ],
+      "labelRationale": "Contains food preparation and an exercise routine, without celebrity gossip."
+    },
+    {
+      "id": "migration-broad-3-04",
+      "text": "The mayoral candidates disagree over flood defenses. Please like this comparison, repost it, and leave any reply to boost its reach before the debate.",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement",
+        "sports results or commentary",
+        "government policy or election politics"
+      ],
+      "expectedMatches": [
+        "requests for likes, reposts, or replies to boost engagement",
+        "government policy or election politics"
+      ],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        true,
+        false,
+        true
+      ],
+      "labelRationale": "Election politics and explicit engagement boosting are present; sport is absent."
+    },
+    {
+      "id": "migration-broad-3-05",
+      "text": "The actor's rumored breakup is all over fan pages. Yesterday the singer called them a selfish bore in a public reply, and the actor fired back with another insult.",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "personal feuds or public insults between people",
+        "cryptocurrency investing or promotion"
+      ],
+      "expectedMatches": [
+        "gossip about famous entertainers or celebrities",
+        "personal feuds or public insults between people"
+      ],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        true,
+        true,
+        false
+      ],
+      "labelRationale": "Entertainer relationship gossip overlaps with a described public personal feud; crypto is absent."
+    },
+    {
+      "id": "migration-broad-3-06",
+      "text": "My new paid soup booklet is on sale today. I wrote the recipes and sell the download myself; the sample shows how to roast tomatoes before blending them with stock.",
+      "filters": [
+        "government policy or election politics",
+        "promotion of the author's own product or paid service",
+        "food and cooking"
+      ],
+      "expectedMatches": [
+        "promotion of the author's own product or paid service",
+        "food and cooking"
+      ],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        false,
+        true,
+        true
+      ],
+      "labelRationale": "Owned paid-product promotion overlaps with recipe content; policy is absent."
+    },
+    {
+      "id": "migration-broad-3-07",
+      "text": "A machine predictor can allegedly guarantee profit on every token trade, end market crashes, and make every investor rich by tomorrow. I cannot think of a more overblown promise.",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "cryptocurrency investing or promotion",
+        "exercise routines and fitness training"
+      ],
+      "expectedMatches": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "cryptocurrency investing or promotion"
+      ],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        true,
+        true,
+        false
+      ],
+      "labelRationale": "The post discusses exaggerated AI claims about cryptocurrency investing even while criticizing them; training is absent."
+    },
+    {
+      "id": "migration-broad-3-08",
+      "text": "The relay squad's handover was late, which cost them the final. As a spectator, I thought the anchor's comeback was impressive even though the team finished second.",
+      "filters": [
+        "exercise routines and fitness training",
+        "food and cooking",
+        "sports results or commentary"
+      ],
+      "expectedMatches": [
+        "sports results or commentary"
+      ],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        false,
+        false,
+        true
+      ],
+      "labelRationale": "Comments on a sporting result; watching a race supplies no exercise routine or food topic."
+    },
+    {
+      "id": "migration-broad-3-09",
+      "text": "Here is a close-up of a cracked glaze. Reply with a dot, like the image and repost it; the point is to get the algorithm showing my photo everywhere.",
+      "filters": [
+        "personal feuds or public insults between people",
+        "requests for likes, reposts, or replies to boost engagement",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expectedMatches": [
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        false,
+        true,
+        false
+      ],
+      "labelRationale": "Explicit reach-seeking requests are present; there are no personal insults or celebrity rumors."
+    },
+    {
+      "id": "migration-broad-3-10",
+      "text": "The election office published its recount procedure. Voters can challenge a disputed tally through the formal review process, with evidence submitted by Friday.",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "government policy or election politics",
+        "promotion of the author's own product or paid service"
+      ],
+      "expectedMatches": [
+        "government policy or election politics"
+      ],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        false,
+        true,
+        false
+      ],
+      "labelRationale": "Describes an election process, with no crypto investing or author's paid offer."
+    },
+    {
+      "id": "migration-broad-3-11",
+      "text": "Warm the butter slowly, whisk in flour, then add milk a little at a time. The sauce turns smooth if you keep the heat low and stir steadily.",
+      "filters": [
+        "sports results or commentary",
+        "cryptocurrency investing or promotion",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "Cooking instructions do not match any of the requested sport, crypto or AI-hype categories."
+    },
+    {
+      "id": "migration-broad-3-12",
+      "text": "Our council approved later evening bus services. I read the route map and think the extra connection will help shift workers get home.",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "personal feuds or public insults between people",
+        "exercise routines and fitness training"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "A government transport decision is outside these requested gossip, feud and training categories."
+    },
+    {
+      "id": "migration-broad-3-13",
+      "text": "A language model summarized the meeting, but missed the final deadline. We retained the recording and checked the action list ourselves.",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "cryptocurrency investing or promotion",
+        "promotion of the author's own product or paid service"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "An ordinary AI-use report with a limitation is neither hype, crypto nor owned paid promotion."
+    },
+    {
+      "id": "migration-broad-3-14",
+      "text": "Nia and I had a scheduling mix-up. We compared calendars, apologized, and agreed to confirm the next appointment by email.",
+      "filters": [
+        "personal feuds or public insults between people",
+        "requests for likes, reposts, or replies to boost engagement",
+        "government policy or election politics"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "Describes a resolved misunderstanding without insults, engagement boosting or policy."
+    },
+    {
+      "id": "migration-broad-3-15",
+      "text": "The office tournament was an internal bug-fixing exercise. Everyone paired up to find missing error messages in a test application.",
+      "filters": [
+        "sports results or commentary",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "The contest concerns software work, not sporting results, cooking or entertainer gossip."
+    },
+    {
+      "id": "migration-broad-3-16",
+      "text": "I restored the scratched photo using a soft brush and scanned it at a higher resolution. The original print is now back in its sleeve.",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "exercise routines and fitness training",
+        "government policy or election politics"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "Photo restoration is outside cryptocurrency investment, exercise and politics."
+    },
+    {
+      "id": "migration-broad-3-17",
+      "text": "Does anyone know the correct gasket size for this faucet? I am looking for a repair answer before ordering a replacement part.",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement",
+        "promotion of the author's own product or paid service",
+        "personal feuds or public insults between people"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "A practical request for information is not engagement boosting, self-promotion or a personal feud."
+    },
+    {
+      "id": "migration-broad-3-18",
+      "text": "The composer released a score with detailed fingering notes. I spent an hour comparing its phrasing with an older edition.",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "Discusses a musical work and notation rather than celebrity gossip, sports or AI hype."
+    },
+    {
+      "id": "migration-broad-3-19",
+      "text": "The astronomy club spotted a faint satellite trail in last night's image. We annotated it so it would not be mistaken for a distant object.",
+      "filters": [
+        "government policy or election politics",
+        "cryptocurrency investing or promotion",
+        "food and cooking"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "A science observation does not match government policy, crypto or cooking."
+    },
+    {
+      "id": "migration-broad-3-20",
+      "text": "Three crates of books arrived in the archive. I logged their shelf numbers and will replace the damaged protective covers tomorrow.",
+      "filters": [
+        "exercise routines and fitness training",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-3",
+      "expectedVerdicts": [
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "Archive handling supplies no fitness routine, owned paid offer or engagement request."
+    },
+    {
+      "id": "migration-broad-5-01",
+      "text": "My paid token-market letter opens today. I publish wallet-allocation notes and sell the subscription myself. Like this launch post, repost it, and reply with any symbol to boost its reach.",
+      "filters": [
+        "food and cooking",
+        "cryptocurrency investing or promotion",
+        "promotion of the author's own product or paid service",
+        "sports results or commentary",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expectedMatches": [
+        "cryptocurrency investing or promotion",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        false,
+        true,
+        true,
+        false,
+        true
+      ],
+      "labelRationale": "Crypto investment, owned paid promotion and explicit engagement boosting coexist; cooking and sports are absent."
+    },
+    {
+      "id": "migration-broad-5-02",
+      "text": "The coach called his rival a talentless fraud in the post-match interview; the rival answered with insults. Their teams drew 0-0 after neither managed a shot on target.",
+      "filters": [
+        "personal feuds or public insults between people",
+        "government policy or election politics",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training"
+      ],
+      "expectedMatches": [
+        "personal feuds or public insults between people",
+        "sports results or commentary"
+      ],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "labelRationale": "Reports a sporting draw and public personal insults; the quoted insult is not evidence of actual fraud, and no training routine is supplied."
+    },
+    {
+      "id": "migration-broad-5-03",
+      "text": "I wrote and sell a paid strength-and-supper guide. It pairs two weekly lifting sessions with recipes for bean stew and roasted vegetables; the download is available in my shop.",
+      "filters": [
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "promotion of the author's own product or paid service",
+        "cryptocurrency investing or promotion"
+      ],
+      "expectedMatches": [
+        "exercise routines and fitness training",
+        "food and cooking",
+        "promotion of the author's own product or paid service"
+      ],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        true,
+        true,
+        false,
+        true,
+        false
+      ],
+      "labelRationale": "An owned paid guide explicitly combines a training schedule and recipes; gossip and crypto are absent."
+    },
+    {
+      "id": "migration-broad-5-04",
+      "text": "The regional assembly is voting on water-use limits. Like this summary and repost it widely; even a one-letter reply will help it reach more people before the vote.",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "government policy or election politics",
+        "requests for likes, reposts, or replies to boost engagement",
+        "food and cooking",
+        "personal feuds or public insults between people"
+      ],
+      "expectedMatches": [
+        "government policy or election politics",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        false,
+        true,
+        true,
+        false,
+        false
+      ],
+      "labelRationale": "Government policy overlaps with explicit engagement boosting, without investing, recipes or personal insults."
+    },
+    {
+      "id": "migration-broad-5-05",
+      "text": "The television star's ex reportedly skipped their birthday party. The star then posted a mocking insult about the ex's new partner, and the partner answered in kind.",
+      "filters": [
+        "sports results or commentary",
+        "gossip about famous entertainers or celebrities",
+        "food and cooking",
+        "personal feuds or public insults between people",
+        "exercise routines and fitness training"
+      ],
+      "expectedMatches": [
+        "gossip about famous entertainers or celebrities",
+        "personal feuds or public insults between people"
+      ],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "labelRationale": "Relationship gossip about an entertainer overlaps with public personal insults; sport, food and training are absent."
+    },
+    {
+      "id": "migration-broad-5-06",
+      "text": "Subscribe to my paid token-trading bot. I built it myself, and claim its neural forecasts will eliminate every financial risk and deliver perfect decisions to all investors forever.",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "cryptocurrency investing or promotion",
+        "gossip about famous entertainers or celebrities",
+        "promotion of the author's own product or paid service",
+        "government policy or election politics"
+      ],
+      "expectedMatches": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "cryptocurrency investing or promotion",
+        "promotion of the author's own product or paid service"
+      ],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        true,
+        true,
+        false,
+        true,
+        false
+      ],
+      "labelRationale": "An owned paid cryptocurrency service is promoted using sweeping AI guarantees; no celebrity gossip or government policy is present."
+    },
+    {
+      "id": "migration-broad-5-07",
+      "text": "Slice the mushrooms thin, brown them before adding stock, then stir the rice until the pan looks creamy. A little grated cheese goes in after the heat is off.",
+      "filters": [
+        "promotion of the author's own product or paid service",
+        "sports results or commentary",
+        "food and cooking",
+        "requests for likes, reposts, or replies to boost engagement",
+        "government policy or election politics"
+      ],
+      "expectedMatches": [
+        "food and cooking"
+      ],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        false,
+        false,
+        true,
+        false,
+        false
+      ],
+      "labelRationale": "A recipe matches food and cooking; no paid offer, sport, boosting request or policy appears."
+    },
+    {
+      "id": "migration-broad-5-08",
+      "text": "For my next training block I am doing assisted pull-ups twice a week, with a full rest day between sessions. I will lower the assistance only after all five reps stay controlled.",
+      "filters": [
+        "food and cooking",
+        "personal feuds or public insults between people",
+        "cryptocurrency investing or promotion",
+        "exercise routines and fitness training",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expectedMatches": [
+        "exercise routines and fitness training"
+      ],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        true,
+        false
+      ],
+      "labelRationale": "A clear progressive exercise routine appears, without food, insults, crypto or AI claims."
+    },
+    {
+      "id": "migration-broad-5-09",
+      "text": "The home side won the basketball semi-final on a buzzer-beater. Like this recap, repost it, and leave a short reply so more fans see the result.",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "requests for likes, reposts, or replies to boost engagement",
+        "government policy or election politics"
+      ],
+      "expectedMatches": [
+        "sports results or commentary",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "labelRationale": "Sports commentary and explicit reach boosting overlap; celebrity gossip, AI hype and politics are absent."
+    },
+    {
+      "id": "migration-broad-5-10",
+      "text": "Now that a model can draft emails, it will solve every scientific mystery, end every conflict, and remove the need for anyone to learn anything ever again.",
+      "filters": [
+        "exercise routines and fitness training",
+        "food and cooking",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "cryptocurrency investing or promotion",
+        "promotion of the author's own product or paid service"
+      ],
+      "expectedMatches": [
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        false,
+        false,
+        true,
+        false,
+        false
+      ],
+      "labelRationale": "Sweeping exaggerated AI promises match hype; there is no training, food, crypto investing or owned paid offer."
+    },
+    {
+      "id": "migration-broad-5-11",
+      "text": "I brewed tea with cooler water this morning and reduced the steeping time. The bitterness disappeared, and the aroma came through more clearly.",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "promotion of the author's own product or paid service"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "Food preparation is outside these five requested investment, sport, hype, exercise and self-promotion filters."
+    },
+    {
+      "id": "migration-broad-5-12",
+      "text": "The council published its consultation on wheelchair access at public buildings. I will send the measurements from our local entrance before the deadline.",
+      "filters": [
+        "food and cooking",
+        "requests for likes, reposts, or replies to boost engagement",
+        "personal feuds or public insults between people",
+        "gossip about famous entertainers or celebrities",
+        "cryptocurrency investing or promotion"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "Evidence-based civic participation is neither cooking, engagement farming, personal insults, gossip nor crypto."
+    },
+    {
+      "id": "migration-broad-5-13",
+      "text": "The transcription system was slower on the noisy recording, and got several names wrong. We are publishing the timings and errors together so the test can be repeated.",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "sports results or commentary",
+        "promotion of the author's own product or paid service",
+        "government policy or election politics",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "A factual technology test is not celebrity gossip, sport, owned paid promotion, politics or engagement boosting."
+    },
+    {
+      "id": "migration-broad-5-14",
+      "text": "We disagreed over how to label the archive, then settled on a shared index. The conversation was awkward, but neither of us wants to turn it into a personal argument.",
+      "filters": [
+        "exercise routines and fitness training",
+        "cryptocurrency investing or promotion",
+        "food and cooking",
+        "government policy or election politics",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "A resolved workplace disagreement supplies none of the requested fitness, crypto, food, politics or hype topics."
+    },
+    {
+      "id": "migration-broad-5-15",
+      "text": "The new album's closing movement is beautifully restrained. I wish the strings were clearer in the recording, but the composition held my attention.",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement",
+        "personal feuds or public insults between people",
+        "food and cooking",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "An artistic review contains no boosting request, personal feud, cooking, investing or sporting commentary."
+    },
+    {
+      "id": "migration-broad-5-16",
+      "text": "A basalt layer crosses the valley above the riverbed. We measured its thickness at three points and marked the outcrop on the field map.",
+      "filters": [
+        "sports results or commentary",
+        "exercise routines and fitness training",
+        "cryptocurrency investing or promotion",
+        "promotion of the author's own product or paid service",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "A geological field observation does not match the requested sport, exercise, crypto, promotion or gossip categories."
+    },
+    {
+      "id": "migration-broad-5-17",
+      "text": "The backup job now verifies each compressed file before removing the temporary copy. One failed checksum is enough to stop cleanup and preserve the original.",
+      "filters": [
+        "government policy or election politics",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "gossip about famous entertainers or celebrities",
+        "personal feuds or public insults between people",
+        "food and cooking"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "A software reliability description contains no politics, AI hype, gossip, insults or cooking."
+    },
+    {
+      "id": "migration-broad-5-18",
+      "text": "The archive opens at nine on weekdays. Its quiet reading room has large tables and outlets, which helped while I was studying the old survey maps.",
+      "filters": [
+        "promotion of the author's own product or paid service",
+        "food and cooking",
+        "requests for likes, reposts, or replies to boost engagement",
+        "sports results or commentary",
+        "exercise routines and fitness training"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "A neutral account of a public archive does not advertise an owned paid service or match food, boosting, sport or fitness."
+    },
+    {
+      "id": "migration-broad-5-19",
+      "text": "The seedling leaned toward the window, so I turned the pot a quarter turn. A new leaf appeared this week after I reduced the watering.",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "requests for likes, reposts, or replies to boost engagement",
+        "gossip about famous entertainers or celebrities",
+        "promotion of the author's own product or paid service",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "Ordinary plant care is neither crypto, engagement farming, gossip, owned promotion nor AI hype."
+    },
+    {
+      "id": "migration-broad-5-20",
+      "text": "Our workplace leave policy is confusing. I asked payroll to clarify which dates count as notice, and they sent the written rule instead of a vague answer.",
+      "filters": [
+        "personal feuds or public insults between people",
+        "food and cooking",
+        "government policy or election politics",
+        "sports results or commentary",
+        "exercise routines and fitness training"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-5",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "An internal employment rule and a respectful complaint are not personal insults, cooking, government policy, sport or training."
+    },
+    {
+      "id": "migration-broad-10-01",
+      "text": "A neural trading predictor claims it can guarantee profit on every digital token, prevent all crashes and make investing risk-free. These are sweeping promises about machine intelligence and cryptocurrency markets.",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expectedMatches": [
+        "cryptocurrency investing or promotion",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        true,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "Crypto investing overlaps with exaggerated AI guarantees; the post supplies no owned offer or reach request."
+    },
+    {
+      "id": "migration-broad-10-02",
+      "text": "The volleyball final finished in four sets after the visitors defended match point twice. My own training this week is three short sessions of serve drills, with a rest day between them.",
+      "filters": [
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expectedMatches": [
+        "exercise routines and fitness training",
+        "sports results or commentary"
+      ],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false
+      ],
+      "labelRationale": "A sporting result and an explicit personal training schedule both match; neither implies food, gossip or other topics."
+    },
+    {
+      "id": "migration-broad-10-03",
+      "text": "Buy my paid study-assistant app today. I built it myself and promise its model will replace every teacher, solve every lesson, and make every student an expert overnight.",
+      "filters": [
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expectedMatches": [
+        "promotion of the author's own product or paid service",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "An owned paid product is promoted through exaggerated AI replacement claims."
+    },
+    {
+      "id": "migration-broad-10-04",
+      "text": "My strength session was two sets of deadlifts and a light cooldown. Afterward I simmered red lentils with garlic and cumin, then added lemon before serving.",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service"
+      ],
+      "expectedMatches": [
+        "exercise routines and fitness training",
+        "food and cooking"
+      ],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "A defined exercise session overlaps with a recipe; no sporting contest is described."
+    },
+    {
+      "id": "migration-broad-10-05",
+      "text": "The spice blend I make and sell is back in stock in my shop. For dinner, toast a spoonful in oil, add chopped squash and stock, then simmer until soft.",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary"
+      ],
+      "expectedMatches": [
+        "food and cooking",
+        "promotion of the author's own product or paid service"
+      ],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "Owned paid-product promotion overlaps with cooking instructions."
+    },
+    {
+      "id": "migration-broad-10-06",
+      "text": "Fan pages say the movie star and the singer have split again. The star publicly called the singer a vain bore; the singer replied with a personal insult of their own.",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking"
+      ],
+      "expectedMatches": [
+        "gossip about famous entertainers or celebrities",
+        "personal feuds or public insults between people"
+      ],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        true,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "Entertainer relationship gossip overlaps with public personal insults."
+    },
+    {
+      "id": "migration-broad-10-07",
+      "text": "The election commission proposed a new rule for mail ballots. Like this explainer, repost it and reply with a dot so it reaches more voters before the hearing.",
+      "filters": [
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people"
+      ],
+      "expectedMatches": [
+        "requests for likes, reposts, or replies to boost engagement",
+        "government policy or election politics"
+      ],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false
+      ],
+      "labelRationale": "Election policy overlaps with explicit requests to boost engagement; there is no hostile pile-on in the text."
+    },
+    {
+      "id": "migration-broad-10-08",
+      "text": "Mara, your reply was arrogant and your work was sloppy. Here is my public answer. Everyone else, like this thread and add a short reply to push our argument into more feeds.",
+      "filters": [
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion"
+      ],
+      "expectedMatches": [
+        "personal feuds or public insults between people",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "labelRationale": "Direct personal insults overlap with explicit amplification requests; no celebrity status is supplied."
+    },
+    {
+      "id": "migration-broad-10-09",
+      "text": "I write and sell a paid digital-asset newsletter. Subscribers get my bitcoin allocation notes and wallet risk checklist; the monthly membership is available in my shop.",
+      "filters": [
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training"
+      ],
+      "expectedMatches": [
+        "promotion of the author's own product or paid service",
+        "cryptocurrency investing or promotion"
+      ],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "An owned paid newsletter promotes cryptocurrency-investment content."
+    },
+    {
+      "id": "migration-broad-10-10",
+      "text": "I photographed a pattern in old window glass. Please like the picture, repost it and leave any emoji below; I am trying to make the algorithm spread it as widely as possible.",
+      "filters": [
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics"
+      ],
+      "expectedMatches": [
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "The only requested topic is explicit engagement boosting; the photo subject implies none of the other nine."
+    },
+    {
+      "id": "migration-broad-10-11",
+      "text": "The phonetics lab compared two vowel recordings and marked the difference in mouth position. The paper includes the spectrogram and the full measurement method.",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "A neutral linguistic observation matches none of the ten requested categories."
+    },
+    {
+      "id": "migration-broad-10-12",
+      "text": "Our database recovered cleanly after the power cut. The write-ahead log replayed the last committed transaction, and the uncommitted change was discarded.",
+      "filters": [
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "A factual software-reliability account supplies no requested topic or promotional behavior."
+    },
+    {
+      "id": "migration-broad-10-13",
+      "text": "I painted the narrow alley in diluted blue ink, leaving the windows unfilled. The paper buckled a little, but I like the soft edge where the wash dried.",
+      "filters": [
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "Personal art practice has no requested food, sport, hype, promotion or conflict content."
+    },
+    {
+      "id": "migration-broad-10-14",
+      "text": "The clock stopped because a gear tooth was bent. I straightened it under a magnifier and checked that the hands could complete a full turn without catching.",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "A repair description matches none of the ten requested topics."
+    },
+    {
+      "id": "migration-broad-10-15",
+      "text": "Fog settled over the ridge before sunrise. By ten the lower valley was clear, while the higher path still looked pale in the weather camera.",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "An ordinary weather observation contains no requested category."
+    },
+    {
+      "id": "migration-broad-10-16",
+      "text": "We counted twelve beetle species in the sample and photographed the wing cases. Two identifications remain uncertain, so those entries are marked for a second look.",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "A measured biodiversity observation contains no requested category or inflated technology claim."
+    },
+    {
+      "id": "migration-broad-10-17",
+      "text": "I finally worked out the novel's timeline: the first chapter happens after the letter is found, even though the later chapters describe the earlier journey.",
+      "filters": [
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "Literary interpretation concerns fictional chronology rather than celebrities, feuds or any other requested topic."
+    },
+    {
+      "id": "migration-broad-10-18",
+      "text": "My train was forty minutes late and I missed the connection. I am frustrated, but the ticket desk found a later route and I should still arrive this evening.",
+      "filters": [
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "A sincere transport complaint supplies no policy debate, insults, promotion or engagement request."
+    },
+    {
+      "id": "migration-broad-10-19",
+      "text": "The print shop's sample uses a heavier paper than the final booklet. I checked the binding margin and asked for a proof before approving the layout.",
+      "filters": [
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "A neutral printing and layout account is outside all ten requested topics."
+    },
+    {
+      "id": "migration-broad-10-20",
+      "text": "The cat chose the empty cardboard box again. I moved its blanket inside and left the box beside the quiet window; it has been asleep there all afternoon.",
+      "filters": [
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics"
+      ],
+      "expectedMatches": [],
+      "kind": "broad",
+      "stratum": "broad-10",
+      "expectedVerdicts": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "labelRationale": "Ordinary pet behavior contains no requested category."
+    }
+  ],
+  "suggestionFixtures": [
+    {
+      "id": "migration-suggestion-01",
+      "text": "I stitched a small notebook with blue thread and left the cover plain. The fold sits flatter after a night under a heavy book.",
+      "expectedIntent": "Neutral craft content: any returned phrases must describe the actual craft. Empty output is fully valid.",
+      "kind": "neutral-craft",
+      "acceptablePhrases": [
+        "bookbinding",
+        "paper crafts",
+        "notebook making"
+      ],
+      "forbiddenInferences": [
+        "unsupported scam or fraud allegations",
+        "unsupported criminality allegations",
+        "unsupported political or ideological labels"
+      ],
+      "minSuggestions": 0,
+      "maxSuggestions": 3,
+      "labelRationale": "The post only describes a craft project; negative intent, sales and wrongdoing are unsupported."
+    },
+    {
+      "id": "migration-suggestion-02",
+      "text": "The speech recognizer missed two place names in this recording. We kept the original audio and corrected the transcript manually.",
+      "expectedIntent": "Neutral technology report: accurate topic phrases or an empty list are valid; AI hype is not grounded.",
+      "kind": "neutral-technical",
+      "acceptablePhrases": [
+        "speech recognition",
+        "transcription errors",
+        "software testing"
+      ],
+      "forbiddenInferences": [
+        "unsupported scam or fraud allegations",
+        "unsupported criminality allegations",
+        "unsupported political or ideological labels",
+        "AI hype",
+        "deceptive marketing"
+      ],
+      "minSuggestions": 0,
+      "maxSuggestions": 3,
+      "labelRationale": "An ordinary limitation and correction are reported, without sweeping claims or a sales offer."
+    },
+    {
+      "id": "migration-suggestion-03",
+      "text": "I built and sell a paid appointment-template pack for independent tutors. The download is in my shop now, with a short setup guide included.",
+      "expectedIntent": "Promotion of an owned paid template product; suggestions should name the offer or self-promotion.",
+      "kind": "promotion-software",
+      "acceptablePhrases": [
+        "self-promotion",
+        "paid appointment templates",
+        "paid software templates"
+      ],
+      "forbiddenInferences": [
+        "unsupported scam or fraud allegations",
+        "unsupported criminality allegations",
+        "unsupported political or ideological labels",
+        "scam templates",
+        "fraudulent sales"
+      ],
+      "minSuggestions": 0,
+      "maxSuggestions": 3,
+      "labelRationale": "The author expressly owns and sells the product; no allegation about its honesty is supported."
+    },
+    {
+      "id": "migration-suggestion-04",
+      "text": "My paid dumpling workshop opens for booking today. I teach the folding method myself, and the class includes my dough recipe.",
+      "expectedIntent": "Owned paid cooking instruction; cooking, classes and self-promotion are grounded meanings.",
+      "kind": "promotion-cooking",
+      "acceptablePhrases": [
+        "cooking classes",
+        "paid workshops",
+        "self-promotion"
+      ],
+      "forbiddenInferences": [
+        "unsupported scam or fraud allegations",
+        "unsupported criminality allegations",
+        "unsupported political or ideological labels",
+        "unsafe food",
+        "fraudulent courses"
+      ],
+      "minSuggestions": 0,
+      "maxSuggestions": 3,
+      "labelRationale": "A paid course is an ordinary commercial offer; its quality and legality are not established."
+    },
+    {
+      "id": "migration-suggestion-05",
+      "text": "The stationery shop used the wrong shade of blue. Quote its announcement with your nastiest insults and bring friends; I want its owner humiliated across the whole feed.",
+      "expectedIntent": "Engineered outrage and public humiliation; descriptions of rage bait or hostile amplification are grounded.",
+      "kind": "rage-targeting",
+      "acceptablePhrases": [
+        "rage bait",
+        "outrage farming",
+        "calls for a public pile-on"
+      ],
+      "forbiddenInferences": [
+        "unsupported scam or fraud allegations",
+        "unsupported criminality allegations",
+        "unsupported political or ideological labels",
+        "criminal shop",
+        "fraudulent business"
+      ],
+      "minSuggestions": 0,
+      "maxSuggestions": 3,
+      "labelRationale": "The request for insulting quotes and wider humiliation establishes rage farming without proving wrongdoing by the shop."
+    },
+    {
+      "id": "migration-suggestion-06",
+      "text": "Here is a shadow on a tiled wall. Like the photo, repost it and reply with any number; I am trying to make this post reach as many timelines as possible.",
+      "expectedIntent": "Explicit engagement boosting without an angry target; avoid inventing rage or criminal intent.",
+      "kind": "engagement-photo",
+      "acceptablePhrases": [
+        "engagement bait",
+        "requests to boost engagement",
+        "like and repost requests"
+      ],
+      "forbiddenInferences": [
+        "unsupported scam or fraud allegations",
+        "unsupported criminality allegations",
+        "unsupported political or ideological labels",
+        "rage bait",
+        "harassment"
+      ],
+      "minSuggestions": 0,
+      "maxSuggestions": 3,
+      "labelRationale": "The author states a reach objective and solicits low-information replies, likes and reposts."
+    },
+    {
+      "id": "migration-suggestion-07",
+      "text": "Fantastic, the printer has decided that three sheets count as one. My meeting handout is now an abstract sculpture.",
+      "expectedIntent": "Ordinary equipment sarcasm; neutral topical phrases or empty output are valid.",
+      "kind": "sarcasm-printer",
+      "acceptablePhrases": [
+        "printer complaints",
+        "office equipment problems",
+        "sarcasm about technology"
+      ],
+      "forbiddenInferences": [
+        "unsupported scam or fraud allegations",
+        "unsupported criminality allegations",
+        "unsupported political or ideological labels",
+        "rage bait",
+        "abusive coworkers"
+      ],
+      "minSuggestions": 0,
+      "maxSuggestions": 3,
+      "labelRationale": "No person is attacked and no public amplification is requested."
+    },
+    {
+      "id": "migration-suggestion-08",
+      "text": "The forecast promised sunshine, so naturally I am drying my shoes by the door. At least the balcony plants got their watering for free.",
+      "expectedIntent": "Benign weather sarcasm; accurate topics or empty output are valid.",
+      "kind": "sarcasm-weather",
+      "acceptablePhrases": [
+        "weather complaints",
+        "sarcasm about forecasts",
+        "rainy weather"
+      ],
+      "forbiddenInferences": [
+        "unsupported scam or fraud allegations",
+        "unsupported criminality allegations",
+        "unsupported political or ideological labels",
+        "climate conspiracy",
+        "rage bait"
+      ],
+      "minSuggestions": 0,
+      "maxSuggestions": 3,
+      "labelRationale": "Disappointment about weather does not establish political ideology, manipulation or outrage farming."
+    },
+    {
+      "id": "migration-suggestion-09",
+      "text": "The badminton final went to a deciding game after a remarkable comeback. My own practice plan is footwork drills on Monday and controlled serves on Thursday.",
+      "expectedIntent": "Sports commentary overlaps with a concrete personal training routine.",
+      "kind": "overlap-sport-fitness",
+      "acceptablePhrases": [
+        "badminton commentary",
+        "sports results",
+        "fitness training"
+      ],
+      "forbiddenInferences": [
+        "unsupported scam or fraud allegations",
+        "unsupported criminality allegations",
+        "unsupported political or ideological labels",
+        "doping",
+        "medical treatment"
+      ],
+      "minSuggestions": 0,
+      "maxSuggestions": 3,
+      "labelRationale": "Both the competitive result and the practice schedule are explicit; no health, doping or celebrity claim is grounded."
+    },
+    {
+      "id": "migration-suggestion-10",
+      "text": "Subscribe to the paid newsletter I write and sell for token investors. Each issue explains my wallet allocation and the risks I consider before buying digital assets.",
+      "expectedIntent": "Owned paid promotion overlaps with cryptocurrency-investment content.",
+      "kind": "overlap-crypto-promotion",
+      "acceptablePhrases": [
+        "cryptocurrency investing",
+        "paid investment newsletters",
+        "self-promotion"
+      ],
+      "forbiddenInferences": [
+        "unsupported scam or fraud allegations",
+        "unsupported criminality allegations",
+        "unsupported political or ideological labels",
+        "guaranteed returns",
+        "financial fraud"
+      ],
+      "minSuggestions": 0,
+      "maxSuggestions": 3,
+      "labelRationale": "The commercial and investment topics are explicit, but profit guarantees, fraud and crime are absent."
+    },
+    {
+      "id": "migration-suggestion-11",
+      "text": "The council is voting on its park budget. Like this summary, repost it and leave any emoji to help it reach more people before the meeting.",
+      "expectedIntent": "A government budget topic overlaps with explicit engagement boosting, without a hostile target.",
+      "kind": "overlap-politics-bait",
+      "acceptablePhrases": [
+        "government policy",
+        "local politics",
+        "engagement bait"
+      ],
+      "forbiddenInferences": [
+        "unsupported scam or fraud allegations",
+        "unsupported criminality allegations",
+        "unsupported political or ideological labels",
+        "rage bait",
+        "extremism"
+      ],
+      "minSuggestions": 0,
+      "maxSuggestions": 3,
+      "labelRationale": "The policy vote and reach-seeking requests are explicit; a partisan ideology or rage campaign cannot be inferred."
+    },
+    {
+      "id": "migration-suggestion-12",
+      "text": "Buy the tutoring app I built and sell. Its language model will replace every teacher, solve every learning problem and turn every child into an expert overnight.",
+      "expectedIntent": "Owned paid AI-product promotion using exaggerated universal replacement claims.",
+      "kind": "overlap-ai-promotion",
+      "acceptablePhrases": [
+        "AI hype",
+        "self-promotion",
+        "paid AI tutoring apps"
+      ],
+      "forbiddenInferences": [
+        "unsupported scam or fraud allegations",
+        "unsupported criminality allegations",
+        "unsupported political or ideological labels",
+        "criminal operation",
+        "fraudulent tutoring"
+      ],
+      "minSuggestions": 0,
+      "maxSuggestions": 3,
+      "labelRationale": "The promises and sale are explicit; deceptive or criminal intent is not established by hyperbole alone."
+    }
+  ]
+}

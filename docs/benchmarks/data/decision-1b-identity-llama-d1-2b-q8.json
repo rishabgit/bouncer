@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 2,
+  "variant": {
+    "id": "llama-d1-2b-q8",
+    "runtime": "llama",
+    "model": "LiquidAI/d1-2B-GGUF:Q8_0",
+    "file": "d1-2B-Q8_0.gguf",
+    "family": "d1-2b",
+    "format": "GGUF Q8_0",
+    "batch": 4096,
+    "parityGroup": "d1-2b"
+  },
+  "identity": {
+    "repository": "LiquidAI/d1-2B-GGUF",
+    "revision": "4a181094d1b6addfaa3a0956f78e7ab2aa406a0c",
+    "file": "d1-2B-Q8_0.gguf",
+    "sha256": "073313d92b53b0ac8193db6e906cb3c78a98183d244b15b7b8f5426115c6738c",
+    "family": "d1-2b",
+    "architecture": "lfm3",
+    "disk": {
+      "logicalBytes": 1846240576,
+      "allocatedBytes": 1862336512,
+      "scope": "Primary text GGUF only; projector excluded (no-mmproj)"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+import './core.test.mjs';
+import './observations.test.mjs';
+import './runtime.test.mjs';
+import './report.test.mjs';
+import './baselines.test.mjs';
+import './validation.test.mjs';
+import './validation-report.test.mjs';
+import './wording-metrics.test.mjs';
+import './wording-probe.test.mjs';
+import './wording-report.test.mjs';
+import './guidance-fresh.test.mjs';
+import './guidance-report.test.mjs';
+import './capacity-analysis.test.mjs';
+import './capacity-pipeline.test.mjs';
+import './capacity-report.test.mjs';

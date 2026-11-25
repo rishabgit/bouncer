@@ -1,0 +1,239 @@
+{
+  "schemaVersion": 1,
+  "phase": "decision-capacity",
+  "status": "complete",
+  "registeredAt": "2026-11-24T21:10:17.905Z",
+  "registration": {
+    "corpora": {
+      "original": {
+        "eval-corpus.ts": "4a2dacac7271704addb5c06d953021b8c8c7f20108cfa002ce11942a6e907214",
+        "native-benchmark-corpus.ts": "a5db3bf30aa3039a3e571020c111797e1cfdd675872514a40139e66db6038603",
+        "native-isolation-holdout.json": "18841a6609d9e68493c629880bc03eeaa233eab890245e5cfd5c2eaa9e9d4159",
+        "native-migration-validation.json": "354e80566fdf889e213aec9072387c42f8286a48347379b1142073cba3fa4e27"
+      },
+      "fresh": {
+        "file": "scripts/decision-eval/corpora/guidance-fresh-2026-11-25.json",
+        "sha256": "fe82fe7dcdf8cd96fb828d20624b4ba160dede297c36ddcfa4e57c09f6373cb3"
+      }
+    },
+    "models": [
+      {
+        "id": "llama-d1-3b-q8",
+        "model": "LiquidAI/d1-3B-GGUF:Q8_0",
+        "format": "GGUF Q8_0",
+        "artifact": {
+          "repository": "LiquidAI/d1-3B-GGUF",
+          "revision": "bb1e436ea78eb96a3f1acb6da865f70c2fbeb563",
+          "file": "d1-3B-Q8_0.gguf",
+          "sha256": "2f0942d5a5f64cf69c3356d2be439b71644b1f0eb3a580912a5a0179eeaba77d",
+          "logicalBytes": 2874781280
+        }
+      },
+      {
+        "id": "llama-kev-4b-q8",
+        "model": "ggml-org/Kev-4B-GGUF:Q8_0",
+        "format": "GGUF Q8_0",
+        "artifact": {
+          "repository": "ggml-org/Kev-4B-GGUF",
+          "revision": "f4624b6bb7072f1bab726a622c1cad3f96030b9e",
+          "file": "Kev-4B-Q8_0.gguf",
+          "sha256": "7c2ebed90560522c2801389db482ac1dc4c36d828f201f6074c1d60e433948da",
+          "logicalBytes": 4483801504
+        }
+      },
+      {
+        "id": "llama-clef-flash-q4km",
+        "model": "ggml-org/Clef-Flash-GGUF:Q4_K_M",
+        "format": "GGUF Q4_K_M",
+        "artifact": {
+          "repository": "ggml-org/Clef-Flash-GGUF",
+          "revision": "c3d925454595d792d5333da8b35f3c09911f7568",
+          "file": "Clef-Flash-Q4_K_M.gguf",
+          "sha256": "eef2968c238a80d49d340430f22410ea3db9934ad1c6fdb233a503cbf9a9b54e",
+          "logicalBytes": 6732781824
+        }
+      }
+    ],
+    "d1Baseline": {
+      "selectionFile": "decision-1b-selection-llama-d1-2b-q8.json",
+      "selectionSha256": "8b6d177113c7922c62fdbdeb08b75e7acdc1048d179b5d153744c59717623814",
+      "identityHash": "c29fc69a7e84200aff7966f23d4a0f20b8be0168dfbdf2cbb3778efedde3206f",
+      "guidedResultFile": "decision-guidance-fresh-result.json",
+      "guidedResultSha256": "a9b851601bfa5cb2fcc88a219d258e4b66b751a5d6c67267a454cd86e5247380",
+      "guidedSummaryFile": "decision-guidance-fresh-summary.json",
+      "guidedSummarySha256": "c4a2ba6965c920642311202b3e9e4cc0e18bebc0b2ea8a89f6d6fb845faff5b3",
+      "guidedErrors": 66,
+      "nearMissFalseHides": 18
+    },
+    "templates": [
+      {
+        "id": "matches-category",
+        "hash": "9a1e023c41c8c19c37317953ae8d7b486ec088070ce00abadd4809242eb67f54"
+      },
+      {
+        "id": "category-applies",
+        "hash": "63c1d9bc4c93b016b38f047d74585d73b08f54651031b80433da8b1f915aee3a"
+      }
+    ],
+    "partA": {
+      "styles": [
+        "sentence",
+        "rubric"
+      ],
+      "templateId": "matches-category",
+      "cutoff": 0.290813258948728,
+      "questionEncoding": "Use the frozen template unchanged; insert the style text verbatim into its JSON-quoted category slot. Rubric contains the full gold-defining rubric. Sentence is guided + \". \" + the first complete Keep sentence verbatim."
+    },
+    "partB": {
+      "styles": [
+        "short",
+        "guided",
+        "rubric"
+      ],
+      "freshPrimaryMode": "single",
+      "cutoffsFrom": "Original 88-case discovery only, existing exact-vector/FH/midpoint algorithm",
+      "questionEncoding": "Use the frozen template unchanged; insert the style text verbatim into its JSON-quoted category slot. Rubric contains the full gold-defining rubric. Sentence is guided + \". \" + the first complete Keep sentence verbatim."
+    },
+    "freshSchedule": {
+      "seed": "0x0cab2026",
+      "partARequests": 1176,
+      "perLargerModelRequests": 1764
+    },
+    "rule": {
+      "switch": {
+        "baselineGuidedErrors": 66,
+        "freshGuidedErrorsMax": 33,
+        "originalValidation": {
+          "newFalseHidesMax": 1,
+          "exactVectorsAtLeastBrowser": true,
+          "correctHideShowDeficitMax": 1,
+          "bothCorporaRequired": true
+        },
+        "warm10MedianMsMax": 250,
+        "allRequired": true,
+        "otherwise": "d1-2B stays"
+      },
+      "sentence": {
+        "baselineGuidedErrors": 66,
+        "errorsStrictlyFewer": true,
+        "nearMissFalseHidesMax": 18,
+        "allRequired": true
+      },
+      "nearMissPopulation": "Negative-gold non-ambiguous pairs on near-miss posts, including cross-filter pairs; own-filter near misses reported separately",
+      "primaryFreshMode": "single",
+      "ambiguousExcluded": true,
+      "rubricIsUpperBound": true,
+      "discoveryOnlySelection": true,
+      "originalValidationIsExploratory": true,
+      "noRetuning": true,
+      "noRelabelling": true,
+      "noQualityReruns": true,
+      "speedRepetitions": 3
+    }
+  },
+  "registrationSha256": "a8d08122d5c1a95f27b11289cb243aac94de6aa84686295a0e0e134ae72c9b9e",
+  "protectedHashes": {
+    "docs/benchmarks/data/decision-1b-acceptance.json": "c46b2d0c7a44c6e623ed10dda63e782907d67b866108be7399512f0de3855238",
+    "docs/benchmarks/data/decision-1b-archive.json": "6a37c35b03b2a5866e8d4b2e1067d6f604876f417ad8332240e5b21e5a536362",
+    "docs/benchmarks/data/decision-1b-blocker.json": "fd0f9aa5a7869790bdbe352c8a11a04ea693f57f9a89addd6a26decb1453d753",
+    "docs/benchmarks/data/decision-1b-context-probe.json": "b2019c4f115eaee0fa5c5bdf1c40cdad31909e4ae495e8c08b9e5cd47e5076be",
+    "docs/benchmarks/data/decision-1b-discovery-llama-d1-2b-q4km.json": "4ffce7bcd3b97d0d1dc0b3dfc5b315357c01b8bbd35856d872b0e3c70f31c677",
+    "docs/benchmarks/data/decision-1b-discovery-llama-d1-2b-q8.json": "8b6d6d18786927818ec0831bae4fc1e5809228038345b5eacf8e84138ca47d50",
+    "docs/benchmarks/data/decision-1b-discovery-llama-d1omni2b-q8.json": "9ad63a1324ba4d5b2395d52f87b8bd6dbe7a20003597035da4c0c68b27903754",
+    "docs/benchmarks/data/decision-1b-discovery-llama-d1omni600m-q8.json": "6de76145c52831bc95fb83cdad7e9cf76408b204fa86b51c1a846a7f6a1c402e",
+    "docs/benchmarks/data/decision-1b-discovery-llama-kev-q8.json": "139769083c081701673aa8a25632b1910fd15da29b61a490f0a549d5ca6af501",
+    "docs/benchmarks/data/decision-1b-discovery-ollama-d1-2b-mxfp8.json": "bfa0ff026cfb93a1438fb466128ef73c2bd2b46908e7a4179bc49e56896a702b",
+    "docs/benchmarks/data/decision-1b-discovery-ollama-d1-2b-nvfp4.json": "0bd1ffd096a5fcd78e7b8190facdcde4d234ce1cee54ae472527fec536967a2f",
+    "docs/benchmarks/data/decision-1b-discovery-ollama-kev-mxfp8.json": "e6946cce6fc9cc6c427444256c3bb53096b5689edd27f7b754b44241bee24635",
+    "docs/benchmarks/data/decision-1b-discovery-ollama-kev-q8.json": "842d5369b6335111844dd397b8812a9c154a54d9dda196f1712dc5af8ccc9383",
+    "docs/benchmarks/data/decision-1b-identity-llama-d1-2b-q4km.json": "17b27d805c95a91f5d32700e8730030441a3e7fefe71f59af8399f7814f64371",
+    "docs/benchmarks/data/decision-1b-identity-llama-d1-2b-q8.json": "35c37e31bc2c3b11fe0dbe21f4af572e41ed8d13da3551ff4edb358fa9596828",
+    "docs/benchmarks/data/decision-1b-identity-llama-d1omni2b-q8.json": "4385688de91d09c694cd822bb7b4fecc0add5b5ac6192ad9421a73206213d3e8",
+    "docs/benchmarks/data/decision-1b-identity-llama-d1omni600m-q8.json": "30bcedbf7523fe69da11efafce383f3cd3241a4d657ec9fcde9abd4803cbb819",
+    "docs/benchmarks/data/decision-1b-identity-llama-kev-q8.json": "bcbb7a94b4e59f1e762e36a1056cf6a8996b005df4f0b9ee1beddae0e0b99769",
+    "docs/benchmarks/data/decision-1b-identity-ollama-d1-2b-mxfp8.json": "65e4db0df732864f4aef80fb157c2c016e5980ab0b1c41443c078ffc741b4a67",
+    "docs/benchmarks/data/decision-1b-identity-ollama-d1-2b-nvfp4.json": "bd51849ed061f2aade7ebbcf2c94d1c83d9544b5fe09aae45f83b8f639d34868",
+    "docs/benchmarks/data/decision-1b-identity-ollama-kev-mxfp8.json": "2cbb6038aa7f5ad9f8d151add81f96ebafdb6810ef23227a447cbc94462c9a0b",
+    "docs/benchmarks/data/decision-1b-identity-ollama-kev-q8.json": "290bff5db36c3e4d0c47a494e92ede1029f21fc24583f290d4de84af1b23f48a",
+    "docs/benchmarks/data/decision-1b-parity.json": "de542bfb21f84cd07b92de32f8001655e46ff05700a9725599dedac2a15392dd",
+    "docs/benchmarks/data/decision-1b-selection-llama-d1-2b-q4km.json": "5d9d975cfb2864d9dbdd8146a39a521961cca5ba4a667381b6480bbcf414b9b8",
+    "docs/benchmarks/data/decision-1b-selection-llama-d1-2b-q8.json": "8b6d177113c7922c62fdbdeb08b75e7acdc1048d179b5d153744c59717623814",
+    "docs/benchmarks/data/decision-1b-selection-llama-d1omni2b-q8.json": "da57569f00a9a61d798ced08ab8da09d0f0ab0a108123132b1eee6010c77f962",
+    "docs/benchmarks/data/decision-1b-selection-llama-d1omni600m-q8.json": "2ef430cf7e9de5469c179b54db184b9b5ecca501990ad54562d2e9cd31e9f998",
+    "docs/benchmarks/data/decision-1b-selection-llama-kev-q8.json": "4bc21ad26533c6e61e8b724ab9d6d2d5673b35d448e84159d2ba6e1fed9dfe84",
+    "docs/benchmarks/data/decision-1b-selection-ollama-d1-2b-mxfp8.json": "a538fbde54fd97062ae988bbd8b3992592cedac6f59e3314aa36c4f938bf94a4",
+    "docs/benchmarks/data/decision-1b-selection-ollama-d1-2b-nvfp4.json": "a4457e436b69ff11908997360c1edf933cc3e74ec01fa41416b7a725e207d304",
+    "docs/benchmarks/data/decision-1b-selection-ollama-kev-mxfp8.json": "4a25d27ff513764a1df5ba5f4fe6acb86af99c7c3ee00cb5fa8e26cdb4145623",
+    "docs/benchmarks/data/decision-1b-selection-ollama-kev-q8.json": "1388fb7e997ee3304a2b3cc1c534deace842b8240b26c41f0c00ec37209d0f6b",
+    "docs/benchmarks/data/decision-1b-speed-r0-llama-d1-2b-q4km.json": "e5fc292b775431044ab11b8a624ac25a9d1562bf9f6bad358432dfeb505fc863",
+    "docs/benchmarks/data/decision-1b-speed-r0-llama-d1-2b-q8.json": "6d86f7ad7aac753ce0bc1e4e34223080d550e176e1afd6dac1faf6c5215198db",
+    "docs/benchmarks/data/decision-1b-speed-r0-llama-d1omni2b-q8.json": "aeb7e53bd99354ce0d83af95aff7eb20ad31f8b291e424297e0b4272ec84d38c",
+    "docs/benchmarks/data/decision-1b-speed-r0-llama-d1omni600m-q8.json": "d6bf69bd24659973b987cf087449aaff062fb393a6411addecc5797e46023bdf",
+    "docs/benchmarks/data/decision-1b-speed-r0-llama-kev-q8.json": "1b96d143b57ad99c0f3ae7eac6852c7d1415d2cebf1a583788863f11c294f6b1",
+    "docs/benchmarks/data/decision-1b-speed-r0-ollama-d1-2b-mxfp8.json": "6ee43f91e95c2be91ef3fd74f0168159aa7d472e26cca96baa4e64f5b1487c6c",
+    "docs/benchmarks/data/decision-1b-speed-r0-ollama-d1-2b-nvfp4.json": "6a4bca6e33cba7b0dbeb149cb90b128bf51b736e89ee52388c28c163ab89e34d",
+    "docs/benchmarks/data/decision-1b-speed-r0-ollama-kev-mxfp8.json": "bd6b829a0500a43f5db7cea11eb68a4b724bcde55ca42d94164fb1b3d4145817",
+    "docs/benchmarks/data/decision-1b-speed-r0-ollama-kev-q8.json": "1e68780e24ce08c4bf84f6af31688eb4de55d20455d78a5504bf1c934d917c50",
+    "docs/benchmarks/data/decision-1b-speed-r1-llama-d1-2b-q4km.json": "9c8eec61504ab1951e57757f5013337ea564234c5e04c4daf4b161876aee6137",
+    "docs/benchmarks/data/decision-1b-speed-r1-llama-d1-2b-q8.json": "f660a90d2ead91904f48187e7a9537bf34dfd798e247fcc0c144ad97f6e20c85",
+    "docs/benchmarks/data/decision-1b-speed-r1-llama-d1omni2b-q8.json": "536be218a9c28e16af9b708cffe2f3c898b07a998dbf269f4b472094d9392716",
+    "docs/benchmarks/data/decision-1b-speed-r1-llama-d1omni600m-q8.json": "05a96082c6b6f22a05c6ce0bb04265bbc345b33a656d2bc323afabe4d2bd40f9",
+    "docs/benchmarks/data/decision-1b-speed-r1-llama-kev-q8.json": "4364f470c93ce33bbccaf2fe1fba127bd5933b385ef4a1c203170b298d49a0c6",
+    "docs/benchmarks/data/decision-1b-speed-r1-ollama-d1-2b-mxfp8.json": "b4dbd989cdeaf5a01e0e72fa503043166c15872a471b04e52be240448a4146df",
+    "docs/benchmarks/data/decision-1b-speed-r1-ollama-d1-2b-nvfp4.json": "9b73f3d4e61a46ee974f001ff0b021934fbfbd09fb7d007d219e5b27dda7cf46",
+    "docs/benchmarks/data/decision-1b-speed-r1-ollama-kev-mxfp8.json": "23a41ccd5922cf10669faf3c722de1721f44655f3c27ae93c081fcd59daf9aac",
+    "docs/benchmarks/data/decision-1b-speed-r1-ollama-kev-q8.json": "9840619c7c177cf9510355070e8bc4c5565a9c6b51ed925e667d2eae3d8105de",
+    "docs/benchmarks/data/decision-1b-speed-r2-llama-d1-2b-q4km.json": "17d15eccb4ca5e2ce9dfe875cbc5ce72260647e4af8a8448eecf1632a36d757e",
+    "docs/benchmarks/data/decision-1b-speed-r2-llama-d1-2b-q8.json": "2a437f7ed8121e41af01f409b0578f955fdf693a6e4dacdad1bfcc3908792102",
+    "docs/benchmarks/data/decision-1b-speed-r2-llama-d1omni2b-q8.json": "7a73a89df3c0b3e8a43c8bb61df04cd1533ad6530307bfcfbdf7aceea1ce4d37",
+    "docs/benchmarks/data/decision-1b-speed-r2-llama-d1omni600m-q8.json": "75fe955b010b0399ec200e192db4a36eca0b3a4e187cc19d7d9b671c1de919ca",
+    "docs/benchmarks/data/decision-1b-speed-r2-llama-kev-q8.json": "f62ee02df456dd82724bf1d8b967683f3f7740f8a5f7d33b4fa87e4e4780d5a3",
+    "docs/benchmarks/data/decision-1b-speed-r2-ollama-d1-2b-mxfp8.json": "959224c682fd39c5e4619ea72c162d8ce04a681642021dbec2c99d9790c75c82",
+    "docs/benchmarks/data/decision-1b-speed-r2-ollama-d1-2b-nvfp4.json": "e5aaf315d41e60cbde7439f171377e13dd33a1929560bf4edd249e3a281dd8d8",
+    "docs/benchmarks/data/decision-1b-speed-r2-ollama-kev-mxfp8.json": "685b8f8086c230a93969f949d2b08703505cd089492e63b803387f478612677e",
+    "docs/benchmarks/data/decision-1b-speed-r2-ollama-kev-q8.json": "927363f8882070a141d866483fe9adc5733c6b90b45b1f1e87e7596dbb878d82",
+    "docs/benchmarks/data/decision-baselines.json": "6814f37a9dae4c918507533a24087ab6c117a57a8634bf6763ac0834e0731852",
+    "docs/benchmarks/data/decision-guidance-fresh-acceptance.json": "a1e3d42754324407ad993c4b1e14a489e26768bc6f3ea606794e5f29c7502821",
+    "docs/benchmarks/data/decision-guidance-fresh-attempt.json": "196dfa9e299236537189d439cb91c448b1c3db4e1f74814ff0a6df48fd158d40",
+    "docs/benchmarks/data/decision-guidance-fresh-result.json": "a9b851601bfa5cb2fcc88a219d258e4b66b751a5d6c67267a454cd86e5247380",
+    "docs/benchmarks/data/decision-guidance-fresh-summary.json": "c4a2ba6965c920642311202b3e9e4cc0e18bebc0b2ea8a89f6d6fb845faff5b3",
+    "docs/benchmarks/data/decision-phase1.json": "e4dcab05a51b8aa424f54a1de8166019cdda673bac778c5a1b974387f86fef7e",
+    "docs/benchmarks/data/decision-phase2-acceptance.json": "aa54629f152d972c5be8db60917b3378baed3e0c70af7eb5694bcda4cb6ba8d7",
+    "docs/benchmarks/data/decision-preregistration.json": "804e8f2ed5ce151e4cc71429e0652600f23ebf5f78c023585b4b747b4d6b0561",
+    "docs/benchmarks/data/decision-validation-attempt-llama-d1-2b-q8.json": "bfc11e0320fb10908aee41024c767bd785e8a8814121fdcb8b3426d4d5047f9c",
+    "docs/benchmarks/data/decision-validation-attempt-ollama-d1-2b-nvfp4.json": "cea27fa5a86d7a97ab844dac2e7e898a86a44a6dd52ee05740660b10da6745ff",
+    "docs/benchmarks/data/decision-validation-llama-d1-2b-q8-isolation.json": "97dae5221633af7fa7681909c919ace57933ec4d47cb5ac154219f09d1872538",
+    "docs/benchmarks/data/decision-validation-llama-d1-2b-q8-migration.json": "703ae1c58c9cabe42f3c5d6475b3a46d4a8196f9f5221e39d8580b467acde613",
+    "docs/benchmarks/data/decision-validation-ollama-d1-2b-nvfp4-isolation.json": "83ea254d79aa2ee801470fc6e7ac10f3fb6199e51c1e4e4f8b18720a1828ad34",
+    "docs/benchmarks/data/decision-validation-ollama-d1-2b-nvfp4-migration.json": "f4e03b1b3316fe4c78a2dc1dc31329173aee16b33719c90e25a314ca079f4803",
+    "docs/benchmarks/data/decision-wording-probe-acceptance.json": "8b17a6d07de520073ce39285d6f1134a5d0c7b57c12db2716af79464d9c32735",
+    "docs/benchmarks/data/decision-wording-probe-flips.json": "1bb0f0f34f0a52cf18d5427773454c180612a7f772ea1b5bd95ead6376f91ad5",
+    "docs/benchmarks/data/decision-wording-probe-raw.json": "badf85d3924bd997acb57a4c60df362464e4b0c3e48b8040c4b4fac16c20f50b",
+    "docs/benchmarks/data/decision-wording-probe-summary.json": "d50e9b3c83aaee45a9e3132246d9d88ca28d1598739dccb065c6ee8f7afccd9a"
+  },
+  "stage": "complete",
+  "setupRecoveries": [
+    {
+      "reason": "Initial residency guard rejected an already-loaded authorized target before inference; changed fresh/validation guard to allow that same model only.",
+      "previousError": "Another model owns the GPU: [{\"runtime\":\"llama\",\"model\":\"LiquidAI/d1-2B-GGUF:Q8_0\",\"status\":\"loaded\"}]",
+      "requestsIssued": 0,
+      "qualityRunsCompleted": 0,
+      "failedSetupStartedAt": "2026-11-24T21:14:15.836Z",
+      "previousResultSha256": "8c4d0bccb581daa58ebddf2e5522f5ac2a3faf4cc6613b9ef2ea6dc0787e32f6",
+      "archivedUnder": "scripts/decision-eval/.tmp/raw/capacity/zero-request-setup-*",
+      "recoveredAt": "2026-11-24T21:15:49.567Z"
+    },
+    {
+      "reason": "Router /models/load is asynchronous; added readiness polling before any inference.",
+      "previousError": "Llama model did not finish loading: llama-d1-2b-q8 (loading)",
+      "requestsIssued": 0,
+      "qualityRunsCompleted": 0,
+      "failedSetupStartedAt": "2026-11-24T21:15:58.343Z",
+      "previousResultSha256": "0201da6dd1c19be80f1aa54098ab42889e25fb9a5baa265c552617a1daae01ee",
+      "archivedUnder": "scripts/decision-eval/.tmp/raw/capacity/zero-request-setup2-*",
+      "recoveredAt": "2026-11-24T21:17:16.058Z"
+    }
+  ],
+  "startedAt": "2026-11-24T21:17:27.591Z",
+  "finishedAt": "2026-11-24T22:01:09.606Z"
+}

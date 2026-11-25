@@ -1,0 +1,1366 @@
+{
+ "schemaVersion": 1,
+ "corpusId": "guidance-fresh-2026-11-25",
+ "authoredDate": "2026-11-25",
+ "provenance": "Synthetic corpus: rubrics and 14 posts per intent (5 clear positive, 3 subtle positive, 4 near-miss, 2 unrelated) were prepared before inference. The three labels per intent were developed from one-line intent descriptions without viewing posts. A separate blind rubric-based pass labeled every (post, intent) pair and agreed with all 84 authored own-intent answers. Cross-intent gold comes from that blind pass; any cross-intent yes or borderline is marked ambiguous.",
+ "guidanceTested": "Say what the post does or is about, in a few plain words, e.g. 'posts asking for likes or reposts' rather than 'engagement bait'. Add 'not ...' to keep something nearby.",
+ "intents": [
+  {
+   "id": "rudeness",
+   "rubric": "Hide posts where the author is deliberately rude, sneering or contemptuous toward other people as a performance: insulting strangers or repliers, dismissing people as stupid or worthless, or posing as tough or 'unbothered' to get attention or engagement. Sarcastic or understated contempt aimed at people counts. Keep posts that are blunt but sincere critique of ideas or work, plain disagreement with reasons, posts that criticise or complain about rude behaviour (including quoting it to object), and ordinary posts.",
+   "labels": {
+    "short": "rude posts",
+    "guided": "posts being deliberately rude or edgy to get attention",
+    "guidedExclusion": "posts being deliberately rude or edgy to get attention, not blunt honest criticism"
+   }
+  },
+  {
+   "id": "humblebrag",
+   "rubric": "Hide posts that show off an achievement, status, wealth, looks or popularity while presenting it as a complaint, a burden, gratitude, self-deprecation or modesty, so that the brag is the real point. Keep open, sincere celebrations of good news, including ones that mention past struggle, real complaints and venting, modest posts about small personal wins that are not dressed up, and posts that mock or criticise humblebragging.",
+   "labels": {
+    "short": "humblebrags",
+    "guided": "posts bragging while pretending to complain or be humble",
+    "guidedExclusion": "posts bragging while pretending to complain or be humble, not sharing real good news"
+   }
+  },
+  {
+   "id": "doom",
+   "rubric": "Hide posts that make sweeping claims that society, the economy, the planet or 'everything' is collapsing or already lost and that nothing can be done, whether said outright or through sarcastic resignation. Keep specific factual reporting of bad news, worried posts that point to action or solutions, critiques of doomism, and personal bad-day hyperbole about the author's own small mishaps.",
+   "labels": {
+    "short": "doomposting",
+    "guided": "posts saying everything is collapsing and it's hopeless",
+    "guidedExclusion": "posts saying everything is collapsing and it's hopeless, not news about specific problems"
+   }
+  },
+  {
+   "id": "hustle",
+   "rubric": "Hide posts that glorify or promote overwork as a virtue: bragging about long hours, little sleep, no days off, or pre-dawn routines framed as what separates winners from everyone else, and posts that shame rest or balance. Keep posts that criticise or mock hustle culture, sincere burnout or recovery stories, plain descriptions of an early routine or heavy workload that do not hold it up as a moral standard, and people working long hours out of necessity without glorifying it.",
+   "labels": {
+    "short": "hustle culture",
+    "guided": "posts glorifying overwork, 5am routines and grinding",
+    "guidedExclusion": "posts glorifying overwork, 5am routines and grinding, not genuine productivity tips"
+   }
+  },
+  {
+   "id": "dunking",
+   "rubric": "Hide posts that mock, ridicule or invite a pile-on against an ordinary, non-public person's post, mistake or behaviour for laughs, including screenshot dunks, sarcastic quote-posts and 'everyone look at this' callouts, whether open or veiled. Keep posts that criticise dunk culture, laugh at the poster's own mistakes, gently correct misinformation without ridicule, and criticise public institutions or officials on the substance of what they did.",
+   "labels": {
+    "short": "dunking",
+    "guided": "posts mocking a random person's post or mistake",
+    "guidedExclusion": "posts mocking a random person's post or mistake, not criticism of public figures"
+   }
+  },
+  {
+   "id": "engagement",
+   "rubric": "Hide posts built mainly to get replies rather than to share anything or ask a real question: 'wrong answers only', 'which one are you', 'drop your X below', 'name a Y that Z', this-or-that picks, and vague prompts meant only to fill the replies, whether open or dressed up as casual chat. Keep real questions where the poster actually needs information or input, posts with real content that end with a natural question, practical requests for replies that serve a concrete purpose, and posts criticising engagement bait.",
+   "labels": {
+    "short": "engagement bait",
+    "guided": "posts asking questions just to get replies",
+    "guidedExclusion": "posts asking questions just to get replies, not genuine questions asking for help"
+   }
+  }
+ ],
+ "posts": [
+  {
+   "id": "a-rudeness-01",
+   "text": "imagine being this mid and still posting your opinions. couldn't be me. some of y'all should just log off permanently",
+   "authoredFor": "rudeness",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": true,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-rudeness-02",
+   "text": "Not reading your thread. Didn't read the last one either. Nobody did. Stop tagging me.",
+   "authoredFor": "rudeness",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": true,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": [
+    "dunking"
+   ]
+  },
+  {
+   "id": "a-rudeness-03",
+   "text": "I don't do 'nice.' If my reply hurt your feelings that's a you problem \ud83d\udc85 Stay soft, stay irrelevant.",
+   "authoredFor": "rudeness",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": true,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-rudeness-04",
+   "text": "Every single person in my replies is dumber than the last. Genuinely impressive. Keep coming, I'm farming you for engagement.",
+   "authoredFor": "rudeness",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": true,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": [
+    "dunking",
+    "engagement"
+   ]
+  },
+  {
+   "id": "a-rudeness-05",
+   "text": "Hot take: if you still use light mode you're a child and your opinion on anything is worthless. Fight me.",
+   "authoredFor": "rudeness",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": true,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": [
+    "engagement"
+   ]
+  },
+  {
+   "id": "a-rudeness-06",
+   "text": "Oh wow, another person discovered that coffee exists and wrote nine tweets about it. So brave. Truly. \ud83d\udc4f",
+   "authoredFor": "rudeness",
+   "kind": "subtle-positive",
+   "gold": {
+    "rudeness": true,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": true,
+    "engagement": false
+   },
+   "ambiguousFor": [
+    "dunking"
+   ]
+  },
+  {
+   "id": "a-rudeness-07",
+   "text": "Love how people with 40 followers think I owe them a reply. Anyway.",
+   "authoredFor": "rudeness",
+   "kind": "subtle-positive",
+   "gold": {
+    "rudeness": true,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": [
+    "humblebrag"
+   ]
+  },
+  {
+   "id": "a-rudeness-08",
+   "text": "sorry, I don't speak whatever this is. try again in a full sentence \ud83d\ude42",
+   "authoredFor": "rudeness",
+   "kind": "subtle-positive",
+   "gold": {
+    "rudeness": true,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": [
+    "dunking"
+   ]
+  },
+  {
+   "id": "a-rudeness-09",
+   "text": "Honest feedback: the new season falls apart after episode 3. The dialogue feels rushed and the ending doesn't earn its twist.",
+   "authoredFor": "rudeness",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-rudeness-10",
+   "text": "There's a whole genre of account now that just insults strangers for engagement. 'Fight me' is not a personality. Being decent costs nothing.",
+   "authoredFor": "rudeness",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-rudeness-11",
+   "text": "Someone replied 'stay soft, stay irrelevant' to my post about my grandma's soup recipe. Why are people like this? Blocking and moving on.",
+   "authoredFor": "rudeness",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-rudeness-12",
+   "text": "I disagree with this pretty strongly. The data you cited is from a different city and the sample was tiny. Happy to share the source I'm looking at.",
+   "authoredFor": "rudeness",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-rudeness-13",
+   "text": "finally repotted the monstera and it immediately dropped a leaf out of spite \ud83c\udf3f",
+   "authoredFor": "rudeness",
+   "kind": "unrelated",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-rudeness-14",
+   "text": "Anyone have a lentil soup recipe that isn't bland? Need something warm for this cold week.",
+   "authoredFor": "rudeness",
+   "kind": "unrelated",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-humblebrag-01",
+   "text": "ugh so annoying when strangers keep stopping you at the airport for selfies and you nearly miss your flight. can't even get a coffee in peace \ud83d\ude29",
+   "authoredFor": "humblebrag",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": true,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-humblebrag-02",
+   "text": "Still processing that I was picked for the regional 30 under 30 list. I honestly don't know why they chose me, I just show up every day and do the work \ud83d\ude4f",
+   "authoredFor": "humblebrag",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": true,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-humblebrag-03",
+   "text": "Nobody warns you how hard it is to park a car this wide. The new one barely fits in the garage at the lake house lol",
+   "authoredFor": "humblebrag",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": true,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-humblebrag-04",
+   "text": "My biggest flaw is that I care too much. My manager literally had to force me to take time off after I closed the quarter at 220% of target \ud83d\ude05",
+   "authoredFor": "humblebrag",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": true,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": [
+    "hustle"
+   ]
+  },
+  {
+   "id": "a-humblebrag-05",
+   "text": "Three job offers in one week and now I'm losing sleep over which one to take. First-world problems, I know. Grateful though \ud83d\ude4f",
+   "authoredFor": "humblebrag",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": true,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-humblebrag-06",
+   "text": "Wore a hoodie to the conference so nobody would notice me. Still ended up doing four interviews before lunch.",
+   "authoredFor": "humblebrag",
+   "kind": "subtle-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": true,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-humblebrag-07",
+   "text": "me: I'll keep training low-key this year\nalso me: accidentally runs a sub-3 marathon on an easy day \ud83e\udd37",
+   "authoredFor": "humblebrag",
+   "kind": "subtle-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": true,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-humblebrag-08",
+   "text": "Weird how a PhD and two published books still don't help me fold a fitted sheet \ud83d\ude43",
+   "authoredFor": "humblebrag",
+   "kind": "subtle-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": true,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-humblebrag-09",
+   "text": "I GOT THE JOB!! After eight months of rejections I could actually cry. Thank you to everyone who sent me leads \u2764\ufe0f",
+   "authoredFor": "humblebrag",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-humblebrag-10",
+   "text": "Genuinely exhausted. Worked a double, missed the bus, and the landlord raised rent again. Just need to vent.",
+   "authoredFor": "humblebrag",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-humblebrag-11",
+   "text": "Every 'so humbled to announce' post on here could just say 'I did a cool thing!' and honestly I'd like it more. Just say you're proud.",
+   "authoredFor": "humblebrag",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-humblebrag-12",
+   "text": "Small win: finished my first 5k without walking. Probably the slowest person there, but I'm proud of me.",
+   "authoredFor": "humblebrag",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-humblebrag-13",
+   "text": "the bakery near me started doing cardamom buns on fridays and my weekend has rearranged itself around this",
+   "authoredFor": "humblebrag",
+   "kind": "unrelated",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-humblebrag-14",
+   "text": "Thread of underrated board games for two-player nights. Add yours below \ud83d\udc47",
+   "authoredFor": "humblebrag",
+   "kind": "unrelated",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": [
+    "engagement"
+   ]
+  },
+  {
+   "id": "a-doom-01",
+   "text": "It's over. Housing, jobs, climate, all of it. There's no fixing any of this, we're just watching the last chapter play out.",
+   "authoredFor": "doom",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": true,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-doom-02",
+   "text": "Every institution is rotten and every system is failing at once. Voting won't help, protesting won't help. Enjoy the decline I guess.",
+   "authoredFor": "doom",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": true,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-doom-03",
+   "text": "Kids born today will never know a stable world. The collapse already started and anyone telling you otherwise is coping.",
+   "authoredFor": "doom",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": true,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-doom-04",
+   "text": "nothing works anymore. roads, hospitals, the internet, people. it's all crumbling and there is no bottom",
+   "authoredFor": "doom",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": true,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-doom-05",
+   "text": "Don't bother saving for retirement. There won't be an economy left by the time you're 60. Spend it now \ud83d\udd25",
+   "authoredFor": "doom",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": true,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-doom-06",
+   "text": "Cute that people are still planting trees like there's going to be a 2050 \ud83c\udf31",
+   "authoredFor": "doom",
+   "kind": "subtle-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": true,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": [
+    "rudeness"
+   ]
+  },
+  {
+   "id": "a-doom-07",
+   "text": "me making a five-year plan as if any of this is still standing in five years \ud83e\udd21",
+   "authoredFor": "doom",
+   "kind": "subtle-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": true,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-doom-08",
+   "text": "Another 'record' summer. See you all at the next one. Back to scrolling, not like any of it matters.",
+   "authoredFor": "doom",
+   "kind": "subtle-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": true,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-doom-09",
+   "text": "Water utility says the reservoir is at 31%, lowest since records began. Restrictions start Monday: no lawn watering between 10am and 6pm.",
+   "authoredFor": "doom",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-doom-10",
+   "text": "The climate numbers are bad, no sugarcoating. But 'it's over' is wrong and it's paralysing. Every tenth of a degree we avoid matters, and that's still up to us.",
+   "authoredFor": "doom",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-doom-11",
+   "text": "Rent in this city is brutal right now. Our tenants' group meets Thursday to push the council vote, come if you can.",
+   "authoredFor": "doom",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-doom-12",
+   "text": "Today was a disaster. Spilled coffee on my laptop, missed the train, and the cat threw up on my shoes. Everything is falling apart lol",
+   "authoredFor": "doom",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-doom-13",
+   "text": "Learned today that octopuses can taste with their arms. My whole worldview has shifted.",
+   "authoredFor": "doom",
+   "kind": "unrelated",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "a-doom-14",
+   "text": "Bike commute was gorgeous this morning, fog sitting on the river and everything \ud83d\udeb2",
+   "authoredFor": "doom",
+   "kind": "unrelated",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-hustle-01",
+   "text": "4:45 alarm. cold plunge, journal, gym, deep work block done before most people open their eyes. that's the gap. that's the whole gap.",
+   "authoredFor": "hustle",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": true,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-hustle-02",
+   "text": "Nobody's coming to save you. 100-hour weeks until the vision is real. Sleep is for people who already made it.",
+   "authoredFor": "hustle",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": true,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-hustle-03",
+   "text": "Everyone wants the results, nobody wants to miss the birthday parties. Haven't taken a weekend off in 3 years and I'd do it again tomorrow \ud83d\udcaa",
+   "authoredFor": "hustle",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": true,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-hustle-04",
+   "text": "While you were watching TV last night I shipped two features and cleared 40 emails. Comfort is the enemy. Choose wisely.",
+   "authoredFor": "hustle",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": true,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": [
+    "rudeness"
+   ]
+  },
+  {
+   "id": "b-hustle-05",
+   "text": "if your 9-5 is your whole workday you're not serious. the real work starts at 6pm. outwork them while they're asleep.",
+   "authoredFor": "hustle",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": true,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-hustle-06",
+   "text": "funny how the people who \"need balance\" are always the same people asking how I got here \ud83d\ude42",
+   "authoredFor": "hustle",
+   "kind": "subtle-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": true,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": [
+    "rudeness",
+    "humblebrag"
+   ]
+  },
+  {
+   "id": "b-hustle-07",
+   "text": "my therapist says I should \"rest\" lol. ok. anyway day 41 of no days off, numbers up 18%",
+   "authoredFor": "hustle",
+   "kind": "subtle-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": true,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": [
+    "humblebrag"
+   ]
+  },
+  {
+   "id": "b-hustle-08",
+   "text": "Small reminder that the sunrise only belongs to the people already at their desk to see it \u2600\ufe0f",
+   "authoredFor": "hustle",
+   "kind": "subtle-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": true,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-hustle-09",
+   "text": "someone on my timeline just posted \"sleep is for the weak\" and I genuinely want to know who hurt them \ud83d\ude2d take a nap king",
+   "authoredFor": "hustle",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": [
+    "dunking"
+   ]
+  },
+  {
+   "id": "b-hustle-10",
+   "text": "I've been getting up at 5am since the baby came because it's the only quiet hour I get. not a flex, just coffee and silence.",
+   "authoredFor": "hustle",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-hustle-11",
+   "text": "Worked 70-hour weeks for two years at my first startup. Ended up in the ER with a heart arrhythmia at 29. Please don't romanticise this.",
+   "authoredFor": "hustle",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-hustle-12",
+   "text": "pulling doubles at the hospital all week bc we're short staffed. not inspirational, just tired. be nice to your nurses",
+   "authoredFor": "hustle",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-hustle-13",
+   "text": "made sourdough for the first time and it came out flat as a frisbee. still ate half of it.",
+   "authoredFor": "hustle",
+   "kind": "unrelated",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-hustle-14",
+   "text": "the bus driver this morning waited for a guy sprinting half a block. small kindnesses, man.",
+   "authoredFor": "hustle",
+   "kind": "unrelated",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-dunking-01",
+   "text": "someone in my replies just said the Great Wall is visible from the moon with their whole chest \ud83d\udc80 ratio this person into orbit",
+   "authoredFor": "dunking",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": true,
+    "engagement": false
+   },
+   "ambiguousFor": [
+    "rudeness"
+   ]
+  },
+  {
+   "id": "b-dunking-02",
+   "text": "Found a guy on here who put \"irregardless thinker\" in his bio unironically. Screenshotting before he deletes it, you all need to see this",
+   "authoredFor": "dunking",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": true,
+    "engagement": false
+   },
+   "ambiguousFor": [
+    "rudeness"
+   ]
+  },
+  {
+   "id": "b-dunking-03",
+   "text": "this woman posted her \"gourmet date night dinner\" and it's one boiled hot dog with a parsley leaf on top. been laughing for 10 minutes. quote with your best roast",
+   "authoredFor": "dunking",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": true,
+    "engagement": false
+   },
+   "ambiguousFor": [
+    "rudeness",
+    "engagement"
+   ]
+  },
+  {
+   "id": "b-dunking-04",
+   "text": "Imagine misspelling your own bakery's name on the sign and then posting it proudly. Sir. SIR. \ud83d\ude02",
+   "authoredFor": "dunking",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": true,
+    "engagement": false
+   },
+   "ambiguousFor": [
+    "rudeness"
+   ]
+  },
+  {
+   "id": "b-dunking-05",
+   "text": "random account with 12 followers just tried to explain inflation to me and it's the dumbest thing I've read all year. go look before he figures it out",
+   "authoredFor": "dunking",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": true,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": true,
+    "engagement": false
+   },
+   "ambiguousFor": [
+    "rudeness"
+   ]
+  },
+  {
+   "id": "b-dunking-06",
+   "text": "not me reading a stranger's 2,000 word thread about why they quit their book club and pouring a fresh coffee for it \u2615\ud83c\udf7f",
+   "authoredFor": "dunking",
+   "kind": "subtle-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": true,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-dunking-07",
+   "text": "Love that this guy's \"how I made my first 10k\" thread ends with him asking for gas money. Truly inspiring stuff.",
+   "authoredFor": "dunking",
+   "kind": "subtle-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": true,
+    "engagement": false
+   },
+   "ambiguousFor": [
+    "rudeness"
+   ]
+  },
+  {
+   "id": "b-dunking-08",
+   "text": "someone said they \"invented\" putting ice cream in espresso and I want to gently let them know affogato exists. but I won't. I'll just post it here instead \ud83d\ude42",
+   "authoredFor": "dunking",
+   "kind": "subtle-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": true,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-dunking-09",
+   "text": "Please stop screenshotting regular people's bad takes for clout. They have 40 followers. You're just sending your audience to bully someone.",
+   "authoredFor": "dunking",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-dunking-10",
+   "text": "I once replied \"congrats!!\" to a post about someone's dog passing away. I think about it weekly. anyway that's my entry for embarrassing-yourself week",
+   "authoredFor": "dunking",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-dunking-11",
+   "text": "Small correction on the bridge photo going around: it's from 2011, not this week. Not blaming anyone who shared it, it's an easy one to get wrong.",
+   "authoredFor": "dunking",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-dunking-12",
+   "text": "The city council voted to rip out the bike lane they spent 2 million building six months ago. Baffling decision, and residents deserve an explanation.",
+   "authoredFor": "dunking",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-dunking-13",
+   "text": "my cat has decided the printer is her bed now. I no longer print things. this is my life.",
+   "authoredFor": "dunking",
+   "kind": "unrelated",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-dunking-14",
+   "text": "Ran my first 10k this morning. Slow, sore, very happy.",
+   "authoredFor": "dunking",
+   "kind": "unrelated",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-engagement-01",
+   "text": "Describe your job badly. Wrong answers only \ud83d\udc47",
+   "authoredFor": "engagement",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": true
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-engagement-02",
+   "text": "You can only eat one for the rest of your life: pizza \ud83c\udf55 or tacos \ud83c\udf2e. go.",
+   "authoredFor": "engagement",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": true
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-engagement-03",
+   "text": "Name a movie everyone loves that you secretly can't stand. I'll start in the replies \ud83d\udc40",
+   "authoredFor": "engagement",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": true
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-engagement-04",
+   "text": "which one are you at a party: A) in the kitchen B) petting the dog C) leaving without saying bye D) the DJ nobody asked for",
+   "authoredFor": "engagement",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": true
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-engagement-05",
+   "text": "Drop your city and I'll tell you something about it \ud83d\ude4f let's see how far this goes",
+   "authoredFor": "engagement",
+   "kind": "clear-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": true
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-engagement-06",
+   "text": "be honest. how many tabs do you have open right now",
+   "authoredFor": "engagement",
+   "kind": "subtle-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": true
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-engagement-07",
+   "text": "unpopular opinion: cereal is a soup. not taking questions but I will be reading every single reply.",
+   "authoredFor": "engagement",
+   "kind": "subtle-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": true
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-engagement-08",
+   "text": "if you're seeing this you're one of the real ones. curious where everyone's tuning in from tonight \ud83c\udf19",
+   "authoredFor": "engagement",
+   "kind": "subtle-positive",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": true
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-engagement-09",
+   "text": "Genuine question: anyone know how to get mould out of shower grout without bleach? renting and don't want to wreck it.",
+   "authoredFor": "engagement",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-engagement-10",
+   "text": "We're choosing between the 6th or the 13th for the neighbourhood cleanup. Reply with what works for you so we can book the hall.",
+   "authoredFor": "engagement",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-engagement-11",
+   "text": "so tired of \"wrong answers only\" posts. every timeline is just strangers doing free content for some account's reach.",
+   "authoredFor": "engagement",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-engagement-12",
+   "text": "Three years of teaching kids to code taught me: start with games, never with syntax, and let them break things. Curious what's worked for other teachers?",
+   "authoredFor": "engagement",
+   "kind": "near-miss",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-engagement-13",
+   "text": "the trees on my street went from green to orange in like 3 days. autumn does not ease in.",
+   "authoredFor": "engagement",
+   "kind": "unrelated",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  },
+  {
+   "id": "b-engagement-14",
+   "text": "Fixed the squeaky door hinge with a bit of olive oil. Felt like a hardware wizard for about an hour.",
+   "authoredFor": "engagement",
+   "kind": "unrelated",
+   "gold": {
+    "rudeness": false,
+    "humblebrag": false,
+    "doom": false,
+    "hustle": false,
+    "dunking": false,
+    "engagement": false
+   },
+   "ambiguousFor": []
+  }
+ ]
+}

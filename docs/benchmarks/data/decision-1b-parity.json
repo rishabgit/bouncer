@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "groups": {
+    "kev-q8": {
+      "templateId": "matches-category",
+      "variants": [
+        "llama-kev-q8",
+        "ollama-kev-q8"
+      ],
+      "passed": true,
+      "differences": []
+    },
+    "d1-2b": {
+      "templateId": "matches-category",
+      "variants": [
+        "llama-d1-2b-q8",
+        "llama-d1-2b-q4km",
+        "ollama-d1-2b-mxfp8",
+        "ollama-d1-2b-nvfp4"
+      ],
+      "passed": true,
+      "differences": []
+    }
+  }
+}

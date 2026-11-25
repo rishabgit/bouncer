@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "phase": "decision-capacity-acceptance",
+  "recordedAt": "2026-11-24T22:01:28.623Z",
+  "registrationSha256": "a8d08122d5c1a95f27b11289cb243aac94de6aa84686295a0e0e134ae72c9b9e",
+  "registeredAt": "2026-11-24T21:10:17.905Z",
+  "inferenceStartedAt": "2026-11-24T21:17:27.591Z",
+  "zeroInferenceSetupAborts": 2,
+  "qualityReruns": 0,
+  "models": [
+    "llama-d1-3b-q8",
+    "llama-kev-4b-q8",
+    "llama-clef-flash-q4km"
+  ],
+  "freshRequests": 6468,
+  "originalValidationRequests": 576,
+  "discoveryScoredRequests": 528,
+  "rawInferenceRequests": 8061,
+  "allInferenceTokensChecked": true,
+  "inferenceByModel": {
+    "ggml-org/Clef-Flash-GGUF:Q4_K_M": 2295,
+    "LiquidAI/d1-2B-GGUF:Q8_0": 1176,
+    "LiquidAI/d1-3B-GGUF:Q8_0": 2295,
+    "ggml-org/Kev-4B-GGUF:Q8_0": 2295
+  },
+  "savedRequestRecordsChecked": 7986,
+  "maxInputTokens": 1646,
+  "allNewSelectionsBeforeLargerEvaluation": true,
+  "serialSpeedRuns": true,
+  "protectedReceiptCount": 77,
+  "protectedReceiptsUnchanged": true,
+  "allCorporaUnchanged": true,
+  "originalValidationExploratory": true,
+  "reportSha256": "23e8589ff5695a4aa9dad9a8a914aedcb71d0b3566896853a9c338d3eefed488",
+  "resultSha256": "b45b8f49c48cc34772121375e51df1d2f40562fb3a4395227bcccc95ad3a3e9e",
+  "summarySha256": "15fc0a433555fe61f5957da32a2dee48b3ee1c14f479a2a769f67ad265cf4322",
+  "archive": {
+    "schemaVersion": 1,
+    "path": "scripts/decision-eval/.tmp/decision-capacity-raw.tar",
+    "sha256": "4aec3bdaca2d9bba85787d3600c7a4e9f7eb2b35e372dc5ab56de3b0466ff0bc",
+    "bytes": 37514752
+  },
+  "onlyOwnedPathsChanged": true,
+  "privatePathsAbsent": true,
+  "llama": {
+    "running": true,
+    "loadedModels": 0
+  },
+  "ollama": {
+    "contacted": false,
+    "started": false
+  },
+  "tests": {
+    "command": "node --test scripts/decision-eval/",
+    "throughMachineHeavyWrapper": true,
+    "passed": 101,
+    "failed": 0
+  },
+  "diffCheck": {
+    "command": "git diff --check",
+    "pass": true
+  }
+}

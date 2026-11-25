@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "registeredAt": "2026-11-25",
+  "purpose": "Decide whether a d1-2B decision model can replace Gemma 4 E2B as Bouncer's per-post filter classifier.",
+  "candidates": [
+    {
+      "variantId": "llama-d1-2b-q8",
+      "selectionFile": "decision-1b-selection-llama-d1-2b-q8.json",
+      "selectionSha256": "8b6d177113c7922c62fdbdeb08b75e7acdc1048d179b5d153744c59717623814",
+      "why": "Same d1-2B checkpoint as Ollama's d1:2b; leave-one-out 85/88 exact with 0 false hides; widest stable cutoff interval among GGUF builds; 1.85 GB on disk."
+    },
+    {
+      "variantId": "ollama-d1-2b-nvfp4",
+      "selectionFile": "decision-1b-selection-ollama-d1-2b-nvfp4.json",
+      "selectionSha256": "a4457e436b69ff11908997360c1edf933cc3e74ec01fa41416b7a725e207d304",
+      "why": "Same checkpoint on Ollama's MLX runner; the Ollama build that meets the size bar (1.75 GB disk, 1.76 GiB footprint), fastest warm latency; leave-one-out 83/88 with 1 false hide."
+    }
+  ],
+  "notCandidates": {
+    "ollama-d1-2b-mxfp8": "Above the pre-set size bar (2.43 GB disk, 2.40 GiB footprint).",
+    "llama-d1-2b-q4km": "Smallest d1-2B build, but its optimal cutoff interval is only 0.0048 wide, so the frozen cutoff is fragile; revisit with fresh data if a d1-2B candidate passes.",
+    "llama-d1omni2b-q8": "Different checkpoint; below d1-2B on discovery.",
+    "kev and laya variants": "Below d1-2B on discovery at similar or worse cost.",
+    "llama-d1omni600m-q8": "75/88 with 4 new false hides on discovery."
+  },
+  "baseline": "Browser Gemma 4 E2B (LiteRT-LM 0.17.0) per-case verdicts, paired by case identity and hash.",
+  "corpora": [
+    "native-isolation-holdout.json (72 cases)",
+    "native-migration-validation.json (120 cases)"
+  ],
+  "gatesPerCorpus": {
+    "G1_newFalseHides": "at most 1 false hide on a case Browser showed correctly",
+    "G2_exactVectors": "exact filter vectors >= Browser's count",
+    "G3_hideDecisions": "correct hide/show decisions >= Browser's count minus 1"
+  },
+  "passRule": "A candidate passes only if G1, G2 and G3 all hold on both corpora at its frozen template, cutoff and runtime settings.",
+  "reportedNotGated": [
+    "new missed hides vs Browser",
+    "results at a fixed 0.5 cutoff",
+    "rage-bait F1",
+    "text-only QAT comparison on the migration corpus"
+  ],
+  "productBarAlreadyMeasured": "Warm 10-filter p50 at or below Browser's 400 ms, about 2 GB or less on disk, about 2 GiB or less resident; both candidates meet it on phase-1b measurements.",
+  "rules": [
+    "Run validation once per candidate; no retuning, template change or cutoff change afterwards.",
+    "Refuse to run if any frozen runtime setting, artifact identity or corpus hash differs.",
+    "If neither candidate passes, the conclusion is that d1-2B is not yet a clear replacement; keep the harness for future models."
+  ]
+}

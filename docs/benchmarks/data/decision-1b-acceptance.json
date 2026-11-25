@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 2,
+  "phase": "phase1b-acceptance",
+  "recordedAt": "2026-11-24T19:13:59.290Z",
+  "variants": 9,
+  "discoveryCasesPerTemplate": 88,
+  "templates": 2,
+  "frozenSelections": 9,
+  "speedRuns": 27,
+  "requestRecordsChecked": 3546,
+  "allSavedRequestsBelowContext": true,
+  "effectiveContext": 4096,
+  "parallel": 1,
+  "selectionsFrozenBeforeAllSpeedRuns": true,
+  "serialRunTimestampsVerified": true,
+  "tokenParityGroups": [
+    "kev-q8",
+    "d1-2b"
+  ],
+  "allParityChecksPassed": true,
+  "identicalProbabilityControlsPassed": true,
+  "tests": {
+    "command": "node --test scripts/decision-eval/",
+    "heavyWrapperUsed": true,
+    "pass": 35,
+    "fail": 0
+  },
+  "report": {
+    "command": "node scripts/decision-eval/report.mjs",
+    "sha256": "9e7431a6c8b8f8c0765c8f1ddfc965d228117a4fe58446d722575c1c91195a2e"
+  },
+  "corpusHashes": {
+    "eval-corpus.ts": "4a2dacac7271704addb5c06d953021b8c8c7f20108cfa002ce11942a6e907214",
+    "native-benchmark-corpus.ts": "a5db3bf30aa3039a3e571020c111797e1cfdd675872514a40139e66db6038603",
+    "native-isolation-holdout.json": "18841a6609d9e68493c629880bc03eeaa233eab890245e5cfd5c2eaa9e9d4159",
+    "native-migration-validation.json": "354e80566fdf889e213aec9072387c42f8286a48347379b1142073cba3fa4e27"
+  },
+  "validationInferenceRuns": 0,
+  "validationResults": 0,
+  "recordedGemmaBaselinesImported": true,
+  "pilotDeleted": true,
+  "privatePathScanPassed": true,
+  "onlyOwnedPathsChanged": true,
+  "servers": {
+    "llama": {
+      "running": true,
+      "loadedModels": 0
+    },
+    "ollama": {
+      "running": true,
+      "loadedModels": 0,
+      "cloudDisabled": true
+    }
+  },
+  "rawArchive": {
+    "path": "scripts/decision-eval/.tmp/decision-raw.tar",
+    "sha256": "0620dfa944e2341fa76b87fecf32fd8338e5b1377792232b423572eadec4f3fe",
+    "bytes": 10448896
+  }
+}

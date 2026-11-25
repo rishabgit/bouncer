@@ -1,0 +1,4077 @@
+{
+  "schemaVersion": 2,
+  "phase": "performance",
+  "variant": {
+    "id": "ollama-d1-2b-nvfp4",
+    "runtime": "ollama",
+    "model": "bouncer-eval-d1-2b-nvfp4-ctx4096:v1",
+    "sourceModel": "d1:2b-nvfp4",
+    "family": "d1-2b",
+    "format": "MLX NVFP4",
+    "parityGroup": "d1-2b"
+  },
+  "repetition": 2,
+  "order": [
+    "ollama-d1-2b-mxfp8",
+    "ollama-d1-2b-nvfp4",
+    "llama-d1omni600m-q8",
+    "llama-kev-q8",
+    "ollama-kev-q8",
+    "ollama-kev-mxfp8",
+    "llama-d1omni2b-q8",
+    "llama-d1-2b-q8",
+    "llama-d1-2b-q4km"
+  ],
+  "selection": {
+    "schemaVersion": 2,
+    "phase": "discovery",
+    "frozen": true,
+    "frozenAt": "2026-11-24T19:02:28.025Z",
+    "variantId": "ollama-d1-2b-nvfp4",
+    "templateId": "matches-category",
+    "templateHash": "9a1e023c41c8c19c37317953ae8d7b486ec088070ce00abadd4809242eb67f54",
+    "cutoff": 0.32208209372244256,
+    "interval": {
+      "lower": 0.2915396907117257,
+      "upper": 0.35262449673315943,
+      "width": 0.061084806021433735,
+      "lowerInclusive": false,
+      "upperInclusive": true
+    },
+    "loo": {
+      "hide": {
+        "n": 88,
+        "tp": 55,
+        "fp": 1,
+        "fn": 2,
+        "tn": 30,
+        "accuracy": 0.9659090909090909,
+        "precision": 0.9821428571428571,
+        "recall": 0.9649122807017544,
+        "f1": 0.9734513274336283,
+        "specificity": 0.967741935483871,
+        "falsePositiveRate": 0.03225806451612903
+      },
+      "exactVectors": 83,
+      "totalVectors": 88,
+      "exactVectorAccuracy": 0.9431818181818182,
+      "individualDecisions": 268,
+      "individual": {
+        "n": 268,
+        "tp": 100,
+        "fp": 2,
+        "fn": 3,
+        "tn": 163,
+        "accuracy": 0.9813432835820896,
+        "precision": 0.9803921568627451,
+        "recall": 0.970873786407767,
+        "f1": 0.975609756097561,
+        "specificity": 0.9878787878787879,
+        "falsePositiveRate": 0.012121212121212121
+      },
+      "falseHides": 1,
+      "missedHides": 2,
+      "pairedAvailable": true,
+      "newFalseHides": 1,
+      "newMissedHides": 2,
+      "falseHideIds": [
+        "broad:ten-all-negative"
+      ],
+      "missedHideIds": [
+        "rage:p15",
+        "rage:p18"
+      ],
+      "newFalseHideIds": [
+        "broad:ten-all-negative"
+      ],
+      "newMissedHideIds": [
+        "rage:p15",
+        "rage:p18"
+      ],
+      "incorrectVectorIds": [
+        "rage:p15",
+        "rage:p18",
+        "broad:ten-all-negative",
+        "broad:ten-five-topic-mixed",
+        "broad:ten-all-topics-permuted"
+      ],
+      "scores": {
+        "rage": {
+          "hide": {
+            "n": 40,
+            "tp": 16,
+            "fp": 0,
+            "fn": 2,
+            "tn": 22,
+            "accuracy": 0.95,
+            "precision": 1,
+            "recall": 0.8888888888888888,
+            "f1": 0.9411764705882353,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "exactVectors": 38,
+          "totalVectors": 40,
+          "exactVectorAccuracy": 0.95,
+          "individualDecisions": 40,
+          "individual": {
+            "n": 40,
+            "tp": 16,
+            "fp": 0,
+            "fn": 2,
+            "tn": 22,
+            "accuracy": 0.95,
+            "precision": 1,
+            "recall": 0.8888888888888888,
+            "f1": 0.9411764705882353,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "falseHides": 0,
+          "missedHides": 2,
+          "pairedAvailable": true,
+          "newFalseHides": 0,
+          "newMissedHides": 2,
+          "falseHideIds": [],
+          "missedHideIds": [
+            "rage:p15",
+            "rage:p18"
+          ],
+          "newFalseHideIds": [],
+          "newMissedHideIds": [
+            "rage:p15",
+            "rage:p18"
+          ],
+          "incorrectVectorIds": [
+            "rage:p15",
+            "rage:p18"
+          ]
+        },
+        "broad": {
+          "hide": {
+            "n": 48,
+            "tp": 39,
+            "fp": 1,
+            "fn": 0,
+            "tn": 8,
+            "accuracy": 0.9791666666666666,
+            "precision": 0.975,
+            "recall": 1,
+            "f1": 0.9873417721518987,
+            "specificity": 0.8888888888888888,
+            "falsePositiveRate": 0.1111111111111111
+          },
+          "exactVectors": 45,
+          "totalVectors": 48,
+          "exactVectorAccuracy": 0.9375,
+          "individualDecisions": 228,
+          "individual": {
+            "n": 228,
+            "tp": 84,
+            "fp": 2,
+            "fn": 1,
+            "tn": 141,
+            "accuracy": 0.9868421052631579,
+            "precision": 0.9767441860465116,
+            "recall": 0.9882352941176471,
+            "f1": 0.9824561403508771,
+            "specificity": 0.986013986013986,
+            "falsePositiveRate": 0.013986013986013986
+          },
+          "falseHides": 1,
+          "missedHides": 0,
+          "pairedAvailable": true,
+          "newFalseHides": 1,
+          "newMissedHides": 0,
+          "falseHideIds": [
+            "broad:ten-all-negative"
+          ],
+          "missedHideIds": [],
+          "newFalseHideIds": [
+            "broad:ten-all-negative"
+          ],
+          "newMissedHideIds": [],
+          "incorrectVectorIds": [
+            "broad:ten-all-negative",
+            "broad:ten-five-topic-mixed",
+            "broad:ten-all-topics-permuted"
+          ]
+        },
+        "all": {
+          "hide": {
+            "n": 88,
+            "tp": 55,
+            "fp": 1,
+            "fn": 2,
+            "tn": 30,
+            "accuracy": 0.9659090909090909,
+            "precision": 0.9821428571428571,
+            "recall": 0.9649122807017544,
+            "f1": 0.9734513274336283,
+            "specificity": 0.967741935483871,
+            "falsePositiveRate": 0.03225806451612903
+          },
+          "exactVectors": 83,
+          "totalVectors": 88,
+          "exactVectorAccuracy": 0.9431818181818182,
+          "individualDecisions": 268,
+          "individual": {
+            "n": 268,
+            "tp": 100,
+            "fp": 2,
+            "fn": 3,
+            "tn": 163,
+            "accuracy": 0.9813432835820896,
+            "precision": 0.9803921568627451,
+            "recall": 0.970873786407767,
+            "f1": 0.975609756097561,
+            "specificity": 0.9878787878787879,
+            "falsePositiveRate": 0.012121212121212121
+          },
+          "falseHides": 1,
+          "missedHides": 2,
+          "pairedAvailable": true,
+          "newFalseHides": 1,
+          "newMissedHides": 2,
+          "falseHideIds": [
+            "broad:ten-all-negative"
+          ],
+          "missedHideIds": [
+            "rage:p15",
+            "rage:p18"
+          ],
+          "newFalseHideIds": [
+            "broad:ten-all-negative"
+          ],
+          "newMissedHideIds": [
+            "rage:p15",
+            "rage:p18"
+          ],
+          "incorrectVectorIds": [
+            "rage:p15",
+            "rage:p18",
+            "broad:ten-all-negative",
+            "broad:ten-five-topic-mixed",
+            "broad:ten-all-topics-permuted"
+          ]
+        }
+      },
+      "rows": [
+        {
+          "id": "p1",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p2",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p3",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p4",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p5",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p6",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p7",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p8",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p9",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p10",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p11",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p12",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p13",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p14",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p15",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 86,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p16",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p17",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p18",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 86,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "e1",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "e2",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "e3",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "e4",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a1",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a2",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a3",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a4",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a5",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a6",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a7",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a8",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a9",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a10",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a11",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a12",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a13",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a14",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a15",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a16",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a17",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a18",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-crypto-positive",
+          "corpus": "broad",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-crypto-negative",
+          "corpus": "broad",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-sports-positive",
+          "corpus": "broad",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-sports-negative",
+          "corpus": "broad",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-food-positive",
+          "corpus": "broad",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-fitness-positive",
+          "corpus": "broad",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-politics-positive",
+          "corpus": "broad",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-ai-hype-negative",
+          "corpus": "broad",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-celebrity-positive",
+          "corpus": "broad",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-promotion-negative",
+          "corpus": "broad",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-engagement-positive",
+          "corpus": "broad",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-drama-negative",
+          "corpus": "broad",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-crypto-and-food",
+          "corpus": "broad",
+          "expected": [
+            true,
+            false,
+            true
+          ],
+          "predicted": [
+            true,
+            false,
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-sports-middle",
+          "corpus": "broad",
+          "expected": [
+            false,
+            true,
+            false
+          ],
+          "predicted": [
+            false,
+            true,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-fitness-and-politics",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            false
+          ],
+          "predicted": [
+            true,
+            true,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-hype-promotion-engagement",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            true
+          ],
+          "predicted": [
+            true,
+            true,
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-celebrity-and-drama",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            false
+          ],
+          "predicted": [
+            true,
+            true,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-drama-and-engagement",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            false
+          ],
+          "predicted": [
+            true,
+            true,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-all-negative",
+          "corpus": "broad",
+          "expected": [
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            false,
+            false,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-policy-only",
+          "corpus": "broad",
+          "expected": [
+            true,
+            false,
+            false
+          ],
+          "predicted": [
+            true,
+            false,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-selling-own-baking-class",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            false
+          ],
+          "predicted": [
+            true,
+            true,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-celebrity-middle",
+          "corpus": "broad",
+          "expected": [
+            false,
+            true,
+            false
+          ],
+          "predicted": [
+            false,
+            true,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-fitness-only",
+          "corpus": "broad",
+          "expected": [
+            true,
+            false,
+            false
+          ],
+          "predicted": [
+            true,
+            false,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-crypto-policy-own-guide",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            true
+          ],
+          "predicted": [
+            true,
+            true,
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-everyday-negative",
+          "corpus": "broad",
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-all-topics-reversed",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "predicted": [
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-hype-gossip-sale-bait-feud",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "predicted": [
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-second-group-negative",
+          "corpus": "broad",
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-food-and-fitness-separated",
+          "corpus": "broad",
+          "expected": [
+            true,
+            false,
+            false,
+            false,
+            true
+          ],
+          "predicted": [
+            true,
+            false,
+            false,
+            false,
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-sports-and-policy",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            true,
+            true,
+            false,
+            false,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-crypto-hype-own-service",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            false,
+            true,
+            false
+          ],
+          "predicted": [
+            true,
+            true,
+            false,
+            true,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-gossip-feud-engagement-permutation",
+          "corpus": "broad",
+          "expected": [
+            false,
+            true,
+            true,
+            false,
+            true
+          ],
+          "predicted": [
+            false,
+            true,
+            true,
+            false,
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-own-fitness-service",
+          "corpus": "broad",
+          "expected": [
+            true,
+            false,
+            true,
+            false,
+            false
+          ],
+          "predicted": [
+            true,
+            false,
+            true,
+            false,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-food-last-only",
+          "corpus": "broad",
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            true
+          ],
+          "predicted": [
+            false,
+            false,
+            false,
+            false,
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-policy-crypto-engagement",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            true,
+            false,
+            false
+          ],
+          "predicted": [
+            true,
+            true,
+            true,
+            false,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-ai-hype-first-only",
+          "corpus": "broad",
+          "expected": [
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-all-negative",
+          "corpus": "broad",
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.20125865744700816,
+          "interval": {
+            "lower": 0.1975028006972901,
+            "upper": 0.2050145141967262,
+            "width": 0.007511713499436107,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 86,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-crypto-only",
+          "corpus": "broad",
+          "expected": [
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-sports-only",
+          "corpus": "broad",
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-cooking-and-training",
+          "corpus": "broad",
+          "expected": [
+            true,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            true,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-politics-only",
+          "corpus": "broad",
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-ai-hype-only",
+          "corpus": "broad",
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "predicted": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-celebrity-feud",
+          "corpus": "broad",
+          "expected": [
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "predicted": [
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-own-product-and-engagement",
+          "corpus": "broad",
+          "expected": [
+            true,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            true,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-crypto-policy-own-guide",
+          "corpus": "broad",
+          "expected": [
+            false,
+            true,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            true
+          ],
+          "predicted": [
+            false,
+            true,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            true
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-sports-food-fitness",
+          "corpus": "broad",
+          "expected": [
+            false,
+            true,
+            false,
+            false,
+            true,
+            false,
+            false,
+            true,
+            false,
+            false
+          ],
+          "predicted": [
+            false,
+            true,
+            false,
+            false,
+            true,
+            false,
+            false,
+            true,
+            false,
+            false
+          ],
+          "templateId": "matches-category",
+          "cutoff": 0.32208209372244256,
+          "interval": {
+            "lower": 0.2915396907117257,
+            "upper": 0.35262449673315943,
+            "width": 0.061084806021433735,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-five-topic-mixed",
+          "corpus": "broad",
+          "expected": [
+            false,
+            true,
+            false,
+            true,
+            true,
+            false,
+            true,
+            false,
+            true,
+            false
+          ],
+          "predicted": [
+            false,
+            true,
+            false,
+            true,
+            true,
+            false,
+            true,
+            false,
+            true,
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.21084516826693703,
+          "interval": {
+            "lower": 0.2050145141967262,
+            "upper": 0.21667582233714786,
+            "width": 0.011661308140421656,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 86,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-all-topics-permuted",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "predicted": [
+            true,
+            true,
+            true,
+            true,
+            false,
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.35444689669211393,
+          "interval": {
+            "lower": 0.3012851922215597,
+            "upper": 0.4076086011626682,
+            "width": 0.10632340894110853,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        }
+      ]
+    },
+    "corpusHashes": {
+      "eval-corpus.ts": "4a2dacac7271704addb5c06d953021b8c8c7f20108cfa002ce11942a6e907214",
+      "native-benchmark-corpus.ts": "a5db3bf30aa3039a3e571020c111797e1cfdd675872514a40139e66db6038603",
+      "native-isolation-holdout.json": "18841a6609d9e68493c629880bc03eeaa233eab890245e5cfd5c2eaa9e9d4159",
+      "native-migration-validation.json": "354e80566fdf889e213aec9072387c42f8286a48347379b1142073cba3fa4e27"
+    },
+    "identityHash": "c3b7f91582adeed8238337fe390ac4fc6dbcfa6ba74717a2d26e51916a104d47",
+    "runtimeSettings": {
+      "runtime": "ollama",
+      "version": "0.40.18",
+      "build": "official-v0.40.18",
+      "effectiveContext": 4096,
+      "parallel": 1,
+      "batch": null,
+      "ubatch": null,
+      "projector": "package components retained; no image requests",
+      "runner": "mlx",
+      "quantization": "NVFP4",
+      "aliasDefinition": {
+        "model": "bouncer-eval-d1-2b-nvfp4-ctx4096:v1",
+        "from": "d1:2b-nvfp4",
+        "sourceDigest": "82c19b76395aa3e625ae28dc9e8ab390351ac3cc41056be7b4fc9865c593953d",
+        "parameters": {
+          "num_ctx": 4096
+        }
+      }
+    },
+    "discoverySha256": "0bd1ffd096a5fcd78e7b8190facdcde4d234ce1cee54ae472527fec536967a2f"
+  },
+  "identityHash": "c3b7f91582adeed8238337fe390ac4fc6dbcfa6ba74717a2d26e51916a104d47",
+  "artifact": {
+    "model": "bouncer-eval-d1-2b-nvfp4-ctx4096:v1",
+    "format": "MLX NVFP4",
+    "digest": "41b030028f42504cfaf94d2d8cc22f2979ab084f89f4b821c5a43f6b43abd688",
+    "disk": {
+      "logicalBytes": 1746730416,
+      "allocatedBytes": 1752248320,
+      "scope": "Full derived-alias package; any vision/projector tensors included; shared blobs charged fully"
+    }
+  },
+  "environment": {
+    "time": 1795547308725,
+    "host": {
+      "platform": "darwin",
+      "architecture": "arm64",
+      "nodeVersion": "v24.18.1"
+    },
+    "chip": {
+      "name": "Apple M5 Pro",
+      "provenance": "user-supplied"
+    },
+    "ram": {
+      "bytes": 68719476736,
+      "provenance": "measured:memory_pressure -Q"
+    },
+    "loadAverage": [
+      3.69482421875,
+      3.63720703125,
+      3.7392578125
+    ],
+    "power": {
+      "available": true,
+      "raw": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=redacted)\t80%; AC attached; not charging present: true"
+    },
+    "memoryPressure": {
+      "available": true,
+      "raw": "The system has 68719476736 (4194304 pages with a page size of 16384).\nSystem-wide memory free percentage: 87%"
+    },
+    "vmStat": {
+      "available": true,
+      "raw": "Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free:                                   476411.\nPages active:                                1566540.\nPages inactive:                              1566185.\nPages speculative:                              1534.\nPages throttled:                                   0.\nPages wired down:                             285856.\nPages purgeable:                               40400.\n\"Translation faults\":                      911488298.\nPages copy-on-write:                        80753376.\nPages zero filled:                         539075964.\nPages reactivated:                           6959946.\nPages purged:                                1974553.\nFile-backed pages:                           1353778.\nAnonymous pages:                             1780481.\nPages stored in compressor:                   484050.\nPages occupied by compressor:                 239001.\nDecompressions:                              3394857.\nCompressions:                                5661026.\nPageins:                                    22063046.\nPageouts:                                        805.\nSwapins:                                       42932.\nSwapouts:                                     100124.\nPages tagged:                                 189372.\nPages tagged resident:                        169143.\nPages tagged compressed:                       20229.\nPages tag-storage:                            131072.\nPages tag-storage holding tags:                 8900.\nPages tag-storage free:                         1946.\nPages tag-storage non-tag pageable:           120112.\nPages tag-storage non-tag wired:                   8.\nBytes of compressed tags:                    2951104.\nTagged compressions:                          116665.\nTagged decompressions:                         89312."
+    }
+  },
+  "startedAt": "2026-11-24T19:08:28.725Z",
+  "cells": {
+    "3": {
+      "templateId": "matches-category",
+      "filters": [
+        "crypto",
+        "politics",
+        "engagement bait"
+      ],
+      "rows": [
+        {
+          "index": 0,
+          "wallMs": 36.446542000048794,
+          "probabilities": [
+            0.010882165854379894,
+            0.015030036121344936,
+            0.0418433323100894
+          ],
+          "usage": {
+            "input_tokens": 214,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 1,
+          "wallMs": 37.898792000021785,
+          "probabilities": [
+            0.011396853668704176,
+            0.01166314863955385,
+            0.02663834356192146
+          ],
+          "usage": {
+            "input_tokens": 215,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 2,
+          "wallMs": 36.17454199993517,
+          "probabilities": [
+            0.007008160987501112,
+            0.011136570278991375,
+            0.043757591852872514
+          ],
+          "usage": {
+            "input_tokens": 216,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 3,
+          "wallMs": 37.71558299998287,
+          "probabilities": [
+            0.017253045611704876,
+            0.023770895564062183,
+            0.061005109197301226
+          ],
+          "usage": {
+            "input_tokens": 224,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 4,
+          "wallMs": 36.37133300001733,
+          "probabilities": [
+            0.007513229073981221,
+            0.01249947209749358,
+            0.0418433323100894
+          ],
+          "usage": {
+            "input_tokens": 219,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 5,
+          "wallMs": 37.187583000049926,
+          "probabilities": [
+            0.01249947209749359,
+            0.018911398451298484,
+            0.05113572000258485
+          ],
+          "usage": {
+            "input_tokens": 219,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 6,
+          "wallMs": 36.45908399997279,
+          "probabilities": [
+            0.012214318034517333,
+            0.015379902108778673,
+            0.031224186607775227
+          ],
+          "usage": {
+            "input_tokens": 210,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 7,
+          "wallMs": 41.08870800002478,
+          "probabilities": [
+            0.018482705080871444,
+            0.022197367967054835,
+            0.04279023725924963
+          ],
+          "usage": {
+            "input_tokens": 219,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 8,
+          "wallMs": 35.14033299998846,
+          "probabilities": [
+            0.013089640476221564,
+            0.018911398451298484,
+            0.04375759185287249
+          ],
+          "usage": {
+            "input_tokens": 219,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 9,
+          "wallMs": 36.546750000095926,
+          "probabilities": [
+            0.006690327527564767,
+            0.009472115552830306,
+            0.03912143091081845
+          ],
+          "usage": {
+            "input_tokens": 223,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 10,
+          "wallMs": 37.596916000009514,
+          "probabilities": [
+            0.015737782076367345,
+            0.023234653407158287,
+            0.04474579305004309
+          ],
+          "usage": {
+            "input_tokens": 222,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 11,
+          "wallMs": 36.17687500000466,
+          "probabilities": [
+            0.014026800942463983,
+            0.018063550631270617,
+            0.04279023725924963
+          ],
+          "usage": {
+            "input_tokens": 223,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 12,
+          "wallMs": 37.61812500003725,
+          "probabilities": [
+            0.013089640476221564,
+            0.017653730878869123,
+            0.04575524347567686
+          ],
+          "usage": {
+            "input_tokens": 219,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 13,
+          "wallMs": 36.86266700003762,
+          "probabilities": [
+            0.020256815812259965,
+            0.032669202773430814,
+            0.03495851827831809
+          ],
+          "usage": {
+            "input_tokens": 224,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 14,
+          "wallMs": 37.74875000002794,
+          "probabilities": [
+            0.015379902108778685,
+            0.016861298567095215,
+            0.03740205616943622
+          ],
+          "usage": {
+            "input_tokens": 223,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 15,
+          "wallMs": 35.723375000059605,
+          "probabilities": [
+            0.021695833770502368,
+            0.027877239657695514,
+            0.03912143091081847
+          ],
+          "usage": {
+            "input_tokens": 223,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 16,
+          "wallMs": 35.7476659999229,
+          "probabilities": [
+            0.013089640476221564,
+            0.01279119712822937,
+            0.0365698309244458
+          ],
+          "usage": {
+            "input_tokens": 215,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 17,
+          "wallMs": 38.350457999971695,
+          "probabilities": [
+            0.01468801025026251,
+            0.021205385642087092,
+            0.03912143091081845
+          ],
+          "usage": {
+            "input_tokens": 222,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 18,
+          "wallMs": 35.47100000001956,
+          "probabilities": [
+            0.009472115552830297,
+            0.010152941683119608,
+            0.03740205616943624
+          ],
+          "usage": {
+            "input_tokens": 217,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 19,
+          "wallMs": 36.806916999979876,
+          "probabilities": [
+            0.017653730878869123,
+            0.02545306383075875,
+            0.031938793094913424
+          ],
+          "usage": {
+            "input_tokens": 222,
+            "output_tokens": 0
+          }
+        }
+      ],
+      "wallMs": {
+        "n": 20,
+        "median": 36.6768335000379,
+        "p90": 37.898792000021785,
+        "min": 35.14033299998846,
+        "max": 41.08870800002478
+      }
+    },
+    "10": {
+      "templateId": "matches-category",
+      "filters": [
+        "crypto",
+        "politics",
+        "engagement bait",
+        "sports",
+        "ai hype",
+        "celebrity gossip",
+        "self-promotion",
+        "food",
+        "fitness",
+        "drama"
+      ],
+      "rows": [
+        {
+          "index": 0,
+          "wallMs": 68.14875000005122,
+          "probabilities": [
+            0.011136570278991365,
+            0.014026800942463996,
+            0.03740205616943622,
+            0.016103853468224842,
+            0.016861298567095215,
+            0.011136570278991365,
+            0.022197367967054835,
+            0.3852495279647999,
+            0.11820925664965296,
+            0.10007167517526983
+          ],
+          "usage": {
+            "input_tokens": 478,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 1,
+          "wallMs": 67.54800000006799,
+          "probabilities": [
+            0.01063351056446763,
+            0.012214318034517333,
+            0.027877239657695514,
+            0.017253045611704876,
+            0.01166314863955385,
+            0.007869845905445094,
+            0.016103853468224842,
+            0.020256815812259965,
+            0.12066666893585737,
+            0.06954790085179063
+          ],
+          "usage": {
+            "input_tokens": 479,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 2,
+          "wallMs": 67.62020800006576,
+          "probabilities": [
+            0.007513229073981221,
+            0.011396853668704176,
+            0.04474579305004309,
+            0.01725304561170486,
+            0.019798239282674487,
+            0.008836536039046236,
+            0.025453063830758765,
+            0.4076086011626682,
+            0.19750280069729007,
+            0.04575524347567686
+          ],
+          "usage": {
+            "input_tokens": 480,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 3,
+          "wallMs": 70.26000000000931,
+          "probabilities": [
+            0.015379902108778685,
+            0.022197367967054835,
+            0.05228143544528871,
+            0.02984111431528748,
+            0.0212053856420871,
+            0.0168612985670952,
+            0.02663834356192146,
+            0.08266133370912422,
+            0.2819822023117673,
+            0.08266133370912422
+          ],
+          "usage": {
+            "input_tokens": 488,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 4,
+          "wallMs": 70.60912499995902,
+          "probabilities": [
+            0.008634214954272976,
+            0.013394952603199967,
+            0.04000931189590814,
+            0.024319205737347565,
+            0.021695833770502368,
+            0.01249947209749359,
+            0.02603914069056977,
+            0.8956403583423898,
+            0.14773599254442157,
+            0.048915200983548304
+          ],
+          "usage": {
+            "input_tokens": 483,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 5,
+          "wallMs": 69.96445799991488,
+          "probabilities": [
+            0.013707287139740938,
+            0.022710226799288875,
+            0.058382390803878276,
+            0.02663834356192146,
+            0.02984111431528748,
+            0.014026800942463996,
+            0.048915200983548304,
+            0.0365698309244458,
+            0.10880912787587028,
+            0.08627480464335267
+          ],
+          "usage": {
+            "input_tokens": 483,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 6,
+          "wallMs": 70.48979200003669,
+          "probabilities": [
+            0.01279119712822937,
+            0.015379902108778673,
+            0.032669202773430814,
+            0.0665839556537617,
+            0.03495851827831809,
+            0.012791197128229381,
+            0.04678635140452382,
+            0.04783953073942621,
+            0.7455177700253062,
+            0.07263351756812093
+          ],
+          "usage": {
+            "input_tokens": 474,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 7,
+          "wallMs": 71.39325000008103,
+          "probabilities": [
+            0.018063550631270627,
+            0.0212053856420871,
+            0.0365698309244458,
+            0.01725304561170486,
+            0.015737782076367345,
+            0.011396853668704176,
+            0.026638343561921445,
+            0.023234653407158287,
+            0.19750280069729007,
+            0.04678635140452382
+          ],
+          "usage": {
+            "input_tokens": 483,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 8,
+          "wallMs": 72.16720799996983,
+          "probabilities": [
+            0.013089640476221564,
+            0.019798239282674497,
+            0.04678635140452382,
+            0.024319205737347555,
+            0.023234653407158277,
+            0.018482705080871437,
+            0.0418433323100894,
+            0.13912598501014875,
+            0.10435964165761012,
+            0.0665839556537617
+          ],
+          "usage": {
+            "input_tokens": 483,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 9,
+          "wallMs": 72.28970899991691,
+          "probabilities": [
+            0.007513229073981221,
+            0.010152941683119608,
+            0.03912143091081845,
+            0.015030036121344936,
+            0.016478297369435225,
+            0.009255378144072159,
+            0.024319205737347565,
+            0.9477185645547114,
+            0.1477359925444216,
+            0.03912143091081847
+          ],
+          "usage": {
+            "input_tokens": 487,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 10,
+          "wallMs": 73.07116699998733,
+          "probabilities": [
+            0.015737782076367345,
+            0.024879841148189936,
+            0.04678635140452384,
+            0.021695833770502368,
+            0.03740205616943622,
+            0.01573778207636733,
+            0.03193879309491344,
+            0.05113572000258488,
+            0.21273618805435204,
+            0.09393336363091376
+          ],
+          "usage": {
+            "input_tokens": 486,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 11,
+          "wallMs": 74.09495799988508,
+          "probabilities": [
+            0.013707287139740938,
+            0.0168612985670952,
+            0.04184333231008942,
+            0.04279023725924963,
+            0.0212053856420871,
+            0.01891139845129849,
+            0.04091648572266135,
+            0.10219573057440742,
+            0.10880912787587028,
+            0.06235742005062547
+          ],
+          "usage": {
+            "input_tokens": 487,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 12,
+          "wallMs": 74.10900000005495,
+          "probabilities": [
+            0.013707287139740938,
+            0.017653730878869123,
+            0.04474579305004309,
+            0.021695833770502368,
+            0.01891139845129849,
+            0.013089640476221564,
+            0.02603914069056977,
+            0.05001378720628956,
+            0.13912598501014872,
+            0.08266133370912422
+          ],
+          "usage": {
+            "input_tokens": 483,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 13,
+          "wallMs": 74.02887500007637,
+          "probabilities": [
+            0.018911398451298484,
+            0.03341573963906065,
+            0.0365698309244458,
+            0.017653730878869123,
+            0.02851750169654415,
+            0.014353654151793115,
+            0.0357554355137707,
+            0.07918609084287855,
+            0.08090669714365628,
+            0.08266133370912422
+          ],
+          "usage": {
+            "input_tokens": 488,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 14,
+          "wallMs": 74.75491700007115,
+          "probabilities": [
+            0.017653730878869123,
+            0.018482705080871437,
+            0.04000931189590814,
+            0.14194823023650754,
+            0.0357554355137707,
+            0.023234653407158277,
+            0.05113572000258485,
+            0.05345137503033336,
+            0.46500790640270395,
+            0.048915200983548304
+          ],
+          "usage": {
+            "input_tokens": 487,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 15,
+          "wallMs": 75.2846670000581,
+          "probabilities": [
+            0.022197367967054835,
+            0.02603914069056976,
+            0.038252468526105636,
+            0.05345137503033336,
+            0.025453063830758765,
+            0.019349839040364678,
+            0.05464598561434455,
+            0.0979869483379792,
+            0.10656393334589657,
+            0.04783953073942621
+          ],
+          "usage": {
+            "input_tokens": 487,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 16,
+          "wallMs": 74.77804200001992,
+          "probabilities": [
+            0.01503003612134495,
+            0.016478297369435225,
+            0.038252468526105615,
+            0.055865719344390996,
+            0.02725094926430797,
+            0.01063351056446762,
+            0.03122418660777524,
+            0.06373767302244036,
+            0.22066796438600825,
+            0.07107524732141578
+          ],
+          "usage": {
+            "input_tokens": 479,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 17,
+          "wallMs": 75.75225000001956,
+          "probabilities": [
+            0.015737782076367345,
+            0.024879841148189946,
+            0.043757591852872514,
+            0.02603914069056976,
+            0.023234653407158287,
+            0.019349839040364678,
+            0.0357554355137707,
+            0.08627480464335267,
+            0.13362264652269545,
+            0.0862748046433527
+          ],
+          "usage": {
+            "input_tokens": 486,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 18,
+          "wallMs": 75.05654200003482,
+          "probabilities": [
+            0.009255378144072159,
+            0.010152941683119608,
+            0.038252468526105636,
+            0.022710226799288868,
+            0.01468801025026251,
+            0.007689486420114151,
+            0.018482705080871437,
+            0.08266133370912425,
+            0.14194823023650754,
+            0.05113572000258488
+          ],
+          "usage": {
+            "input_tokens": 481,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 19,
+          "wallMs": 76.95183299994096,
+          "probabilities": [
+            0.017653730878869123,
+            0.024319205737347565,
+            0.03193879309491344,
+            0.020725789525189255,
+            0.024319205737347555,
+            0.013089640476221564,
+            0.02917202748245122,
+            0.048915200983548304,
+            0.13912598501014875,
+            0.08813469644163242
+          ],
+          "usage": {
+            "input_tokens": 486,
+            "output_tokens": 0
+          }
+        }
+      ],
+      "wallMs": {
+        "n": 20,
+        "median": 72.68043799995212,
+        "p90": 75.2846670000581,
+        "min": 67.54800000006799,
+        "max": 76.95183299994096
+      }
+    },
+    "parity3": {
+      "templateId": "matches-category",
+      "filters": [
+        "crypto",
+        "politics",
+        "engagement bait"
+      ],
+      "rows": [
+        {
+          "index": 0,
+          "wallMs": 36.77016700000968,
+          "probabilities": [
+            0.010882165854379894,
+            0.015030036121344936,
+            0.0418433323100894
+          ],
+          "usage": {
+            "input_tokens": 214,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 1,
+          "wallMs": 39.38987499999348,
+          "probabilities": [
+            0.011396853668704176,
+            0.01166314863955385,
+            0.02663834356192146
+          ],
+          "usage": {
+            "input_tokens": 215,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 2,
+          "wallMs": 36.8519999999553,
+          "probabilities": [
+            0.007008160987501112,
+            0.011136570278991375,
+            0.043757591852872514
+          ],
+          "usage": {
+            "input_tokens": 216,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 3,
+          "wallMs": 38.055042000021785,
+          "probabilities": [
+            0.017253045611704876,
+            0.023770895564062183,
+            0.061005109197301226
+          ],
+          "usage": {
+            "input_tokens": 224,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 4,
+          "wallMs": 36.06183300004341,
+          "probabilities": [
+            0.007513229073981221,
+            0.01249947209749358,
+            0.0418433323100894
+          ],
+          "usage": {
+            "input_tokens": 219,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 5,
+          "wallMs": 37.37012500001583,
+          "probabilities": [
+            0.01249947209749359,
+            0.018911398451298484,
+            0.05113572000258485
+          ],
+          "usage": {
+            "input_tokens": 219,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 6,
+          "wallMs": 35.75183299998753,
+          "probabilities": [
+            0.012214318034517333,
+            0.015379902108778673,
+            0.031224186607775227
+          ],
+          "usage": {
+            "input_tokens": 210,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 7,
+          "wallMs": 37.36633400002029,
+          "probabilities": [
+            0.018482705080871444,
+            0.022197367967054835,
+            0.04279023725924963
+          ],
+          "usage": {
+            "input_tokens": 219,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 8,
+          "wallMs": 35.74987499997951,
+          "probabilities": [
+            0.013089640476221564,
+            0.018911398451298484,
+            0.04375759185287249
+          ],
+          "usage": {
+            "input_tokens": 219,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 9,
+          "wallMs": 36.63837499998044,
+          "probabilities": [
+            0.006690327527564767,
+            0.009472115552830306,
+            0.03912143091081845
+          ],
+          "usage": {
+            "input_tokens": 223,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 10,
+          "wallMs": 38.40262499998789,
+          "probabilities": [
+            0.015737782076367345,
+            0.023234653407158287,
+            0.04474579305004309
+          ],
+          "usage": {
+            "input_tokens": 222,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 11,
+          "wallMs": 37.05108400003519,
+          "probabilities": [
+            0.014026800942463983,
+            0.018063550631270617,
+            0.04279023725924963
+          ],
+          "usage": {
+            "input_tokens": 223,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 12,
+          "wallMs": 38.2357090000296,
+          "probabilities": [
+            0.013089640476221564,
+            0.017653730878869123,
+            0.04575524347567686
+          ],
+          "usage": {
+            "input_tokens": 219,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 13,
+          "wallMs": 37.50300000002608,
+          "probabilities": [
+            0.020256815812259965,
+            0.032669202773430814,
+            0.03495851827831809
+          ],
+          "usage": {
+            "input_tokens": 224,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 14,
+          "wallMs": 39.52824999997392,
+          "probabilities": [
+            0.015379902108778685,
+            0.016861298567095215,
+            0.03740205616943622
+          ],
+          "usage": {
+            "input_tokens": 223,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 15,
+          "wallMs": 36.22354100004304,
+          "probabilities": [
+            0.021695833770502368,
+            0.027877239657695514,
+            0.03912143091081847
+          ],
+          "usage": {
+            "input_tokens": 223,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 16,
+          "wallMs": 37.61724999989383,
+          "probabilities": [
+            0.013089640476221564,
+            0.01279119712822937,
+            0.0365698309244458
+          ],
+          "usage": {
+            "input_tokens": 215,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 17,
+          "wallMs": 40.23754200001713,
+          "probabilities": [
+            0.01468801025026251,
+            0.021205385642087092,
+            0.03912143091081845
+          ],
+          "usage": {
+            "input_tokens": 222,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 18,
+          "wallMs": 37.70516700006556,
+          "probabilities": [
+            0.009472115552830297,
+            0.010152941683119608,
+            0.03740205616943624
+          ],
+          "usage": {
+            "input_tokens": 217,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 19,
+          "wallMs": 39.42266600008588,
+          "probabilities": [
+            0.017653730878869123,
+            0.02545306383075875,
+            0.031938793094913424
+          ],
+          "usage": {
+            "input_tokens": 222,
+            "output_tokens": 0
+          }
+        }
+      ],
+      "wallMs": {
+        "n": 20,
+        "median": 37.436562500020955,
+        "p90": 39.42266600008588,
+        "min": 35.74987499997951,
+        "max": 40.23754200001713
+      }
+    },
+    "parity10": {
+      "templateId": "matches-category",
+      "filters": [
+        "crypto",
+        "politics",
+        "engagement bait",
+        "sports",
+        "ai hype",
+        "celebrity gossip",
+        "self-promotion",
+        "food",
+        "fitness",
+        "drama"
+      ],
+      "rows": [
+        {
+          "index": 0,
+          "wallMs": 67.68779200001154,
+          "probabilities": [
+            0.011136570278991365,
+            0.014026800942463996,
+            0.03740205616943622,
+            0.016103853468224842,
+            0.016861298567095215,
+            0.011136570278991365,
+            0.022197367967054835,
+            0.3852495279647999,
+            0.11820925664965296,
+            0.10007167517526983
+          ],
+          "usage": {
+            "input_tokens": 478,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 1,
+          "wallMs": 67.96712499996647,
+          "probabilities": [
+            0.01063351056446763,
+            0.012214318034517333,
+            0.027877239657695514,
+            0.017253045611704876,
+            0.01166314863955385,
+            0.007869845905445094,
+            0.016103853468224842,
+            0.020256815812259965,
+            0.12066666893585737,
+            0.06954790085179063
+          ],
+          "usage": {
+            "input_tokens": 479,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 2,
+          "wallMs": 69.2628750000149,
+          "probabilities": [
+            0.007513229073981221,
+            0.011396853668704176,
+            0.04474579305004309,
+            0.01725304561170486,
+            0.019798239282674487,
+            0.008836536039046236,
+            0.025453063830758765,
+            0.4076086011626682,
+            0.19750280069729007,
+            0.04575524347567686
+          ],
+          "usage": {
+            "input_tokens": 480,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 3,
+          "wallMs": 72.03008299996145,
+          "probabilities": [
+            0.015379902108778685,
+            0.022197367967054835,
+            0.05228143544528871,
+            0.02984111431528748,
+            0.0212053856420871,
+            0.0168612985670952,
+            0.02663834356192146,
+            0.08266133370912422,
+            0.2819822023117673,
+            0.08266133370912422
+          ],
+          "usage": {
+            "input_tokens": 488,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 4,
+          "wallMs": 72.96791600005236,
+          "probabilities": [
+            0.008634214954272976,
+            0.013394952603199967,
+            0.04000931189590814,
+            0.024319205737347565,
+            0.021695833770502368,
+            0.01249947209749359,
+            0.02603914069056977,
+            0.8956403583423898,
+            0.14773599254442157,
+            0.048915200983548304
+          ],
+          "usage": {
+            "input_tokens": 483,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 5,
+          "wallMs": 73.62654099997599,
+          "probabilities": [
+            0.013707287139740938,
+            0.022710226799288875,
+            0.058382390803878276,
+            0.02663834356192146,
+            0.02984111431528748,
+            0.014026800942463996,
+            0.048915200983548304,
+            0.0365698309244458,
+            0.10880912787587028,
+            0.08627480464335267
+          ],
+          "usage": {
+            "input_tokens": 483,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 6,
+          "wallMs": 74.37833300000057,
+          "probabilities": [
+            0.01279119712822937,
+            0.015379902108778673,
+            0.032669202773430814,
+            0.0665839556537617,
+            0.03495851827831809,
+            0.012791197128229381,
+            0.04678635140452382,
+            0.04783953073942621,
+            0.7455177700253062,
+            0.07263351756812093
+          ],
+          "usage": {
+            "input_tokens": 474,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 7,
+          "wallMs": 77.25766599993221,
+          "probabilities": [
+            0.018063550631270627,
+            0.0212053856420871,
+            0.0365698309244458,
+            0.01725304561170486,
+            0.015737782076367345,
+            0.011396853668704176,
+            0.026638343561921445,
+            0.023234653407158287,
+            0.19750280069729007,
+            0.04678635140452382
+          ],
+          "usage": {
+            "input_tokens": 483,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 8,
+          "wallMs": 78.30674999998882,
+          "probabilities": [
+            0.013089640476221564,
+            0.019798239282674497,
+            0.04678635140452382,
+            0.024319205737347555,
+            0.023234653407158277,
+            0.018482705080871437,
+            0.0418433323100894,
+            0.13912598501014875,
+            0.10435964165761012,
+            0.0665839556537617
+          ],
+          "usage": {
+            "input_tokens": 483,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 9,
+          "wallMs": 80.6142080000136,
+          "probabilities": [
+            0.007513229073981221,
+            0.010152941683119608,
+            0.03912143091081845,
+            0.015030036121344936,
+            0.016478297369435225,
+            0.009255378144072159,
+            0.024319205737347565,
+            0.9477185645547114,
+            0.1477359925444216,
+            0.03912143091081847
+          ],
+          "usage": {
+            "input_tokens": 487,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 10,
+          "wallMs": 82.24170800007414,
+          "probabilities": [
+            0.015737782076367345,
+            0.024879841148189936,
+            0.04678635140452384,
+            0.021695833770502368,
+            0.03740205616943622,
+            0.01573778207636733,
+            0.03193879309491344,
+            0.05113572000258488,
+            0.21273618805435204,
+            0.09393336363091376
+          ],
+          "usage": {
+            "input_tokens": 486,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 11,
+          "wallMs": 84.28700000001118,
+          "probabilities": [
+            0.013707287139740938,
+            0.0168612985670952,
+            0.04184333231008942,
+            0.04279023725924963,
+            0.0212053856420871,
+            0.01891139845129849,
+            0.04091648572266135,
+            0.10219573057440742,
+            0.10880912787587028,
+            0.06235742005062547
+          ],
+          "usage": {
+            "input_tokens": 487,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 12,
+          "wallMs": 85.48483400000259,
+          "probabilities": [
+            0.013707287139740938,
+            0.017653730878869123,
+            0.04474579305004309,
+            0.021695833770502368,
+            0.01891139845129849,
+            0.013089640476221564,
+            0.02603914069056977,
+            0.05001378720628956,
+            0.13912598501014872,
+            0.08266133370912422
+          ],
+          "usage": {
+            "input_tokens": 483,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 13,
+          "wallMs": 86.72983299999032,
+          "probabilities": [
+            0.018911398451298484,
+            0.03341573963906065,
+            0.0365698309244458,
+            0.017653730878869123,
+            0.02851750169654415,
+            0.014353654151793115,
+            0.0357554355137707,
+            0.07918609084287855,
+            0.08090669714365628,
+            0.08266133370912422
+          ],
+          "usage": {
+            "input_tokens": 488,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 14,
+          "wallMs": 86.5791250000475,
+          "probabilities": [
+            0.017653730878869123,
+            0.018482705080871437,
+            0.04000931189590814,
+            0.14194823023650754,
+            0.0357554355137707,
+            0.023234653407158277,
+            0.05113572000258485,
+            0.05345137503033336,
+            0.46500790640270395,
+            0.048915200983548304
+          ],
+          "usage": {
+            "input_tokens": 487,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 15,
+          "wallMs": 87.26729200000409,
+          "probabilities": [
+            0.022197367967054835,
+            0.02603914069056976,
+            0.038252468526105636,
+            0.05345137503033336,
+            0.025453063830758765,
+            0.019349839040364678,
+            0.05464598561434455,
+            0.0979869483379792,
+            0.10656393334589657,
+            0.04783953073942621
+          ],
+          "usage": {
+            "input_tokens": 487,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 16,
+          "wallMs": 87.64820900000632,
+          "probabilities": [
+            0.01503003612134495,
+            0.016478297369435225,
+            0.038252468526105615,
+            0.055865719344390996,
+            0.02725094926430797,
+            0.01063351056446762,
+            0.03122418660777524,
+            0.06373767302244036,
+            0.22066796438600825,
+            0.07107524732141578
+          ],
+          "usage": {
+            "input_tokens": 479,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 17,
+          "wallMs": 88.76141699997243,
+          "probabilities": [
+            0.015737782076367345,
+            0.024879841148189946,
+            0.043757591852872514,
+            0.02603914069056976,
+            0.023234653407158287,
+            0.019349839040364678,
+            0.0357554355137707,
+            0.08627480464335267,
+            0.13362264652269545,
+            0.0862748046433527
+          ],
+          "usage": {
+            "input_tokens": 486,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 18,
+          "wallMs": 89.09524999989662,
+          "probabilities": [
+            0.009255378144072159,
+            0.010152941683119608,
+            0.038252468526105636,
+            0.022710226799288868,
+            0.01468801025026251,
+            0.007689486420114151,
+            0.018482705080871437,
+            0.08266133370912425,
+            0.14194823023650754,
+            0.05113572000258488
+          ],
+          "usage": {
+            "input_tokens": 481,
+            "output_tokens": 0
+          }
+        },
+        {
+          "index": 19,
+          "wallMs": 90.19645800010767,
+          "probabilities": [
+            0.017653730878869123,
+            0.024319205737347565,
+            0.03193879309491344,
+            0.020725789525189255,
+            0.024319205737347555,
+            0.013089640476221564,
+            0.02917202748245122,
+            0.048915200983548304,
+            0.13912598501014875,
+            0.08813469644163242
+          ],
+          "usage": {
+            "input_tokens": 486,
+            "output_tokens": 0
+          }
+        }
+      ],
+      "wallMs": {
+        "n": 20,
+        "median": 81.42795800004387,
+        "p90": 88.76141699997243,
+        "min": 67.68779200001154,
+        "max": 90.19645800010767
+      }
+    }
+  },
+  "method": {
+    "context": 4096,
+    "parallel": 1,
+    "cacheControl": "Fresh model child per cell; distinct warmups; unchanged20 medium posts",
+    "memoryIntervalMs": 200
+  },
+  "cold": {
+    "wallMs": 555.5217920000432,
+    "probabilities": [
+      0.010882165854379894,
+      0.015030036121344936,
+      0.0418433323100894
+    ],
+    "usage": {
+      "input_tokens": 214,
+      "output_tokens": 0
+    }
+  },
+  "runtimeSettings": {
+    "runtime": "ollama",
+    "version": "0.40.18",
+    "build": "official-v0.40.18",
+    "effectiveContext": 4096,
+    "parallel": 1,
+    "batch": null,
+    "ubatch": null,
+    "projector": "package components retained; no image requests",
+    "runner": "mlx",
+    "quantization": "NVFP4",
+    "aliasDefinition": {
+      "model": "bouncer-eval-d1-2b-nvfp4-ctx4096:v1",
+      "from": "d1:2b-nvfp4",
+      "sourceDigest": "82c19b76395aa3e625ae28dc9e8ab390351ac3cc41056be7b4fc9865c593953d",
+      "parameters": {
+        "num_ctx": 4096
+      }
+    }
+  },
+  "steadyMemory": {
+    "sampleCount": 24,
+    "incompleteCount": 0,
+    "medianFootprintBytes": 1896091296,
+    "peakFootprintBytes": 1976389280,
+    "medianRssBytes": 1962098688,
+    "peakRssBytes": 1962098688,
+    "maxSampleGapMs": 205.048095703125
+  },
+  "identicalRequests": [
+    {
+      "wallMs": 46.65795899997465,
+      "probabilities": [
+        0.010882165854379894,
+        0.015030036121344936,
+        0.0418433323100894
+      ],
+      "usage": {
+        "input_tokens": 214,
+        "output_tokens": 0
+      }
+    },
+    {
+      "wallMs": 45.6845420000609,
+      "probabilities": [
+        0.010882165854379894,
+        0.015030036121344936,
+        0.0418433323100894
+      ],
+      "usage": {
+        "input_tokens": 214,
+        "output_tokens": 0
+      }
+    },
+    {
+      "wallMs": 44.99216699996032,
+      "probabilities": [
+        0.010882165854379894,
+        0.015030036121344936,
+        0.0418433323100894
+      ],
+      "usage": {
+        "input_tokens": 214,
+        "output_tokens": 0
+      }
+    },
+    {
+      "wallMs": 44.934374999953434,
+      "probabilities": [
+        0.010882165854379894,
+        0.015030036121344936,
+        0.0418433323100894
+      ],
+      "usage": {
+        "input_tokens": 214,
+        "output_tokens": 0
+      }
+    },
+    {
+      "wallMs": 44.57191599998623,
+      "probabilities": [
+        0.010882165854379894,
+        0.015030036121344936,
+        0.0418433323100894
+      ],
+      "usage": {
+        "input_tokens": 214,
+        "output_tokens": 0
+      }
+    }
+  ],
+  "identicalProbabilities": true,
+  "speedMemory": {
+    "sampleCount": 36,
+    "incompleteCount": 0,
+    "medianFootprintBytes": 2533420752,
+    "peakFootprintBytes": 2676543136,
+    "medianRssBytes": 1960583168,
+    "peakRssBytes": 1962213376,
+    "maxSampleGapMs": 248.362060546875
+  },
+  "finishedAt": "2026-11-24T19:08:42.052Z",
+  "runMemory": {
+    "sampleCount": 66,
+    "incompleteCount": 0,
+    "medianFootprintBytes": 1930186256,
+    "peakFootprintBytes": 2676543136,
+    "medianRssBytes": 1961934848,
+    "peakRssBytes": 1962213376,
+    "maxSampleGapMs": 205.322998046875
+  }
+}

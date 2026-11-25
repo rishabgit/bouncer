@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "variant": {
+    "id": "llama-d1omni2b-q8",
+    "runtime": "llama",
+    "model": "ggml-org/d1-Omni-2B-GGUF:Q8_0",
+    "file": "d1-Omni-2B-Q8_0.gguf",
+    "family": "d1-omni-2b",
+    "format": "GGUF Q8_0",
+    "batch": 4096
+  },
+  "identity": {
+    "repository": "ggml-org/d1-Omni-2B-GGUF",
+    "revision": "1e43a8ca9fe01ebdeb0ec772b3cc06177d484af5",
+    "file": "d1-Omni-2B-Q8_0.gguf",
+    "sha256": "23b7c5e8cefd0f70308da55ea8dfa2d62e189dae016cb81bb1084139f6dcaa72",
+    "family": "d1-omni-2b",
+    "architecture": "lfm3",
+    "disk": {
+      "logicalBytes": 1846241408,
+      "allocatedBytes": 1846243328,
+      "scope": "Primary text GGUF only; projector excluded (no-mmproj)"
+    }
+  }
+}

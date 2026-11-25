@@ -1,0 +1,1164 @@
+{
+  "schemaVersion": 1,
+  "phase": "historical-phase1",
+  "status": "retired",
+  "archiveRef": "decision-1b-archive.json",
+  "rawStagingPath": "scripts/decision-eval/.tmp/raw/phase1",
+  "archiveStatus": "Original raw records archived in the single ignored tar identified by archiveRef; the superseded pilot was deleted.",
+  "sourceFileCount": 62,
+  "sourceFiles": [
+    {
+      "path": "docs/benchmarks/data/decision-acceptance.json",
+      "sha256": "5d7221743bbd7830e23a1951b7122ac6a5ef677ef3f6e3b8ad8de0ee17aed7a7",
+      "bytes": 1310
+    },
+    {
+      "path": "docs/benchmarks/data/decision-blocker.json",
+      "sha256": "cbd93ba7cdb3a8a5c70b7d74746a1880241cf871c549d03139e10976e4ce59ec",
+      "bytes": 5057
+    },
+    {
+      "path": "docs/benchmarks/data/decision-d1-initial-failure.log",
+      "sha256": "a67114a524ebf953200e31a5a0c416705f157f8fcf0428d731e9eec1ae3c2ad2",
+      "bytes": 31688
+    },
+    {
+      "path": "docs/benchmarks/data/decision-discovery-llama-d1-q8.json",
+      "sha256": "060edadb6aaf3b674ab845072b4b0e6959a9f001d3d3c086f6bbfb2508c611e2",
+      "bytes": 233640
+    },
+    {
+      "path": "docs/benchmarks/data/decision-discovery-llama-d1-q8.log",
+      "sha256": "990ecc504515ec6ce613ea7c2ace35e763f72b8c9299a885d5c4fc8396acf303",
+      "bytes": 86953
+    },
+    {
+      "path": "docs/benchmarks/data/decision-discovery-llama-kev-q8.json",
+      "sha256": "e05d5e851a9c1a19bde4f64bc3689767fa1851c82543eec236bcc53efe40831f",
+      "bytes": 235898
+    },
+    {
+      "path": "docs/benchmarks/data/decision-discovery-llama-kev-q8.log",
+      "sha256": "50be3fc73a3b140dfc9aafb1ce9a9d048280d1565fdc8149590df0436d034ab1",
+      "bytes": 213781
+    },
+    {
+      "path": "docs/benchmarks/data/decision-discovery-llama-laya-bf16.json",
+      "sha256": "b2e252181d40016bdfe220597bc9f665188c6f7da1e18836bacdfdff32009f0d",
+      "bytes": 237384
+    },
+    {
+      "path": "docs/benchmarks/data/decision-discovery-llama-laya-bf16.log",
+      "sha256": "2f0995725ef0cee7367914729b32604fa653ecd7bc6ca54b86fca4c62a6345cf",
+      "bytes": 277459
+    },
+    {
+      "path": "docs/benchmarks/data/decision-discovery-llama-laya-q8.json",
+      "sha256": "189855429ce020e79a927d1690c990843b88a660230050c1ceb6bc4d1b2ca246",
+      "bytes": 237491
+    },
+    {
+      "path": "docs/benchmarks/data/decision-discovery-llama-laya-q8.log",
+      "sha256": "a5587fbf5ab3ed9cd3ad98a6d2d1f5c76f0e891f2cc4defd10eb0908876c16ed",
+      "bytes": 277459
+    },
+    {
+      "path": "docs/benchmarks/data/decision-discovery-ollama-d1-mxfp8.json",
+      "sha256": "fea2d131c9f18acb01a3fb64eb174b901d6933bb59b8d039ff834345a580ef59",
+      "bytes": 210941
+    },
+    {
+      "path": "docs/benchmarks/data/decision-discovery-ollama-kev-mxfp8.json",
+      "sha256": "3f8f7d687cee2490abb061a80adf91c76361020f836647673baa668f2e250a4b",
+      "bytes": 212552
+    },
+    {
+      "path": "docs/benchmarks/data/decision-discovery-ollama-kev-q8.json",
+      "sha256": "a0f9d6928200e83c58b118a36b011b9f9f9223d51823447fd6487f5a801e6c22",
+      "bytes": 222455
+    },
+    {
+      "path": "docs/benchmarks/data/decision-discovery-ollama-laya-bf16.json",
+      "sha256": "526224f276c39b021247398c1d84e45b598d684a0f7aa090bb5a9d77b4d44327",
+      "bytes": 231834
+    },
+    {
+      "path": "docs/benchmarks/data/decision-discovery-ollama-laya-fp16.json",
+      "sha256": "b6f3ff9a4219f27c1dcf6f1ffd608a42490e7c49fca014c15f471daad727ed05",
+      "bytes": 231859
+    },
+    {
+      "path": "docs/benchmarks/data/decision-identity-llama-d1-q8.json",
+      "sha256": "ef5248401d4df7559f5f85bd8bc6bdfafbcadee2a4966b68c8627bab1f9ac267",
+      "bytes": 808
+    },
+    {
+      "path": "docs/benchmarks/data/decision-identity-llama-kev-q8.json",
+      "sha256": "bd336c2e3dc10ee7bd0410a12317b6c530d31c143907e8aa37f34a6ac8d9f134",
+      "bytes": 795
+    },
+    {
+      "path": "docs/benchmarks/data/decision-identity-llama-laya-bf16.json",
+      "sha256": "72c24811b61a8394c0ffdae9071fc28e892cfe6edb3e624b1d622ede6a821fc4",
+      "bytes": 774
+    },
+    {
+      "path": "docs/benchmarks/data/decision-identity-llama-laya-q8.json",
+      "sha256": "48603a869090e2e5ee9bbe63b42fc6407d5af6ba16b1651759b688857460ce1d",
+      "bytes": 772
+    },
+    {
+      "path": "docs/benchmarks/data/decision-identity-ollama-d1-mxfp8.json",
+      "sha256": "48f2d3ecc0b6942a2fe99d8e1a05943a5b5f2c15911c9011f4381b475642534c",
+      "bytes": 261241
+    },
+    {
+      "path": "docs/benchmarks/data/decision-identity-ollama-kev-mxfp8.json",
+      "sha256": "a699cb99fb00bad9807c8c39a7cf86291c934d680360c83ebc43747449d5fca4",
+      "bytes": 267905
+    },
+    {
+      "path": "docs/benchmarks/data/decision-identity-ollama-kev-q8.json",
+      "sha256": "567998ee0f92a85727749b9b5b5f2691689f3bce7fee86fade8f42eabe467c47",
+      "bytes": 65181
+    },
+    {
+      "path": "docs/benchmarks/data/decision-identity-ollama-laya-bf16.json",
+      "sha256": "5c41bd05ff852ead1be166b2a339706286db855a438c6fbcef0dbccd4558bef6",
+      "bytes": 8376
+    },
+    {
+      "path": "docs/benchmarks/data/decision-identity-ollama-laya-fp16.json",
+      "sha256": "d55f3a712738c058300d265f974f1c4b9612c75df0c4b57e06da0f530ce23274",
+      "bytes": 132635
+    },
+    {
+      "path": "docs/benchmarks/data/decision-preflight.json",
+      "sha256": "4e0ac30300bcc53bc34b737bd3704c2989a6d7c8809109c7df5302cbe6b9d5d1",
+      "bytes": 10731
+    },
+    {
+      "path": "docs/benchmarks/data/decision-selection-llama-d1-q8.json",
+      "sha256": "ac466061fefe523c03fabc16f3cff6eaf6ef374ce9b1c040836b19b4e0946bd2",
+      "bytes": 1090
+    },
+    {
+      "path": "docs/benchmarks/data/decision-selection-llama-kev-q8.json",
+      "sha256": "894e36aac0cbba985465511e681d510941936fa64d368e1c04a0ab2f4a0042f9",
+      "bytes": 1092
+    },
+    {
+      "path": "docs/benchmarks/data/decision-selection-llama-laya-bf16.json",
+      "sha256": "aa1e7f06c44d0a2a40e1f3a4be827af18f0c4162ecf0cd4f59a7126132cfdcdb",
+      "bytes": 1095
+    },
+    {
+      "path": "docs/benchmarks/data/decision-selection-llama-laya-q8.json",
+      "sha256": "bfc66e9d724f5387f5a4e6d6debbddcd127e679f27a2d296ae97af22e79584e8",
+      "bytes": 1093
+    },
+    {
+      "path": "docs/benchmarks/data/decision-selection-ollama-d1-mxfp8.json",
+      "sha256": "f8cbee4aeb7fa8e87ef300b5fd338d4718beec41e455eac4695adcd0d817ea4d",
+      "bytes": 1095
+    },
+    {
+      "path": "docs/benchmarks/data/decision-selection-ollama-kev-mxfp8.json",
+      "sha256": "8ef5a0c7d3c1eca73134d5b67d27a0ca6b9b5fdd4459d329258c77d8b5ca7715",
+      "bytes": 1083
+    },
+    {
+      "path": "docs/benchmarks/data/decision-selection-ollama-kev-q8.json",
+      "sha256": "e8eeac754411e127f43efaef2d3c7f6a4483b305e5d1d79582461a980da53759",
+      "bytes": 1093
+    },
+    {
+      "path": "docs/benchmarks/data/decision-selection-ollama-laya-bf16.json",
+      "sha256": "31d5b72aac3c07072c4ddcee9c8e510dac3aaedb5f497f6e4f7ab32b873a1450",
+      "bytes": 1096
+    },
+    {
+      "path": "docs/benchmarks/data/decision-selection-ollama-laya-fp16.json",
+      "sha256": "6ba166893f873d4acac585c6a1c96c0e0f3475dab2f09148f95b6bf14b993aa0",
+      "bytes": 1096
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r0-llama-d1-q8.json",
+      "sha256": "903a4bcc7c68f4b6afce75a17b427a878f3cd13345288779f004315797e5c1b8",
+      "bytes": 138949
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r0-llama-kev-q8.json",
+      "sha256": "47d56db9230a7c748a3feee201ba780a9fbf8fcc1504ddede50188128b60c9a6",
+      "bytes": 206678
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r0-llama-laya-bf16.json",
+      "sha256": "b09760d24bdf803d4ae7c47805e5cc7685065fc3a9e9fd818fc7bb95d67ac4b6",
+      "bytes": 201528
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r0-llama-laya-q8.json",
+      "sha256": "2e9bd791713eb3d83e71b9f5b69e1454d1aef372a2b812c63d32fe04a801879d",
+      "bytes": 201307
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r0-ollama-d1-mxfp8.json",
+      "sha256": "3c45daa5fe3fcbd30c8f67f74e964a3503ac6ae15b9843dbe472b5f47bce0fb5",
+      "bytes": 61873
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r0-ollama-kev-mxfp8.json",
+      "sha256": "2ff2c739216c24f0d64cd7b0002efc1902716068ee92ee3e6d64b88fd0c60a62",
+      "bytes": 57033
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r0-ollama-kev-q8.json",
+      "sha256": "168f56f983e01965eb0aa9927dd3ff9f07bdb6eb0bef574b471868ff0bdbf870",
+      "bytes": 74740
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r0-ollama-laya-bf16.json",
+      "sha256": "329b27a288a57889855800eaffe166a57b7348b5f63bf570110b7a55428f1a04",
+      "bytes": 64115
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r0-ollama-laya-fp16.json",
+      "sha256": "98aaf17e434e9b4de44187d933bb563f199ebfdb842e6a6a8105aecd6fcd2a1a",
+      "bytes": 61876
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r1-llama-d1-q8.json",
+      "sha256": "7fbd6428b98b1011f0be9c1668ef19c44ff44006b1f8c3fc14f1f8167d231c13",
+      "bytes": 139134
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r1-llama-kev-q8.json",
+      "sha256": "a9db44fbaf7c3b362e0f8e5029fd59bcf0f43b2626c2a2f38523ac2a897509c5",
+      "bytes": 207230
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r1-llama-laya-bf16.json",
+      "sha256": "57a15202c7624a2d6e04918b9d3d9286fe401e8fdfc0b1323ca0093e0da22949",
+      "bytes": 201430
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r1-llama-laya-q8.json",
+      "sha256": "f4d2f0ca1ec1a14207a648165bc5695bc523324ccad87fb68e79d86723950b4a",
+      "bytes": 201558
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r1-ollama-d1-mxfp8.json",
+      "sha256": "abc5d11ec32ca470d6eed59534120122b1a1cff0dfa676d28a113a5a754c7a23",
+      "bytes": 61300
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r1-ollama-kev-mxfp8.json",
+      "sha256": "5731570e6ef343f7d544ce198d5c63cc3c7e9719a708bf0122e38a95a46a4e3c",
+      "bytes": 55913
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r1-ollama-kev-q8.json",
+      "sha256": "239ead6b3ae968bc8a864fe2cc09d0dcb9446e32d421a5f84f446c9ee49a6bdc",
+      "bytes": 75100
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r1-ollama-laya-bf16.json",
+      "sha256": "7d227366bc5c548ff323a2394a1e5176b83780963d933229ab20eed318aaf7d5",
+      "bytes": 64493
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r1-ollama-laya-fp16.json",
+      "sha256": "6e5ed3529fdf0c3b0f4c7217d124aed48e636f21082cda82906b21fcf6353d6a",
+      "bytes": 62239
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r2-llama-d1-q8.json",
+      "sha256": "398d5378138c6c386e8cc91e12ac0185ba03265bc553b5231488cd984c6fad3a",
+      "bytes": 139569
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r2-llama-kev-q8.json",
+      "sha256": "f30dcfe0df5af3eab2158f0e8438b9764795a9a5691714c617d2200a5fe4a917",
+      "bytes": 207517
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r2-llama-laya-bf16.json",
+      "sha256": "bced3c012d76bc1a1a17c0027aeebedf315b47ed82975aa259331c229ae15f8e",
+      "bytes": 202169
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r2-llama-laya-q8.json",
+      "sha256": "3d3b6e4947f2237298a2d901b73309aeb14d80c94b5c42f10ff9023805b47249",
+      "bytes": 201365
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r2-ollama-d1-mxfp8.json",
+      "sha256": "2fac6339239bda29eda750c67915b7c2e01573a6ad7c93f5241b1081ff66f1a2",
+      "bytes": 61356
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r2-ollama-kev-mxfp8.json",
+      "sha256": "1ad17d3b7605b071bad18ba54d1b1d498246231c1375092c436a6d093dc3f290",
+      "bytes": 56131
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r2-ollama-kev-q8.json",
+      "sha256": "6b39d7bfe120225d6b3e84521ced632a6ec4139782275ab28c3b09d01fd2bd2b",
+      "bytes": 74807
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r2-ollama-laya-bf16.json",
+      "sha256": "39f797b31367148b2a940fff1147747b2663142c5e69e93338646d8c119596e4",
+      "bytes": 63598
+    },
+    {
+      "path": "docs/benchmarks/data/decision-speed-r2-ollama-laya-fp16.json",
+      "sha256": "6f578d752038b228eb76b04f577d06b946e1bab36dd501e218fadc1a010f59ce",
+      "bytes": 62290
+    }
+  ],
+  "laya": [
+    {
+      "variant": {
+        "id": "llama-laya-q8",
+        "runtime": "llama",
+        "model": "ggml-org/Laya-GGUF:Q8_0",
+        "file": "Laya-Q8_0.gguf",
+        "format": "GGUF Q8_0"
+      },
+      "identity": {
+        "repository": "ggml-org/Laya-GGUF",
+        "revision": "f9a697b4e5a39d085bded9576a592e6850d139e7",
+        "file": "Laya-Q8_0.gguf",
+        "sha256": "ac6a51fd7a7907bc9dd61e85f7e6b989f57a635e2232a8f0345f5c51ca6cb3ea",
+        "disk": {
+          "logicalBytes": 449397728,
+          "allocatedBytes": 453029888,
+          "accounting": "Exact GGUF file; shared runtime and cache metadata excluded."
+        }
+      },
+      "selection": {
+        "templateId": "matches-category",
+        "templateHash": "9a1e023c41c8c19c37317953ae8d7b486ec088070ce00abadd4809242eb67f54",
+        "cutoff": 0.16098138773784512,
+        "comparison": "probability >= cutoff",
+        "identityHash": "8561661dbe01d2a6b718d121a2df0596932008446856816b1cd5600020e42079",
+        "discoverySha256": "189855429ce020e79a927d1690c990843b88a660230050c1ceb6bc4d1b2ca246"
+      },
+      "quality": {
+        "chosen": {
+          "rage": {
+            "cases": 40,
+            "correctHideCases": 35,
+            "f1": 0.8648648648648649,
+            "confusion": {
+              "tp": 16,
+              "fp": 3,
+              "fn": 2,
+              "tn": 19
+            },
+            "exactVectors": 35,
+            "individualDecisions": 40,
+            "falseHides": 3,
+            "missedHides": 2,
+            "newFalseHides": 2
+          },
+          "broad": {
+            "cases": 48,
+            "correctHideCases": 46,
+            "f1": 0.9743589743589743,
+            "confusion": {
+              "tp": 38,
+              "fp": 1,
+              "fn": 1,
+              "tn": 8
+            },
+            "exactVectors": 33,
+            "individualDecisions": 228,
+            "falseHides": 1,
+            "missedHides": 1,
+            "newFalseHides": 1
+          },
+          "all": {
+            "cases": 88,
+            "correctHideCases": 81,
+            "f1": 0.9391304347826087,
+            "confusion": {
+              "tp": 54,
+              "fp": 4,
+              "fn": 3,
+              "tn": 27
+            },
+            "exactVectors": 68,
+            "individualDecisions": 268,
+            "falseHides": 4,
+            "missedHides": 3,
+            "newFalseHides": 3
+          }
+        },
+        "at05": {
+          "rage": {
+            "cases": 40,
+            "correctHideCases": 24,
+            "f1": 0.3333333333333333,
+            "confusion": {
+              "tp": 4,
+              "fp": 2,
+              "fn": 14,
+              "tn": 20
+            },
+            "exactVectors": 24,
+            "individualDecisions": 40,
+            "falseHides": 2,
+            "missedHides": 14,
+            "newFalseHides": 1
+          },
+          "broad": {
+            "cases": 48,
+            "correctHideCases": 45,
+            "f1": 0.9600000000000001,
+            "confusion": {
+              "tp": 36,
+              "fp": 0,
+              "fn": 3,
+              "tn": 9
+            },
+            "exactVectors": 34,
+            "individualDecisions": 228,
+            "falseHides": 0,
+            "missedHides": 3,
+            "newFalseHides": 0
+          },
+          "all": {
+            "cases": 88,
+            "correctHideCases": 69,
+            "f1": 0.8080808080808081,
+            "confusion": {
+              "tp": 40,
+              "fp": 2,
+              "fn": 17,
+              "tn": 29
+            },
+            "exactVectors": 58,
+            "individualDecisions": 268,
+            "falseHides": 2,
+            "missedHides": 17,
+            "newFalseHides": 1
+          }
+        }
+      },
+      "performance": {
+        "warmLatencyMsByFilterCount": {
+          "3": {
+            "n": 60,
+            "median": 38.082687500020256,
+            "p90": 39.43033299999661,
+            "min": 36.23250000000007,
+            "max": 40.82116700000006
+          },
+          "10": {
+            "n": 60,
+            "median": 130.21360350000668,
+            "p90": 144.23579199999222,
+            "min": 125.30091700000048,
+            "max": 154.5417080000043
+          }
+        },
+        "coldMedianMs": 1117.1920420000097,
+        "steadyMemory": {
+          "medianFootprintBytes": 122407000,
+          "medianRssBytes": 687374336
+        },
+        "speedMemory": {
+          "peakFootprintBytes": 196741256,
+          "peakRssBytes": 690192384
+        },
+        "repetitions": 3,
+        "settings": [
+          {
+            "runtime": "llama",
+            "build": "b12652-212c547fe",
+            "contextLength": 8192,
+            "slots": 4,
+            "batchSize": null,
+            "ubatchSize": null,
+            "idleSleepSeconds": "300",
+            "projectorAutoDisabled": false
+          }
+        ]
+      }
+    },
+    {
+      "variant": {
+        "id": "llama-laya-bf16",
+        "runtime": "llama",
+        "model": "ggml-org/Laya-GGUF:BF16",
+        "file": "Laya-BF16.gguf",
+        "format": "GGUF BF16"
+      },
+      "identity": {
+        "repository": "ggml-org/Laya-GGUF",
+        "revision": "f9a697b4e5a39d085bded9576a592e6850d139e7",
+        "file": "Laya-BF16.gguf",
+        "sha256": "325a9a048e31e1d5ba6e7828e101207e486e90751c2462df6990845de2b8c1e1",
+        "disk": {
+          "logicalBytes": 844026880,
+          "allocatedBytes": 855695360,
+          "accounting": "Exact GGUF file; shared runtime and cache metadata excluded."
+        }
+      },
+      "selection": {
+        "templateId": "matches-category",
+        "templateHash": "9a1e023c41c8c19c37317953ae8d7b486ec088070ce00abadd4809242eb67f54",
+        "cutoff": 0.15713920646732457,
+        "comparison": "probability >= cutoff",
+        "identityHash": "ab5f9227c151932f4c6336cfb125a483d271e028aff257654f5b77cbe6986b0a",
+        "discoverySha256": "b2e252181d40016bdfe220597bc9f665188c6f7da1e18836bacdfdff32009f0d"
+      },
+      "quality": {
+        "chosen": {
+          "rage": {
+            "cases": 40,
+            "correctHideCases": 35,
+            "f1": 0.8648648648648649,
+            "confusion": {
+              "tp": 16,
+              "fp": 3,
+              "fn": 2,
+              "tn": 19
+            },
+            "exactVectors": 35,
+            "individualDecisions": 40,
+            "falseHides": 3,
+            "missedHides": 2,
+            "newFalseHides": 2
+          },
+          "broad": {
+            "cases": 48,
+            "correctHideCases": 46,
+            "f1": 0.9743589743589743,
+            "confusion": {
+              "tp": 38,
+              "fp": 1,
+              "fn": 1,
+              "tn": 8
+            },
+            "exactVectors": 33,
+            "individualDecisions": 228,
+            "falseHides": 1,
+            "missedHides": 1,
+            "newFalseHides": 1
+          },
+          "all": {
+            "cases": 88,
+            "correctHideCases": 81,
+            "f1": 0.9391304347826087,
+            "confusion": {
+              "tp": 54,
+              "fp": 4,
+              "fn": 3,
+              "tn": 27
+            },
+            "exactVectors": 68,
+            "individualDecisions": 268,
+            "falseHides": 4,
+            "missedHides": 3,
+            "newFalseHides": 3
+          }
+        },
+        "at05": {
+          "rage": {
+            "cases": 40,
+            "correctHideCases": 23,
+            "f1": 0.2608695652173913,
+            "confusion": {
+              "tp": 3,
+              "fp": 2,
+              "fn": 15,
+              "tn": 20
+            },
+            "exactVectors": 23,
+            "individualDecisions": 40,
+            "falseHides": 2,
+            "missedHides": 15,
+            "newFalseHides": 1
+          },
+          "broad": {
+            "cases": 48,
+            "correctHideCases": 45,
+            "f1": 0.9600000000000001,
+            "confusion": {
+              "tp": 36,
+              "fp": 0,
+              "fn": 3,
+              "tn": 9
+            },
+            "exactVectors": 34,
+            "individualDecisions": 228,
+            "falseHides": 0,
+            "missedHides": 3,
+            "newFalseHides": 0
+          },
+          "all": {
+            "cases": 88,
+            "correctHideCases": 68,
+            "f1": 0.7959183673469389,
+            "confusion": {
+              "tp": 39,
+              "fp": 2,
+              "fn": 18,
+              "tn": 29
+            },
+            "exactVectors": 57,
+            "individualDecisions": 268,
+            "falseHides": 2,
+            "missedHides": 18,
+            "newFalseHides": 1
+          }
+        }
+      },
+      "performance": {
+        "warmLatencyMsByFilterCount": {
+          "3": {
+            "n": 60,
+            "median": 38.74941599997692,
+            "p90": 39.82083399995463,
+            "min": 36.68120800000179,
+            "max": 40.78604199999245
+          },
+          "10": {
+            "n": 60,
+            "median": 131.49114550000013,
+            "p90": 142.51758400001563,
+            "min": 128.85437499999898,
+            "max": 146.4352920000092
+          }
+        },
+        "coldMedianMs": 1146.9852079999982,
+        "steadyMemory": {
+          "medianFootprintBytes": 122620328,
+          "medianRssBytes": 1081901056
+        },
+        "speedMemory": {
+          "peakFootprintBytes": 196594016,
+          "peakRssBytes": 1084456960
+        },
+        "repetitions": 3,
+        "settings": [
+          {
+            "runtime": "llama",
+            "build": "b12652-212c547fe",
+            "contextLength": 8192,
+            "slots": 4,
+            "batchSize": null,
+            "ubatchSize": null,
+            "idleSleepSeconds": "300",
+            "projectorAutoDisabled": false
+          }
+        ]
+      }
+    },
+    {
+      "variant": {
+        "id": "ollama-laya-bf16",
+        "runtime": "ollama",
+        "model": "laya:421m-english-bf16",
+        "format": "GGUF BF16"
+      },
+      "identity": {
+        "manifestSha256": "1f196b378202837961e8856ceeb36af8b03c4b6158f6b02f15cc2b0a99b65e5a",
+        "localManifestSha256": "62931713e21b7b157869d40079b243212f6d535c8d253d973f332ef1cd66aefb",
+        "disk": {
+          "logicalBytes": 844028365,
+          "allocatedBytes": 844046336,
+          "uniqueBlobs": 4,
+          "accounting": "Manifest plus unique referenced blobs; shared blobs charged fully to each variant."
+        }
+      },
+      "selection": {
+        "templateId": "matches-category",
+        "templateHash": "9a1e023c41c8c19c37317953ae8d7b486ec088070ce00abadd4809242eb67f54",
+        "cutoff": 0.15713920646732457,
+        "comparison": "probability >= cutoff",
+        "identityHash": "c04cf212f87dced33d1575dc49934f6f3647c78789939782d38b932f00674bee",
+        "discoverySha256": "526224f276c39b021247398c1d84e45b598d684a0f7aa090bb5a9d77b4d44327"
+      },
+      "quality": {
+        "chosen": {
+          "rage": {
+            "cases": 40,
+            "correctHideCases": 35,
+            "f1": 0.8648648648648649,
+            "confusion": {
+              "tp": 16,
+              "fp": 3,
+              "fn": 2,
+              "tn": 19
+            },
+            "exactVectors": 35,
+            "individualDecisions": 40,
+            "falseHides": 3,
+            "missedHides": 2,
+            "newFalseHides": 2
+          },
+          "broad": {
+            "cases": 48,
+            "correctHideCases": 46,
+            "f1": 0.9743589743589743,
+            "confusion": {
+              "tp": 38,
+              "fp": 1,
+              "fn": 1,
+              "tn": 8
+            },
+            "exactVectors": 33,
+            "individualDecisions": 228,
+            "falseHides": 1,
+            "missedHides": 1,
+            "newFalseHides": 1
+          },
+          "all": {
+            "cases": 88,
+            "correctHideCases": 81,
+            "f1": 0.9391304347826087,
+            "confusion": {
+              "tp": 54,
+              "fp": 4,
+              "fn": 3,
+              "tn": 27
+            },
+            "exactVectors": 68,
+            "individualDecisions": 268,
+            "falseHides": 4,
+            "missedHides": 3,
+            "newFalseHides": 3
+          }
+        },
+        "at05": {
+          "rage": {
+            "cases": 40,
+            "correctHideCases": 23,
+            "f1": 0.2608695652173913,
+            "confusion": {
+              "tp": 3,
+              "fp": 2,
+              "fn": 15,
+              "tn": 20
+            },
+            "exactVectors": 23,
+            "individualDecisions": 40,
+            "falseHides": 2,
+            "missedHides": 15,
+            "newFalseHides": 1
+          },
+          "broad": {
+            "cases": 48,
+            "correctHideCases": 45,
+            "f1": 0.9600000000000001,
+            "confusion": {
+              "tp": 36,
+              "fp": 0,
+              "fn": 3,
+              "tn": 9
+            },
+            "exactVectors": 34,
+            "individualDecisions": 228,
+            "falseHides": 0,
+            "missedHides": 3,
+            "newFalseHides": 0
+          },
+          "all": {
+            "cases": 88,
+            "correctHideCases": 68,
+            "f1": 0.7959183673469389,
+            "confusion": {
+              "tp": 39,
+              "fp": 2,
+              "fn": 18,
+              "tn": 29
+            },
+            "exactVectors": 57,
+            "individualDecisions": 268,
+            "falseHides": 2,
+            "missedHides": 18,
+            "newFalseHides": 1
+          }
+        }
+      },
+      "performance": {
+        "warmLatencyMsByFilterCount": {
+          "3": {
+            "n": 60,
+            "median": 38.99539549999827,
+            "p90": 39.70837500001653,
+            "min": 37.67837499998859,
+            "max": 40.72187499998836
+          },
+          "10": {
+            "n": 60,
+            "median": 130.80327049997868,
+            "p90": 134.44637499999953,
+            "min": 127.57929100003093,
+            "max": 135.42354199999681
+          }
+        },
+        "coldMedianMs": 309.0893329999999,
+        "steadyMemory": {
+          "medianFootprintBytes": 98322952,
+          "medianRssBytes": 1018855424
+        },
+        "speedMemory": {
+          "peakFootprintBytes": 171133496,
+          "peakRssBytes": 1021493248
+        },
+        "repetitions": 3,
+        "settings": [
+          {
+            "runtime": "ollama",
+            "version": "0.40.18",
+            "contextLength": 512,
+            "runner": "llamacpp"
+          }
+        ]
+      }
+    },
+    {
+      "variant": {
+        "id": "ollama-laya-fp16",
+        "runtime": "ollama",
+        "model": "laya:421m-english-mlx-fp16",
+        "format": "MLX FP16"
+      },
+      "identity": {
+        "manifestSha256": "aaba5574a1e14592cb20c64b96292ffa524b3f9ca27263687b87161eacb8d31d",
+        "localManifestSha256": "edbaa2d4507c584bef3644f5d69c5aba4a69f86240b29561a26e0569b82cd6db",
+        "disk": {
+          "logicalBytes": 846287900,
+          "allocatedBytes": 861356032,
+          "uniqueBlobs": 215,
+          "accounting": "Manifest plus unique referenced blobs; shared blobs charged fully to each variant."
+        }
+      },
+      "selection": {
+        "templateId": "matches-category",
+        "templateHash": "9a1e023c41c8c19c37317953ae8d7b486ec088070ce00abadd4809242eb67f54",
+        "cutoff": 0.15687658426473372,
+        "comparison": "probability >= cutoff",
+        "identityHash": "22cc560af793b0539abfd8cfebd14db67dfa13d95475f108fb3aec835cde7f50",
+        "discoverySha256": "b6f3ff9a4219f27c1dcf6f1ffd608a42490e7c49fca014c15f471daad727ed05"
+      },
+      "quality": {
+        "chosen": {
+          "rage": {
+            "cases": 40,
+            "correctHideCases": 35,
+            "f1": 0.8648648648648649,
+            "confusion": {
+              "tp": 16,
+              "fp": 3,
+              "fn": 2,
+              "tn": 19
+            },
+            "exactVectors": 35,
+            "individualDecisions": 40,
+            "falseHides": 3,
+            "missedHides": 2,
+            "newFalseHides": 2
+          },
+          "broad": {
+            "cases": 48,
+            "correctHideCases": 46,
+            "f1": 0.9743589743589743,
+            "confusion": {
+              "tp": 38,
+              "fp": 1,
+              "fn": 1,
+              "tn": 8
+            },
+            "exactVectors": 33,
+            "individualDecisions": 228,
+            "falseHides": 1,
+            "missedHides": 1,
+            "newFalseHides": 1
+          },
+          "all": {
+            "cases": 88,
+            "correctHideCases": 81,
+            "f1": 0.9391304347826087,
+            "confusion": {
+              "tp": 54,
+              "fp": 4,
+              "fn": 3,
+              "tn": 27
+            },
+            "exactVectors": 68,
+            "individualDecisions": 268,
+            "falseHides": 4,
+            "missedHides": 3,
+            "newFalseHides": 3
+          }
+        },
+        "at05": {
+          "rage": {
+            "cases": 40,
+            "correctHideCases": 23,
+            "f1": 0.2608695652173913,
+            "confusion": {
+              "tp": 3,
+              "fp": 2,
+              "fn": 15,
+              "tn": 20
+            },
+            "exactVectors": 23,
+            "individualDecisions": 40,
+            "falseHides": 2,
+            "missedHides": 15,
+            "newFalseHides": 1
+          },
+          "broad": {
+            "cases": 48,
+            "correctHideCases": 45,
+            "f1": 0.9600000000000001,
+            "confusion": {
+              "tp": 36,
+              "fp": 0,
+              "fn": 3,
+              "tn": 9
+            },
+            "exactVectors": 34,
+            "individualDecisions": 228,
+            "falseHides": 0,
+            "missedHides": 3,
+            "newFalseHides": 0
+          },
+          "all": {
+            "cases": 88,
+            "correctHideCases": 68,
+            "f1": 0.7959183673469389,
+            "confusion": {
+              "tp": 39,
+              "fp": 2,
+              "fn": 18,
+              "tn": 29
+            },
+            "exactVectors": 57,
+            "individualDecisions": 268,
+            "falseHides": 2,
+            "missedHides": 18,
+            "newFalseHides": 1
+          }
+        }
+      },
+      "performance": {
+        "warmLatencyMsByFilterCount": {
+          "3": {
+            "n": 60,
+            "median": 38.18143750001036,
+            "p90": 41.287624999997206,
+            "min": 33.371375000017,
+            "max": 44.620416999969166
+          },
+          "10": {
+            "n": 60,
+            "median": 111.44789600000149,
+            "p90": 116.74012500001118,
+            "min": 104.41329199999745,
+            "max": 118.06333299999824
+          }
+        },
+        "coldMedianMs": 254.21987499995157,
+        "steadyMemory": {
+          "medianFootprintBytes": 1400408896,
+          "medianRssBytes": 969654272
+        },
+        "speedMemory": {
+          "peakFootprintBytes": 1587891008,
+          "peakRssBytes": 971571200
+        },
+        "repetitions": 3,
+        "settings": [
+          {
+            "runtime": "ollama",
+            "version": "0.40.18",
+            "contextLength": 512,
+            "runner": "mlx"
+          }
+        ]
+      }
+    }
+  ],
+  "otherHistoricalVariants": [
+    {
+      "variantId": "llama-kev-q8",
+      "model": "ggml-org/Kev-0.8B-GGUF:Q8_0",
+      "status": "retired-obsolete-context-or-identity",
+      "settings": [
+        {
+          "runtime": "llama",
+          "build": "b12652-212c547fe",
+          "contextLength": 262144,
+          "slots": 4,
+          "batchSize": null,
+          "ubatchSize": null,
+          "idleSleepSeconds": "300",
+          "projectorAutoDisabled": false
+        }
+      ],
+      "sourceFiles": [
+        "decision-identity-llama-kev-q8.json",
+        "decision-discovery-llama-kev-q8.json",
+        "decision-selection-llama-kev-q8.json",
+        "decision-speed-r0-llama-kev-q8.json",
+        "decision-speed-r1-llama-kev-q8.json",
+        "decision-speed-r2-llama-kev-q8.json"
+      ]
+    },
+    {
+      "variantId": "ollama-kev-q8",
+      "model": "kev:0.8b-q8_0",
+      "status": "retired-obsolete-context-or-identity",
+      "settings": [
+        {
+          "runtime": "ollama",
+          "version": "0.40.18",
+          "contextLength": 73728,
+          "runner": "llamacpp"
+        }
+      ],
+      "sourceFiles": [
+        "decision-identity-ollama-kev-q8.json",
+        "decision-discovery-ollama-kev-q8.json",
+        "decision-selection-ollama-kev-q8.json",
+        "decision-speed-r0-ollama-kev-q8.json",
+        "decision-speed-r1-ollama-kev-q8.json",
+        "decision-speed-r2-ollama-kev-q8.json"
+      ]
+    },
+    {
+      "variantId": "ollama-kev-mxfp8",
+      "model": "kev:0.8b-mxfp8",
+      "status": "retired-obsolete-context-or-identity",
+      "settings": [
+        {
+          "runtime": "ollama",
+          "version": "0.40.18",
+          "contextLength": 73728,
+          "runner": "mlx"
+        }
+      ],
+      "sourceFiles": [
+        "decision-identity-ollama-kev-mxfp8.json",
+        "decision-discovery-ollama-kev-mxfp8.json",
+        "decision-selection-ollama-kev-mxfp8.json",
+        "decision-speed-r0-ollama-kev-mxfp8.json",
+        "decision-speed-r1-ollama-kev-mxfp8.json",
+        "decision-speed-r2-ollama-kev-mxfp8.json"
+      ]
+    },
+    {
+      "variantId": "llama-d1-q8",
+      "model": "ggml-org/d1-Omni-2B-GGUF:Q8_0",
+      "status": "retired-obsolete-context-or-identity",
+      "settings": [
+        {
+          "runtime": "llama",
+          "build": "b12652-212c547fe",
+          "contextLength": 128000,
+          "slots": 4,
+          "batchSize": "4096",
+          "ubatchSize": "4096",
+          "idleSleepSeconds": "300",
+          "projectorAutoDisabled": true
+        }
+      ],
+      "sourceFiles": [
+        "decision-identity-llama-d1-q8.json",
+        "decision-discovery-llama-d1-q8.json",
+        "decision-selection-llama-d1-q8.json",
+        "decision-speed-r0-llama-d1-q8.json",
+        "decision-speed-r1-llama-d1-q8.json",
+        "decision-speed-r2-llama-d1-q8.json"
+      ]
+    },
+    {
+      "variantId": "ollama-d1-mxfp8",
+      "model": "d1:2b-mxfp8",
+      "status": "retired-obsolete-context-or-identity",
+      "settings": [
+        {
+          "runtime": "ollama",
+          "version": "0.40.18",
+          "contextLength": 4096,
+          "runner": "mlx"
+        }
+      ],
+      "sourceFiles": [
+        "decision-identity-ollama-d1-mxfp8.json",
+        "decision-discovery-ollama-d1-mxfp8.json",
+        "decision-selection-ollama-d1-mxfp8.json",
+        "decision-speed-r0-ollama-d1-mxfp8.json",
+        "decision-speed-r1-ollama-d1-mxfp8.json",
+        "decision-speed-r2-ollama-d1-mxfp8.json"
+      ]
+    }
+  ],
+  "integration": {
+    "d1": {
+      "status": "resolved",
+      "physicalBatchFailure": {
+        "status": 500,
+        "inputTokens": 523,
+        "physicalBatchSize": 512,
+        "caseId": "broad:ten-all-topics-permuted"
+      },
+      "persistentOverride": {
+        "availability": "Historical Gemma baselines recorded on the same machine in October 2026, included in decision-baselines.json.",
+        "batchSize": 4096,
+        "ubatchSize": 4096,
+        "noMmproj": true,
+        "generatedModelsIniSuitableForPersistentOverride": false
+      },
+      "projectorRemoval": {
+        "logicalBytes": 326104288,
+        "allocatedBytes": 335609856,
+        "sha256": "dc0cb452226ca52d04351ab8055ad8d299126c7e68156b2fe651c9fbdda9ab30",
+        "retained": false,
+        "usedForVisionInference": false
+      },
+      "identityCorrection": {
+        "historicalLlamaModel": "ggml-org/d1-Omni-2B-GGUF:Q8_0",
+        "historicalLlamaArchitecture": "lfm3",
+        "historicalLlamaCheckpoint": "LFM3 Omni 2B",
+        "historicalOllamaModel": "d1:2b-mxfp8",
+        "historicalOllamaArchitecture": "lfm3_vl",
+        "historicalOllamaCheckpoint": "Liquid d1-2B",
+        "sameCheckpoint": false,
+        "phase1bLlamaPairRepository": "LiquidAI/d1-2B-GGUF",
+        "separate600mRepository": "LiquidAI/d1-omni-600M-GGUF"
+      }
+    }
+  },
+  "acceptance": {
+    "historicalStatus": "pass",
+    "variants": 9,
+    "discoveryCasesPerTemplate": 88,
+    "primaryPerformanceRuns": 27,
+    "validationModelRequests": 0,
+    "note": "Historical receipt verifies the exploratory phase1 run only; it does not accept the replacement phase1b protocol."
+  },
+  "pilotCleanup": {
+    "deleted": true,
+    "filesDeleted": 28,
+    "includedInRawArchive": false
+  },
+  "historicalNotes": [
+    "Phase1 explored unequal context allocations and multiple Llama slots. Kev/d1 numbers are retired and do not describe the normalized serial context 4096 phase1b matrix.",
+    "The four Laya rows retain recorded phase1 discovery choices, compact metrics and configured-stack speed/memory observations; they have no new validation inference.",
+    "ggml-org/d1-Omni-2B-GGUF is the lfm3 LFM3 Omni 2B checkpoint. Historical Ollama d1:2b is the distinct lfm3_vl Liquid d1-2B checkpoint; its intended GGUF pair is LiquidAI/d1-2B-GGUF. The 600M Omni checkpoint is separate again.",
+    "Default Llama d1 physical batch 512 rejected a 523-token ten-filter case. A manual d1-only persistent override in <llama-user-config>/models.user.ini set batch/ubatch 4096 and no-mmproj; generated models.ini is unsuitable for persistent changes.",
+    "The initial d1 load auto-attached a 326104288-byte projector. It was unused for vision/audio and was removed through the router after text-only readback; historical disk cost remains disclosed separately.",
+    "Superseded decision-pilot files were deleted at the user request and are excluded from the raw archive."
+  ],
+  "privacy": "Only compact metrics, relative/tilde source references and content hashes are kept here. Raw logs, probability rows and 200 ms memory samples remain only in the ignored final archive."
+}

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "variant": {
+    "id": "llama-kev-4b-q8",
+    "runtime": "llama",
+    "model": "ggml-org/Kev-4B-GGUF:Q8_0",
+    "file": "Kev-4B-Q8_0.gguf",
+    "family": "kev-4b",
+    "format": "GGUF Q8_0",
+    "batch": 4096
+  },
+  "identity": {
+    "repository": "ggml-org/Kev-4B-GGUF",
+    "revision": "f4624b6bb7072f1bab726a622c1cad3f96030b9e",
+    "file": "Kev-4B-Q8_0.gguf",
+    "sha256": "7c2ebed90560522c2801389db482ac1dc4c36d828f201f6074c1d60e433948da",
+    "family": "kev-4b",
+    "architecture": "qwen35",
+    "disk": {
+      "logicalBytes": 4483801504,
+      "allocatedBytes": 4496318464,
+      "scope": "Primary text GGUF; projector excluded; temporary runtime cache"
+    }
+  }
+}

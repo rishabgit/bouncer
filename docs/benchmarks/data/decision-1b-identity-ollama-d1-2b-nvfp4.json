@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 2,
+  "variant": {
+    "id": "ollama-d1-2b-nvfp4",
+    "runtime": "ollama",
+    "model": "bouncer-eval-d1-2b-nvfp4-ctx4096:v1",
+    "sourceModel": "d1:2b-nvfp4",
+    "family": "d1-2b",
+    "format": "MLX NVFP4",
+    "parityGroup": "d1-2b"
+  },
+  "identity": {
+    "manifestSha256": "41b030028f42504cfaf94d2d8cc22f2979ab084f89f4b821c5a43f6b43abd688",
+    "sourceManifestSha256": "82c19b76395aa3e625ae28dc9e8ab390351ac3cc41056be7b4fc9865c593953d",
+    "family": "d1-2b",
+    "format": "MLX NVFP4",
+    "aliasDefinition": {
+      "model": "bouncer-eval-d1-2b-nvfp4-ctx4096:v1",
+      "from": "d1:2b-nvfp4",
+      "sourceDigest": "82c19b76395aa3e625ae28dc9e8ab390351ac3cc41056be7b4fc9865c593953d",
+      "parameters": {
+        "num_ctx": 4096
+      }
+    },
+    "metadata": {
+      "details": {
+        "parent_model": "",
+        "format": "safetensors",
+        "family": "lfm3_vl",
+        "families": null,
+        "parameter_size": "1.9B",
+        "quantization_level": "nvfp4",
+        "runner": "mlx"
+      },
+      "model_info": {
+        "general.architecture": "lfm3_vl",
+        "general.parameter_count": 1918174720,
+        "lfm3_vl.block_count": 24,
+        "lfm3_vl.context_length": 128000,
+        "lfm3_vl.embedding_length": 2048
+      },
+      "parameters": "num_ctx                        4096",
+      "requires": "0.40.12",
+      "capabilities": [
+        "decision",
+        "vision"
+      ]
+    },
+    "disk": {
+      "logicalBytes": 1746730416,
+      "allocatedBytes": 1752248320,
+      "scope": "Full derived-alias package; any vision/projector tensors included; shared blobs charged fully"
+    }
+  }
+}

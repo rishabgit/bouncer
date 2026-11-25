@@ -1,0 +1,997 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "holdout-rage-p01",
+      "text": "The delivery firm left this package in a puddle and thinks a refund fixes it. Screenshot the driver, spread the photo, and get everyone roasting them in the comments.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos"
+    },
+    {
+      "id": "holdout-rage-p02",
+      "text": "A hotel charged for using the hallway kettle. Turn this into the angriest thread on the site: quote the receipt and summon anyone who wants to tear them apart.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos"
+    },
+    {
+      "id": "holdout-rage-p03",
+      "text": "The new ticket surcharge is a perfect excuse for a pile-on. Send this to your loudest mutuals and flood the promoter with furious replies until the whole feed is arguing.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos"
+    },
+    {
+      "id": "holdout-rage-p04",
+      "text": "Found a terrible parking note. I have cropped out the boring explanation because the accusation is juicier. Repost it and help me get a mob yelling at the owner.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos"
+    },
+    {
+      "id": "holdout-rage-p05",
+      "text": "The laundry shop lost one sock. Let us make the outrage much bigger than the mistake: tag every grievance account and get their customers fighting in this thread.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos"
+    },
+    {
+      "id": "holdout-rage-p06",
+      "text": "This ordinary checkout fee could be our next viral scandal. Call it theft, skip the details, and quote-post it with the nastiest accusation you can invent.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos"
+    },
+    {
+      "id": "holdout-rage-p07",
+      "text": "Someone used the wrong lane at the pool. Share the clip with a furious caption and invite strangers to shame them; a calm correction would get us fewer clicks.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos"
+    },
+    {
+      "id": "holdout-rage-p08",
+      "text": "I want this missing-reservation story to make people explode. Leave out the apology, circulate the angry version, and bring a crowd here to hound the receptionist.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos"
+    },
+    {
+      "id": "holdout-rage-p09",
+      "text": "The cafe changed its opening time. Who can turn that into the most vicious accusation? Quote this with your attack and pull your followers into the argument.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos"
+    },
+    {
+      "id": "holdout-rage-p10",
+      "text": "Here is a blurry photo of a messy desk. Declare its owner a disgrace and spread it widely; I want an enormous angry dogpile over something completely trivial.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos"
+    },
+    {
+      "id": "holdout-rage-p11",
+      "text": "A courier knocked twice instead of once. Blow this up: repost the complaint, tag the brand, and recruit people to ridicule the worker all afternoon.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos"
+    },
+    {
+      "id": "holdout-rage-p12",
+      "text": "The library moved a shelf. We can bait a huge fight by pretending it is a conspiracy. Share the dramatic accusation and egg on every angry reply.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [
+        "rage bait"
+      ],
+      "kind": "rage-pos"
+    },
+    {
+      "id": "holdout-rage-n01",
+      "text": "The tailor shortened one sleeve more than the other. I am irritated because I need the jacket on Saturday; I will bring it back and ask them to even it out.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb"
+    },
+    {
+      "id": "holdout-rage-n02",
+      "text": "Wonderful, the printer has decided that page seven is optional. I have a stack of incomplete handouts and absolutely no patience left for the blinking light.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb"
+    },
+    {
+      "id": "holdout-rage-n03",
+      "text": "The ticket kiosk took payment but issued nothing. The attendant noted the transaction number and is checking it. Annoying start to the day, but at least there is a next step.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb"
+    },
+    {
+      "id": "holdout-rage-n04",
+      "text": "I find the museum booking page needlessly confusing. The date picker hides sold-out sessions, and the error only appears after payment details. That design needs work.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb"
+    },
+    {
+      "id": "holdout-rage-n05",
+      "text": "My landlord has left the leaking tap unresolved for a month. I am angry about the wasted water and will send a written repair request with the dates of my earlier calls.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb"
+    },
+    {
+      "id": "holdout-rage-n06",
+      "text": "The audiobook app forgot my place again. Nothing improves a quiet evening like guessing which of forty chapters I was halfway through. Sigh.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb"
+    },
+    {
+      "id": "holdout-rage-n07",
+      "text": "A teammate erased the diagram I had spent the morning drawing. It was a misunderstanding, and we talked it through, but I am still frustrated about having to reconstruct it.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb"
+    },
+    {
+      "id": "holdout-rage-n08",
+      "text": "I do not support the proposed reduction in crossing-guard hours. The school dismissal times overlap, and the safety review does not explain who covers that gap.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb"
+    },
+    {
+      "id": "holdout-rage-n09",
+      "text": "The paint dried a different shade from the sample. I wish the shop had explained how much the lighting mattered. I am disappointed and will try a smaller test patch next time.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb"
+    },
+    {
+      "id": "holdout-rage-n10",
+      "text": "Splendid service from the locker machine: it opened every door except the one holding my bag. I am standing here grumbling while the technician looks for the fault.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb"
+    },
+    {
+      "id": "holdout-rage-n11",
+      "text": "I am worn out by the night construction. The posted schedule says the drilling ends at ten, but it continued well after midnight. I need sleep and a reliable finish time.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb"
+    },
+    {
+      "id": "holdout-rage-n12",
+      "text": "The essay makes a sweeping claim from six interviews. I think that is a weak argument; a larger sample and a clear account of the selection process would make it more convincing.",
+      "filters": [
+        "rage bait"
+      ],
+      "expectedMatches": [],
+      "kind": "rage-neg-amb"
+    },
+    {
+      "id": "holdout-broad-1-01",
+      "text": "I set aside a small monthly amount to invest in cryptocurrency. This week I divided it between two digital coins and recorded the purchase prices in my portfolio spreadsheet.",
+      "filters": [
+        "cryptocurrency investing or promotion"
+      ],
+      "expectedMatches": [
+        "cryptocurrency investing or promotion"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-1-02",
+      "text": "The cloakroom gives each visitor a wooden token with a number burned into it. I handed mine back at the end of the play and collected my coat.",
+      "filters": [
+        "cryptocurrency investing or promotion"
+      ],
+      "expectedMatches": [],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-1-03",
+      "text": "The fencing final turned on distance control: the challenger kept drawing short attacks and answering with a counter. An 8-6 finish rewarded that patience.",
+      "filters": [
+        "sports results or commentary"
+      ],
+      "expectedMatches": [
+        "sports results or commentary"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-1-04",
+      "text": "Getting the archive scanner to work was a home run for our small digitization project. The phrase is a figure of speech; I spent the day scanning shipping labels.",
+      "filters": [
+        "sports results or commentary"
+      ],
+      "expectedMatches": [],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-1-05",
+      "text": "I made strawberry jam by crushing the fruit, boiling it with sugar, and testing a drop on a cold plate. The batch set softly and kept a bright tart flavor.",
+      "filters": [
+        "food and cooking"
+      ],
+      "expectedMatches": [
+        "food and cooking"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-1-06",
+      "text": "My running session had an easy warm-up, four short uphill repeats, and a slow cooldown. I walked back down between repeats to recover before the next effort.",
+      "filters": [
+        "exercise routines and fitness training"
+      ],
+      "expectedMatches": [
+        "exercise routines and fitness training"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-1-07",
+      "text": "The provincial referendum asks voters whether waste collection should be funded by a local tax or by household fees. I compared both funding proposals before casting my ballot.",
+      "filters": [
+        "government policy or election politics"
+      ],
+      "expectedMatches": [
+        "government policy or election politics"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-1-08",
+      "text": "The speech recognition model handles one speaker reasonably well but loses words when voices overlap. I measured that failure rate and kept human transcription for crowded recordings.",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expectedMatches": [],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-1-09",
+      "text": "Tabloids are whispering that a famous television host keeps an entire hotel suite just for a private shoe collection. The story rests on anonymous staff gossip, not a public statement.",
+      "filters": [
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expectedMatches": [
+        "gossip about famous entertainers or celebrities"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-1-10",
+      "text": "The museum sells an exhibition guide written by its curators. I borrowed a copy from the reading room; I did not create the guide, own it, or earn money from it.",
+      "filters": [
+        "promotion of the author's own product or paid service"
+      ],
+      "expectedMatches": [],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-1-11",
+      "text": "My screen reader announces the labels Like, Repost, and Reply before reading each post. I am documenting that interface sequence because the repeated labels slow down navigation.",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expectedMatches": [],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-1-12",
+      "text": "Two members of the board-game club are fighting in public. One called the other a cheating fraud, and the other answered by calling him a spiteful fool. Their personal feud continues.",
+      "filters": [
+        "personal feuds or public insults between people"
+      ],
+      "expectedMatches": [
+        "personal feuds or public insults between people"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-3-01",
+      "text": "My cryptocurrency portfolio earned staking rewards this month. I reinvested the digital tokens and am comparing that return with the amount I originally paid for them.",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "government policy or election politics"
+      ],
+      "expectedMatches": [
+        "cryptocurrency investing or promotion"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-3-02",
+      "text": "I preserved sliced mushrooms in a vinegar brine with garlic and dill. After cooling the jar, I tasted a little and found the acidity needed one more pinch of sugar.",
+      "filters": [
+        "promotion of the author's own product or paid service",
+        "food and cooking",
+        "personal feuds or public insults between people"
+      ],
+      "expectedMatches": [
+        "food and cooking"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-3-03",
+      "text": "For swimming practice I alternated six easy lengths with six faster lengths, resting briefly at the wall each time. The session ended with gentle shoulder mobility exercises.",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "requests for likes, reposts, or replies to boost engagement",
+        "exercise routines and fitness training"
+      ],
+      "expectedMatches": [
+        "exercise routines and fitness training"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-3-04",
+      "text": "Parliament is debating new funding for public film archives. Separately, gossip columns claim a world-famous magician secretly travels with a private rail carriage full of costumes.",
+      "filters": [
+        "government policy or election politics",
+        "sports results or commentary",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expectedMatches": [
+        "government policy or election politics",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-3-05",
+      "text": "Subscribe to the home-planning app I built and sell myself. My sales pitch promises its AI can settle every domestic, scientific, and social problem automatically, with perfect answers in every situation.",
+      "filters": [
+        "promotion of the author's own product or paid service",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "food and cooking"
+      ],
+      "expectedMatches": [
+        "promotion of the author's own product or paid service",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-3-06",
+      "text": "My former roommate called me a lazy parasite in a public post, so I called him a miserable bully here. Keep our personal fight spreading: like this and add replies to raise the engagement count.",
+      "filters": [
+        "exercise routines and fitness training",
+        "personal feuds or public insults between people",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expectedMatches": [
+        "personal feuds or public insults between people",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-3-07",
+      "text": "The cricket opener made 74 before being caught at the boundary. I then practiced a planned twenty-minute yoga sequence and prepared fresh noodle dough with flour, water, and salt.",
+      "filters": [
+        "food and cooking",
+        "sports results or commentary",
+        "exercise routines and fitness training"
+      ],
+      "expectedMatches": [
+        "food and cooking",
+        "sports results or commentary",
+        "exercise routines and fitness training"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-3-08",
+      "text": "Our theater handed out cardboard tokens for the coat check. I trained a document-search model on the costume inventory and followed the troupe committee rules for choosing a rehearsal room.",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "exercise routines and fitness training",
+        "government policy or election politics"
+      ],
+      "expectedMatches": [],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-3-09",
+      "text": "An image-captioning model gave this abstract pattern the wrong name twice. I kept the human caption. Please like the image and reply with any character so this post gains more engagement.",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expectedMatches": [
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-3-10",
+      "text": "Entertainment rumor pages say a globally famous conductor insists on an unlisted dressing room wherever he performs. Nobody has confirmed the story; it is backstage celebrity gossip.",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "personal feuds or public insults between people",
+        "sports results or commentary"
+      ],
+      "expectedMatches": [
+        "gossip about famous entertainers or celebrities"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-3-11",
+      "text": "I steamed a savory egg custard until it barely wobbled, then added sesame oil. Also, I am certain artificial intelligence will eliminate every unsolved problem and never need correction in any field.",
+      "filters": [
+        "food and cooking",
+        "cryptocurrency investing or promotion",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expectedMatches": [
+        "food and cooking",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-3-12",
+      "text": "The national ministry proposes stricter nighttime noise limits for freight terminals. Its public consultation compares two enforcement schedules, and I am reading the draft regulation carefully.",
+      "filters": [
+        "personal feuds or public insults between people",
+        "government policy or election politics",
+        "cryptocurrency investing or promotion"
+      ],
+      "expectedMatches": [
+        "government policy or election politics"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-5-01",
+      "text": "I churned vanilla ice cream from milk, cream, sugar, and a slowly heated egg mixture. Cooling the custard overnight gave the finished dessert a smoother texture.",
+      "filters": [
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "exercise routines and fitness training",
+        "personal feuds or public insults between people",
+        "cryptocurrency investing or promotion"
+      ],
+      "expectedMatches": [
+        "food and cooking"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-5-02",
+      "text": "The hockey side survived a two-minute penalty with excellent defensive spacing. They allowed just one shot, then scored immediately after returning to full strength.",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service",
+        "sports results or commentary",
+        "requests for likes, reposts, or replies to boost engagement",
+        "government policy or election politics"
+      ],
+      "expectedMatches": [
+        "sports results or commentary"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-5-03",
+      "text": "The elected mayor has proposed mandatory inspections of storm drains before the rainy season. The council will vote next week on the inspection budget and the reporting requirement.",
+      "filters": [
+        "exercise routines and fitness training",
+        "cryptocurrency investing or promotion",
+        "personal feuds or public insults between people",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics"
+      ],
+      "expectedMatches": [
+        "government policy or election politics"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-5-04",
+      "text": "Order a handwoven wall hanging from my own shop; I weave and sell every piece. My former studio partner publicly called me a thief, and I answered by calling her a nasty liar in our continuing feud.",
+      "filters": [
+        "promotion of the author's own product or paid service",
+        "sports results or commentary",
+        "gossip about famous entertainers or celebrities",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "personal feuds or public insults between people"
+      ],
+      "expectedMatches": [
+        "promotion of the author's own product or paid service",
+        "personal feuds or public insults between people"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-5-05",
+      "text": "I reduced one cryptocurrency holding and spread the proceeds across other digital coins to limit my investment risk. My exercise plan tonight is twelve minutes of stair intervals followed by calf stretches.",
+      "filters": [
+        "government policy or election politics",
+        "cryptocurrency investing or promotion",
+        "food and cooking",
+        "exercise routines and fitness training",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expectedMatches": [
+        "cryptocurrency investing or promotion",
+        "exercise routines and fitness training"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-5-06",
+      "text": "A gossip site alleges that a famous comedian secretly broke a chandelier at a private party. I made orange marmalade this morning. Like this post and repost it to push the engagement numbers higher.",
+      "filters": [
+        "personal feuds or public insults between people",
+        "food and cooking",
+        "requests for likes, reposts, or replies to boost engagement",
+        "exercise routines and fitness training",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expectedMatches": [
+        "food and cooking",
+        "requests for likes, reposts, or replies to boost engagement",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-5-07",
+      "text": "The documentary showed carpenters building miniature film sets. An OCR model helped read faded workshop notes, though several letters needed manual correction. I enjoyed seeing the scale drawings become physical objects.",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "gossip about famous entertainers or celebrities",
+        "personal feuds or public insults between people"
+      ],
+      "expectedMatches": [],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-5-08",
+      "text": "My washing machine has a cycle named Sports, but the label only describes a wash setting. I read its repair manual, replaced a loose cable clip, and ran the diagnostic program again.",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "food and cooking",
+        "exercise routines and fitness training",
+        "government policy or election politics"
+      ],
+      "expectedMatches": [],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-5-09",
+      "text": "Buy the running-coach subscription I created and sell. It prescribes interval workouts and promises that its AI will solve every problem in every area of life perfectly. I also recommend buying cryptocurrency as an investment. Like and reply to increase this post's engagement.",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "cryptocurrency investing or promotion",
+        "promotion of the author's own product or paid service"
+      ],
+      "expectedMatches": [
+        "requests for likes, reposts, or replies to boost engagement",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "cryptocurrency investing or promotion",
+        "promotion of the author's own product or paid service"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-5-10",
+      "text": "The government is revising telecommunications licensing rules. In badminton, the second seed lost after repeatedly lifting too short. A tabloid also claims a famous film actress secretly changed her surname before an unannounced ceremony.",
+      "filters": [
+        "government policy or election politics",
+        "food and cooking",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expectedMatches": [
+        "government policy or election politics",
+        "sports results or commentary",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-5-11",
+      "text": "An AI guessed the missing word in my crossword. That single success proves it can resolve every diplomatic dispute, repair every machine, and eliminate every personal difficulty flawlessly. No challenge anywhere will need human oversight again.",
+      "filters": [
+        "food and cooking",
+        "requests for likes, reposts, or replies to boost engagement",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service"
+      ],
+      "expectedMatches": [
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-5-12",
+      "text": "I designed and sell my own calligraphy stencil pack; the new set is available from me today. Meanwhile, I boiled sugar syrup, folded it into whipped egg whites, and baked crisp meringues.",
+      "filters": [
+        "exercise routines and fitness training",
+        "promotion of the author's own product or paid service",
+        "government policy or election politics",
+        "food and cooking",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expectedMatches": [
+        "promotion of the author's own product or paid service",
+        "food and cooking"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-10-01",
+      "text": "The table-tennis semifinal was decided by the receiver stepping closer to the table. He took the last three points with early returns and won the deciding game 11-8.",
+      "filters": [
+        "sports results or commentary",
+        "gossip about famous entertainers or celebrities",
+        "promotion of the author's own product or paid service",
+        "government policy or election politics",
+        "food and cooking",
+        "requests for likes, reposts, or replies to boost engagement",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "personal feuds or public insults between people",
+        "cryptocurrency investing or promotion"
+      ],
+      "expectedMatches": [
+        "sports results or commentary"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-10-02",
+      "text": "I cooked choux pastry until it pulled away from the saucepan, beat in the eggs, and piped small rounds onto a tray. They puffed in the oven and cooled with hollow centers.",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service",
+        "personal feuds or public insults between people",
+        "food and cooking",
+        "government policy or election politics",
+        "exercise routines and fitness training",
+        "gossip about famous entertainers or celebrities",
+        "sports results or commentary",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expectedMatches": [
+        "food and cooking"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-10-03",
+      "text": "I uploaded a geometric pattern of intersecting purple lines. Tap Like, repost the image, and leave any short reply; I want those actions to increase engagement and improve this account's reach.",
+      "filters": [
+        "food and cooking",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "sports results or commentary",
+        "exercise routines and fitness training",
+        "promotion of the author's own product or paid service",
+        "cryptocurrency investing or promotion",
+        "gossip about famous entertainers or celebrities",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expectedMatches": [
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-10-04",
+      "text": "The legislature will vote on a law requiring accessible railway platforms. At home, my neighbor and I are waging a public personal feud: she called me a spineless creep, and I called her a vindictive liar.",
+      "filters": [
+        "government policy or election politics",
+        "requests for likes, reposts, or replies to boost engagement",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "promotion of the author's own product or paid service",
+        "exercise routines and fitness training",
+        "personal feuds or public insults between people"
+      ],
+      "expectedMatches": [
+        "government policy or election politics",
+        "personal feuds or public insults between people"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-10-05",
+      "text": "I lost money investing in cryptocurrency after a digital coin fell sharply. I sold the remaining holding and decided against further token investments. This is a record of the investment loss, not a purchase recommendation.",
+      "filters": [
+        "promotion of the author's own product or paid service",
+        "gossip about famous entertainers or celebrities",
+        "food and cooking",
+        "exercise routines and fitness training",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "personal feuds or public insults between people",
+        "government policy or election politics",
+        "sports results or commentary"
+      ],
+      "expectedMatches": [
+        "cryptocurrency investing or promotion"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-10-06",
+      "text": "An AI correctly identified the plant on my windowsill. I take that as proof it will deliver perfect solutions to every scientific, personal, and global challenge. One correct plant label means no problem is beyond it and expert judgment is obsolete.",
+      "filters": [
+        "sports results or commentary",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "gossip about famous entertainers or celebrities",
+        "exercise routines and fitness training",
+        "requests for likes, reposts, or replies to boost engagement",
+        "food and cooking",
+        "cryptocurrency investing or promotion",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expectedMatches": [
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-10-07",
+      "text": "The rugby team won because its lineout stayed accurate in heavy rain. My fitness session used resistance-band shoulder drills and three timed wall sits. For dinner I rolled dumplings around chopped cabbage and steamed them.",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "food and cooking",
+        "requests for likes, reposts, or replies to boost engagement",
+        "government policy or election politics",
+        "cryptocurrency investing or promotion",
+        "exercise routines and fitness training",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "sports results or commentary",
+        "promotion of the author's own product or paid service",
+        "personal feuds or public insults between people"
+      ],
+      "expectedMatches": [
+        "food and cooking",
+        "exercise routines and fitness training",
+        "sports results or commentary"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-10-08",
+      "text": "Purchase the city-planning chart book I wrote and sell myself. It compares the candidates' election proposals for bus funding and public parks. Repost this announcement and leave replies to boost its engagement.",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service",
+        "sports results or commentary",
+        "exercise routines and fitness training",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "cryptocurrency investing or promotion",
+        "requests for likes, reposts, or replies to boost engagement",
+        "gossip about famous entertainers or celebrities",
+        "food and cooking"
+      ],
+      "expectedMatches": [
+        "promotion of the author's own product or paid service",
+        "government policy or election politics",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-10-09",
+      "text": "Celebrity rumor columns say a famous dancer took secret credit for another star's costume designs. Their public personal feud now includes one calling the other a talentless cheat and receiving an equally personal insult back.",
+      "filters": [
+        "exercise routines and fitness training",
+        "government policy or election politics",
+        "gossip about famous entertainers or celebrities",
+        "food and cooking",
+        "promotion of the author's own product or paid service",
+        "sports results or commentary",
+        "personal feuds or public insults between people",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion"
+      ],
+      "expectedMatches": [
+        "gossip about famous entertainers or celebrities",
+        "personal feuds or public insults between people"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-10-10",
+      "text": "A software manual uses token for a segment of text, training for fitting a statistical model, and campaign for a batch of scheduled diagnostics. I corrected those glossary entries and saved the document. No financial transactions or physical exercise were involved.",
+      "filters": [
+        "food and cooking",
+        "cryptocurrency investing or promotion",
+        "exercise routines and fitness training",
+        "sports results or commentary",
+        "personal feuds or public insults between people",
+        "government policy or election politics",
+        "requests for likes, reposts, or replies to boost engagement",
+        "gossip about famous entertainers or celebrities",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service"
+      ],
+      "expectedMatches": [],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-10-11",
+      "text": "The government published a new policy for access to public archives. I baked an almond tart and followed a fitness routine of step-ups and balance drills. A gossip magazine alleges a famous opera singer keeps a hidden collection of antique elevators.",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement",
+        "gossip about famous entertainers or celebrities",
+        "cryptocurrency investing or promotion",
+        "government policy or election politics",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service",
+        "personal feuds or public insults between people",
+        "exercise routines and fitness training",
+        "sports results or commentary",
+        "food and cooking"
+      ],
+      "expectedMatches": [
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "exercise routines and fitness training",
+        "food and cooking"
+      ],
+      "kind": "broad"
+    },
+    {
+      "id": "holdout-broad-10-12",
+      "text": "Buy the paid zine I write and sell. The cricket side won by two wickets. I trained with four cycling intervals and cooked custard with eggs and milk. Election candidates debated water policy. I invested in cryptocurrency coins. AI will solve every problem perfectly. Rumor columns say a famous comedian owns a secret mansion. Two actors publicly called each other a liar and a fool in their personal feud. Like and repost my zine announcement to boost engagement.",
+      "filters": [
+        "personal feuds or public insults between people",
+        "sports results or commentary",
+        "cryptocurrency investing or promotion",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "requests for likes, reposts, or replies to boost engagement",
+        "exercise routines and fitness training",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service",
+        "government policy or election politics"
+      ],
+      "expectedMatches": [
+        "personal feuds or public insults between people",
+        "sports results or commentary",
+        "cryptocurrency investing or promotion",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "requests for likes, reposts, or replies to boost engagement",
+        "exercise routines and fitness training",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service",
+        "government policy or election politics"
+      ],
+      "kind": "broad"
+    }
+  ],
+  "suggestionFixtures": [
+    {
+      "id": "holdout-suggestion-01",
+      "text": "A bakery misspelled a name on one receipt. Let us manufacture a scandal: circulate it with an angry caption and recruit strangers to humiliate the cashier.",
+      "expectedIntent": "outrage farming and encouragement of a public dogpile"
+    },
+    {
+      "id": "holdout-suggestion-02",
+      "text": "Put your savings into this cryptocurrency today. I predict a huge token-price surge by the weekend and want everyone buying before it happens.",
+      "expectedIntent": "cryptocurrency investment promotion"
+    },
+    {
+      "id": "holdout-suggestion-03",
+      "text": "The rumor pages insist a famous comedian secretly hired a yacht just to store his stage hats. Here is another unconfirmed peek into a celebrity's private life.",
+      "expectedIntent": "unverified celebrity gossip"
+    },
+    {
+      "id": "holdout-suggestion-04",
+      "text": "Once AI arrives, no puzzle, job, dispute, or hardship will remain. Every answer will be perfect, every outcome guaranteed, and human judgment will have nothing left to do.",
+      "expectedIntent": "unlimited and exaggerated AI solution claims"
+    },
+    {
+      "id": "holdout-suggestion-05",
+      "text": "I make and sell my own engraved bookmarks. My new paid collection is available now; buy a set from my shop and book my custom engraving service.",
+      "expectedIntent": "promotion of the author's own product or paid service"
+    }
+  ]
+}

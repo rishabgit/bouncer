@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "variant": {
+    "id": "llama-kev-q8",
+    "runtime": "llama",
+    "model": "ggml-org/Kev-0.8B-GGUF:Q8_0",
+    "file": "Kev-0.8B-Q8_0.gguf",
+    "family": "kev-0.8b",
+    "format": "GGUF Q8_0",
+    "parityGroup": "kev-q8"
+  },
+  "identity": {
+    "repository": "ggml-org/Kev-0.8B-GGUF",
+    "revision": "9231cb757e3320120077e42e52371971968f008d",
+    "file": "Kev-0.8B-Q8_0.gguf",
+    "sha256": "27278f34eb3273bceea4c053dc50dd61a5161da21a718c4aacdf8fd5830771d0",
+    "family": "kev-0.8b",
+    "architecture": "qwen35",
+    "disk": {
+      "logicalBytes": 812406304,
+      "allocatedBytes": 812408832,
+      "scope": "Primary text GGUF only; projector excluded (no-mmproj)"
+    }
+  }
+}

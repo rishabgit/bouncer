@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 2,
+  "kind": "discovery-preflight-only",
+  "variant": "ollama-kev-q8",
+  "runtimeSettings": {
+    "runtime": "ollama",
+    "version": "0.40.18",
+    "build": "official-v0.40.18",
+    "effectiveContext": 4096,
+    "parallel": 1,
+    "batch": null,
+    "ubatch": null,
+    "projector": "package components retained; no image requests",
+    "runner": "llamacpp",
+    "quantization": "Q8_0",
+    "aliasDefinition": {
+      "model": "bouncer-eval-kev-q8-ctx4096:v1",
+      "from": "kev:0.8b-q8_0",
+      "sourceDigest": "a2f47e09befbeaf7548572310d46f794b05c010a20ea5e64e9947eb479c23b31",
+      "parameters": {
+        "num_ctx": 4096
+      }
+    }
+  },
+  "inputTokens": 162,
+  "passed": true
+}

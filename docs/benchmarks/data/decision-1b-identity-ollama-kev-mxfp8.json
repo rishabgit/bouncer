@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 2,
+  "variant": {
+    "id": "ollama-kev-mxfp8",
+    "runtime": "ollama",
+    "model": "bouncer-eval-kev-mxfp8-ctx4096:v1",
+    "sourceModel": "kev:0.8b-mxfp8",
+    "family": "kev-0.8b",
+    "format": "MLX MXFP8"
+  },
+  "identity": {
+    "manifestSha256": "f9afbc73c20576a19a8663df4b93dcb45d25599daa14f6302074ce517133a86a",
+    "sourceManifestSha256": "e414a229c2b8b6438d4d71eda4eb3e7c275e5ee107efc5afd3f7798f36a03ead",
+    "family": "kev-0.8b",
+    "format": "MLX MXFP8",
+    "aliasDefinition": {
+      "model": "bouncer-eval-kev-mxfp8-ctx4096:v1",
+      "from": "kev:0.8b-mxfp8",
+      "sourceDigest": "e414a229c2b8b6438d4d71eda4eb3e7c275e5ee107efc5afd3f7798f36a03ead",
+      "parameters": {
+        "num_ctx": 4096
+      }
+    },
+    "metadata": {
+      "details": {
+        "parent_model": "",
+        "format": "safetensors",
+        "family": "kev",
+        "families": null,
+        "parameter_size": "752.92M",
+        "quantization_level": "mxfp8",
+        "runner": "mlx"
+      },
+      "model_info": {
+        "general.architecture": "kev",
+        "general.parameter_count": 752917312,
+        "kev.attention.head_count": 8,
+        "kev.attention.head_count_kv": 2,
+        "kev.block_count": 24,
+        "kev.context_length": 262144,
+        "kev.embedding_length": 1024,
+        "kev.feed_forward_length": 3584,
+        "kev.vocab_size": 248320
+      },
+      "parameters": "num_ctx                        4096",
+      "requires": "0.40.4",
+      "capabilities": [
+        "decision"
+      ]
+    },
+    "disk": {
+      "logicalBytes": 1038392408,
+      "allocatedBytes": 1039556608,
+      "scope": "Full derived-alias package; any vision/projector tensors included; shared blobs charged fully"
+    }
+  }
+}

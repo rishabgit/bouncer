@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "variant": {
+    "id": "llama-d1omni600m-q8",
+    "runtime": "llama",
+    "model": "LiquidAI/d1-omni-600M-GGUF:Q8_0",
+    "file": "d1-omni-600M-Q8_0.gguf",
+    "family": "d1-omni-600m",
+    "format": "GGUF Q8_0",
+    "batch": 4096
+  },
+  "identity": {
+    "repository": "LiquidAI/d1-omni-600M-GGUF",
+    "revision": "8eb2d2a1c5404bba8a34a88bd8e159c242197d51",
+    "file": "d1-omni-600M-Q8_0.gguf",
+    "sha256": "cd94463f4cac9c700ec6750df8df005bb6846de410e159d1f5e985e1171693d3",
+    "family": "d1-omni-600m",
+    "architecture": "lfm2",
+    "disk": {
+      "logicalBytes": 407207584,
+      "allocatedBytes": 419442688,
+      "scope": "Primary text GGUF only; projector excluded (no-mmproj)"
+    }
+  }
+}

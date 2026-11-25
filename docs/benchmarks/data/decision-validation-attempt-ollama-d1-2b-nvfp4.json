@@ -1,0 +1,63 @@
+{
+  "schemaVersion": 1,
+  "phase": "validation-attempt",
+  "variantId": "ollama-d1-2b-nvfp4",
+  "runId": "233ec8c7-5f27-4077-ac36-fb527aedd09e",
+  "preregistration": {
+    "file": "decision-preregistration.json",
+    "sha256": "804e8f2ed5ce151e4cc71429e0652600f23ebf5f78c023585b4b747b4d6b0561"
+  },
+  "selection": {
+    "file": "decision-1b-selection-ollama-d1-2b-nvfp4.json",
+    "sha256": "a4457e436b69ff11908997360c1edf933cc3e74ec01fa41416b7a725e207d304",
+    "templateId": "matches-category",
+    "templateHash": "9a1e023c41c8c19c37317953ae8d7b486ec088070ce00abadd4809242eb67f54",
+    "cutoff": 0.32208209372244256
+  },
+  "identityHash": "c3b7f91582adeed8238337fe390ac4fc6dbcfa6ba74717a2d26e51916a104d47",
+  "runtimeSettings": {
+    "runtime": "ollama",
+    "version": "0.40.18",
+    "build": "official-v0.40.18",
+    "effectiveContext": 4096,
+    "parallel": 1,
+    "batch": null,
+    "ubatch": null,
+    "projector": "package components retained; no image requests",
+    "runner": "mlx",
+    "quantization": "NVFP4",
+    "aliasDefinition": {
+      "model": "bouncer-eval-d1-2b-nvfp4-ctx4096:v1",
+      "from": "d1:2b-nvfp4",
+      "sourceDigest": "82c19b76395aa3e625ae28dc9e8ab390351ac3cc41056be7b4fc9865c593953d",
+      "parameters": {
+        "num_ctx": 4096
+      }
+    }
+  },
+  "corpusHashes": {
+    "eval-corpus.ts": "4a2dacac7271704addb5c06d953021b8c8c7f20108cfa002ce11942a6e907214",
+    "native-benchmark-corpus.ts": "a5db3bf30aa3039a3e571020c111797e1cfdd675872514a40139e66db6038603",
+    "native-isolation-holdout.json": "18841a6609d9e68493c629880bc03eeaa233eab890245e5cfd5c2eaa9e9d4159",
+    "native-migration-validation.json": "354e80566fdf889e213aec9072387c42f8286a48347379b1142073cba3fa4e27"
+  },
+  "startedAt": "2026-11-24T19:25:00.108Z",
+  "status": "complete",
+  "validationRequestsIssued": 192,
+  "completedCases": 192,
+  "activeCase": null,
+  "preflight": {
+    "caseId": "rage:p1",
+    "split": "discovery",
+    "wallMs": 549.8053749999999,
+    "probabilities": [
+      0.8203627233663939
+    ],
+    "usage": {
+      "input_tokens": 179,
+      "output_tokens": 0
+    }
+  },
+  "pass": true,
+  "finishedAt": "2026-11-24T19:25:07.907Z"
+}

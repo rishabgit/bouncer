@@ -1,0 +1,52 @@
+{
+  "schemaVersion": 1,
+  "phase": "exploratory-label-wording",
+  "status": "complete",
+  "recordedAt": "2026-11-24T20:35:06.048Z",
+  "cases": 280,
+  "goldDecisions": 940,
+  "requests": 3525,
+  "requestCoverageVerified": true,
+  "maximumInputTokens": 528,
+  "runtimeSettings": {
+    "runtime": "llama",
+    "version": "0.49.0",
+    "build": "b12652-212c547fe",
+    "effectiveContext": 4096,
+    "parallel": 1,
+    "batch": 4096,
+    "ubatch": 4096,
+    "projector": false,
+    "runner": "llamacpp",
+    "quantization": "Q8_0",
+    "aliasDefinition": null
+  },
+  "protectedReceiptCount": 69,
+  "immutableEvidenceUnchanged": true,
+  "corpusHashes": {
+    "eval-corpus.ts": "4a2dacac7271704addb5c06d953021b8c8c7f20108cfa002ce11942a6e907214",
+    "native-benchmark-corpus.ts": "a5db3bf30aa3039a3e571020c111797e1cfdd675872514a40139e66db6038603",
+    "native-isolation-holdout.json": "18841a6609d9e68493c629880bc03eeaa233eab890245e5cfd5c2eaa9e9d4159",
+    "native-migration-validation.json": "354e80566fdf889e213aec9072387c42f8286a48347379b1142073cba3fa4e27"
+  },
+  "rawSha256": "badf85d3924bd997acb57a4c60df362464e4b0c3e48b8040c4b4fac16c20f50b",
+  "summarySha256": "d50e9b3c83aaee45a9e3132246d9d88ca28d1598739dccb065c6ee8f7afccd9a",
+  "flipsSha256": "1bb0f0f34f0a52cf18d5427773454c180612a7f772ea1b5bd95ead6376f91ad5",
+  "flips": 77,
+  "tests": {
+    "fullSuitePassed": 70,
+    "rendererTargetedPassed": 4,
+    "heavyWrapperUsed": true
+  },
+  "reportSha256": "89567e9c80f8a91d96e47001ea1626a17edbdeca48f0d8c8ee528bf9b67e79af",
+  "privatePathsAbsent": true,
+  "onlyOwnedPathsChanged": true,
+  "llama": {
+    "running": true,
+    "loadedModels": 0
+  },
+  "ollama": {
+    "contacted": false,
+    "started": false
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "hashAlgorithm": "sha256",
+  "files": {
+    "eval-corpus.ts": {
+      "split": "discovery",
+      "sha256": "4a2dacac7271704addb5c06d953021b8c8c7f20108cfa002ce11942a6e907214",
+      "source": "eval-corpus.ts"
+    },
+    "native-benchmark-corpus.ts": {
+      "split": "discovery",
+      "sha256": "a5db3bf30aa3039a3e571020c111797e1cfdd675872514a40139e66db6038603",
+      "source": "native-benchmark-corpus.ts"
+    },
+    "native-isolation-holdout.json": {
+      "split": "validation",
+      "sha256": "18841a6609d9e68493c629880bc03eeaa233eab890245e5cfd5c2eaa9e9d4159",
+      "source": "native-isolation-holdout.json"
+    },
+    "native-migration-validation.json": {
+      "split": "validation",
+      "sha256": "354e80566fdf889e213aec9072387c42f8286a48347379b1142073cba3fa4e27",
+      "source": "native-migration-validation.json"
+    }
+  }
+}

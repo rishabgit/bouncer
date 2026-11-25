@@ -1,0 +1,2534 @@
+{
+  "schemaVersion": 1,
+  "phase": "validation",
+  "status": "complete",
+  "variant": {
+    "id": "llama-d1-2b-q8",
+    "runtime": "llama",
+    "model": "LiquidAI/d1-2B-GGUF:Q8_0",
+    "file": "d1-2B-Q8_0.gguf",
+    "family": "d1-2b",
+    "format": "GGUF Q8_0",
+    "batch": 4096,
+    "parityGroup": "d1-2b"
+  },
+  "runId": "071bd7a5-e252-4c6f-a7cd-538900b1fbb0",
+  "preregistration": {
+    "file": "decision-preregistration.json",
+    "sha256": "804e8f2ed5ce151e4cc71429e0652600f23ebf5f78c023585b4b747b4d6b0561"
+  },
+  "selection": {
+    "file": "decision-1b-selection-llama-d1-2b-q8.json",
+    "sha256": "8b6d177113c7922c62fdbdeb08b75e7acdc1048d179b5d153744c59717623814",
+    "templateId": "matches-category",
+    "templateHash": "9a1e023c41c8c19c37317953ae8d7b486ec088070ce00abadd4809242eb67f54",
+    "cutoff": 0.290813258948728
+  },
+  "identityHash": "c29fc69a7e84200aff7966f23d4a0f20b8be0168dfbdf2cbb3778efedde3206f",
+  "runtimeSettings": {
+    "runtime": "llama",
+    "version": "0.49.0",
+    "build": "b12652-212c547fe",
+    "effectiveContext": 4096,
+    "parallel": 1,
+    "batch": 4096,
+    "ubatch": 4096,
+    "projector": false,
+    "runner": "llamacpp",
+    "quantization": "Q8_0",
+    "aliasDefinition": null
+  },
+  "corpusHashes": {
+    "eval-corpus.ts": "4a2dacac7271704addb5c06d953021b8c8c7f20108cfa002ce11942a6e907214",
+    "native-benchmark-corpus.ts": "a5db3bf30aa3039a3e571020c111797e1cfdd675872514a40139e66db6038603",
+    "native-isolation-holdout.json": "18841a6609d9e68493c629880bc03eeaa233eab890245e5cfd5c2eaa9e9d4159",
+    "native-migration-validation.json": "354e80566fdf889e213aec9072387c42f8286a48347379b1142073cba3fa4e27"
+  },
+  "dataset": "isolation",
+  "sourceCorpus": "native-isolation-holdout.json",
+  "corpusSha256": "18841a6609d9e68493c629880bc03eeaa233eab890245e5cfd5c2eaa9e9d4159",
+  "baselineSha256": "6814f37a9dae4c918507533a24087ab6c117a57a8634bf6763ac0834e0731852",
+  "baseline": {
+    "browser": {
+      "scores": {
+        "rage": {
+          "hide": {
+            "n": 24,
+            "tp": 12,
+            "fp": 1,
+            "fn": 0,
+            "tn": 11,
+            "accuracy": 0.9583333333333334,
+            "precision": 0.9230769230769231,
+            "recall": 1,
+            "f1": 0.9600000000000001,
+            "specificity": 0.9166666666666666,
+            "falsePositiveRate": 0.08333333333333333
+          },
+          "exactVectors": 23,
+          "totalVectors": 24,
+          "exactVectorAccuracy": 0.9583333333333334,
+          "individualDecisions": 24,
+          "individual": {
+            "n": 24,
+            "tp": 12,
+            "fp": 1,
+            "fn": 0,
+            "tn": 11,
+            "accuracy": 0.9583333333333334,
+            "precision": 0.9230769230769231,
+            "recall": 1,
+            "f1": 0.9600000000000001,
+            "specificity": 0.9166666666666666,
+            "falsePositiveRate": 0.08333333333333333
+          },
+          "falseHides": 1,
+          "missedHides": 0,
+          "pairedAvailable": true,
+          "newFalseHides": 0,
+          "newMissedHides": 0,
+          "falseHideIds": [
+            "rage:holdout-rage-n10"
+          ],
+          "missedHideIds": [],
+          "newFalseHideIds": [],
+          "newMissedHideIds": [],
+          "incorrectVectorIds": [
+            "rage:holdout-rage-n10"
+          ]
+        },
+        "broad": {
+          "hide": {
+            "n": 48,
+            "tp": 38,
+            "fp": 1,
+            "fn": 1,
+            "tn": 8,
+            "accuracy": 0.9583333333333334,
+            "precision": 0.9743589743589743,
+            "recall": 0.9743589743589743,
+            "f1": 0.9743589743589743,
+            "specificity": 0.8888888888888888,
+            "falsePositiveRate": 0.1111111111111111
+          },
+          "exactVectors": 37,
+          "totalVectors": 48,
+          "exactVectorAccuracy": 0.7708333333333334,
+          "individualDecisions": 228,
+          "individual": {
+            "n": 228,
+            "tp": 58,
+            "fp": 8,
+            "fn": 16,
+            "tn": 146,
+            "accuracy": 0.8947368421052632,
+            "precision": 0.8787878787878788,
+            "recall": 0.7837837837837838,
+            "f1": 0.8285714285714285,
+            "specificity": 0.948051948051948,
+            "falsePositiveRate": 0.05194805194805195
+          },
+          "falseHides": 1,
+          "missedHides": 1,
+          "pairedAvailable": true,
+          "newFalseHides": 0,
+          "newMissedHides": 0,
+          "falseHideIds": [
+            "broad:holdout-broad-5-08"
+          ],
+          "missedHideIds": [
+            "broad:holdout-broad-10-02"
+          ],
+          "newFalseHideIds": [],
+          "newMissedHideIds": [],
+          "incorrectVectorIds": [
+            "broad:holdout-broad-3-03",
+            "broad:holdout-broad-3-07",
+            "broad:holdout-broad-5-06",
+            "broad:holdout-broad-5-08",
+            "broad:holdout-broad-5-09",
+            "broad:holdout-broad-5-11",
+            "broad:holdout-broad-10-02",
+            "broad:holdout-broad-10-07",
+            "broad:holdout-broad-10-08",
+            "broad:holdout-broad-10-11",
+            "broad:holdout-broad-10-12"
+          ]
+        },
+        "all": {
+          "hide": {
+            "n": 72,
+            "tp": 50,
+            "fp": 2,
+            "fn": 1,
+            "tn": 19,
+            "accuracy": 0.9583333333333334,
+            "precision": 0.9615384615384616,
+            "recall": 0.9803921568627451,
+            "f1": 0.970873786407767,
+            "specificity": 0.9047619047619048,
+            "falsePositiveRate": 0.09523809523809523
+          },
+          "exactVectors": 60,
+          "totalVectors": 72,
+          "exactVectorAccuracy": 0.8333333333333334,
+          "individualDecisions": 252,
+          "individual": {
+            "n": 252,
+            "tp": 70,
+            "fp": 9,
+            "fn": 16,
+            "tn": 157,
+            "accuracy": 0.9007936507936508,
+            "precision": 0.8860759493670886,
+            "recall": 0.813953488372093,
+            "f1": 0.8484848484848485,
+            "specificity": 0.9457831325301205,
+            "falsePositiveRate": 0.05421686746987952
+          },
+          "falseHides": 2,
+          "missedHides": 1,
+          "pairedAvailable": true,
+          "newFalseHides": 0,
+          "newMissedHides": 0,
+          "falseHideIds": [
+            "rage:holdout-rage-n10",
+            "broad:holdout-broad-5-08"
+          ],
+          "missedHideIds": [
+            "broad:holdout-broad-10-02"
+          ],
+          "newFalseHideIds": [],
+          "newMissedHideIds": [],
+          "incorrectVectorIds": [
+            "rage:holdout-rage-n10",
+            "broad:holdout-broad-3-03",
+            "broad:holdout-broad-3-07",
+            "broad:holdout-broad-5-06",
+            "broad:holdout-broad-5-08",
+            "broad:holdout-broad-5-09",
+            "broad:holdout-broad-5-11",
+            "broad:holdout-broad-10-02",
+            "broad:holdout-broad-10-07",
+            "broad:holdout-broad-10-08",
+            "broad:holdout-broad-10-11",
+            "broad:holdout-broad-10-12"
+          ]
+        }
+      },
+      "sourceIds": [
+        "browser-isolation-2026-10-11"
+      ]
+    },
+    "textOnlyQat": null
+  },
+  "environment": {
+    "time": 1795548289623,
+    "host": {
+      "platform": "darwin",
+      "architecture": "arm64",
+      "nodeVersion": "v24.18.1"
+    },
+    "chip": {
+      "name": "Apple M5 Pro",
+      "provenance": "user-supplied"
+    },
+    "ram": {
+      "bytes": 68719476736,
+      "provenance": "measured:memory_pressure -Q"
+    },
+    "loadAverage": [
+      2.74560546875,
+      2.66162109375,
+      3.08544921875
+    ],
+    "power": {
+      "available": true,
+      "raw": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=redacted)\t80%; AC attached; not charging present: true"
+    },
+    "memoryPressure": {
+      "available": true,
+      "raw": "The system has 68719476736 (4194304 pages with a page size of 16384).\nSystem-wide memory free percentage: 84%"
+    },
+    "vmStat": {
+      "available": true,
+      "raw": "Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free:                                     7261.\nPages active:                                1723870.\nPages inactive:                              1767524.\nPages speculative:                               526.\nPages throttled:                                   0.\nPages wired down:                             418980.\nPages purgeable:                               26440.\n\"Translation faults\":                      949896668.\nPages copy-on-write:                        82660230.\nPages zero filled:                         563924516.\nPages reactivated:                           6967679.\nPages purged:                                2023409.\nFile-backed pages:                           1567999.\nAnonymous pages:                             1923921.\nPages stored in compressor:                   438668.\nPages occupied by compressor:                 217365.\nDecompressions:                              3430184.\nCompressions:                                5661026.\nPageins:                                    22461133.\nPageouts:                                        805.\nSwapins:                                       44061.\nSwapouts:                                     100124.\nPages tagged:                                 195093.\nPages tagged resident:                        178352.\nPages tagged compressed:                       16741.\nPages tag-storage:                            131072.\nPages tag-storage holding tags:                 8893.\nPages tag-storage free:                           54.\nPages tag-storage non-tag pageable:           122004.\nPages tag-storage non-tag wired:                   8.\nBytes of compressed tags:                    2323648.\nTagged compressions:                          116665.\nTagged decompressions:                         92798."
+    }
+  },
+  "startedAt": "2026-11-24T19:24:49.623Z",
+  "rows": [
+    {
+      "id": "holdout-rage-p01",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "8c05528940fa5fdc38e30804fee1d1f46e453c87c3a0a3bc2cbb3a304c43a093",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "wallMs": 46.286041999999725,
+      "probabilities": [
+        0.6916197803151387
+      ],
+      "usage": {
+        "input_tokens": 185,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-p02",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "d87960f1542f08c4bbb6c1486667b469c55930c037e0f7b05e3f5012ffc007b7",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "wallMs": 46.04366600000003,
+      "probabilities": [
+        0.8606680395314396
+      ],
+      "usage": {
+        "input_tokens": 184,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-p03",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "a80cff74e665f14e50ec9f4ff6ee9dd14ba34f97e8ee7b7b7496b0646ba91ea7",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "wallMs": 47.827124999999796,
+      "probabilities": [
+        0.9635669812227672
+      ],
+      "usage": {
+        "input_tokens": 186,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-p04",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "f7339a721afeb0027c3a2858a8f5b5a05411894b6e3c40d11ebe038187b13c0d",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "wallMs": 46.17716699999983,
+      "probabilities": [
+        0.9227575625541723
+      ],
+      "usage": {
+        "input_tokens": 185,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-p05",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "83f84917e06a6d25e09652aeaed673907c822b15e8570152da1d9d3476455b93",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "wallMs": 44.93695800000023,
+      "probabilities": [
+        0.9759691884524906
+      ],
+      "usage": {
+        "input_tokens": 180,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-p06",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "86bf9a0f9b472ece178da8f462bd35e741bcc764dd0cee4c2c9f531bfff8f193",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "wallMs": 45.48891599999979,
+      "probabilities": [
+        0.9310905721829027
+      ],
+      "usage": {
+        "input_tokens": 181,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-p07",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "6933d4ab1843a7b3b55d259f50a489c3a6170e4b3583492f78554283374a4539",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "wallMs": 45.19895799999995,
+      "probabilities": [
+        0.8130423910554049
+      ],
+      "usage": {
+        "input_tokens": 183,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-p08",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "031e6819cb6fee37533bc24bcb49df66a147be062a95e742ec25eb9b43bccaf1",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "wallMs": 45.23045899999988,
+      "probabilities": [
+        0.9248590020956838
+      ],
+      "usage": {
+        "input_tokens": 183,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-p09",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "9abe77aaba724da31986a9d607924a7306e91b921dd87c9aa7f460d4dab5cb12",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "wallMs": 45.218083000000206,
+      "probabilities": [
+        0.7052745002529902
+      ],
+      "usage": {
+        "input_tokens": 180,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-p10",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "d2792f83b18639200ab730b0a0c105a57d4ff6db4b675484bad41c5d6e27cc27",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "wallMs": 45.19324999999981,
+      "probabilities": [
+        0.9491890436257604
+      ],
+      "usage": {
+        "input_tokens": 185,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-p11",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "560fc62e040410fad99ec734451fc38e7f7a04c8684cd14a703603a53c7bed60",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "wallMs": 45.05012499999975,
+      "probabilities": [
+        0.946018729814646
+      ],
+      "usage": {
+        "input_tokens": 182,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-p12",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "ec3c9e95525b20ae51e382a110741219c2d09bf41f4b6e8516c3fa97235a30d3",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "wallMs": 45.491833999999926,
+      "probabilities": [
+        0.9545112497631131
+      ],
+      "usage": {
+        "input_tokens": 179,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-n01",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "371732a2c8e9afe1afca0f13212e96e43368a9c028da9cf3eb771ad889ebd010",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "wallMs": 45.63779199999999,
+      "probabilities": [
+        0.05737447525429612
+      ],
+      "usage": {
+        "input_tokens": 183,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-n02",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "95d7757e0362d6d36ed3d05aaf4209a650b06afa16906de606a04d8d5e1caac4",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "wallMs": 46.275082999999995,
+      "probabilities": [
+        0.17525883760787464
+      ],
+      "usage": {
+        "input_tokens": 181,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-n03",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "cffc2c5388373d3e8b4fd217047b6c031c33e39983579dab6a9279162e1fe5c0",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "wallMs": 46.138916000000336,
+      "probabilities": [
+        0.02860127541541548
+      ],
+      "usage": {
+        "input_tokens": 187,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-n04",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "925e799617de1d3fee208a8a790c95f0889b5be1b658fac9e309a23b9e294f15",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "wallMs": 46.03037500000028,
+      "probabilities": [
+        0.0321461828433346
+      ],
+      "usage": {
+        "input_tokens": 182,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-n05",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "36d9a2f943e3a6c0a56d89fb4850a658b2655f669602cf1da5e76d7cc54da5fe",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "wallMs": 46.028999999999996,
+      "probabilities": [
+        0.038910007719493996
+      ],
+      "usage": {
+        "input_tokens": 185,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-n06",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "d8e2848037429aa7a8fa686e72a6aa1691b2cdda1b657a727fa3d57c450fb770",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "wallMs": 45.575250000000324,
+      "probabilities": [
+        0.0863255509721379
+      ],
+      "usage": {
+        "input_tokens": 176,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-n07",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "dc7e8186e30058841a4380c16efe6eb1a15e04d8b55a430ee87d36cff353771b",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "wallMs": 46.27479200000016,
+      "probabilities": [
+        0.07999823327452098
+      ],
+      "usage": {
+        "input_tokens": 183,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-n08",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "9c503711f58114e80da017bd34c02367c2a73f28fa891c66ac6bca8a04cb4c87",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "wallMs": 46.16145800000049,
+      "probabilities": [
+        0.02290174258781642
+      ],
+      "usage": {
+        "input_tokens": 180,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-n09",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "687c6cdf71284c70c7b47ac8a1ef6122c0b4f6004e926b526cf2707338842fdd",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "wallMs": 45.80683299999964,
+      "probabilities": [
+        0.016742960723349895
+      ],
+      "usage": {
+        "input_tokens": 184,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-n10",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "1fa613a8d1422c65e0dc6852c5f88f954269f27e3bbf9a0d20c3e32851d789e8",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "wallMs": 45.68629200000032,
+      "probabilities": [
+        0.10093899348091646
+      ],
+      "usage": {
+        "input_tokens": 184,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-n11",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "71e3d81adbf0aee626b000659d01190476ee09b3dcda97d87a76085ce87f48cf",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "wallMs": 46.12312500000007,
+      "probabilities": [
+        0.042852629197119484
+      ],
+      "usage": {
+        "input_tokens": 183,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-rage-n12",
+      "corpus": "rage",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "164168f0bfe5e110ee8e91f5f63f58a7757f06c6aeaa245eadca6cbd834e9b51",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "wallMs": 45.88166699999965,
+      "probabilities": [
+        0.03887246545123461
+      ],
+      "usage": {
+        "input_tokens": 183,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-1-01",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "ce04090c621bb03f37f022f962415cc2fa0ba7bd704d010f3f1a85995ad524a0",
+      "filters": [
+        "cryptocurrency investing or promotion"
+      ],
+      "expected": [
+        true
+      ],
+      "wallMs": 30.78179099999943,
+      "probabilities": [
+        0.9633247142721443
+      ],
+      "usage": {
+        "input_tokens": 77,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-1-02",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "4b52ddc6a74eb50277587970516ba605b92693285bf941c1eb7bacd592432edf",
+      "filters": [
+        "cryptocurrency investing or promotion"
+      ],
+      "expected": [
+        false
+      ],
+      "wallMs": 30.776707999999417,
+      "probabilities": [
+        0.04506263325049934
+      ],
+      "usage": {
+        "input_tokens": 77,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-1-03",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "3cca6c4df64128fe8b8c11aba70f8fb5685f5bd40fa340978ff719f3b694dd14",
+      "filters": [
+        "sports results or commentary"
+      ],
+      "expected": [
+        true
+      ],
+      "wallMs": 30.31170799999927,
+      "probabilities": [
+        0.9752639053389693
+      ],
+      "usage": {
+        "input_tokens": 76,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-1-04",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "9cf511133720ac00a268d08eac654c9dc12e65d29258f64a76739277eb18bd5d",
+      "filters": [
+        "sports results or commentary"
+      ],
+      "expected": [
+        false
+      ],
+      "wallMs": 30.63116699999955,
+      "probabilities": [
+        0.01409097108483077
+      ],
+      "usage": {
+        "input_tokens": 77,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-1-05",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "5e337446ed7f0e8aa98f6a58b6ad8f1e4d4ce316fecbc6a4fdba01282a431e11",
+      "filters": [
+        "food and cooking"
+      ],
+      "expected": [
+        true
+      ],
+      "wallMs": 30.308500000000095,
+      "probabilities": [
+        0.9851129724489017
+      ],
+      "usage": {
+        "input_tokens": 77,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-1-06",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "b521281d5fec16687b5ac268687718046c61334f2ab13acfc6d8f8ecda4bffed",
+      "filters": [
+        "exercise routines and fitness training"
+      ],
+      "expected": [
+        true
+      ],
+      "wallMs": 30.55816700000014,
+      "probabilities": [
+        0.9756345696820201
+      ],
+      "usage": {
+        "input_tokens": 80,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-1-07",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "b3579155ffd8617f1dfe4f331fd8682eb4382f9fc44327eac5b2f9bf35232e9d",
+      "filters": [
+        "government policy or election politics"
+      ],
+      "expected": [
+        true
+      ],
+      "wallMs": 29.7490829999997,
+      "probabilities": [
+        0.9155364882696081
+      ],
+      "usage": {
+        "input_tokens": 75,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-1-08",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "7c1ef9586419e7aa3dee01ec3385ee5a41410752414111b7c49fa57313254928",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expected": [
+        false
+      ],
+      "wallMs": 30.132042000000183,
+      "probabilities": [
+        0.006973882139602124
+      ],
+      "usage": {
+        "input_tokens": 78,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-1-09",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "d8a52bc188fc84aa6c785e61f6ec3381334f93b0dfde3af33dfeb70896072b82",
+      "filters": [
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expected": [
+        true
+      ],
+      "wallMs": 30.49291600000015,
+      "probabilities": [
+        0.939140581199777
+      ],
+      "usage": {
+        "input_tokens": 85,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-1-10",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "7e79c52b8b9fd990265878fd801eb289a37e2ae78ae4c427583d8f971d178303",
+      "filters": [
+        "promotion of the author's own product or paid service"
+      ],
+      "expected": [
+        false
+      ],
+      "wallMs": 30.668500000000677,
+      "probabilities": [
+        0.10788890153969534
+      ],
+      "usage": {
+        "input_tokens": 87,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-1-11",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "472ea08395621369d4b1407d470d30bc4ed18cea22d999e4f1c3ebd0ab23d379",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expected": [
+        false
+      ],
+      "wallMs": 30.94183299999986,
+      "probabilities": [
+        0.041208816435461204
+      ],
+      "usage": {
+        "input_tokens": 87,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-1-12",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "2831c94306b7f51d49562c44811213892467e86c36f183de825e32abdead2ed8",
+      "filters": [
+        "personal feuds or public insults between people"
+      ],
+      "expected": [
+        true
+      ],
+      "wallMs": 30.546833000000333,
+      "probabilities": [
+        0.9758546721542204
+      ],
+      "usage": {
+        "input_tokens": 86,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-3-01",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "4c774e471cbed71b376a4ce5ad48995167a4a36d314d155e8e1d8a6e76605522",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "government policy or election politics"
+      ],
+      "expected": [
+        true,
+        false,
+        false
+      ],
+      "wallMs": 44.82229200000074,
+      "probabilities": [
+        0.9676132427785303,
+        0.011704456349877018,
+        0.009512608072882395
+      ],
+      "usage": {
+        "input_tokens": 157,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-3-02",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "9ec50651cbedc108016965dd177fd1971de4dc095f278e91d895d8425518f997",
+      "filters": [
+        "promotion of the author's own product or paid service",
+        "food and cooking",
+        "personal feuds or public insults between people"
+      ],
+      "expected": [
+        false,
+        true,
+        false
+      ],
+      "wallMs": 45.13625000000047,
+      "probabilities": [
+        0.05212350814714436,
+        0.9705195557915595,
+        0.004952762030257216
+      ],
+      "usage": {
+        "input_tokens": 168,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-3-03",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "9ce4f010ba4298c0b1df3885eb74e9a149434fe1fcbe272fab2a1fe76e43c77f",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "requests for likes, reposts, or replies to boost engagement",
+        "exercise routines and fitness training"
+      ],
+      "expected": [
+        false,
+        false,
+        true
+      ],
+      "wallMs": 45.089082999999846,
+      "probabilities": [
+        0.005023165660822083,
+        0.011212472213609654,
+        0.9745976083596547
+      ],
+      "usage": {
+        "input_tokens": 169,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-3-04",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "32775cb839449cd9fca0c98b1dd669637fc5a61c1d3dc67e1608320734707da7",
+      "filters": [
+        "government policy or election politics",
+        "sports results or commentary",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expected": [
+        true,
+        false,
+        true
+      ],
+      "wallMs": 45.25720799999999,
+      "probabilities": [
+        0.6659761564942049,
+        0.024225712191323617,
+        0.7863021068040957
+      ],
+      "usage": {
+        "input_tokens": 165,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-3-05",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "4f4e3fdc78a60227814e8900b59fb8c86084676a2f639c9e9ebda2beb8610a6b",
+      "filters": [
+        "promotion of the author's own product or paid service",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "food and cooking"
+      ],
+      "expected": [
+        true,
+        true,
+        false
+      ],
+      "wallMs": 45.19237500000054,
+      "probabilities": [
+        0.9333432193635162,
+        0.9770521847872685,
+        0.043085709969727624
+      ],
+      "usage": {
+        "input_tokens": 172,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-3-06",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "4983db3be9a3acb6758bff3ab7769d548cfa9f3dcdb7cdf54768341941db89c1",
+      "filters": [
+        "exercise routines and fitness training",
+        "personal feuds or public insults between people",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expected": [
+        false,
+        true,
+        true
+      ],
+      "wallMs": 44.34087499999987,
+      "probabilities": [
+        0.03639972674181221,
+        0.9536905639581583,
+        0.9576256677200905
+      ],
+      "usage": {
+        "input_tokens": 181,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-3-07",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "93bdd896dfb5a1ccea44e01927e51a3799163686688f3304841423db73e9a370",
+      "filters": [
+        "food and cooking",
+        "sports results or commentary",
+        "exercise routines and fitness training"
+      ],
+      "expected": [
+        true,
+        true,
+        true
+      ],
+      "wallMs": 44.11787499999991,
+      "probabilities": [
+        0.5789804143192678,
+        0.4823147496692681,
+        0.7917827501332502
+      ],
+      "usage": {
+        "input_tokens": 160,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-3-08",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "b9116e61951796d2c6e806f4fd5ee34c044e4cd800db4edb361aa3af91e5aee1",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "exercise routines and fitness training",
+        "government policy or election politics"
+      ],
+      "expected": [
+        false,
+        false,
+        false
+      ],
+      "wallMs": 45.3881250000004,
+      "probabilities": [
+        0.009601502726126063,
+        0.02802804746599862,
+        0.01572323329508039
+      ],
+      "usage": {
+        "input_tokens": 164,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-3-09",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "74a5f0092e9da36180601fbe9038cadafb118c720a0b28284482512c67919f0e",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expected": [
+        false,
+        false,
+        true
+      ],
+      "wallMs": 45.522500000000036,
+      "probabilities": [
+        0.08738084278342827,
+        0.08800981673825951,
+        0.9638724117134917
+      ],
+      "usage": {
+        "input_tokens": 181,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-3-10",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "874df1eb09c6ba6f136ea6f3dec5f01c7a862db4b0243dd763c348cdaa3f999d",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "personal feuds or public insults between people",
+        "sports results or commentary"
+      ],
+      "expected": [
+        true,
+        false,
+        false
+      ],
+      "wallMs": 45.386708,
+      "probabilities": [
+        0.9699905585557754,
+        0.1127108523375555,
+        0.024874339567566506
+      ],
+      "usage": {
+        "input_tokens": 167,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-3-11",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "77cfd6ecba6c5cc158eb82ef69460bb2de5b42dc2cd45242fdad313702f0db81",
+      "filters": [
+        "food and cooking",
+        "cryptocurrency investing or promotion",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expected": [
+        true,
+        false,
+        true
+      ],
+      "wallMs": 45.41491700000006,
+      "probabilities": [
+        0.850458538361695,
+        0.01714365129014437,
+        0.9866017657548184
+      ],
+      "usage": {
+        "input_tokens": 171,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-3-12",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "62d5ff3aeb73c3b0a4a7c948147ee16013233ad99b35b9ebf5a22515ebd4b0e7",
+      "filters": [
+        "personal feuds or public insults between people",
+        "government policy or election politics",
+        "cryptocurrency investing or promotion"
+      ],
+      "expected": [
+        false,
+        true,
+        false
+      ],
+      "wallMs": 45.360625000000255,
+      "probabilities": [
+        0.007481561571892613,
+        0.8966615978043804,
+        0.005359692792768552
+      ],
+      "usage": {
+        "input_tokens": 161,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-5-01",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "6e0548ad531bb5e6ec5a8ca64e0f0c957afccdec6a44a2fe7a1a4f5a3fcb228a",
+      "filters": [
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "exercise routines and fitness training",
+        "personal feuds or public insults between people",
+        "cryptocurrency investing or promotion"
+      ],
+      "expected": [
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "wallMs": 48.62312500000007,
+      "probabilities": [
+        0.9800523270890996,
+        0.007322907668250766,
+        0.049554492948210495,
+        0.004807162455600224,
+        0.004246611709247814
+      ],
+      "usage": {
+        "input_tokens": 247,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-5-02",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "73e0688d342f0d80e0f09dac7ce45de3c4dad637a69e41edf31f552792d7453e",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service",
+        "sports results or commentary",
+        "requests for likes, reposts, or replies to boost engagement",
+        "government policy or election politics"
+      ],
+      "expected": [
+        false,
+        false,
+        true,
+        false,
+        false
+      ],
+      "wallMs": 48.68620800000008,
+      "probabilities": [
+        0.0028603294032806,
+        0.01374399036736653,
+        0.9786928983392877,
+        0.01695535059866522,
+        0.01785101323293744
+      ],
+      "usage": {
+        "input_tokens": 253,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-5-03",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "05c7b313aa9235f1e91148a6fe943f830cc195c0902736643cc7f45ec9710861",
+      "filters": [
+        "exercise routines and fitness training",
+        "cryptocurrency investing or promotion",
+        "personal feuds or public insults between people",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "wallMs": 48.42645799999991,
+      "probabilities": [
+        0.006916777338489761,
+        0.004726941041552777,
+        0.007135316648575597,
+        0.012367545598093343,
+        0.8709745767273067
+      ],
+      "usage": {
+        "input_tokens": 246,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-5-04",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "c515ab700ebe135e779f575b8ca73ac3ad25bbbc7c468b2b0438ab8f8e38280b",
+      "filters": [
+        "promotion of the author's own product or paid service",
+        "sports results or commentary",
+        "gossip about famous entertainers or celebrities",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "personal feuds or public insults between people"
+      ],
+      "expected": [
+        true,
+        false,
+        false,
+        false,
+        true
+      ],
+      "wallMs": 63.727499999999964,
+      "probabilities": [
+        0.35465602572311516,
+        0.012425452494615553,
+        0.07729676215404241,
+        0.00507310476257617,
+        0.8523255204271347
+      ],
+      "usage": {
+        "input_tokens": 268,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-5-05",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "b69c7dca4de4f4a7f3768c6f0ea76c821c7b6d56aaea377ecedc1901a43ad418",
+      "filters": [
+        "government policy or election politics",
+        "cryptocurrency investing or promotion",
+        "food and cooking",
+        "exercise routines and fitness training",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expected": [
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "wallMs": 48.279207999999926,
+      "probabilities": [
+        0.010506965519311207,
+        0.9193449229621118,
+        0.04856222062987742,
+        0.8837745513592731,
+        0.014226150344299337
+      ],
+      "usage": {
+        "input_tokens": 243,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-5-06",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "ee45f65bae4b123e3410f677d4327ac6e69a5cf26371b3f8a664f23ddb36c66b",
+      "filters": [
+        "personal feuds or public insults between people",
+        "food and cooking",
+        "requests for likes, reposts, or replies to boost engagement",
+        "exercise routines and fitness training",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expected": [
+        false,
+        true,
+        true,
+        false,
+        true
+      ],
+      "wallMs": 63.900916999999936,
+      "probabilities": [
+        0.2873961381842637,
+        0.43783786935499397,
+        0.955641650426887,
+        0.06641836916116534,
+        0.9456312969139438
+      ],
+      "usage": {
+        "input_tokens": 265,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-5-07",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "2e74bd7bcb4d8386e72e4b07f91150e79297a3501a0d0a8a2d6966b14835121a",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "gossip about famous entertainers or celebrities",
+        "personal feuds or public insults between people"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "wallMs": 63.863124999999854,
+      "probabilities": [
+        0.04531611109833817,
+        0.03136651882950349,
+        0.016930913395122288,
+        0.029157712963090655,
+        0.0066243958419878735
+      ],
+      "usage": {
+        "input_tokens": 270,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-5-08",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "279212977c18d7ec0b8535026158379377beb79cdee150db6a9b01036dca745e",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "food and cooking",
+        "exercise routines and fitness training",
+        "government policy or election politics"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "wallMs": 47.666041999999834,
+      "probabilities": [
+        0.004896871551752832,
+        0.040174452039700034,
+        0.2357756992334608,
+        0.2325380690368405,
+        0.016580349856835434
+      ],
+      "usage": {
+        "input_tokens": 242,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-5-09",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "194d0faa0f510e68d04455e2d2e2e2077eb5d31c13ed15ec28810633598fee96",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "cryptocurrency investing or promotion",
+        "promotion of the author's own product or paid service"
+      ],
+      "expected": [
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "wallMs": 64.2869580000006,
+      "probabilities": [
+        0.6885483398531821,
+        0.9727151285079959,
+        0.7362176570330679,
+        0.9197359115002987,
+        0.9413963265793798
+      ],
+      "usage": {
+        "input_tokens": 278,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-5-10",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "214e92bb3df1d317e051285dc158084c56afe1ff6c3ada33fde79488c7a8beab",
+      "filters": [
+        "government policy or election politics",
+        "food and cooking",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expected": [
+        true,
+        false,
+        true,
+        false,
+        true
+      ],
+      "wallMs": 48.85620800000015,
+      "probabilities": [
+        0.47140101214201985,
+        0.04420670147458718,
+        0.7548024386199286,
+        0.014129454785373393,
+        0.8869444951448454
+      ],
+      "usage": {
+        "input_tokens": 256,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-5-11",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "b28b9c387d577108abd9177ac7d2efe7995660ac837b94dbbb9ce2cd65e41f86",
+      "filters": [
+        "food and cooking",
+        "requests for likes, reposts, or replies to boost engagement",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service"
+      ],
+      "expected": [
+        false,
+        false,
+        true,
+        false,
+        false
+      ],
+      "wallMs": 64.0243330000003,
+      "probabilities": [
+        0.035675500544904454,
+        0.07037978327360171,
+        0.9919903460125701,
+        0.024292223785384124,
+        0.11136645132286055
+      ],
+      "usage": {
+        "input_tokens": 270,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-5-12",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "2eb7cffc53a31d8ffc3741f759b154a49305f4ce0a39c96f434b1335ccfbf41d",
+      "filters": [
+        "exercise routines and fitness training",
+        "promotion of the author's own product or paid service",
+        "government policy or election politics",
+        "food and cooking",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expected": [
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "wallMs": 63.86070799999925,
+      "probabilities": [
+        0.06580559012999623,
+        0.9410365320017041,
+        0.01121510909188032,
+        0.7471983405012805,
+        0.05681479221098026
+      ],
+      "usage": {
+        "input_tokens": 262,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-10-01",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "bbd88fb9fd8b9076264ec425d5799d55a5019b3ba42b8ddb854b27529206da9a",
+      "filters": [
+        "sports results or commentary",
+        "gossip about famous entertainers or celebrities",
+        "promotion of the author's own product or paid service",
+        "government policy or election politics",
+        "food and cooking",
+        "requests for likes, reposts, or replies to boost engagement",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "personal feuds or public insults between people",
+        "cryptocurrency investing or promotion"
+      ],
+      "expected": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "wallMs": 86.63104199999998,
+      "probabilities": [
+        0.9758760936681583,
+        0.06505568625769813,
+        0.008337275669211625,
+        0.014813142536081665,
+        0.02033940763572326,
+        0.010962965588932422,
+        0.005545072449667814,
+        0.2106688267884217,
+        0.010462879610697126,
+        0.007112813525147771
+      ],
+      "usage": {
+        "input_tokens": 469,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-10-02",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "c717bac6aa97476b90508d6ff1f11db393b838c075c51f9e2dc0155d7ce676ce",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service",
+        "personal feuds or public insults between people",
+        "food and cooking",
+        "government policy or election politics",
+        "exercise routines and fitness training",
+        "gossip about famous entertainers or celebrities",
+        "sports results or commentary",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "wallMs": 86.75983400000041,
+      "probabilities": [
+        0.006299055495020788,
+        0.005011173027581993,
+        0.03360983240279618,
+        0.0064853392444972156,
+        0.987180825726869,
+        0.005957449239865215,
+        0.14440292737516897,
+        0.00968995397032391,
+        0.008709895595086486,
+        0.022591270421825505
+      ],
+      "usage": {
+        "input_tokens": 474,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-10-03",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "9ca75a6eb2490635f33d1370b8bad7bb26e75f822460d3ca0686aadb4b087d33",
+      "filters": [
+        "food and cooking",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "sports results or commentary",
+        "exercise routines and fitness training",
+        "promotion of the author's own product or paid service",
+        "cryptocurrency investing or promotion",
+        "gossip about famous entertainers or celebrities",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "wallMs": 86.02783400000044,
+      "probabilities": [
+        0.030724468096620463,
+        0.01262955799843691,
+        0.008893281349398614,
+        0.01095142031195476,
+        0.010185011567204789,
+        0.08917101844810417,
+        0.1373124203585256,
+        0.020961829016303783,
+        0.0132637820371711,
+        0.9737181471042538
+      ],
+      "usage": {
+        "input_tokens": 471,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-10-04",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "9a53df26e11c732e46fd969305ff644a00021bfef3e0a4f96b87d47d5e0f05ac",
+      "filters": [
+        "government policy or election politics",
+        "requests for likes, reposts, or replies to boost engagement",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "promotion of the author's own product or paid service",
+        "exercise routines and fitness training",
+        "personal feuds or public insults between people"
+      ],
+      "expected": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "wallMs": 86.84649999999965,
+      "probabilities": [
+        0.33238518372058484,
+        0.025832557529855242,
+        0.00894818678172398,
+        0.008411651341707151,
+        0.020134147300573245,
+        0.02139271232790912,
+        0.04349089926641005,
+        0.014134148942326416,
+        0.02936841843029391,
+        0.9615461489040082
+      ],
+      "usage": {
+        "input_tokens": 478,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-10-05",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "d3c9b3c49fa2f1d09c471c61afe311f4cc0e3dca163c69440b3de9047e4e8359",
+      "filters": [
+        "promotion of the author's own product or paid service",
+        "gossip about famous entertainers or celebrities",
+        "food and cooking",
+        "exercise routines and fitness training",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "personal feuds or public insults between people",
+        "government policy or election politics",
+        "sports results or commentary"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "wallMs": 85.97762500000044,
+      "probabilities": [
+        0.016749494844448126,
+        0.01357143428412332,
+        0.019448289861506315,
+        0.01577755467581472,
+        0.013534068754752887,
+        0.959305424074684,
+        0.006595473510905715,
+        0.014612954497376726,
+        0.018430358687031207,
+        0.010152841860990556
+      ],
+      "usage": {
+        "input_tokens": 472,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-10-06",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "731f9eb37174abe2024febb45451bc114213d8d59352916634930ff5f12f1b8d",
+      "filters": [
+        "sports results or commentary",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "gossip about famous entertainers or celebrities",
+        "exercise routines and fitness training",
+        "requests for likes, reposts, or replies to boost engagement",
+        "food and cooking",
+        "cryptocurrency investing or promotion",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true
+      ],
+      "wallMs": 85.71141700000044,
+      "probabilities": [
+        0.01061660393928791,
+        0.013993370846347043,
+        0.01645361044647314,
+        0.1310359012083958,
+        0.015245328870842354,
+        0.10180668098027852,
+        0.03960222695774353,
+        0.2832975379916749,
+        0.011216619544141533,
+        0.9154793158091641
+      ],
+      "usage": {
+        "input_tokens": 480,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-10-07",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "c785b2387aba69ba38012b02e65e3f63bd6f0bbdfced7a48b32b4328110625dd",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "food and cooking",
+        "requests for likes, reposts, or replies to boost engagement",
+        "government policy or election politics",
+        "cryptocurrency investing or promotion",
+        "exercise routines and fitness training",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "sports results or commentary",
+        "promotion of the author's own product or paid service",
+        "personal feuds or public insults between people"
+      ],
+      "expected": [
+        false,
+        true,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "wallMs": 86.2602080000006,
+      "probabilities": [
+        0.00775467347812149,
+        0.6391005459225686,
+        0.02294822291436581,
+        0.006023663296729174,
+        0.002797006189508363,
+        0.8378087480157144,
+        0.004070308983299606,
+        0.6796496777585234,
+        0.018494167696192037,
+        0.006392865960342935
+      ],
+      "usage": {
+        "input_tokens": 477,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-10-08",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "bc4f6f16a7201e0b4767bdeff62bc1e34861538b58b313e403b21c5d1075563f",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service",
+        "sports results or commentary",
+        "exercise routines and fitness training",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "cryptocurrency investing or promotion",
+        "requests for likes, reposts, or replies to boost engagement",
+        "gossip about famous entertainers or celebrities",
+        "food and cooking"
+      ],
+      "expected": [
+        false,
+        true,
+        false,
+        false,
+        true,
+        false,
+        false,
+        true,
+        false,
+        false
+      ],
+      "wallMs": 85.69366700000046,
+      "probabilities": [
+        0.009858792036300369,
+        0.7941955785124462,
+        0.02167440346130014,
+        0.029222649403967054,
+        0.8460946593681784,
+        0.03410074168991023,
+        0.01413576369013472,
+        0.7732844451329406,
+        0.04852301203321835,
+        0.045888222031319786
+      ],
+      "usage": {
+        "input_tokens": 474,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-10-09",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "54560d91ac69f75073ac7e2a094cd039cd015b86c6b868a862f6f5eec8e00cdc",
+      "filters": [
+        "exercise routines and fitness training",
+        "government policy or election politics",
+        "gossip about famous entertainers or celebrities",
+        "food and cooking",
+        "promotion of the author's own product or paid service",
+        "sports results or commentary",
+        "personal feuds or public insults between people",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion"
+      ],
+      "expected": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "wallMs": 86.4507080000003,
+      "probabilities": [
+        0.028210449829669554,
+        0.01779872392613664,
+        0.9839066759163243,
+        0.07484262483344091,
+        0.012047061624882604,
+        0.012788691140150176,
+        0.9085125901169966,
+        0.003996877780870354,
+        0.020261152008273494,
+        0.003999096845746139
+      ],
+      "usage": {
+        "input_tokens": 475,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-10-10",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "e2990e22696cd1620093b383b650087714fa853e3e87bfc3967d0277ae850556",
+      "filters": [
+        "food and cooking",
+        "cryptocurrency investing or promotion",
+        "exercise routines and fitness training",
+        "sports results or commentary",
+        "personal feuds or public insults between people",
+        "government policy or election politics",
+        "requests for likes, reposts, or replies to boost engagement",
+        "gossip about famous entertainers or celebrities",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "wallMs": 86.79704200000015,
+      "probabilities": [
+        0.02026833698409798,
+        0.01985655960215504,
+        0.03232627532287934,
+        0.029349875675303075,
+        0.017622931851405704,
+        0.03909995608149777,
+        0.026744714940418884,
+        0.019451417765292127,
+        0.034526587362714474,
+        0.07240176643327986
+      ],
+      "usage": {
+        "input_tokens": 480,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-10-11",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "402e585b9bd0b3890982cceda14713f542e7f4cd7d029a669c5ecc353eda8f55",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement",
+        "gossip about famous entertainers or celebrities",
+        "cryptocurrency investing or promotion",
+        "government policy or election politics",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service",
+        "personal feuds or public insults between people",
+        "exercise routines and fitness training",
+        "sports results or commentary",
+        "food and cooking"
+      ],
+      "expected": [
+        false,
+        true,
+        false,
+        true,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true
+      ],
+      "wallMs": 87.05579200000011,
+      "probabilities": [
+        0.03473259997200054,
+        0.8689732736013221,
+        0.008805011638783503,
+        0.800038833061319,
+        0.013123086227450394,
+        0.02387133011333024,
+        0.09149727874292889,
+        0.5033646260593556,
+        0.01858486994727649,
+        0.6685962613212941
+      ],
+      "usage": {
+        "input_tokens": 482,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "holdout-broad-10-12",
+      "corpus": "broad",
+      "sourceCorpus": "native-isolation-holdout.json",
+      "caseIdentitySha256": "67cdc68a5fe35c631702844e2bab05d707e99c30fb98433ade037daa5a68f907",
+      "filters": [
+        "personal feuds or public insults between people",
+        "sports results or commentary",
+        "cryptocurrency investing or promotion",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "requests for likes, reposts, or replies to boost engagement",
+        "exercise routines and fitness training",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service",
+        "government policy or election politics"
+      ],
+      "expected": [
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true,
+        true
+      ],
+      "wallMs": 101.84500000000025,
+      "probabilities": [
+        0.7633972573026193,
+        0.7470490680076968,
+        0.8803828807400383,
+        0.5395582643156299,
+        0.6710282665168675,
+        0.835502679504338,
+        0.4310744629414132,
+        0.9851380656045053,
+        0.8692745209115735,
+        0.7464041567195308
+      ],
+      "usage": {
+        "input_tokens": 528,
+        "output_tokens": 0
+      }
+    }
+  ],
+  "atFrozen": {
+    "rage": {
+      "hide": {
+        "n": 24,
+        "tp": 12,
+        "fp": 0,
+        "fn": 0,
+        "tn": 12,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "exactVectors": 24,
+      "totalVectors": 24,
+      "exactVectorAccuracy": 1,
+      "individualDecisions": 24,
+      "individual": {
+        "n": 24,
+        "tp": 12,
+        "fp": 0,
+        "fn": 0,
+        "tn": 12,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "falseHides": 0,
+      "missedHides": 0,
+      "pairedAvailable": true,
+      "newFalseHides": 0,
+      "newMissedHides": 0,
+      "falseHideIds": [],
+      "missedHideIds": [],
+      "newFalseHideIds": [],
+      "newMissedHideIds": [],
+      "incorrectVectorIds": []
+    },
+    "broad": {
+      "hide": {
+        "n": 48,
+        "tp": 39,
+        "fp": 0,
+        "fn": 0,
+        "tn": 9,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "exactVectors": 48,
+      "totalVectors": 48,
+      "exactVectorAccuracy": 1,
+      "individualDecisions": 228,
+      "individual": {
+        "n": 228,
+        "tp": 74,
+        "fp": 0,
+        "fn": 0,
+        "tn": 154,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "falseHides": 0,
+      "missedHides": 0,
+      "pairedAvailable": true,
+      "newFalseHides": 0,
+      "newMissedHides": 0,
+      "falseHideIds": [],
+      "missedHideIds": [],
+      "newFalseHideIds": [],
+      "newMissedHideIds": [],
+      "incorrectVectorIds": []
+    },
+    "all": {
+      "hide": {
+        "n": 72,
+        "tp": 51,
+        "fp": 0,
+        "fn": 0,
+        "tn": 21,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "exactVectors": 72,
+      "totalVectors": 72,
+      "exactVectorAccuracy": 1,
+      "individualDecisions": 252,
+      "individual": {
+        "n": 252,
+        "tp": 86,
+        "fp": 0,
+        "fn": 0,
+        "tn": 166,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "falseHides": 0,
+      "missedHides": 0,
+      "pairedAvailable": true,
+      "newFalseHides": 0,
+      "newMissedHides": 0,
+      "falseHideIds": [],
+      "missedHideIds": [],
+      "newFalseHideIds": [],
+      "newMissedHideIds": [],
+      "incorrectVectorIds": []
+    }
+  },
+  "at05": {
+    "rage": {
+      "hide": {
+        "n": 24,
+        "tp": 12,
+        "fp": 0,
+        "fn": 0,
+        "tn": 12,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "exactVectors": 24,
+      "totalVectors": 24,
+      "exactVectorAccuracy": 1,
+      "individualDecisions": 24,
+      "individual": {
+        "n": 24,
+        "tp": 12,
+        "fp": 0,
+        "fn": 0,
+        "tn": 12,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "falseHides": 0,
+      "missedHides": 0,
+      "pairedAvailable": true,
+      "newFalseHides": 0,
+      "newMissedHides": 0,
+      "falseHideIds": [],
+      "missedHideIds": [],
+      "newFalseHideIds": [],
+      "newMissedHideIds": [],
+      "incorrectVectorIds": []
+    },
+    "broad": {
+      "hide": {
+        "n": 48,
+        "tp": 39,
+        "fp": 0,
+        "fn": 0,
+        "tn": 9,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "exactVectors": 42,
+      "totalVectors": 48,
+      "exactVectorAccuracy": 0.875,
+      "individualDecisions": 228,
+      "individual": {
+        "n": 228,
+        "tp": 68,
+        "fp": 0,
+        "fn": 6,
+        "tn": 154,
+        "accuracy": 0.9736842105263158,
+        "precision": 1,
+        "recall": 0.918918918918919,
+        "f1": 0.9577464788732395,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "falseHides": 0,
+      "missedHides": 0,
+      "pairedAvailable": true,
+      "newFalseHides": 0,
+      "newMissedHides": 0,
+      "falseHideIds": [],
+      "missedHideIds": [],
+      "newFalseHideIds": [],
+      "newMissedHideIds": [],
+      "incorrectVectorIds": [
+        "broad:holdout-broad-3-07",
+        "broad:holdout-broad-5-04",
+        "broad:holdout-broad-5-06",
+        "broad:holdout-broad-5-10",
+        "broad:holdout-broad-10-04",
+        "broad:holdout-broad-10-12"
+      ]
+    },
+    "all": {
+      "hide": {
+        "n": 72,
+        "tp": 51,
+        "fp": 0,
+        "fn": 0,
+        "tn": 21,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "exactVectors": 66,
+      "totalVectors": 72,
+      "exactVectorAccuracy": 0.9166666666666666,
+      "individualDecisions": 252,
+      "individual": {
+        "n": 252,
+        "tp": 80,
+        "fp": 0,
+        "fn": 6,
+        "tn": 166,
+        "accuracy": 0.9761904761904762,
+        "precision": 1,
+        "recall": 0.9302325581395349,
+        "f1": 0.963855421686747,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "falseHides": 0,
+      "missedHides": 0,
+      "pairedAvailable": true,
+      "newFalseHides": 0,
+      "newMissedHides": 0,
+      "falseHideIds": [],
+      "missedHideIds": [],
+      "newFalseHideIds": [],
+      "newMissedHideIds": [],
+      "incorrectVectorIds": [
+        "broad:holdout-broad-3-07",
+        "broad:holdout-broad-5-04",
+        "broad:holdout-broad-5-06",
+        "broad:holdout-broad-5-10",
+        "broad:holdout-broad-10-04",
+        "broad:holdout-broad-10-12"
+      ]
+    }
+  },
+  "pairedVsTextOnlyQat": null,
+  "gates": {
+    "G1": {
+      "metric": "newFalseHides",
+      "actual": 0,
+      "max": 1,
+      "pass": true
+    },
+    "G2": {
+      "metric": "exactVectors",
+      "actual": 72,
+      "min": 60,
+      "pass": true
+    },
+    "G3": {
+      "metric": "correctHideDecisions",
+      "actual": 72,
+      "min": 68,
+      "pass": true
+    }
+  },
+  "pass": true,
+  "finishedAt": "2026-11-24T19:24:53.464Z"
+}

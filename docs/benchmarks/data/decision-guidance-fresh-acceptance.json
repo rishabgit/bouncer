@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "phase": "fresh-guidance-acceptance",
+  "recordedAt": "2026-11-24T20:58:32.282Z",
+  "registeredAt": "2026-11-24T20:49:47.165Z",
+  "inferenceStartedAt": "2026-11-24T20:54:55.554Z",
+  "registrationSha256": "927529a64e62542b099f641bffafe0211de08a399fa37d0563041dd79ab0e04e",
+  "ruleRegisteredBeforeInference": true,
+  "corpusSha256": "fe82fe7dcdf8cd96fb828d20624b4ba160dede297c36ddcfa4e57c09f6373cb3",
+  "resultSha256": "a9b851601bfa5cb2fcc88a219d258e4b66b751a5d6c67267a454cd86e5247380",
+  "summarySha256": "c4a2ba6965c920642311202b3e9e4cc0e18bebc0b2ea8a89f6d6fb845faff5b3",
+  "attemptSha256": "196dfa9e299236537189d439cb91c448b1c3db4e1f74814ff0a6df48fd158d40",
+  "counts": {
+    "posts": 84,
+    "intents": 6,
+    "decisionsPerStyle": 504,
+    "ambiguousPerStyle": 22,
+    "headlinePerStyle": 482,
+    "requests": 1764
+  },
+  "requests": 1764,
+  "retries": 0,
+  "retuning": false,
+  "relabeling": false,
+  "maximumInputTokens": 353,
+  "gateOutcomes": {
+    "guidance": {
+      "checks": {
+        "errors": {
+          "actual": 66,
+          "reference": 141,
+          "comparison": "<",
+          "pass": true
+        },
+        "nearMissFalseHides": {
+          "actual": 18,
+          "reference": 33,
+          "comparison": "<=",
+          "pass": true
+        }
+      },
+      "supported": true
+    },
+    "exclusion": {
+      "checks": {
+        "nearMissFalseHides": {
+          "actual": 20,
+          "reference": 18,
+          "comparison": "<=",
+          "pass": false
+        },
+        "missedHides": {
+          "actual": 19,
+          "reference": 21,
+          "comparison": "<=",
+          "pass": true
+        }
+      },
+      "supported": false
+    }
+  },
+  "protectedReceiptCount": 73,
+  "protectedReceiptsUnchanged": true,
+  "corpusUnchanged": true,
+  "privatePathsAbsent": true,
+  "ownedPathsOnly": true,
+  "tests": {
+    "command": "node --test scripts/decision-eval/",
+    "heavyWrapperUsed": true,
+    "pass": 81,
+    "fail": 0
+  },
+  "reportSha256": "be004bdbef99b07acaf160a9b2590c6a531f4b198c9369407647610fc210f00d",
+  "llama": {
+    "running": true,
+    "loadedModels": 0
+  },
+  "ollama": {
+    "contacted": false,
+    "started": false
+  }
+}

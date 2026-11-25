@@ -1,0 +1,6572 @@
+{
+  "schemaVersion": 1,
+  "phase": "decision-capacity-validation",
+  "exploratory": true,
+  "preRegisteredClaim": false,
+  "status": "complete",
+  "variant": {
+    "id": "llama-kev-4b-q8",
+    "runtime": "llama",
+    "model": "ggml-org/Kev-4B-GGUF:Q8_0",
+    "file": "Kev-4B-Q8_0.gguf",
+    "family": "kev-4b",
+    "format": "GGUF Q8_0",
+    "batch": 4096
+  },
+  "corpus": "migration",
+  "sourceCorpus": "native-migration-validation.json",
+  "corpusSha256": "354e80566fdf889e213aec9072387c42f8286a48347379b1142073cba3fa4e27",
+  "corpusHashes": {
+    "eval-corpus.ts": "4a2dacac7271704addb5c06d953021b8c8c7f20108cfa002ce11942a6e907214",
+    "native-benchmark-corpus.ts": "a5db3bf30aa3039a3e571020c111797e1cfdd675872514a40139e66db6038603",
+    "native-isolation-holdout.json": "18841a6609d9e68493c629880bc03eeaa233eab890245e5cfd5c2eaa9e9d4159",
+    "native-migration-validation.json": "354e80566fdf889e213aec9072387c42f8286a48347379b1142073cba3fa4e27"
+  },
+  "registrationSha256": "a8d08122d5c1a95f27b11289cb243aac94de6aa84686295a0e0e134ae72c9b9e",
+  "selectionFile": "decision-capacity-selection-llama-kev-4b-q8.json",
+  "selectionSha256": "521e6552a784974abe159f6e2fb9ddf28804361a96d9a35235b97ead278ccdb0",
+  "selection": {
+    "schemaVersion": 2,
+    "phase": "discovery",
+    "frozen": true,
+    "frozenAt": "2026-11-24T21:22:21.354Z",
+    "variantId": "llama-kev-4b-q8",
+    "templateId": "category-applies",
+    "templateHash": "63c1d9bc4c93b016b38f047d74585d73b08f54651031b80433da8b1f915aee3a",
+    "cutoff": 0.3168879112149103,
+    "interval": {
+      "lower": 0.3128541722537823,
+      "upper": 0.32092165017603824,
+      "width": 0.008067477922255928,
+      "lowerInclusive": false,
+      "upperInclusive": true
+    },
+    "loo": {
+      "hide": {
+        "n": 88,
+        "tp": 56,
+        "fp": 2,
+        "fn": 1,
+        "tn": 29,
+        "accuracy": 0.9659090909090909,
+        "precision": 0.9655172413793104,
+        "recall": 0.9824561403508771,
+        "f1": 0.9739130434782608,
+        "specificity": 0.9354838709677419,
+        "falsePositiveRate": 0.06451612903225806
+      },
+      "exactVectors": 84,
+      "totalVectors": 88,
+      "exactVectorAccuracy": 0.9545454545454546,
+      "individualDecisions": 268,
+      "individual": {
+        "n": 268,
+        "tp": 100,
+        "fp": 2,
+        "fn": 3,
+        "tn": 163,
+        "accuracy": 0.9813432835820896,
+        "precision": 0.9803921568627451,
+        "recall": 0.970873786407767,
+        "f1": 0.975609756097561,
+        "specificity": 0.9878787878787879,
+        "falsePositiveRate": 0.012121212121212121
+      },
+      "falseHides": 2,
+      "missedHides": 1,
+      "pairedAvailable": true,
+      "newFalseHides": 1,
+      "newMissedHides": 1,
+      "falseHideIds": [
+        "rage:a8",
+        "rage:a16"
+      ],
+      "missedHideIds": [
+        "rage:p18"
+      ],
+      "newFalseHideIds": [
+        "rage:a16"
+      ],
+      "newMissedHideIds": [
+        "rage:p18"
+      ],
+      "incorrectVectorIds": [
+        "rage:p18",
+        "rage:a8",
+        "rage:a16",
+        "broad:ten-all-topics-permuted"
+      ],
+      "scores": {
+        "rage": {
+          "hide": {
+            "n": 40,
+            "tp": 17,
+            "fp": 2,
+            "fn": 1,
+            "tn": 20,
+            "accuracy": 0.925,
+            "precision": 0.8947368421052632,
+            "recall": 0.9444444444444444,
+            "f1": 0.918918918918919,
+            "specificity": 0.9090909090909091,
+            "falsePositiveRate": 0.09090909090909091
+          },
+          "exactVectors": 37,
+          "totalVectors": 40,
+          "exactVectorAccuracy": 0.925,
+          "individualDecisions": 40,
+          "individual": {
+            "n": 40,
+            "tp": 17,
+            "fp": 2,
+            "fn": 1,
+            "tn": 20,
+            "accuracy": 0.925,
+            "precision": 0.8947368421052632,
+            "recall": 0.9444444444444444,
+            "f1": 0.918918918918919,
+            "specificity": 0.9090909090909091,
+            "falsePositiveRate": 0.09090909090909091
+          },
+          "falseHides": 2,
+          "missedHides": 1,
+          "pairedAvailable": true,
+          "newFalseHides": 1,
+          "newMissedHides": 1,
+          "falseHideIds": [
+            "rage:a8",
+            "rage:a16"
+          ],
+          "missedHideIds": [
+            "rage:p18"
+          ],
+          "newFalseHideIds": [
+            "rage:a16"
+          ],
+          "newMissedHideIds": [
+            "rage:p18"
+          ],
+          "incorrectVectorIds": [
+            "rage:p18",
+            "rage:a8",
+            "rage:a16"
+          ]
+        },
+        "broad": {
+          "hide": {
+            "n": 48,
+            "tp": 39,
+            "fp": 0,
+            "fn": 0,
+            "tn": 9,
+            "accuracy": 1,
+            "precision": 1,
+            "recall": 1,
+            "f1": 1,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "exactVectors": 47,
+          "totalVectors": 48,
+          "exactVectorAccuracy": 0.9791666666666666,
+          "individualDecisions": 228,
+          "individual": {
+            "n": 228,
+            "tp": 83,
+            "fp": 0,
+            "fn": 2,
+            "tn": 143,
+            "accuracy": 0.9912280701754386,
+            "precision": 1,
+            "recall": 0.9764705882352941,
+            "f1": 0.988095238095238,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "falseHides": 0,
+          "missedHides": 0,
+          "pairedAvailable": true,
+          "newFalseHides": 0,
+          "newMissedHides": 0,
+          "falseHideIds": [],
+          "missedHideIds": [],
+          "newFalseHideIds": [],
+          "newMissedHideIds": [],
+          "incorrectVectorIds": [
+            "broad:ten-all-topics-permuted"
+          ]
+        },
+        "all": {
+          "hide": {
+            "n": 88,
+            "tp": 56,
+            "fp": 2,
+            "fn": 1,
+            "tn": 29,
+            "accuracy": 0.9659090909090909,
+            "precision": 0.9655172413793104,
+            "recall": 0.9824561403508771,
+            "f1": 0.9739130434782608,
+            "specificity": 0.9354838709677419,
+            "falsePositiveRate": 0.06451612903225806
+          },
+          "exactVectors": 84,
+          "totalVectors": 88,
+          "exactVectorAccuracy": 0.9545454545454546,
+          "individualDecisions": 268,
+          "individual": {
+            "n": 268,
+            "tp": 100,
+            "fp": 2,
+            "fn": 3,
+            "tn": 163,
+            "accuracy": 0.9813432835820896,
+            "precision": 0.9803921568627451,
+            "recall": 0.970873786407767,
+            "f1": 0.975609756097561,
+            "specificity": 0.9878787878787879,
+            "falsePositiveRate": 0.012121212121212121
+          },
+          "falseHides": 2,
+          "missedHides": 1,
+          "pairedAvailable": true,
+          "newFalseHides": 1,
+          "newMissedHides": 1,
+          "falseHideIds": [
+            "rage:a8",
+            "rage:a16"
+          ],
+          "missedHideIds": [
+            "rage:p18"
+          ],
+          "newFalseHideIds": [
+            "rage:a16"
+          ],
+          "newMissedHideIds": [
+            "rage:p18"
+          ],
+          "incorrectVectorIds": [
+            "rage:p18",
+            "rage:a8",
+            "rage:a16",
+            "broad:ten-all-topics-permuted"
+          ]
+        }
+      },
+      "rows": [
+        {
+          "id": "p1",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p2",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p3",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p4",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p5",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p6",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p7",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p8",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p9",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p10",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p11",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p12",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p13",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p14",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p15",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3208597028766695,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32886523349955665,
+            "width": 0.01601106124577434,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p16",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p17",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "p18",
+          "corpus": "rage",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 86,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "e1",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "e2",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "e3",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "e4",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a1",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a2",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a3",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a4",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a5",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a6",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a7",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a8",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.28044931684297536,
+          "interval": {
+            "lower": 0.27824330540825065,
+            "upper": 0.28265532827770007,
+            "width": 0.004412022869449417,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 86,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a9",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a10",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a11",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a12",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a13",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a14",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a15",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a16",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.22012131447358238,
+          "interval": {
+            "lower": 0.211867307926906,
+            "upper": 0.22837532102025876,
+            "width": 0.016508013093352758,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 86,
+          "trainingFalseHides": 1
+        },
+        {
+          "id": "a17",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "a18",
+          "corpus": "rage",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-crypto-positive",
+          "corpus": "broad",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-crypto-negative",
+          "corpus": "broad",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-sports-positive",
+          "corpus": "broad",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-sports-negative",
+          "corpus": "broad",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-food-positive",
+          "corpus": "broad",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-fitness-positive",
+          "corpus": "broad",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-politics-positive",
+          "corpus": "broad",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-ai-hype-negative",
+          "corpus": "broad",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-celebrity-positive",
+          "corpus": "broad",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-promotion-negative",
+          "corpus": "broad",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-engagement-positive",
+          "corpus": "broad",
+          "expected": [
+            true
+          ],
+          "predicted": [
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "single-drama-negative",
+          "corpus": "broad",
+          "expected": [
+            false
+          ],
+          "predicted": [
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-crypto-and-food",
+          "corpus": "broad",
+          "expected": [
+            true,
+            false,
+            true
+          ],
+          "predicted": [
+            true,
+            false,
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-sports-middle",
+          "corpus": "broad",
+          "expected": [
+            false,
+            true,
+            false
+          ],
+          "predicted": [
+            false,
+            true,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-fitness-and-politics",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            false
+          ],
+          "predicted": [
+            true,
+            true,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-hype-promotion-engagement",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            true
+          ],
+          "predicted": [
+            true,
+            true,
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-celebrity-and-drama",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            false
+          ],
+          "predicted": [
+            true,
+            true,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-drama-and-engagement",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            false
+          ],
+          "predicted": [
+            true,
+            true,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-all-negative",
+          "corpus": "broad",
+          "expected": [
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            false,
+            false,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-policy-only",
+          "corpus": "broad",
+          "expected": [
+            true,
+            false,
+            false
+          ],
+          "predicted": [
+            true,
+            false,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-selling-own-baking-class",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            false
+          ],
+          "predicted": [
+            true,
+            true,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-celebrity-middle",
+          "corpus": "broad",
+          "expected": [
+            false,
+            true,
+            false
+          ],
+          "predicted": [
+            false,
+            true,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-fitness-only",
+          "corpus": "broad",
+          "expected": [
+            true,
+            false,
+            false
+          ],
+          "predicted": [
+            true,
+            false,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "triple-crypto-policy-own-guide",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            true
+          ],
+          "predicted": [
+            true,
+            true,
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-everyday-negative",
+          "corpus": "broad",
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-all-topics-reversed",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "predicted": [
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-hype-gossip-sale-bait-feud",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "predicted": [
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-second-group-negative",
+          "corpus": "broad",
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-food-and-fitness-separated",
+          "corpus": "broad",
+          "expected": [
+            true,
+            false,
+            false,
+            false,
+            true
+          ],
+          "predicted": [
+            true,
+            false,
+            false,
+            false,
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-sports-and-policy",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            true,
+            true,
+            false,
+            false,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-crypto-hype-own-service",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            false,
+            true,
+            false
+          ],
+          "predicted": [
+            true,
+            true,
+            false,
+            true,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-gossip-feud-engagement-permutation",
+          "corpus": "broad",
+          "expected": [
+            false,
+            true,
+            true,
+            false,
+            true
+          ],
+          "predicted": [
+            false,
+            true,
+            true,
+            false,
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-own-fitness-service",
+          "corpus": "broad",
+          "expected": [
+            true,
+            false,
+            true,
+            false,
+            false
+          ],
+          "predicted": [
+            true,
+            false,
+            true,
+            false,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-food-last-only",
+          "corpus": "broad",
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            true
+          ],
+          "predicted": [
+            false,
+            false,
+            false,
+            false,
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-policy-crypto-engagement",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            true,
+            false,
+            false
+          ],
+          "predicted": [
+            true,
+            true,
+            true,
+            false,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "five-ai-hype-first-only",
+          "corpus": "broad",
+          "expected": [
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-all-negative",
+          "corpus": "broad",
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-crypto-only",
+          "corpus": "broad",
+          "expected": [
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-sports-only",
+          "corpus": "broad",
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-cooking-and-training",
+          "corpus": "broad",
+          "expected": [
+            true,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            true,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-politics-only",
+          "corpus": "broad",
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-ai-hype-only",
+          "corpus": "broad",
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "predicted": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-celebrity-feud",
+          "corpus": "broad",
+          "expected": [
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "predicted": [
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-own-product-and-engagement",
+          "corpus": "broad",
+          "expected": [
+            true,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "predicted": [
+            true,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-crypto-policy-own-guide",
+          "corpus": "broad",
+          "expected": [
+            false,
+            true,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            true
+          ],
+          "predicted": [
+            false,
+            true,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-sports-food-fitness",
+          "corpus": "broad",
+          "expected": [
+            false,
+            true,
+            false,
+            false,
+            true,
+            false,
+            false,
+            true,
+            false,
+            false
+          ],
+          "predicted": [
+            false,
+            true,
+            false,
+            false,
+            true,
+            false,
+            false,
+            true,
+            false,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-five-topic-mixed",
+          "corpus": "broad",
+          "expected": [
+            false,
+            true,
+            false,
+            true,
+            true,
+            false,
+            true,
+            false,
+            true,
+            false
+          ],
+          "predicted": [
+            false,
+            true,
+            false,
+            true,
+            true,
+            false,
+            true,
+            false,
+            true,
+            false
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 85,
+          "trainingFalseHides": 0
+        },
+        {
+          "id": "ten-all-topics-permuted",
+          "corpus": "broad",
+          "expected": [
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "predicted": [
+            true,
+            false,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            false,
+            true
+          ],
+          "templateId": "category-applies",
+          "cutoff": 0.3168879112149103,
+          "interval": {
+            "lower": 0.3128541722537823,
+            "upper": 0.32092165017603824,
+            "width": 0.008067477922255928,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          "trainingExactVectors": 86,
+          "trainingFalseHides": 0
+        }
+      ]
+    },
+    "corpusHashes": {
+      "eval-corpus.ts": "4a2dacac7271704addb5c06d953021b8c8c7f20108cfa002ce11942a6e907214",
+      "native-benchmark-corpus.ts": "a5db3bf30aa3039a3e571020c111797e1cfdd675872514a40139e66db6038603",
+      "native-isolation-holdout.json": "18841a6609d9e68493c629880bc03eeaa233eab890245e5cfd5c2eaa9e9d4159",
+      "native-migration-validation.json": "354e80566fdf889e213aec9072387c42f8286a48347379b1142073cba3fa4e27"
+    },
+    "identityHash": "d9ddb4b9fc0b4c1d856ec6cd90e60e746a0bb2673c3ecb03f5cac00e4b8b572d",
+    "runtimeSettings": {
+      "runtime": "llama",
+      "version": "0.49.0",
+      "build": "b12652-212c547fe",
+      "effectiveContext": 4096,
+      "parallel": 1,
+      "batch": 4096,
+      "ubatch": 4096,
+      "projector": false,
+      "runner": "llamacpp",
+      "quantization": "Q8_0",
+      "aliasDefinition": null
+    },
+    "discoverySha256": "63d1a7fbde0b7182a3eedf94d7b3120ef161703fbe7b03a22fcaf9c762b782de"
+  },
+  "identityHash": "d9ddb4b9fc0b4c1d856ec6cd90e60e746a0bb2673c3ecb03f5cac00e4b8b572d",
+  "runtimeSettings": {
+    "runtime": "llama",
+    "version": "0.49.0",
+    "build": "b12652-212c547fe",
+    "effectiveContext": 4096,
+    "parallel": 1,
+    "batch": 4096,
+    "ubatch": 4096,
+    "projector": false,
+    "runner": "llamacpp",
+    "quantization": "Q8_0",
+    "aliasDefinition": null
+  },
+  "baselineSha256": "6814f37a9dae4c918507533a24087ab6c117a57a8634bf6763ac0834e0731852",
+  "baseline": {
+    "browser": {
+      "scores": {
+        "rage": {
+          "hide": {
+            "n": 40,
+            "tp": 20,
+            "fp": 1,
+            "fn": 0,
+            "tn": 19,
+            "accuracy": 0.975,
+            "precision": 0.9523809523809523,
+            "recall": 1,
+            "f1": 0.975609756097561,
+            "specificity": 0.95,
+            "falsePositiveRate": 0.05
+          },
+          "exactVectors": 39,
+          "totalVectors": 40,
+          "exactVectorAccuracy": 0.975,
+          "individualDecisions": 40,
+          "individual": {
+            "n": 40,
+            "tp": 20,
+            "fp": 1,
+            "fn": 0,
+            "tn": 19,
+            "accuracy": 0.975,
+            "precision": 0.9523809523809523,
+            "recall": 1,
+            "f1": 0.975609756097561,
+            "specificity": 0.95,
+            "falsePositiveRate": 0.05
+          },
+          "falseHides": 1,
+          "missedHides": 0,
+          "pairedAvailable": true,
+          "newFalseHides": 0,
+          "newMissedHides": 0,
+          "falseHideIds": [
+            "rage:migration-rage-n03"
+          ],
+          "missedHideIds": [],
+          "newFalseHideIds": [],
+          "newMissedHideIds": [],
+          "incorrectVectorIds": [
+            "rage:migration-rage-n03"
+          ]
+        },
+        "broad": {
+          "hide": {
+            "n": 80,
+            "tp": 40,
+            "fp": 1,
+            "fn": 0,
+            "tn": 39,
+            "accuracy": 0.9875,
+            "precision": 0.975609756097561,
+            "recall": 1,
+            "f1": 0.9876543209876543,
+            "specificity": 0.975,
+            "falsePositiveRate": 0.025
+          },
+          "exactVectors": 71,
+          "totalVectors": 80,
+          "exactVectorAccuracy": 0.8875,
+          "individualDecisions": 380,
+          "individual": {
+            "n": 380,
+            "tp": 57,
+            "fp": 8,
+            "fn": 9,
+            "tn": 306,
+            "accuracy": 0.9552631578947368,
+            "precision": 0.8769230769230769,
+            "recall": 0.8636363636363636,
+            "f1": 0.8702290076335878,
+            "specificity": 0.9745222929936306,
+            "falsePositiveRate": 0.025477707006369428
+          },
+          "falseHides": 1,
+          "missedHides": 0,
+          "pairedAvailable": true,
+          "newFalseHides": 0,
+          "newMissedHides": 0,
+          "falseHideIds": [
+            "broad:migration-broad-10-19"
+          ],
+          "missedHideIds": [],
+          "newFalseHideIds": [],
+          "newMissedHideIds": [],
+          "incorrectVectorIds": [
+            "broad:migration-broad-3-04",
+            "broad:migration-broad-5-09",
+            "broad:migration-broad-10-02",
+            "broad:migration-broad-10-03",
+            "broad:migration-broad-10-05",
+            "broad:migration-broad-10-07",
+            "broad:migration-broad-10-08",
+            "broad:migration-broad-10-09",
+            "broad:migration-broad-10-19"
+          ]
+        },
+        "all": {
+          "hide": {
+            "n": 120,
+            "tp": 60,
+            "fp": 2,
+            "fn": 0,
+            "tn": 58,
+            "accuracy": 0.9833333333333333,
+            "precision": 0.967741935483871,
+            "recall": 1,
+            "f1": 0.9836065573770492,
+            "specificity": 0.9666666666666667,
+            "falsePositiveRate": 0.03333333333333333
+          },
+          "exactVectors": 110,
+          "totalVectors": 120,
+          "exactVectorAccuracy": 0.9166666666666666,
+          "individualDecisions": 420,
+          "individual": {
+            "n": 420,
+            "tp": 77,
+            "fp": 9,
+            "fn": 9,
+            "tn": 325,
+            "accuracy": 0.9571428571428572,
+            "precision": 0.8953488372093024,
+            "recall": 0.8953488372093024,
+            "f1": 0.8953488372093024,
+            "specificity": 0.9730538922155688,
+            "falsePositiveRate": 0.02694610778443114
+          },
+          "falseHides": 2,
+          "missedHides": 0,
+          "pairedAvailable": true,
+          "newFalseHides": 0,
+          "newMissedHides": 0,
+          "falseHideIds": [
+            "rage:migration-rage-n03",
+            "broad:migration-broad-10-19"
+          ],
+          "missedHideIds": [],
+          "newFalseHideIds": [],
+          "newMissedHideIds": [],
+          "incorrectVectorIds": [
+            "rage:migration-rage-n03",
+            "broad:migration-broad-3-04",
+            "broad:migration-broad-5-09",
+            "broad:migration-broad-10-02",
+            "broad:migration-broad-10-03",
+            "broad:migration-broad-10-05",
+            "broad:migration-broad-10-07",
+            "broad:migration-broad-10-08",
+            "broad:migration-broad-10-09",
+            "broad:migration-broad-10-19"
+          ]
+        }
+      },
+      "sourceIds": [
+        "browser-migration-2026-10-12"
+      ]
+    },
+    "textOnlyQat": {
+      "scores": {
+        "rage": {
+          "hide": {
+            "n": 40,
+            "tp": 20,
+            "fp": 0,
+            "fn": 0,
+            "tn": 20,
+            "accuracy": 1,
+            "precision": 1,
+            "recall": 1,
+            "f1": 1,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "exactVectors": 40,
+          "totalVectors": 40,
+          "exactVectorAccuracy": 1,
+          "individualDecisions": 40,
+          "individual": {
+            "n": 40,
+            "tp": 20,
+            "fp": 0,
+            "fn": 0,
+            "tn": 20,
+            "accuracy": 1,
+            "precision": 1,
+            "recall": 1,
+            "f1": 1,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "falseHides": 0,
+          "missedHides": 0,
+          "pairedAvailable": true,
+          "newFalseHides": 0,
+          "newMissedHides": 0,
+          "falseHideIds": [],
+          "missedHideIds": [],
+          "newFalseHideIds": [],
+          "newMissedHideIds": [],
+          "incorrectVectorIds": []
+        },
+        "broad": {
+          "hide": {
+            "n": 80,
+            "tp": 39,
+            "fp": 0,
+            "fn": 1,
+            "tn": 40,
+            "accuracy": 0.9875,
+            "precision": 1,
+            "recall": 0.975,
+            "f1": 0.9873417721518987,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "exactVectors": 75,
+          "totalVectors": 80,
+          "exactVectorAccuracy": 0.9375,
+          "individualDecisions": 380,
+          "individual": {
+            "n": 380,
+            "tp": 62,
+            "fp": 2,
+            "fn": 4,
+            "tn": 312,
+            "accuracy": 0.9842105263157894,
+            "precision": 0.96875,
+            "recall": 0.9393939393939394,
+            "f1": 0.9538461538461539,
+            "specificity": 0.9936305732484076,
+            "falsePositiveRate": 0.006369426751592357
+          },
+          "falseHides": 0,
+          "missedHides": 1,
+          "pairedAvailable": true,
+          "newFalseHides": 0,
+          "newMissedHides": 0,
+          "falseHideIds": [],
+          "missedHideIds": [
+            "broad:migration-broad-3-07"
+          ],
+          "newFalseHideIds": [],
+          "newMissedHideIds": [],
+          "incorrectVectorIds": [
+            "broad:migration-broad-3-07",
+            "broad:migration-broad-10-04",
+            "broad:migration-broad-10-07",
+            "broad:migration-broad-10-08",
+            "broad:migration-broad-10-09"
+          ]
+        },
+        "all": {
+          "hide": {
+            "n": 120,
+            "tp": 59,
+            "fp": 0,
+            "fn": 1,
+            "tn": 60,
+            "accuracy": 0.9916666666666667,
+            "precision": 1,
+            "recall": 0.9833333333333333,
+            "f1": 0.9915966386554621,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "exactVectors": 115,
+          "totalVectors": 120,
+          "exactVectorAccuracy": 0.9583333333333334,
+          "individualDecisions": 420,
+          "individual": {
+            "n": 420,
+            "tp": 82,
+            "fp": 2,
+            "fn": 4,
+            "tn": 332,
+            "accuracy": 0.9857142857142858,
+            "precision": 0.9761904761904762,
+            "recall": 0.9534883720930233,
+            "f1": 0.9647058823529412,
+            "specificity": 0.9940119760479041,
+            "falsePositiveRate": 0.005988023952095809
+          },
+          "falseHides": 0,
+          "missedHides": 1,
+          "pairedAvailable": true,
+          "newFalseHides": 0,
+          "newMissedHides": 0,
+          "falseHideIds": [],
+          "missedHideIds": [
+            "broad:migration-broad-3-07"
+          ],
+          "newFalseHideIds": [],
+          "newMissedHideIds": [],
+          "incorrectVectorIds": [
+            "broad:migration-broad-3-07",
+            "broad:migration-broad-10-04",
+            "broad:migration-broad-10-07",
+            "broad:migration-broad-10-08",
+            "broad:migration-broad-10-09"
+          ]
+        }
+      },
+      "sourceIds": [
+        "textOnlyQat-migration-2026-10-12"
+      ],
+      "contextTokens": 1024,
+      "runtime": "Ollama 0.40.3"
+    }
+  },
+  "environment": {
+    "time": 1795556346637,
+    "host": {
+      "platform": "darwin",
+      "architecture": "arm64",
+      "nodeVersion": "v24.18.1"
+    },
+    "chip": {
+      "name": "Apple M5 Pro",
+      "provenance": "user-supplied"
+    },
+    "ram": {
+      "bytes": 68719476736,
+      "provenance": "measured:memory_pressure -Q"
+    },
+    "loadAverage": [
+      3.1240234375,
+      3.345703125,
+      3.2919921875
+    ],
+    "power": {
+      "available": true,
+      "raw": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=redacted)\t80%; AC attached; not charging present: true"
+    },
+    "memoryPressure": {
+      "available": true,
+      "raw": "The system has 68719476736 (4194304 pages with a page size of 16384).\nSystem-wide memory free percentage: 90%"
+    },
+    "vmStat": {
+      "available": true,
+      "raw": "Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free:                                    34440.\nPages active:                                2039742.\nPages inactive:                              1659852.\nPages speculative:                               345.\nPages throttled:                                   0.\nPages wired down:                             191235.\nPages purgeable:                               28304.\n\"Translation faults\":                     1216081480.\nPages copy-on-write:                        98852133.\nPages zero filled:                         708975226.\nPages reactivated:                           7540168.\nPages purged:                                2422058.\nFile-backed pages:                           1419198.\nAnonymous pages:                             2280741.\nPages stored in compressor:                   413421.\nPages occupied by compressor:                 209913.\nDecompressions:                              3576722.\nCompressions:                                5784422.\nPageins:                                    26063701.\nPageouts:                                        834.\nSwapins:                                       46134.\nSwapouts:                                     100124.\nPages tagged:                                 146882.\nPages tagged resident:                        129500.\nPages tagged compressed:                       17382.\nPages tag-storage:                            131072.\nPages tag-storage holding tags:                 8826.\nPages tag-storage free:                          285.\nPages tag-storage non-tag pageable:           121849.\nPages tag-storage non-tag wired:                  11.\nBytes of compressed tags:                    2530880.\nTagged compressions:                          123410.\nTagged decompressions:                         98864."
+    }
+  },
+  "startedAt": "2026-11-24T21:39:06.637Z",
+  "requestsIssued": 120,
+  "activeCase": null,
+  "rows": [
+    {
+      "id": "migration-rage-p01",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "ff8d3e338fe79430b7afbc27d7ded34d0115c88aa6693c87266fa882dba333c4",
+      "wallMs": 259.65508399996907,
+      "probabilities": [
+        0.7692107884931111
+      ],
+      "usage": {
+        "input_tokens": 178,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-p02",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "54f7a6fa81e38b538db81ecbfdc9e831add623ab9d6115b1e48d83e681da24ae",
+      "wallMs": 131.8642080000136,
+      "probabilities": [
+        0.8754490647902117
+      ],
+      "usage": {
+        "input_tokens": 176,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-p03",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "a5480af45e5e76e4580864447d3d20e570dbd04b5bb5ae8ed7d428defa14a226",
+      "wallMs": 131.9972500000149,
+      "probabilities": [
+        0.7990423211808397
+      ],
+      "usage": {
+        "input_tokens": 178,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-p04",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "971bb25c178ffd15e03b3802e2072fefd02229259920772d3f1c20813f39e71a",
+      "wallMs": 132.5046250000596,
+      "probabilities": [
+        0.7536709169229868
+      ],
+      "usage": {
+        "input_tokens": 174,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-p05",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "a145adf8dea2661d73ce8f13b69249cfe01f5cdbe6c064d790e042f8d46ac9b5",
+      "wallMs": 133.77954200003296,
+      "probabilities": [
+        0.8924641092357789
+      ],
+      "usage": {
+        "input_tokens": 175,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-p06",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "bae8a61e208ef41a81514ca69d0576d2313de03bf25de6f15a302b9fa4fcc2c6",
+      "wallMs": 135.78016699990258,
+      "probabilities": [
+        0.7462104612784323
+      ],
+      "usage": {
+        "input_tokens": 178,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-p07",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "1d654984740b79c4e5c4b95adc147bde7082b5367dbcb8e51758821e7f774b50",
+      "wallMs": 148.08925000019372,
+      "probabilities": [
+        0.730566818841265
+      ],
+      "usage": {
+        "input_tokens": 184,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-p08",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "e683a0e208e52ebbb8a2e9651aa19820521601d697090121fdff17a749011a05",
+      "wallMs": 139.3825000000652,
+      "probabilities": [
+        0.8162108296248337
+      ],
+      "usage": {
+        "input_tokens": 169,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-p09",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "e66d7f2c82c6bb966970802bb724194ac3718370e9cda2adac663371736cdf09",
+      "wallMs": 142.0255420000758,
+      "probabilities": [
+        0.6893532698182828
+      ],
+      "usage": {
+        "input_tokens": 166,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-p10",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "175fdd22d9f1179401a59239328e3bbc0f8813dbb9a3d2892d018da4e48a9747",
+      "wallMs": 147.5989159999881,
+      "probabilities": [
+        0.806678167707793
+      ],
+      "usage": {
+        "input_tokens": 175,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-p11",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "ac5aeaa18d9a9b3ef3a026bec9b970cd736146610e4b48e9a5e5a62c17377462",
+      "wallMs": 152.1216250001453,
+      "probabilities": [
+        0.8278243537233747
+      ],
+      "usage": {
+        "input_tokens": 172,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-p12",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "f5222a651c0e3680c6fd4825cea8c31319ff6c7010cc6c96828e74d57c12b908",
+      "wallMs": 156.02720799995586,
+      "probabilities": [
+        0.5685549089104381
+      ],
+      "usage": {
+        "input_tokens": 174,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-p13",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "d8dd2beda8c48f679a9d30ec13315e1230894da69a5b83b8bd2e0b1f17010f4b",
+      "wallMs": 159.2762909999583,
+      "probabilities": [
+        0.8129349535409353
+      ],
+      "usage": {
+        "input_tokens": 172,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-p14",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "deb8cf9370e72191a7ed1757b72673f35e0d7ebbef84f6a30183b6791fc6a3d8",
+      "wallMs": 161.1612090000417,
+      "probabilities": [
+        0.8876865324168047
+      ],
+      "usage": {
+        "input_tokens": 172,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-p15",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "71c0c33c8e8defd1fd921c22b7882f90067d948aba278dc3b7c903c25d515164",
+      "wallMs": 163.6890410000924,
+      "probabilities": [
+        0.8982517248165719
+      ],
+      "usage": {
+        "input_tokens": 172,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-p16",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "786fed2e3438ad1146b09b1746e20ea06f37cdfd6cadc3be10a0102a7f260aaa",
+      "wallMs": 166.2512500002049,
+      "probabilities": [
+        0.8447150103084
+      ],
+      "usage": {
+        "input_tokens": 175,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-p17",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "42618d0997287e9e6fede273a957055b177db6178c4167b3c5a3f38eef02f77e",
+      "wallMs": 167.21395900007337,
+      "probabilities": [
+        0.8824533970816066
+      ],
+      "usage": {
+        "input_tokens": 171,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-p18",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "7aaa93102c8c556f67d058bc04827d1ea8dc9a5129d4906d8cbafd504aa31930",
+      "wallMs": 169.3465829999186,
+      "probabilities": [
+        0.7446700752373575
+      ],
+      "usage": {
+        "input_tokens": 172,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-p19",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "060463ead668b41756b815bd4184f82ca04e82a103604b63aff8502ee3d768b0",
+      "wallMs": 183.40937499981374,
+      "probabilities": [
+        0.6539915615719737
+      ],
+      "usage": {
+        "input_tokens": 185,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-p20",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "61d28005630f88ff0218204c82b7cdae3764ed1c8e2b7357912ae500017ec580",
+      "wallMs": 171.2960000000894,
+      "probabilities": [
+        0.80685780873556
+      ],
+      "usage": {
+        "input_tokens": 177,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n01",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "a28af0895777e868eaf35946926323877d8013fe8168a5990f306131846161e4",
+      "wallMs": 172.35833399998955,
+      "probabilities": [
+        0.18122498504454418
+      ],
+      "usage": {
+        "input_tokens": 176,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n02",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "6a21df57b606c9830d01bef36ddfa991e572125dc260023cbf6b97e991b566b1",
+      "wallMs": 170.75558400014415,
+      "probabilities": [
+        0.2906399432668048
+      ],
+      "usage": {
+        "input_tokens": 166,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n03",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "e3def1e550190ef5e210f77a4f2510906b25157597c4c54298eb07fcd61b0efe",
+      "wallMs": 172.25295800017193,
+      "probabilities": [
+        0.14760320634403473
+      ],
+      "usage": {
+        "input_tokens": 171,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n04",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "ffc5102a089e6405a5858d5902bdd369b44cda0c16ad8f836b7cec4c4ee3b5ee",
+      "wallMs": 172.11558300000615,
+      "probabilities": [
+        0.08109357775124279
+      ],
+      "usage": {
+        "input_tokens": 170,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n05",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "0b3595d1a3384651716f306d6a13b0100e3e3f1b32837f115ca657623f9ab6d6",
+      "wallMs": 170.99733300018124,
+      "probabilities": [
+        0.11564314205568334
+      ],
+      "usage": {
+        "input_tokens": 169,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n06",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "86273e92a05b52b558fe41119ba64f33ff999a5a7fc245d853457a829ac05a7e",
+      "wallMs": 172.27774999989197,
+      "probabilities": [
+        0.1197213603862444
+      ],
+      "usage": {
+        "input_tokens": 171,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n07",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "86a93e506709878e8735578e21bc6df79dfe5ee6b2fb2d0d262b54dd2608b669",
+      "wallMs": 168.80116700008512,
+      "probabilities": [
+        0.050434494393847076
+      ],
+      "usage": {
+        "input_tokens": 167,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n08",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "fffd5c788f8056bb478ef85d02f8deecdd6a41810b7fd85934363e34c1379fd9",
+      "wallMs": 168.57274999981746,
+      "probabilities": [
+        0.1410654596664943
+      ],
+      "usage": {
+        "input_tokens": 171,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n09",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "d683652d60a22b7bdd4b3e62e9f32155d7ee0570e19e0b5f76def580a1d5c36a",
+      "wallMs": 166.56070899986662,
+      "probabilities": [
+        0.09763888162749527
+      ],
+      "usage": {
+        "input_tokens": 175,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n10",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "af6fb9ef147e0bff6886cf6825f3ba3351d155866d6121aab97aea7f250d2c92",
+      "wallMs": 165.3193330001086,
+      "probabilities": [
+        0.19847916725480136
+      ],
+      "usage": {
+        "input_tokens": 171,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n11",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "fdb15dcce8516a257c23a99e7e984bb7a4a48d52aa4701857b757d1e39506c4f",
+      "wallMs": 164.7034589999821,
+      "probabilities": [
+        0.05473505939484207
+      ],
+      "usage": {
+        "input_tokens": 174,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n12",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "299a0431bf660db80f9535f8730e9cb62f4e18166cd285dad75fcd4b4f7440e4",
+      "wallMs": 163.12420900003053,
+      "probabilities": [
+        0.09115074859945858
+      ],
+      "usage": {
+        "input_tokens": 172,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n13",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "18e5033a7ac0b7ec141309757ab37df858b77e2a0ad4217cfc50c67468432e51",
+      "wallMs": 162.08683299995027,
+      "probabilities": [
+        0.09163305187100133
+      ],
+      "usage": {
+        "input_tokens": 172,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n14",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "8b6314f806c13e911456694d435c3fe164ed771189dbac0fd45871ab5538b553",
+      "wallMs": 162.18262499989942,
+      "probabilities": [
+        0.20068838065168113
+      ],
+      "usage": {
+        "input_tokens": 171,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n15",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "6cfdc0060fbe26ba8068429712bbac69edb12b5ab89571bfb3a56cc19f958145",
+      "wallMs": 161.9096669999417,
+      "probabilities": [
+        0.09603671275417114
+      ],
+      "usage": {
+        "input_tokens": 172,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n16",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "1329c78a3032e6db3a8446202519bccb2b3f99b22053341e742592135e135d85",
+      "wallMs": 160.4086670000106,
+      "probabilities": [
+        0.029326524495457567
+      ],
+      "usage": {
+        "input_tokens": 171,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n17",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "ba76a4d94c02820cef603119c19bad318930f4fc21a72e1ae61afbef6d9927d5",
+      "wallMs": 160.80637499992736,
+      "probabilities": [
+        0.09701763962222855
+      ],
+      "usage": {
+        "input_tokens": 173,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n18",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "c7dc139e452ae39ede1c250dc1414e08e50dbb4205799583f9031ba12c399cc4",
+      "wallMs": 159.72420800011605,
+      "probabilities": [
+        0.09664766534310376
+      ],
+      "usage": {
+        "input_tokens": 170,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n19",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "cb1f1f5aa3199ee8c986b041165a7fb59183a7d621f9c5484e4c68f09d3272a0",
+      "wallMs": 157.69962499989197,
+      "probabilities": [
+        0.07813606533219447
+      ],
+      "usage": {
+        "input_tokens": 163,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-rage-n20",
+      "corpus": "rage",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "rage bait"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "63bafe4dbeadb6f47e27baf868945532fa376f868fe5cd29cc96fd559e20bb03",
+      "wallMs": 159.4714999999851,
+      "probabilities": [
+        0.05476869901079661
+      ],
+      "usage": {
+        "input_tokens": 175,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-01",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "cryptocurrency investing or promotion"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "10efc8a46d77f000d13162456c07fb369bfb4ecd169a8da739105b890390a71b",
+      "wallMs": 102.10574999987148,
+      "probabilities": [
+        0.8120200492239785
+      ],
+      "usage": {
+        "input_tokens": 79,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-02",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "sports results or commentary"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "d1ed775433346bad1bc607306b31e5215270391da7b051243e27c1958bf25e53",
+      "wallMs": 99.86641700007021,
+      "probabilities": [
+        0.8857533725653796
+      ],
+      "usage": {
+        "input_tokens": 73,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-03",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "313b8240bd6abe193c8cb6be44f94fce01bddb34e5f1efbf61caf546e0b239ee",
+      "wallMs": 101.1989580001682,
+      "probabilities": [
+        0.7667539379737547
+      ],
+      "usage": {
+        "input_tokens": 82,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-04",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "exercise routines and fitness training"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "ea49da459e558b5aaba0e3c9c148810e0d218d07e4f31bc574b1024e38bf178a",
+      "wallMs": 99.18020799988881,
+      "probabilities": [
+        0.8899106956053073
+      ],
+      "usage": {
+        "input_tokens": 79,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-05",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "food and cooking"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "8a47ad9701c6cc67330f6051c80987705c7b3581d612a79c3cf18846bd02f6aa",
+      "wallMs": 98.58900000015274,
+      "probabilities": [
+        0.9123882062436576
+      ],
+      "usage": {
+        "input_tokens": 78,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-06",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "a51e3c1d5971ccfa37b47e72f8bde6d63a5b58e8d2880becb4cc4c453d9789f3",
+      "wallMs": 98.02866599988192,
+      "probabilities": [
+        0.9472406473825278
+      ],
+      "usage": {
+        "input_tokens": 79,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-07",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "government policy or election politics"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "fd17e5cabd4f108b42d0c414cb95dc3b72e1ffb8817d0aed0ec750aa169cf569",
+      "wallMs": 96.0345419999212,
+      "probabilities": [
+        0.8433895354317994
+      ],
+      "usage": {
+        "input_tokens": 75,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-08",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "personal feuds or public insults between people"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "d23af20f2ca46d4aafbd4c85cca7b1add5f1f72435c57e158497ee6c142e6d09",
+      "wallMs": 97.05775000015274,
+      "probabilities": [
+        0.8348915256262417
+      ],
+      "usage": {
+        "input_tokens": 81,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-09",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "promotion of the author's own product or paid service"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "0580f7a3cff5984e7f5047fc127b63169bc3d5a005122291a1f369f5be63c960",
+      "wallMs": 95.62279099994339,
+      "probabilities": [
+        0.7180509580627338
+      ],
+      "usage": {
+        "input_tokens": 79,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-10",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expected": [
+        true
+      ],
+      "caseIdentitySha256": "4f8d5c3ceb9cd8af88363b408c52d8947627372d061060f5ce9def23abeb5373",
+      "wallMs": 96.78183400002308,
+      "probabilities": [
+        0.9075708108627464
+      ],
+      "usage": {
+        "input_tokens": 82,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-11",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "cryptocurrency investing or promotion"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "ff547d95440f4dc2fbf480d4fc7d2575f756b12d13b11bc7dd85aae318946d8b",
+      "wallMs": 95.56837499979883,
+      "probabilities": [
+        0.03374822256846163
+      ],
+      "usage": {
+        "input_tokens": 78,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-12",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "sports results or commentary"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "4dd66470b5db9d640f2f712aa0fa691ee8cb47c778edf64254b6d5aee97a08c2",
+      "wallMs": 92.8232919999864,
+      "probabilities": [
+        0.0063838325904241235
+      ],
+      "usage": {
+        "input_tokens": 67,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-13",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "c6fbfbfd4548187bf4fe34961f77b043de1c9d0abdaaece7c11b6d27f3550512",
+      "wallMs": 93.38383299997076,
+      "probabilities": [
+        0.012034278830080802
+      ],
+      "usage": {
+        "input_tokens": 77,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-14",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "exercise routines and fitness training"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "cc726a9cac1181836d494fdf3d6a31875588bfbf4d8d0d66ee3ec404f90cc6ea",
+      "wallMs": 92.11404199991375,
+      "probabilities": [
+        0.003769629875157784
+      ],
+      "usage": {
+        "input_tokens": 67,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-15",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "food and cooking"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "fb004d6315c52c36237c54d3a6a548c05420c18ce26a3ac6c7da9a881c0791d5",
+      "wallMs": 92.76379100000486,
+      "probabilities": [
+        0.05663237802237392
+      ],
+      "usage": {
+        "input_tokens": 69,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-16",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "39039c75430fbaacf931b7500bd09ac3dc0f453e76169b9376060a1594679948",
+      "wallMs": 94.92887500021607,
+      "probabilities": [
+        0.011392534846038535
+      ],
+      "usage": {
+        "input_tokens": 80,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-17",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "government policy or election politics"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "623f8427e02df1635b46b367288f73313a6f7cd5e38ddd697fc9cf61f3375b8a",
+      "wallMs": 93.18037499999627,
+      "probabilities": [
+        0.009886048688940937
+      ],
+      "usage": {
+        "input_tokens": 68,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-18",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "personal feuds or public insults between people"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "169840a542a8c3e519078154ec2289b8ef0fdab3bc592ee95f13f3ef1d8f7f48",
+      "wallMs": 93.98008300014772,
+      "probabilities": [
+        0.01943074571275951
+      ],
+      "usage": {
+        "input_tokens": 72,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-19",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "promotion of the author's own product or paid service"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "072496b76591d9081e235dede256d18e99e3aec291c8166d29a8aaba1745353d",
+      "wallMs": 97.51433399994858,
+      "probabilities": [
+        0.0948487094316178
+      ],
+      "usage": {
+        "input_tokens": 83,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-1-20",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expected": [
+        false
+      ],
+      "caseIdentitySha256": "2c967d3151d891dbaa79e32447df4cf01b79821416e38f13b4e8c36a72d940dc",
+      "wallMs": 95.59804199985228,
+      "probabilities": [
+        0.08010105908645095
+      ],
+      "usage": {
+        "input_tokens": 75,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-01",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "sports results or commentary",
+        "cryptocurrency investing or promotion",
+        "food and cooking"
+      ],
+      "expected": [
+        true,
+        true,
+        false
+      ],
+      "caseIdentitySha256": "1a677c4761c089e495928a6d7ce0fa1358c4ee627dce085fbb12f7362282bfec",
+      "wallMs": 288.4112090000417,
+      "probabilities": [
+        0.8340446624604471,
+        0.6554971505292657,
+        0.005225997761665449
+      ],
+      "usage": {
+        "input_tokens": 243,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-02",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "exercise routines and fitness training",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "promotion of the author's own product or paid service"
+      ],
+      "expected": [
+        false,
+        true,
+        true
+      ],
+      "caseIdentitySha256": "c655aacb1965dbb8741be6ec47933b8b93eb1ee7ff7c67af8db0186364a7f372",
+      "wallMs": 286.92812500009313,
+      "probabilities": [
+        0.004062558543686003,
+        0.7745582980984675,
+        0.9217696088304445
+      ],
+      "usage": {
+        "input_tokens": 229,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-03",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "exercise routines and fitness training"
+      ],
+      "expected": [
+        true,
+        false,
+        true
+      ],
+      "caseIdentitySha256": "29f16bb051030112974afbe1746a6402af954df76f8b91a1ee851050688dd22a",
+      "wallMs": 291.3147909999825,
+      "probabilities": [
+        0.6905510557831132,
+        0.008845423612621882,
+        0.5589884921944892
+      ],
+      "usage": {
+        "input_tokens": 238,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-04",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement",
+        "sports results or commentary",
+        "government policy or election politics"
+      ],
+      "expected": [
+        true,
+        false,
+        true
+      ],
+      "caseIdentitySha256": "8a9b34601e6ba87d07f5cd8ba4a52027bd4cb4ead4249df11b040324f48bcf90",
+      "wallMs": 289.83787499996834,
+      "probabilities": [
+        0.9246736153092522,
+        0.018777742453298444,
+        0.8783468274849625
+      ],
+      "usage": {
+        "input_tokens": 225,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-05",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "personal feuds or public insults between people",
+        "cryptocurrency investing or promotion"
+      ],
+      "expected": [
+        true,
+        true,
+        false
+      ],
+      "caseIdentitySha256": "1679b8baa5e8b72f7369a3006a6377d5ea81542475d61ffc15bf2d087c9fc588",
+      "wallMs": 292.6322500000242,
+      "probabilities": [
+        0.9452469065099197,
+        0.9238643639541161,
+        0.007659810281376698
+      ],
+      "usage": {
+        "input_tokens": 237,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-06",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "government policy or election politics",
+        "promotion of the author's own product or paid service",
+        "food and cooking"
+      ],
+      "expected": [
+        false,
+        true,
+        true
+      ],
+      "caseIdentitySha256": "fc0275f039a1bec8ba7f7a28c13e27cbe2e85f42fe5b7da7d16fe408e3026d7e",
+      "wallMs": 292.3854580000043,
+      "probabilities": [
+        0.005684838891932221,
+        0.8664056314420632,
+        0.922179638985453
+      ],
+      "usage": {
+        "input_tokens": 234,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-07",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "cryptocurrency investing or promotion",
+        "exercise routines and fitness training"
+      ],
+      "expected": [
+        true,
+        true,
+        false
+      ],
+      "caseIdentitySha256": "0dacf00d8fcd4181205d110692b6690a3eb08acf2ef1e9c4766d7e72c98ae24d",
+      "wallMs": 293.7552920000162,
+      "probabilities": [
+        0.6804617414235602,
+        0.735995777586651,
+        0.007896280928871641
+      ],
+      "usage": {
+        "input_tokens": 242,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-08",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "exercise routines and fitness training",
+        "food and cooking",
+        "sports results or commentary"
+      ],
+      "expected": [
+        false,
+        false,
+        true
+      ],
+      "caseIdentitySha256": "db18e587dee0bc32de9e6f6f0facca4e225eb50cd5e4976319cb1012678a60be",
+      "wallMs": 291.85612499993294,
+      "probabilities": [
+        0.00905258695411648,
+        0.003053640679032224,
+        0.8942309402362181
+      ],
+      "usage": {
+        "input_tokens": 231,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-09",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "personal feuds or public insults between people",
+        "requests for likes, reposts, or replies to boost engagement",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expected": [
+        false,
+        true,
+        false
+      ],
+      "caseIdentitySha256": "3ddb56a9e5c20f4e0383f91980b8aff3b1d05311c486fa9a8654ecd8fb6782f8",
+      "wallMs": 295.1297500000801,
+      "probabilities": [
+        0.05181584949519636,
+        0.9313699235602128,
+        0.024274597619993978
+      ],
+      "usage": {
+        "input_tokens": 250,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-10",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "government policy or election politics",
+        "promotion of the author's own product or paid service"
+      ],
+      "expected": [
+        false,
+        true,
+        false
+      ],
+      "caseIdentitySha256": "eb7fa7b6469f9805b6f5716904ccd1fe286124a7ce3cbdeecb06b62cf1885c2a",
+      "wallMs": 284.51654199999757,
+      "probabilities": [
+        0.005936553577107613,
+        0.9127034454527758,
+        0.02109989244621774
+      ],
+      "usage": {
+        "input_tokens": 215,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-11",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "sports results or commentary",
+        "cryptocurrency investing or promotion",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expected": [
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "fbb85462f4c88df0450804e0f3a7d36b3da9feed6e3cb9ac631b0e5ced83ab66",
+      "wallMs": 288.874542000005,
+      "probabilities": [
+        0.006424215944692829,
+        0.0044300373191416866,
+        0.006438678896726794
+      ],
+      "usage": {
+        "input_tokens": 232,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-12",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "personal feuds or public insults between people",
+        "exercise routines and fitness training"
+      ],
+      "expected": [
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "f9ec55507b9eb70ef241c917db49de118aa8d0c9f3bd50d46328a9ad3ae926b9",
+      "wallMs": 282.1478750000242,
+      "probabilities": [
+        0.004687717056547463,
+        0.007274975973081101,
+        0.003823570547203878
+      ],
+      "usage": {
+        "input_tokens": 213,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-13",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "cryptocurrency investing or promotion",
+        "promotion of the author's own product or paid service"
+      ],
+      "expected": [
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "41176bc05fd16f9df25bde03af11d555b52200be1e999c2f650c2f52acc33a18",
+      "wallMs": 283.54133399995044,
+      "probabilities": [
+        0.034360899202067544,
+        0.013301368079669139,
+        0.0157863724161549
+      ],
+      "usage": {
+        "input_tokens": 214,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-14",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "personal feuds or public insults between people",
+        "requests for likes, reposts, or replies to boost engagement",
+        "government policy or election politics"
+      ],
+      "expected": [
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "2238345bbe43abf02d905e3c8ed2a462be2a07fae11d80fc72ef274c50586b15",
+      "wallMs": 283.2357089999132,
+      "probabilities": [
+        0.015232048851097161,
+        0.03393690581354663,
+        0.008097212248992562
+      ],
+      "usage": {
+        "input_tokens": 220,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-15",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "sports results or commentary",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expected": [
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "69e5035dbea762502c3c54d3fc2c91d8bce3ebd2e05af5ef988fc353b7409a4d",
+      "wallMs": 279.45979200000875,
+      "probabilities": [
+        0.007852245614115336,
+        0.0024029006965255264,
+        0.006819111303836301
+      ],
+      "usage": {
+        "input_tokens": 204,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-16",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "exercise routines and fitness training",
+        "government policy or election politics"
+      ],
+      "expected": [
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "bb618e95e1e14af2bd2a2e8fdc0c02cd5f587b3fe4bf8827710d0c610c451fa1",
+      "wallMs": 278.55074999993667,
+      "probabilities": [
+        0.011224562656843278,
+        0.006618321838408482,
+        0.012325861496271526
+      ],
+      "usage": {
+        "input_tokens": 213,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-17",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement",
+        "promotion of the author's own product or paid service",
+        "personal feuds or public insults between people"
+      ],
+      "expected": [
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "aad93822fa8f69de6d2060ba786c65de273d046e4982ae6dfd600a2b11b6c880",
+      "wallMs": 285.48154199984856,
+      "probabilities": [
+        0.1511421939626626,
+        0.017361703724832016,
+        0.012383904737125117
+      ],
+      "usage": {
+        "input_tokens": 222,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-18",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expected": [
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "534f405e77d564c3d1a79733c89ea27ba8b276f3e7ada03842c5bf8bec09bf00",
+      "wallMs": 281.4549579999875,
+      "probabilities": [
+        0.014533728114192576,
+        0.00583491042793742,
+        0.011238860986802018
+      ],
+      "usage": {
+        "input_tokens": 211,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-19",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "government policy or election politics",
+        "cryptocurrency investing or promotion",
+        "food and cooking"
+      ],
+      "expected": [
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "2b18f501f082ec140354d6061ff7124ab20c5b04241f7fb15578450b9cc336ca",
+      "wallMs": 282.2015830001328,
+      "probabilities": [
+        0.004624062345879698,
+        0.00416119056316769,
+        0.0032064241840886825
+      ],
+      "usage": {
+        "input_tokens": 214,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-3-20",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "exercise routines and fitness training",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expected": [
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "6799f1c19f57b59f68c4d9c6517cb7b3aaad0ac5dff8ea1a8f66474bd1053be5",
+      "wallMs": 284.1449580001645,
+      "probabilities": [
+        0.0031367559723905667,
+        0.00926576836673732,
+        0.028776829619530233
+      ],
+      "usage": {
+        "input_tokens": 213,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-01",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "food and cooking",
+        "cryptocurrency investing or promotion",
+        "promotion of the author's own product or paid service",
+        "sports results or commentary",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expected": [
+        false,
+        true,
+        true,
+        false,
+        true
+      ],
+      "caseIdentitySha256": "5189e82a18e4f4deca8e3a6be08bf69bbe26c0c2f5c023edec772f7083b12849",
+      "wallMs": 490.4609580000397,
+      "probabilities": [
+        0.005129567536436561,
+        0.8453334137336697,
+        0.8693056029073226,
+        0.017645881509120463,
+        0.9234257486562003
+      ],
+      "usage": {
+        "input_tokens": 419,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-02",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "personal feuds or public insults between people",
+        "government policy or election politics",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training"
+      ],
+      "expected": [
+        true,
+        false,
+        true,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "071973877c053ccae2b368ee3c629dd62dd7c9ca3d2a4fe83b293d821f396673",
+      "wallMs": 483.654249999905,
+      "probabilities": [
+        0.8665676755114894,
+        0.01155638363941591,
+        0.8025349342271205,
+        0.006374684367973516,
+        0.024560617594982268
+      ],
+      "usage": {
+        "input_tokens": 407,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-03",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "promotion of the author's own product or paid service",
+        "cryptocurrency investing or promotion"
+      ],
+      "expected": [
+        true,
+        true,
+        false,
+        true,
+        false
+      ],
+      "caseIdentitySha256": "2d8550ecdebb460e6ce1033333d5829ca3c6bdcf0c7efb3e91ddeeb1e91adeb0",
+      "wallMs": 481.54750000010245,
+      "probabilities": [
+        0.7741605283201994,
+        0.6565728513395267,
+        0.008819471852374994,
+        0.788040136366279,
+        0.013248435842010443
+      ],
+      "usage": {
+        "input_tokens": 401,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-04",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "government policy or election politics",
+        "requests for likes, reposts, or replies to boost engagement",
+        "food and cooking",
+        "personal feuds or public insults between people"
+      ],
+      "expected": [
+        false,
+        true,
+        true,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "45d982f9ea27d3bb6d86653acd887fe0c39f27d8ab88b5533173f68ffee8e4b1",
+      "wallMs": 476.0534579998348,
+      "probabilities": [
+        0.007909852442410858,
+        0.8298767348661881,
+        0.9325433624889812,
+        0.023080613662298265,
+        0.015791828137177263
+      ],
+      "usage": {
+        "input_tokens": 393,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-05",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "sports results or commentary",
+        "gossip about famous entertainers or celebrities",
+        "food and cooking",
+        "personal feuds or public insults between people",
+        "exercise routines and fitness training"
+      ],
+      "expected": [
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "caseIdentitySha256": "394d5ecf75ed2f355b0a79855bb5f40d301a98c7acad7a9dfbe7783812f21fe6",
+      "wallMs": 475.74600000004284,
+      "probabilities": [
+        0.012811981246689199,
+        0.8995922110466417,
+        0.004527396973704494,
+        0.9295556524150327,
+        0.005170483434265497
+      ],
+      "usage": {
+        "input_tokens": 383,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-06",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "cryptocurrency investing or promotion",
+        "gossip about famous entertainers or celebrities",
+        "promotion of the author's own product or paid service",
+        "government policy or election politics"
+      ],
+      "expected": [
+        true,
+        true,
+        false,
+        true,
+        false
+      ],
+      "caseIdentitySha256": "3a64fe732c238716a716998902354afd3b11d711e2bba0bd36a7e27fec798217",
+      "wallMs": 486.06070800009184,
+      "probabilities": [
+        0.9207490464232346,
+        0.8042558411733972,
+        0.016809206232065724,
+        0.8759943567046835,
+        0.012105765291747993
+      ],
+      "usage": {
+        "input_tokens": 398,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-07",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "promotion of the author's own product or paid service",
+        "sports results or commentary",
+        "food and cooking",
+        "requests for likes, reposts, or replies to boost engagement",
+        "government policy or election politics"
+      ],
+      "expected": [
+        false,
+        false,
+        true,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "a60655d8e447df48689a312fc493184c0b0c3cc34ffed6d87396ca838f4545a0",
+      "wallMs": 488.9997080001049,
+      "probabilities": [
+        0.01913225233457775,
+        0.009377683615640023,
+        0.9231296076458294,
+        0.035080171489409395,
+        0.007614514054539057
+      ],
+      "usage": {
+        "input_tokens": 394,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-08",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "food and cooking",
+        "personal feuds or public insults between people",
+        "cryptocurrency investing or promotion",
+        "exercise routines and fitness training",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        true,
+        false
+      ],
+      "caseIdentitySha256": "f2efe6fc20d9c7451e6b86560fb8ad248dc2fc0515977a6f4d5edf1e5bf30760",
+      "wallMs": 489.65470900014043,
+      "probabilities": [
+        0.004663667006907324,
+        0.003964228594617265,
+        0.005089171440825143,
+        0.9054395775648785,
+        0.006466709942411324
+      ],
+      "usage": {
+        "input_tokens": 406,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-09",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "requests for likes, reposts, or replies to boost engagement",
+        "government policy or election politics"
+      ],
+      "expected": [
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "caseIdentitySha256": "82dc872c01e13502ec6beb77a12969d880289e06d474e431dfa604ad1f8f889b",
+      "wallMs": 488.1898340000771,
+      "probabilities": [
+        0.01366386019305708,
+        0.868789766907529,
+        0.012143598346472087,
+        0.9238529219400178,
+        0.008341783050480537
+      ],
+      "usage": {
+        "input_tokens": 404,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-10",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "exercise routines and fitness training",
+        "food and cooking",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "cryptocurrency investing or promotion",
+        "promotion of the author's own product or paid service"
+      ],
+      "expected": [
+        false,
+        false,
+        true,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "f137972b752007b6e62d853e5ba7acbd5ab3f8092497ea0f387e31dae64b7d94",
+      "wallMs": 483.51237499993294,
+      "probabilities": [
+        0.004368030950529537,
+        0.004367470760186832,
+        0.9581544687374219,
+        0.008256510086222722,
+        0.11237983666756829
+      ],
+      "usage": {
+        "input_tokens": 383,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-11",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "promotion of the author's own product or paid service"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "3863ee261e6e304cfa9e00aadc92e9b2ba499a55f2209e0d9666ed7d50daacc9",
+      "wallMs": 476.1932500000112,
+      "probabilities": [
+        0.005875094726419243,
+        0.011444330221222309,
+        0.005704183208030429,
+        0.00403134519885663,
+        0.019023347775443022
+      ],
+      "usage": {
+        "input_tokens": 364,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-12",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "food and cooking",
+        "requests for likes, reposts, or replies to boost engagement",
+        "personal feuds or public insults between people",
+        "gossip about famous entertainers or celebrities",
+        "cryptocurrency investing or promotion"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "7a129e805844c8f81a19fdd8e69a5eeb4007c594ec38e1bb257338492777d506",
+      "wallMs": 472.52108300011605,
+      "probabilities": [
+        0.003944746137457942,
+        0.042936361419263644,
+        0.00812545215284352,
+        0.005240063518734915,
+        0.0047116089384614986
+      ],
+      "usage": {
+        "input_tokens": 356,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-13",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "sports results or commentary",
+        "promotion of the author's own product or paid service",
+        "government policy or election politics",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "15a5df87a536d5c6bddd8e9808996084ecaaeffb041414afd657faed2e6ffc16",
+      "wallMs": 485.9375,
+      "probabilities": [
+        0.026043974872204823,
+        0.09650928899956367,
+        0.04177226474528766,
+        0.014753254637823867,
+        0.03833779534592244
+      ],
+      "usage": {
+        "input_tokens": 389,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-14",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "exercise routines and fitness training",
+        "cryptocurrency investing or promotion",
+        "food and cooking",
+        "government policy or election politics",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "2caed0b1d87911c5275f432ff3ed43f8556c7d21084a7840c2d592e7d9871c0f",
+      "wallMs": 485.21999999997206,
+      "probabilities": [
+        0.005818071853284471,
+        0.00878331822796196,
+        0.007497950130965404,
+        0.01814766787006851,
+        0.010161071031723394
+      ],
+      "usage": {
+        "input_tokens": 393,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-15",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement",
+        "personal feuds or public insults between people",
+        "food and cooking",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "cb1b0e983fe0685ae91e1a572d28bb336b84126cc7dda8c5b3fe13b9334e5023",
+      "wallMs": 473.8493339999113,
+      "probabilities": [
+        0.06034390160839195,
+        0.003693554760141627,
+        0.0024384663898009747,
+        0.003346604399353429,
+        0.005913754978962946
+      ],
+      "usage": {
+        "input_tokens": 362,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-16",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "sports results or commentary",
+        "exercise routines and fitness training",
+        "cryptocurrency investing or promotion",
+        "promotion of the author's own product or paid service",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "7f7afeacf656a0c11b09954a05d6c490ac995de6e71daae6cc65ec33549f0b36",
+      "wallMs": 475.5921669998206,
+      "probabilities": [
+        0.0056952867406226074,
+        0.005058657524795611,
+        0.005578271065544885,
+        0.012559428863856512,
+        0.005034878846677826
+      ],
+      "usage": {
+        "input_tokens": 372,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-17",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "government policy or election politics",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "gossip about famous entertainers or celebrities",
+        "personal feuds or public insults between people",
+        "food and cooking"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "3654dd4ab20d1c0d46f92c5fe93cb18d9802d9afcbb79a9f9b19351675c5eb53",
+      "wallMs": 473.47475000005215,
+      "probabilities": [
+        0.00888580651259144,
+        0.014677084471208687,
+        0.005548088571794315,
+        0.004061836134144931,
+        0.003024834031613236
+      ],
+      "usage": {
+        "input_tokens": 364,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-18",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "promotion of the author's own product or paid service",
+        "food and cooking",
+        "requests for likes, reposts, or replies to boost engagement",
+        "sports results or commentary",
+        "exercise routines and fitness training"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "d949f47fbca5e499be49f131c61c6edf131d719591a29656376da1bff404b8a6",
+      "wallMs": 473.6174170000013,
+      "probabilities": [
+        0.016771831796959062,
+        0.0027952348427764495,
+        0.023737046500366427,
+        0.0048949620336512945,
+        0.0028985486102095837
+      ],
+      "usage": {
+        "input_tokens": 374,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-19",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "requests for likes, reposts, or replies to boost engagement",
+        "gossip about famous entertainers or celebrities",
+        "promotion of the author's own product or paid service",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "0b7f94c0c99dea105ec38f6676812a568a34fda4bc448d27188b0388ddcbb112",
+      "wallMs": 479.34620800009,
+      "probabilities": [
+        0.006266389746931574,
+        0.032273225901832125,
+        0.005293571540030658,
+        0.008652168188696012,
+        0.006008069838675061
+      ],
+      "usage": {
+        "input_tokens": 385,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-5-20",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "personal feuds or public insults between people",
+        "food and cooking",
+        "government policy or election politics",
+        "sports results or commentary",
+        "exercise routines and fitness training"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "6230cc4b77cb11f0238acf8b0ec924a077bfa19c8bd5ef3fa6298f37e6adae05",
+      "wallMs": 485.0810000000056,
+      "probabilities": [
+        0.017203785702548612,
+        0.00467445059685938,
+        0.04703421731641171,
+        0.006197618022356026,
+        0.005206978107788468
+      ],
+      "usage": {
+        "input_tokens": 370,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-01",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expected": [
+        true,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "2ace820636b2878992edc60d717a0b441163d2c47baf5d16a59796555657742e",
+      "wallMs": 1002.8297909998801,
+      "probabilities": [
+        0.6939449296496362,
+        0.007683460966975654,
+        0.8420971175907076,
+        0.004305354118055621,
+        0.003480364986456714,
+        0.00822419917191379,
+        0.0115785831977854,
+        0.01449232338888082,
+        0.4483124346757412,
+        0.05137894355523023
+      ],
+      "usage": {
+        "input_tokens": 800,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-02",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expected": [
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false
+      ],
+      "caseIdentitySha256": "6b8b599daba2380d7852024790a76458f47729c0510273f6e894d5acdc0af025",
+      "wallMs": 1014.1874590001535,
+      "probabilities": [
+        0.833458135423758,
+        0.004599368695378721,
+        0.011919654664912335,
+        0.006694463113771572,
+        0.009313315199424348,
+        0.017379626449372545,
+        0.034134943151012946,
+        0.005246258211795912,
+        0.6617856438689524,
+        0.0083702913221165
+      ],
+      "usage": {
+        "input_tokens": 810,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-03",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expected": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "90dc6b2ec356f213056703058dd5eb221ef4012ca6fc5347bcc7053247c7910e",
+      "wallMs": 1014.1205420000479,
+      "probabilities": [
+        0.011148023669149394,
+        0.04594366884652919,
+        0.9524398989645123,
+        0.26553796564227805,
+        0.05685856532970503,
+        0.009329824082938774,
+        0.8912035310510275,
+        0.01271574868973508,
+        0.0060736599046172035,
+        0.01448010352939547
+      ],
+      "usage": {
+        "input_tokens": 800,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-04",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        true,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "98c9ccc9df8a245cffdb9257ba2272bc6370aaeb3a58c3cbcce581607e761f91",
+      "wallMs": 1013.987833000021,
+      "probabilities": [
+        0.04188949486505667,
+        0.004425387093148776,
+        0.2982992479019641,
+        0.0060180517709068435,
+        0.6106020647130868,
+        0.6968572441527359,
+        0.009370813413813387,
+        0.004295436553909394,
+        0.005371771517699256,
+        0.011713131726271359
+      ],
+      "usage": {
+        "input_tokens": 810,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-05",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary"
+      ],
+      "expected": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "391383fa310de0255a417d8207cf3606e23c684aa8f37c9ad09b80c30d7c55df",
+      "wallMs": 995.5940829999745,
+      "probabilities": [
+        0.009291421940012047,
+        0.0038937611077490067,
+        0.9268238967106941,
+        0.0068132523588972935,
+        0.005602746345360347,
+        0.006491055680998051,
+        0.7085879989479058,
+        0.06556084173497083,
+        0.007474311146838247,
+        0.0053640351159719305
+      ],
+      "usage": {
+        "input_tokens": 820,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-06",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking"
+      ],
+      "expected": [
+        true,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "ba83301d0099696b06dffa152371a14917197fa832cf8142da11c13f35daffd2",
+      "wallMs": 981.9455420000013,
+      "probabilities": [
+        0.924161316973428,
+        0.007300146012159229,
+        0.9157424936593681,
+        0.020253281871382815,
+        0.0871796661287018,
+        0.008780575248398762,
+        0.01146263244332725,
+        0.007441371376684536,
+        0.004283684179253429,
+        0.0044850182321622125
+      ],
+      "usage": {
+        "input_tokens": 800,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-07",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people"
+      ],
+      "expected": [
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false
+      ],
+      "caseIdentitySha256": "547aaee9d5657d9d7bc8922ee757fe7068e588c4f98b36d3673a8137dce40bb5",
+      "wallMs": 972.1417499999516,
+      "probabilities": [
+        0.17594791793614217,
+        0.8945521414552907,
+        0.010105907103550152,
+        0.011296873185346482,
+        0.022520849126250204,
+        0.0066409468939075044,
+        0.005469978880679292,
+        0.011952404586121177,
+        0.9046108869759042,
+        0.032632233754671995
+      ],
+      "usage": {
+        "input_tokens": 780,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-08",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        false
+      ],
+      "caseIdentitySha256": "8ee84b9c0b7cf06d04b4919b860323b63961e8c3cae3f4c3cc49cddbf8198400",
+      "wallMs": 979.6397080000024,
+      "probabilities": [
+        0.14413642114970823,
+        0.038592069054278505,
+        0.03504104068743724,
+        0.03985404741290314,
+        0.15678734963578692,
+        0.12341668921683467,
+        0.64952582173887,
+        0.11275329790328349,
+        0.8006980938970985,
+        0.16378680391247508
+      ],
+      "usage": {
+        "input_tokens": 840,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-09",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        true,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "7a387e90c7759a086bb74754c43425d26fabad9a1a39816f848f2f99664aa948",
+      "wallMs": 956.6941249999218,
+      "probabilities": [
+        0.0037565824939193165,
+        0.00819918463868897,
+        0.010692555958129162,
+        0.006728714961304194,
+        0.812750884070612,
+        0.07002610323626145,
+        0.888342036950115,
+        0.009784171878095549,
+        0.014715020438016627,
+        0.004774983234264689
+      ],
+      "usage": {
+        "input_tokens": 780,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-10",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics"
+      ],
+      "expected": [
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "f5e53fcbfe4a63138811c3518d76a37c85eec0372dd4766894e92ceed4ecb07d",
+      "wallMs": 966.387582999887,
+      "probabilities": [
+        0.017194367365873108,
+        0.18594702861762286,
+        0.9595927689089455,
+        0.020951041498035547,
+        0.009181098094533043,
+        0.07998296703568715,
+        0.005259271814873942,
+        0.007365016351884451,
+        0.012328478302062712,
+        0.011844224267065244
+      ],
+      "usage": {
+        "input_tokens": 820,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-11",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "46217370a893fbcef01b558c5f03dad4dcca38e821f9aa54cfd20b02d821992f",
+      "wallMs": 945.1068330002017,
+      "probabilities": [
+        0.005090700428710176,
+        0.009080297166721086,
+        0.013843780053974901,
+        0.005186084275171056,
+        0.004832641552844944,
+        0.005075513656445119,
+        0.004952795935095775,
+        0.00410480272946544,
+        0.018879141287413716,
+        0.021733619149409158
+      ],
+      "usage": {
+        "input_tokens": 740,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-12",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "fa98c786224322a8dadb7ec9c46b92f36778097b93d1ebc81b9c58b1db852761",
+      "wallMs": 959.3625419999007,
+      "probabilities": [
+        0.005638558908015949,
+        0.00417998333332604,
+        0.004656810143755944,
+        0.009123060966754356,
+        0.004362205453421034,
+        0.013269295203377206,
+        0.01702753696575922,
+        0.014020330282908867,
+        0.009731963139816257,
+        0.023888802749461507
+      ],
+      "usage": {
+        "input_tokens": 740,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-13",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "887cf5b763d7df94a8199e7dcea7b85abd099af486cfde50221cd6965896e8e1",
+      "wallMs": 1003.6094579999335,
+      "probabilities": [
+        0.009717071207751456,
+        0.0061706890334905125,
+        0.03130798430937945,
+        0.11280446330167417,
+        0.016993884531616748,
+        0.011557112607827304,
+        0.007274614582644285,
+        0.0062426102585180585,
+        0.008665627950704035,
+        0.009636454092708054
+      ],
+      "usage": {
+        "input_tokens": 800,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-14",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "98f78f66add140958e7493e078e3005a7f0a37d97a7682da4da175f8c61ba71c",
+      "wallMs": 1012.2978339998517,
+      "probabilities": [
+        0.01544538103895809,
+        0.004123722773556746,
+        0.010388458603906095,
+        0.009221572280130923,
+        0.0054281147963629655,
+        0.003833363839763985,
+        0.0056950095446052845,
+        0.00514273119022715,
+        0.004144710398267705,
+        0.007883525332218894
+      ],
+      "usage": {
+        "input_tokens": 770,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-15",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "e7ea9c3bb7bb3501d99b7e4ae132fc065531347eeaeb3c82b843d5a9479f2ff2",
+      "wallMs": 1004.0520419999957,
+      "probabilities": [
+        0.01007956003120413,
+        0.023012073286435723,
+        0.0034790132363816065,
+        0.005656669725496464,
+        0.009921070354905389,
+        0.0052458016047594,
+        0.008279774336254417,
+        0.022403058734152263,
+        0.005669944687420629,
+        0.0243977225072442
+      ],
+      "usage": {
+        "input_tokens": 750,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-16",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "2449c4503230a0bb7bb6c8efc99a49a44243bc39a93d72880d07d60a85a7f43a",
+      "wallMs": 1005.0819159999955,
+      "probabilities": [
+        0.004084726570856157,
+        0.004942865039558748,
+        0.0035807226533413486,
+        0.01232926984607284,
+        0.0362670632703612,
+        0.0036948089941279544,
+        0.013029860322823848,
+        0.009228248920835801,
+        0.004560829842649591,
+        0.006250528005480639
+      ],
+      "usage": {
+        "input_tokens": 760,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-17",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "fd2d41f7c607b56b3c0f89c5c853002926d676a5c9419e282c9f60a8b76abfa5",
+      "wallMs": 995.8294999999925,
+      "probabilities": [
+        0.033517832649781996,
+        0.057835419072231255,
+        0.0054878551435834045,
+        0.01129928399708042,
+        0.009919830398661506,
+        0.004859561859023511,
+        0.003379312569707517,
+        0.017828039738253504,
+        0.008244970343772709,
+        0.011389092377295896
+      ],
+      "usage": {
+        "input_tokens": 750,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-18",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "5c5777868577c7030c6e1794aa4402fee4b63b29736396ff83ef5001dc7b8de6",
+      "wallMs": 987.3046250001062,
+      "probabilities": [
+        0.006324438641618833,
+        0.009981497544947227,
+        0.0031778829767638143,
+        0.0029123260794897254,
+        0.00618003014590111,
+        0.006391801178516295,
+        0.011537726663645616,
+        0.010018359437928859,
+        0.06050806458299549,
+        0.003971589577528675
+      ],
+      "usage": {
+        "input_tokens": 780,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-19",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics",
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "53ffeb09bf0780c33f4fc577df960277bade021cf8cda39b6955921c9b2ddaea",
+      "wallMs": 983.09283400001,
+      "probabilities": [
+        0.004161992995391619,
+        0.007276103196340033,
+        0.007830300928515175,
+        0.008202820429471876,
+        0.04133237532804454,
+        0.025444545491779456,
+        0.005451909070965526,
+        0.018292077395867686,
+        0.008599506697782552,
+        0.003603591881101752
+      ],
+      "usage": {
+        "input_tokens": 750,
+        "output_tokens": 0
+      }
+    },
+    {
+      "id": "migration-broad-10-20",
+      "corpus": "broad",
+      "sourceCorpus": "native-migration-validation.json",
+      "filters": [
+        "personal feuds or public insults between people",
+        "promotion of the author's own product or paid service",
+        "requests for likes, reposts, or replies to boost engagement",
+        "cryptocurrency investing or promotion",
+        "sports results or commentary",
+        "exaggerated claims that artificial intelligence will solve everything",
+        "exercise routines and fitness training",
+        "food and cooking",
+        "gossip about famous entertainers or celebrities",
+        "government policy or election politics"
+      ],
+      "expected": [
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
+      ],
+      "caseIdentitySha256": "757e2524df10201f5e0f825f2825b283d890d18712e419a9f367ec9629ea4480",
+      "wallMs": 1000.3179579998832,
+      "probabilities": [
+        0.003140021007373768,
+        0.008125593509658018,
+        0.020257706467658503,
+        0.003123330997339163,
+        0.004688046250143282,
+        0.003906625951885701,
+        0.003926404507977784,
+        0.004162291174772076,
+        0.0034722362711653012,
+        0.00331675404890033
+      ],
+      "usage": {
+        "input_tokens": 770,
+        "output_tokens": 0
+      }
+    }
+  ],
+  "atFrozen": {
+    "rage": {
+      "hide": {
+        "n": 40,
+        "tp": 20,
+        "fp": 0,
+        "fn": 0,
+        "tn": 20,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "exactVectors": 40,
+      "totalVectors": 40,
+      "exactVectorAccuracy": 1,
+      "individualDecisions": 40,
+      "individual": {
+        "n": 40,
+        "tp": 20,
+        "fp": 0,
+        "fn": 0,
+        "tn": 20,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "falseHides": 0,
+      "missedHides": 0,
+      "pairedAvailable": true,
+      "newFalseHides": 0,
+      "newMissedHides": 0,
+      "falseHideIds": [],
+      "missedHideIds": [],
+      "newFalseHideIds": [],
+      "newMissedHideIds": [],
+      "incorrectVectorIds": []
+    },
+    "broad": {
+      "hide": {
+        "n": 80,
+        "tp": 40,
+        "fp": 0,
+        "fn": 0,
+        "tn": 40,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "exactVectors": 79,
+      "totalVectors": 80,
+      "exactVectorAccuracy": 0.9875,
+      "individualDecisions": 380,
+      "individual": {
+        "n": 380,
+        "tp": 66,
+        "fp": 1,
+        "fn": 0,
+        "tn": 313,
+        "accuracy": 0.9973684210526316,
+        "precision": 0.9850746268656716,
+        "recall": 1,
+        "f1": 0.9924812030075187,
+        "specificity": 0.9968152866242038,
+        "falsePositiveRate": 0.0031847133757961785
+      },
+      "falseHides": 0,
+      "missedHides": 0,
+      "pairedAvailable": true,
+      "newFalseHides": 0,
+      "newMissedHides": 0,
+      "falseHideIds": [],
+      "missedHideIds": [],
+      "newFalseHideIds": [],
+      "newMissedHideIds": [],
+      "incorrectVectorIds": [
+        "broad:migration-broad-10-01"
+      ]
+    },
+    "all": {
+      "hide": {
+        "n": 120,
+        "tp": 60,
+        "fp": 0,
+        "fn": 0,
+        "tn": 60,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "exactVectors": 119,
+      "totalVectors": 120,
+      "exactVectorAccuracy": 0.9916666666666667,
+      "individualDecisions": 420,
+      "individual": {
+        "n": 420,
+        "tp": 86,
+        "fp": 1,
+        "fn": 0,
+        "tn": 333,
+        "accuracy": 0.9976190476190476,
+        "precision": 0.9885057471264368,
+        "recall": 1,
+        "f1": 0.9942196531791908,
+        "specificity": 0.9970059880239521,
+        "falsePositiveRate": 0.0029940119760479044
+      },
+      "falseHides": 0,
+      "missedHides": 0,
+      "pairedAvailable": true,
+      "newFalseHides": 0,
+      "newMissedHides": 0,
+      "falseHideIds": [],
+      "missedHideIds": [],
+      "newFalseHideIds": [],
+      "newMissedHideIds": [],
+      "incorrectVectorIds": [
+        "broad:migration-broad-10-01"
+      ]
+    }
+  },
+  "at05": {
+    "rage": {
+      "hide": {
+        "n": 40,
+        "tp": 20,
+        "fp": 0,
+        "fn": 0,
+        "tn": 20,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "exactVectors": 40,
+      "totalVectors": 40,
+      "exactVectorAccuracy": 1,
+      "individualDecisions": 40,
+      "individual": {
+        "n": 40,
+        "tp": 20,
+        "fp": 0,
+        "fn": 0,
+        "tn": 20,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "falseHides": 0,
+      "missedHides": 0,
+      "pairedAvailable": true,
+      "newFalseHides": 0,
+      "newMissedHides": 0,
+      "falseHideIds": [],
+      "missedHideIds": [],
+      "newFalseHideIds": [],
+      "newMissedHideIds": [],
+      "incorrectVectorIds": []
+    },
+    "broad": {
+      "hide": {
+        "n": 80,
+        "tp": 40,
+        "fp": 0,
+        "fn": 0,
+        "tn": 40,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "exactVectors": 80,
+      "totalVectors": 80,
+      "exactVectorAccuracy": 1,
+      "individualDecisions": 380,
+      "individual": {
+        "n": 380,
+        "tp": 66,
+        "fp": 0,
+        "fn": 0,
+        "tn": 314,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "falseHides": 0,
+      "missedHides": 0,
+      "pairedAvailable": true,
+      "newFalseHides": 0,
+      "newMissedHides": 0,
+      "falseHideIds": [],
+      "missedHideIds": [],
+      "newFalseHideIds": [],
+      "newMissedHideIds": [],
+      "incorrectVectorIds": []
+    },
+    "all": {
+      "hide": {
+        "n": 120,
+        "tp": 60,
+        "fp": 0,
+        "fn": 0,
+        "tn": 60,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "exactVectors": 120,
+      "totalVectors": 120,
+      "exactVectorAccuracy": 1,
+      "individualDecisions": 420,
+      "individual": {
+        "n": 420,
+        "tp": 86,
+        "fp": 0,
+        "fn": 0,
+        "tn": 334,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "falseHides": 0,
+      "missedHides": 0,
+      "pairedAvailable": true,
+      "newFalseHides": 0,
+      "newMissedHides": 0,
+      "falseHideIds": [],
+      "missedHideIds": [],
+      "newFalseHideIds": [],
+      "newMissedHideIds": [],
+      "incorrectVectorIds": []
+    }
+  },
+  "pairedVsTextOnlyQat": {
+    "rage": {
+      "hide": {
+        "n": 40,
+        "tp": 20,
+        "fp": 0,
+        "fn": 0,
+        "tn": 20,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "exactVectors": 40,
+      "totalVectors": 40,
+      "exactVectorAccuracy": 1,
+      "individualDecisions": 40,
+      "individual": {
+        "n": 40,
+        "tp": 20,
+        "fp": 0,
+        "fn": 0,
+        "tn": 20,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "falseHides": 0,
+      "missedHides": 0,
+      "pairedAvailable": true,
+      "newFalseHides": 0,
+      "newMissedHides": 0,
+      "falseHideIds": [],
+      "missedHideIds": [],
+      "newFalseHideIds": [],
+      "newMissedHideIds": [],
+      "incorrectVectorIds": []
+    },
+    "broad": {
+      "hide": {
+        "n": 80,
+        "tp": 40,
+        "fp": 0,
+        "fn": 0,
+        "tn": 40,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "exactVectors": 79,
+      "totalVectors": 80,
+      "exactVectorAccuracy": 0.9875,
+      "individualDecisions": 380,
+      "individual": {
+        "n": 380,
+        "tp": 66,
+        "fp": 1,
+        "fn": 0,
+        "tn": 313,
+        "accuracy": 0.9973684210526316,
+        "precision": 0.9850746268656716,
+        "recall": 1,
+        "f1": 0.9924812030075187,
+        "specificity": 0.9968152866242038,
+        "falsePositiveRate": 0.0031847133757961785
+      },
+      "falseHides": 0,
+      "missedHides": 0,
+      "pairedAvailable": true,
+      "newFalseHides": 0,
+      "newMissedHides": 0,
+      "falseHideIds": [],
+      "missedHideIds": [],
+      "newFalseHideIds": [],
+      "newMissedHideIds": [],
+      "incorrectVectorIds": [
+        "broad:migration-broad-10-01"
+      ]
+    },
+    "all": {
+      "hide": {
+        "n": 120,
+        "tp": 60,
+        "fp": 0,
+        "fn": 0,
+        "tn": 60,
+        "accuracy": 1,
+        "precision": 1,
+        "recall": 1,
+        "f1": 1,
+        "specificity": 1,
+        "falsePositiveRate": 0
+      },
+      "exactVectors": 119,
+      "totalVectors": 120,
+      "exactVectorAccuracy": 0.9916666666666667,
+      "individualDecisions": 420,
+      "individual": {
+        "n": 420,
+        "tp": 86,
+        "fp": 1,
+        "fn": 0,
+        "tn": 333,
+        "accuracy": 0.9976190476190476,
+        "precision": 0.9885057471264368,
+        "recall": 1,
+        "f1": 0.9942196531791908,
+        "specificity": 0.9970059880239521,
+        "falsePositiveRate": 0.0029940119760479044
+      },
+      "falseHides": 0,
+      "missedHides": 0,
+      "pairedAvailable": true,
+      "newFalseHides": 0,
+      "newMissedHides": 0,
+      "falseHideIds": [],
+      "missedHideIds": [],
+      "newFalseHideIds": [],
+      "newMissedHideIds": [],
+      "incorrectVectorIds": [
+        "broad:migration-broad-10-01"
+      ]
+    }
+  },
+  "gates": {
+    "G1": {
+      "metric": "newFalseHides",
+      "actual": 0,
+      "max": 1,
+      "pass": true
+    },
+    "G2": {
+      "metric": "exactVectors",
+      "actual": 119,
+      "min": 110,
+      "pass": true
+    },
+    "G3": {
+      "metric": "correctHideDecisions",
+      "actual": 120,
+      "min": 117,
+      "pass": true
+    }
+  },
+  "pass": true,
+  "finishedAt": "2026-11-24T21:39:52.024Z"
+}

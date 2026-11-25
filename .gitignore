@@ -31,3 +31,7 @@ test-filtered-view.mjs
 .native-qualification/
 .native-rollback/
 .macos-ollama-setup-review/
+
+# Decision-model local logs, raw archives and Python bytecode
+/scripts/decision-eval/.tmp/
+/scripts/decision-eval/__pycache__/

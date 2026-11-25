@@ -1,0 +1,4997 @@
+{
+  "schemaVersion": 2,
+  "phase": "discovery",
+  "variant": {
+    "id": "llama-kev-4b-q8",
+    "runtime": "llama",
+    "model": "ggml-org/Kev-4B-GGUF:Q8_0",
+    "file": "Kev-4B-Q8_0.gguf",
+    "family": "kev-4b",
+    "format": "GGUF Q8_0",
+    "batch": 4096
+  },
+  "identityHash": "d9ddb4b9fc0b4c1d856ec6cd90e60e746a0bb2673c3ecb03f5cac00e4b8b572d",
+  "corpusHashes": {
+    "eval-corpus.ts": "4a2dacac7271704addb5c06d953021b8c8c7f20108cfa002ce11942a6e907214",
+    "native-benchmark-corpus.ts": "a5db3bf30aa3039a3e571020c111797e1cfdd675872514a40139e66db6038603",
+    "native-isolation-holdout.json": "18841a6609d9e68493c629880bc03eeaa233eab890245e5cfd5c2eaa9e9d4159",
+    "native-migration-validation.json": "354e80566fdf889e213aec9072387c42f8286a48347379b1142073cba3fa4e27"
+  },
+  "environment": {
+    "time": 1795555289482,
+    "host": {
+      "platform": "darwin",
+      "architecture": "arm64",
+      "nodeVersion": "v24.18.1"
+    },
+    "chip": {
+      "name": "Apple M5 Pro",
+      "provenance": "user-supplied"
+    },
+    "ram": {
+      "bytes": 68719476736,
+      "provenance": "measured:memory_pressure -Q"
+    },
+    "loadAverage": [
+      3.95263671875,
+      3.2451171875,
+      2.953125
+    ],
+    "power": {
+      "available": true,
+      "raw": "Now drawing from 'AC Power'\n -InternalBattery-0 (id=redacted)\t80%; AC attached; not charging present: true"
+    },
+    "memoryPressure": {
+      "available": true,
+      "raw": "The system has 68719476736 (4194304 pages with a page size of 16384).\nSystem-wide memory free percentage: 88%"
+    },
+    "vmStat": {
+      "available": true,
+      "raw": "Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free:                                   357932.\nPages active:                                1578413.\nPages inactive:                              1737669.\nPages speculative:                               971.\nPages throttled:                                   0.\nPages wired down:                             240944.\nPages purgeable:                               71143.\n\"Translation faults\":                     1181629205.\nPages copy-on-write:                        96792579.\nPages zero filled:                         692365289.\nPages reactivated:                           7026433.\nPages purged:                                2333756.\nFile-backed pages:                           1119064.\nAnonymous pages:                             2197989.\nPages stored in compressor:                   434868.\nPages occupied by compressor:                 219597.\nDecompressions:                              3483090.\nCompressions:                                5709593.\nPageins:                                    24686356.\nPageouts:                                        812.\nSwapins:                                       45870.\nSwapouts:                                     100124.\nPages tagged:                                 171485.\nPages tagged resident:                        153299.\nPages tagged compressed:                       18186.\nPages tag-storage:                            131072.\nPages tag-storage holding tags:                 8945.\nPages tag-storage free:                          587.\nPages tag-storage non-tag pageable:           121335.\nPages tag-storage non-tag wired:                   8.\nBytes of compressed tags:                    2789056.\nTagged compressions:                          121968.\nTagged decompressions:                         96619."
+    }
+  },
+  "startedAt": "2026-11-24T21:21:29.482Z",
+  "templates": [
+    {
+      "id": "matches-category",
+      "hash": "9a1e023c41c8c19c37317953ae8d7b486ec088070ce00abadd4809242eb67f54",
+      "rows": [
+        {
+          "id": "p1",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 131.57795900001656,
+          "probabilities": [
+            0.7509012121460755
+          ],
+          "usage": {
+            "input_tokens": 162,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p2",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 123.15145800000755,
+          "probabilities": [
+            0.8190969914881632
+          ],
+          "usage": {
+            "input_tokens": 154,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p3",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 124.14200000002165,
+          "probabilities": [
+            0.8472837051019524
+          ],
+          "usage": {
+            "input_tokens": 160,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p4",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 122.65908300000592,
+          "probabilities": [
+            0.7906864591028909
+          ],
+          "usage": {
+            "input_tokens": 158,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p5",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 123.16200000001118,
+          "probabilities": [
+            0.7654992522139498
+          ],
+          "usage": {
+            "input_tokens": 160,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p6",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 123.26149999999325,
+          "probabilities": [
+            0.7249418592498119
+          ],
+          "usage": {
+            "input_tokens": 159,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p7",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 132.10720800000126,
+          "probabilities": [
+            0.8307457754713826
+          ],
+          "usage": {
+            "input_tokens": 164,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p8",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 124.42979200000991,
+          "probabilities": [
+            0.8691102016394259
+          ],
+          "usage": {
+            "input_tokens": 156,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p9",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 124.04675000000861,
+          "probabilities": [
+            0.856142812850511
+          ],
+          "usage": {
+            "input_tokens": 160,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p10",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 123.26770900000702,
+          "probabilities": [
+            0.577301829311454
+          ],
+          "usage": {
+            "input_tokens": 158,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p11",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 125.06320800000685,
+          "probabilities": [
+            0.6283316957124739
+          ],
+          "usage": {
+            "input_tokens": 163,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p12",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 122.68812500001513,
+          "probabilities": [
+            0.5836944191071265
+          ],
+          "usage": {
+            "input_tokens": 151,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p13",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 122.59325000000536,
+          "probabilities": [
+            0.5794590957954817
+          ],
+          "usage": {
+            "input_tokens": 153,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p14",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 124.2101669999829,
+          "probabilities": [
+            0.34739915839379915
+          ],
+          "usage": {
+            "input_tokens": 153,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p15",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 122.40908300000592,
+          "probabilities": [
+            0.3326756150679059
+          ],
+          "usage": {
+            "input_tokens": 149,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p16",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 123.43295799999032,
+          "probabilities": [
+            0.7683679119384388
+          ],
+          "usage": {
+            "input_tokens": 151,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p17",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 122.54045800000313,
+          "probabilities": [
+            0.6157880549726891
+          ],
+          "usage": {
+            "input_tokens": 151,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p18",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 121.51370899999165,
+          "probabilities": [
+            0.32483619319127577
+          ],
+          "usage": {
+            "input_tokens": 151,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "e1",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 123.0842920000141,
+          "probabilities": [
+            0.026805873351993918
+          ],
+          "usage": {
+            "input_tokens": 153,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "e2",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 122.66716699997778,
+          "probabilities": [
+            0.12038933846128172
+          ],
+          "usage": {
+            "input_tokens": 155,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "e3",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 123.53558399999747,
+          "probabilities": [
+            0.028019195825748477
+          ],
+          "usage": {
+            "input_tokens": 157,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "e4",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 125.0401669999992,
+          "probabilities": [
+            0.010192241410772452
+          ],
+          "usage": {
+            "input_tokens": 154,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a1",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 124.64504100001068,
+          "probabilities": [
+            0.17223521718393825
+          ],
+          "usage": {
+            "input_tokens": 157,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a2",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 122.83091699998477,
+          "probabilities": [
+            0.08207699207571512
+          ],
+          "usage": {
+            "input_tokens": 157,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a3",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 121.1195000000007,
+          "probabilities": [
+            0.09124459158526195
+          ],
+          "usage": {
+            "input_tokens": 153,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a4",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 123.72924999997485,
+          "probabilities": [
+            0.15896643892401804
+          ],
+          "usage": {
+            "input_tokens": 156,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a5",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 121.99620900000446,
+          "probabilities": [
+            0.10421483971478103
+          ],
+          "usage": {
+            "input_tokens": 154,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a6",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 123.23574999999255,
+          "probabilities": [
+            0.16052113542202587
+          ],
+          "usage": {
+            "input_tokens": 154,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a7",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 124.96629199999734,
+          "probabilities": [
+            0.04864307877368897
+          ],
+          "usage": {
+            "input_tokens": 158,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a8",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 123.20716600000742,
+          "probabilities": [
+            0.25587475322316267
+          ],
+          "usage": {
+            "input_tokens": 153,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a9",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 123.06212500002584,
+          "probabilities": [
+            0.0643216719896723
+          ],
+          "usage": {
+            "input_tokens": 155,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a10",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 123.65091600001324,
+          "probabilities": [
+            0.09190072467030017
+          ],
+          "usage": {
+            "input_tokens": 156,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a11",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 120.44395899999654,
+          "probabilities": [
+            0.04910158477466394
+          ],
+          "usage": {
+            "input_tokens": 151,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a12",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 123.7497920000169,
+          "probabilities": [
+            0.13980638127375136
+          ],
+          "usage": {
+            "input_tokens": 148,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a13",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 121.53858300001593,
+          "probabilities": [
+            0.09105885418206183
+          ],
+          "usage": {
+            "input_tokens": 148,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a14",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 123.24095900001703,
+          "probabilities": [
+            0.050961429934835815
+          ],
+          "usage": {
+            "input_tokens": 153,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a15",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 123.65733299998101,
+          "probabilities": [
+            0.08120401898118808
+          ],
+          "usage": {
+            "input_tokens": 150,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a16",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 122.66387499999837,
+          "probabilities": [
+            0.2609847821083891
+          ],
+          "usage": {
+            "input_tokens": 153,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a17",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 122.70975000000908,
+          "probabilities": [
+            0.06109036396165964
+          ],
+          "usage": {
+            "input_tokens": 151,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a18",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 121.14783299999544,
+          "probabilities": [
+            0.14884366017065898
+          ],
+          "usage": {
+            "input_tokens": 152,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-crypto-positive",
+          "corpus": "broad",
+          "filters": [
+            "cryptocurrency investing or promotion"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 78.85233399999561,
+          "probabilities": [
+            0.8616123115254076
+          ],
+          "usage": {
+            "input_tokens": 62,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-crypto-negative",
+          "corpus": "broad",
+          "filters": [
+            "cryptocurrency investing or promotion"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 77.86808300000848,
+          "probabilities": [
+            0.007979771644244208
+          ],
+          "usage": {
+            "input_tokens": 64,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-sports-positive",
+          "corpus": "broad",
+          "filters": [
+            "sports results or commentary"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 77.86875000002328,
+          "probabilities": [
+            0.9409377737000169
+          ],
+          "usage": {
+            "input_tokens": 59,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-sports-negative",
+          "corpus": "broad",
+          "filters": [
+            "sports results or commentary"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 77.74333299999125,
+          "probabilities": [
+            0.005453085865303415
+          ],
+          "usage": {
+            "input_tokens": 58,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-food-positive",
+          "corpus": "broad",
+          "filters": [
+            "food and cooking"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 77.33537500002421,
+          "probabilities": [
+            0.9513416464759574
+          ],
+          "usage": {
+            "input_tokens": 60,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-fitness-positive",
+          "corpus": "broad",
+          "filters": [
+            "exercise routines and fitness training"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 79.3284580000036,
+          "probabilities": [
+            0.9247382299377962
+          ],
+          "usage": {
+            "input_tokens": 66,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-politics-positive",
+          "corpus": "broad",
+          "filters": [
+            "government policy or election politics"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 78.971292000002,
+          "probabilities": [
+            0.9453721116976209
+          ],
+          "usage": {
+            "input_tokens": 57,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-ai-hype-negative",
+          "corpus": "broad",
+          "filters": [
+            "exaggerated claims that artificial intelligence will solve everything"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 79.11879199999385,
+          "probabilities": [
+            0.02458241174104242
+          ],
+          "usage": {
+            "input_tokens": 67,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-celebrity-positive",
+          "corpus": "broad",
+          "filters": [
+            "gossip about famous entertainers or celebrities"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 79.26824999999371,
+          "probabilities": [
+            0.9597255691634534
+          ],
+          "usage": {
+            "input_tokens": 67,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-promotion-negative",
+          "corpus": "broad",
+          "filters": [
+            "promotion of the author's own product or paid service"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 79.8578329999873,
+          "probabilities": [
+            0.019723134995641944
+          ],
+          "usage": {
+            "input_tokens": 69,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-engagement-positive",
+          "corpus": "broad",
+          "filters": [
+            "requests for likes, reposts, or replies to boost engagement"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 80.58329199999571,
+          "probabilities": [
+            0.9670261832744901
+          ],
+          "usage": {
+            "input_tokens": 70,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-drama-negative",
+          "corpus": "broad",
+          "filters": [
+            "personal feuds or public insults between people"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 79.24025000000256,
+          "probabilities": [
+            0.008585615667932547
+          ],
+          "usage": {
+            "input_tokens": 65,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-crypto-and-food",
+          "corpus": "broad",
+          "filters": [
+            "cryptocurrency investing or promotion",
+            "sports results or commentary",
+            "food and cooking"
+          ],
+          "expected": [
+            true,
+            false,
+            true
+          ],
+          "wallMs": 229.41037500000675,
+          "probabilities": [
+            0.349927904698587,
+            0.004732444420905382,
+            0.34784429228194036
+          ],
+          "usage": {
+            "input_tokens": 186,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-sports-middle",
+          "corpus": "broad",
+          "filters": [
+            "food and cooking",
+            "sports results or commentary",
+            "cryptocurrency investing or promotion"
+          ],
+          "expected": [
+            false,
+            true,
+            false
+          ],
+          "wallMs": 228.1924589999835,
+          "probabilities": [
+            0.0009740214061265835,
+            0.9486371439567457,
+            0.002131765738856539
+          ],
+          "usage": {
+            "input_tokens": 177,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-fitness-and-politics",
+          "corpus": "broad",
+          "filters": [
+            "exercise routines and fitness training",
+            "government policy or election politics",
+            "exaggerated claims that artificial intelligence will solve everything"
+          ],
+          "expected": [
+            true,
+            true,
+            false
+          ],
+          "wallMs": 229.97687500002212,
+          "probabilities": [
+            0.06811804441545408,
+            0.49068198539577373,
+            0.011556817166395129
+          ],
+          "usage": {
+            "input_tokens": 188,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-hype-promotion-engagement",
+          "corpus": "broad",
+          "filters": [
+            "exaggerated claims that artificial intelligence will solve everything",
+            "promotion of the author's own product or paid service",
+            "requests for likes, reposts, or replies to boost engagement"
+          ],
+          "expected": [
+            true,
+            true,
+            true
+          ],
+          "wallMs": 234.89429100000416,
+          "probabilities": [
+            0.9548535307513205,
+            0.9529828372070343,
+            0.9220246331956684
+          ],
+          "usage": {
+            "input_tokens": 218,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-celebrity-and-drama",
+          "corpus": "broad",
+          "filters": [
+            "gossip about famous entertainers or celebrities",
+            "personal feuds or public insults between people",
+            "government policy or election politics"
+          ],
+          "expected": [
+            true,
+            true,
+            false
+          ],
+          "wallMs": 234.2827920000127,
+          "probabilities": [
+            0.8706209033100331,
+            0.9506963679427004,
+            0.005713481895271153
+          ],
+          "usage": {
+            "input_tokens": 204,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-drama-and-engagement",
+          "corpus": "broad",
+          "filters": [
+            "personal feuds or public insults between people",
+            "requests for likes, reposts, or replies to boost engagement",
+            "promotion of the author's own product or paid service"
+          ],
+          "expected": [
+            true,
+            true,
+            false
+          ],
+          "wallMs": 236.12812499998836,
+          "probabilities": [
+            0.9117886089028434,
+            0.5437734833653485,
+            0.015126916869256258
+          ],
+          "usage": {
+            "input_tokens": 213,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-all-negative",
+          "corpus": "broad",
+          "filters": [
+            "food and cooking",
+            "exercise routines and fitness training",
+            "sports results or commentary"
+          ],
+          "expected": [
+            false,
+            false,
+            false
+          ],
+          "wallMs": 229.85620899999049,
+          "probabilities": [
+            0.0047346609464155405,
+            0.0024795275485671314,
+            0.0025481158857439
+          ],
+          "usage": {
+            "input_tokens": 189,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-policy-only",
+          "corpus": "broad",
+          "filters": [
+            "government policy or election politics",
+            "cryptocurrency investing or promotion",
+            "exaggerated claims that artificial intelligence will solve everything"
+          ],
+          "expected": [
+            true,
+            false,
+            false
+          ],
+          "wallMs": 229.6040829999838,
+          "probabilities": [
+            0.9352750978408262,
+            0.001874620543156393,
+            0.008136338169364266
+          ],
+          "usage": {
+            "input_tokens": 188,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-selling-own-baking-class",
+          "corpus": "broad",
+          "filters": [
+            "promotion of the author's own product or paid service",
+            "food and cooking",
+            "cryptocurrency investing or promotion"
+          ],
+          "expected": [
+            true,
+            true,
+            false
+          ],
+          "wallMs": 233.99654100000043,
+          "probabilities": [
+            0.932222127568299,
+            0.9112430763393112,
+            0.004428814667705652
+          ],
+          "usage": {
+            "input_tokens": 210,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-celebrity-middle",
+          "corpus": "broad",
+          "filters": [
+            "requests for likes, reposts, or replies to boost engagement",
+            "gossip about famous entertainers or celebrities",
+            "sports results or commentary"
+          ],
+          "expected": [
+            false,
+            true,
+            false
+          ],
+          "wallMs": 230.6290839999856,
+          "probabilities": [
+            0.11613859452246061,
+            0.9549010973511207,
+            0.005571723867256689
+          ],
+          "usage": {
+            "input_tokens": 189,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-fitness-only",
+          "corpus": "broad",
+          "filters": [
+            "exercise routines and fitness training",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "personal feuds or public insults between people"
+          ],
+          "expected": [
+            true,
+            false,
+            false
+          ],
+          "wallMs": 232.04395799999475,
+          "probabilities": [
+            0.9365139621886726,
+            0.0068724475614605745,
+            0.004810253611747487
+          ],
+          "usage": {
+            "input_tokens": 194,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-crypto-policy-own-guide",
+          "corpus": "broad",
+          "filters": [
+            "cryptocurrency investing or promotion",
+            "government policy or election politics",
+            "promotion of the author's own product or paid service"
+          ],
+          "expected": [
+            true,
+            true,
+            true
+          ],
+          "wallMs": 235.90174999999,
+          "probabilities": [
+            0.8380281986763016,
+            0.39185770641426004,
+            0.9237270079725682
+          ],
+          "usage": {
+            "input_tokens": 194,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-everyday-negative",
+          "corpus": "broad",
+          "filters": [
+            "cryptocurrency investing or promotion",
+            "sports results or commentary",
+            "food and cooking",
+            "exercise routines and fitness training",
+            "government policy or election politics"
+          ],
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 391.3289170000062,
+          "probabilities": [
+            0.004688643665819846,
+            0.006742018452398608,
+            0.0033076351872343827,
+            0.005083110169666808,
+            0.004001320748227928
+          ],
+          "usage": {
+            "input_tokens": 317,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-all-topics-reversed",
+          "corpus": "broad",
+          "filters": [
+            "government policy or election politics",
+            "exercise routines and fitness training",
+            "food and cooking",
+            "sports results or commentary",
+            "cryptocurrency investing or promotion"
+          ],
+          "expected": [
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "wallMs": 399.3033750000177,
+          "probabilities": [
+            0.307150340878671,
+            0.04854583403553135,
+            0.07103179423354793,
+            0.21761981691430365,
+            0.4613736284710343
+          ],
+          "usage": {
+            "input_tokens": 357,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-hype-gossip-sale-bait-feud",
+          "corpus": "broad",
+          "filters": [
+            "exaggerated claims that artificial intelligence will solve everything",
+            "gossip about famous entertainers or celebrities",
+            "promotion of the author's own product or paid service",
+            "requests for likes, reposts, or replies to boost engagement",
+            "personal feuds or public insults between people"
+          ],
+          "expected": [
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "wallMs": 415.0482920000213,
+          "probabilities": [
+            0.9296527618676026,
+            0.8741350131343618,
+            0.8957644394825176,
+            0.9234529936849748,
+            0.8739121045347055
+          ],
+          "usage": {
+            "input_tokens": 423,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-second-group-negative",
+          "corpus": "broad",
+          "filters": [
+            "personal feuds or public insults between people",
+            "requests for likes, reposts, or replies to boost engagement",
+            "promotion of the author's own product or paid service",
+            "gossip about famous entertainers or celebrities",
+            "exaggerated claims that artificial intelligence will solve everything"
+          ],
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 403.5553749999963,
+          "probabilities": [
+            0.003618889288473389,
+            0.19377085201115607,
+            0.02913006773814387,
+            0.004821218084121793,
+            0.012452098705304105
+          ],
+          "usage": {
+            "input_tokens": 368,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-food-and-fitness-separated",
+          "corpus": "broad",
+          "filters": [
+            "food and cooking",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "cryptocurrency investing or promotion",
+            "promotion of the author's own product or paid service",
+            "exercise routines and fitness training"
+          ],
+          "expected": [
+            true,
+            false,
+            false,
+            false,
+            true
+          ],
+          "wallMs": 386.2640829999873,
+          "probabilities": [
+            0.2575333483721851,
+            0.005387324885179633,
+            0.0021379825054744137,
+            0.012549182743000558,
+            0.6318146260342756
+          ],
+          "usage": {
+            "input_tokens": 318,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-sports-and-policy",
+          "corpus": "broad",
+          "filters": [
+            "sports results or commentary",
+            "government policy or election politics",
+            "personal feuds or public insults between people",
+            "requests for likes, reposts, or replies to boost engagement",
+            "gossip about famous entertainers or celebrities"
+          ],
+          "expected": [
+            true,
+            true,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 380.99199999999837,
+          "probabilities": [
+            0.15460440277260093,
+            0.7698827734347522,
+            0.012867915433491028,
+            0.031310289395285434,
+            0.012892272417800854
+          ],
+          "usage": {
+            "input_tokens": 307,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-crypto-hype-own-service",
+          "corpus": "broad",
+          "filters": [
+            "cryptocurrency investing or promotion",
+            "promotion of the author's own product or paid service",
+            "food and cooking",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "government policy or election politics"
+          ],
+          "expected": [
+            true,
+            true,
+            false,
+            true,
+            false
+          ],
+          "wallMs": 390.99212499998976,
+          "probabilities": [
+            0.6949478083331799,
+            0.8603377077425568,
+            0.0034845871602983743,
+            0.9236632143233166,
+            0.012400978043158244
+          ],
+          "usage": {
+            "input_tokens": 353,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-gossip-feud-engagement-permutation",
+          "corpus": "broad",
+          "filters": [
+            "exercise routines and fitness training",
+            "personal feuds or public insults between people",
+            "gossip about famous entertainers or celebrities",
+            "food and cooking",
+            "requests for likes, reposts, or replies to boost engagement"
+          ],
+          "expected": [
+            false,
+            true,
+            true,
+            false,
+            true
+          ],
+          "wallMs": 392.590583000012,
+          "probabilities": [
+            0.002914373243778642,
+            0.875918745947635,
+            0.9472225343743029,
+            0.002839265627396771,
+            0.7864606594440856
+          ],
+          "usage": {
+            "input_tokens": 361,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-own-fitness-service",
+          "corpus": "broad",
+          "filters": [
+            "promotion of the author's own product or paid service",
+            "sports results or commentary",
+            "exercise routines and fitness training",
+            "government policy or election politics",
+            "cryptocurrency investing or promotion"
+          ],
+          "expected": [
+            true,
+            false,
+            true,
+            false,
+            false
+          ],
+          "wallMs": 401.07362499999,
+          "probabilities": [
+            0.3952319118655936,
+            0.17260530749092184,
+            0.8579718163218971,
+            0.005708221551022548,
+            0.013546796221857577
+          ],
+          "usage": {
+            "input_tokens": 334,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-food-last-only",
+          "corpus": "broad",
+          "filters": [
+            "gossip about famous entertainers or celebrities",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "requests for likes, reposts, or replies to boost engagement",
+            "personal feuds or public insults between people",
+            "food and cooking"
+          ],
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            true
+          ],
+          "wallMs": 397.7811249999795,
+          "probabilities": [
+            0.003784584713868366,
+            0.006887041671725116,
+            0.07191270051528681,
+            0.003208186840807406,
+            0.9356814827614424
+          ],
+          "usage": {
+            "input_tokens": 356,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-policy-crypto-engagement",
+          "corpus": "broad",
+          "filters": [
+            "government policy or election politics",
+            "cryptocurrency investing or promotion",
+            "requests for likes, reposts, or replies to boost engagement",
+            "food and cooking",
+            "sports results or commentary"
+          ],
+          "expected": [
+            true,
+            true,
+            true,
+            false,
+            false
+          ],
+          "wallMs": 396.59224999998696,
+          "probabilities": [
+            0.6769057123478683,
+            0.8571176659513599,
+            0.7009326233564839,
+            0.00392431464547257,
+            0.011063439101712858
+          ],
+          "usage": {
+            "input_tokens": 329,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-ai-hype-first-only",
+          "corpus": "broad",
+          "filters": [
+            "exaggerated claims that artificial intelligence will solve everything",
+            "exercise routines and fitness training",
+            "promotion of the author's own product or paid service",
+            "personal feuds or public insults between people",
+            "gossip about famous entertainers or celebrities"
+          ],
+          "expected": [
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 391.94724999999744,
+          "probabilities": [
+            0.9657938525969111,
+            0.00397031503990012,
+            0.027283233829167128,
+            0.015304743671095822,
+            0.006250381517844975
+          ],
+          "usage": {
+            "input_tokens": 331,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-all-negative",
+          "corpus": "broad",
+          "filters": [
+            "cryptocurrency investing or promotion",
+            "sports results or commentary",
+            "food and cooking",
+            "exercise routines and fitness training",
+            "government policy or election politics",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "gossip about famous entertainers or celebrities",
+            "promotion of the author's own product or paid service",
+            "requests for likes, reposts, or replies to boost engagement",
+            "personal feuds or public insults between people"
+          ],
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 774.9129580000008,
+          "probabilities": [
+            0.0017351647514058494,
+            0.003025950060716558,
+            0.003283503114042204,
+            0.0026868483099654283,
+            0.0020237689728607572,
+            0.007991128584042634,
+            0.00334064069946917,
+            0.020681355911041248,
+            0.058810279165270395,
+            0.003733180847108278
+          ],
+          "usage": {
+            "input_tokens": 650,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-crypto-only",
+          "corpus": "broad",
+          "filters": [
+            "personal feuds or public insults between people",
+            "food and cooking",
+            "cryptocurrency investing or promotion",
+            "requests for likes, reposts, or replies to boost engagement",
+            "government policy or election politics",
+            "exercise routines and fitness training",
+            "gossip about famous entertainers or celebrities",
+            "promotion of the author's own product or paid service",
+            "sports results or commentary",
+            "exaggerated claims that artificial intelligence will solve everything"
+          ],
+          "expected": [
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 761.6202909999993,
+          "probabilities": [
+            0.010638559622177426,
+            0.001805842037567029,
+            0.85219654982338,
+            0.06646137573252404,
+            0.005888597326078619,
+            0.0021466399690902855,
+            0.012635143339194342,
+            0.05170426394674362,
+            0.003940747217710485,
+            0.007856670292087876
+          ],
+          "usage": {
+            "input_tokens": 610,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-sports-only",
+          "corpus": "broad",
+          "filters": [
+            "exaggerated claims that artificial intelligence will solve everything",
+            "promotion of the author's own product or paid service",
+            "exercise routines and fitness training",
+            "gossip about famous entertainers or celebrities",
+            "cryptocurrency investing or promotion",
+            "sports results or commentary",
+            "personal feuds or public insults between people",
+            "government policy or election politics",
+            "requests for likes, reposts, or replies to boost engagement",
+            "food and cooking"
+          ],
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 772.6021670000046,
+          "probabilities": [
+            0.006027406027700921,
+            0.008809132536609065,
+            0.0120804349033263,
+            0.008480847108190854,
+            0.0016956288945268818,
+            0.9272851714063091,
+            0.010446658385177866,
+            0.00274607058064287,
+            0.05631269817886472,
+            0.0009493027640480027
+          ],
+          "usage": {
+            "input_tokens": 680,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-cooking-and-training",
+          "corpus": "broad",
+          "filters": [
+            "exercise routines and fitness training",
+            "cryptocurrency investing or promotion",
+            "gossip about famous entertainers or celebrities",
+            "food and cooking",
+            "requests for likes, reposts, or replies to boost engagement",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "government policy or election politics",
+            "personal feuds or public insults between people",
+            "promotion of the author's own product or paid service",
+            "sports results or commentary"
+          ],
+          "expected": [
+            true,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 778.8591669999878,
+          "probabilities": [
+            0.670135823437924,
+            0.0024616666100337227,
+            0.0057437689235767826,
+            0.2534292372837993,
+            0.06128572602286963,
+            0.006006898246715573,
+            0.0029036157951158243,
+            0.004660799949433499,
+            0.011682284667503018,
+            0.3618925460007848
+          ],
+          "usage": {
+            "input_tokens": 730,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-politics-only",
+          "corpus": "broad",
+          "filters": [
+            "food and cooking",
+            "sports results or commentary",
+            "requests for likes, reposts, or replies to boost engagement",
+            "cryptocurrency investing or promotion",
+            "promotion of the author's own product or paid service",
+            "gossip about famous entertainers or celebrities",
+            "government policy or election politics",
+            "exercise routines and fitness training",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "personal feuds or public insults between people"
+          ],
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 773.052874999994,
+          "probabilities": [
+            0.0014266207845896417,
+            0.00325863041706066,
+            0.05753707725759483,
+            0.002165990898847291,
+            0.009994696092642523,
+            0.007008784679429686,
+            0.9503355773966202,
+            0.0018145754219106888,
+            0.0091105001194659,
+            0.020329416297919855
+          ],
+          "usage": {
+            "input_tokens": 690,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-ai-hype-only",
+          "corpus": "broad",
+          "filters": [
+            "government policy or election politics",
+            "personal feuds or public insults between people",
+            "sports results or commentary",
+            "food and cooking",
+            "exercise routines and fitness training",
+            "gossip about famous entertainers or celebrities",
+            "requests for likes, reposts, or replies to boost engagement",
+            "cryptocurrency investing or promotion",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "promotion of the author's own product or paid service"
+          ],
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "wallMs": 771.0246669999906,
+          "probabilities": [
+            0.027853355696914387,
+            0.021326147509882182,
+            0.005293796949475077,
+            0.0032808229074302174,
+            0.003930695412478842,
+            0.006493409020333771,
+            0.049369953958326496,
+            0.016078308087630288,
+            0.9568660831337631,
+            0.03266835859380203
+          ],
+          "usage": {
+            "input_tokens": 680,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-celebrity-feud",
+          "corpus": "broad",
+          "filters": [
+            "promotion of the author's own product or paid service",
+            "personal feuds or public insults between people",
+            "cryptocurrency investing or promotion",
+            "food and cooking",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "sports results or commentary",
+            "government policy or election politics",
+            "requests for likes, reposts, or replies to boost engagement",
+            "gossip about famous entertainers or celebrities",
+            "exercise routines and fitness training"
+          ],
+          "expected": [
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "wallMs": 772.2292080000043,
+          "probabilities": [
+            0.011510356203617657,
+            0.9278481206988006,
+            0.0020758426346567664,
+            0.0019628235821846475,
+            0.004779283063089966,
+            0.005202756547187042,
+            0.005958191689197603,
+            0.13145392619355353,
+            0.9594175854789622,
+            0.002239606528018677
+          ],
+          "usage": {
+            "input_tokens": 670,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-own-product-and-engagement",
+          "corpus": "broad",
+          "filters": [
+            "requests for likes, reposts, or replies to boost engagement",
+            "exercise routines and fitness training",
+            "gossip about famous entertainers or celebrities",
+            "government policy or election politics",
+            "food and cooking",
+            "promotion of the author's own product or paid service",
+            "sports results or commentary",
+            "personal feuds or public insults between people",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "cryptocurrency investing or promotion"
+          ],
+          "expected": [
+            true,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 783.2662090000231,
+          "probabilities": [
+            0.7310781142872205,
+            0.0028625848933789104,
+            0.010993693202706694,
+            0.0036141716723356613,
+            0.029417580682206845,
+            0.9337930043547594,
+            0.003947247319754945,
+            0.006057329008235096,
+            0.008261179339713235,
+            0.006084156998668887
+          ],
+          "usage": {
+            "input_tokens": 700,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-crypto-policy-own-guide",
+          "corpus": "broad",
+          "filters": [
+            "gossip about famous entertainers or celebrities",
+            "promotion of the author's own product or paid service",
+            "requests for likes, reposts, or replies to boost engagement",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "exercise routines and fitness training",
+            "cryptocurrency investing or promotion",
+            "personal feuds or public insults between people",
+            "sports results or commentary",
+            "food and cooking",
+            "government policy or election politics"
+          ],
+          "expected": [
+            false,
+            true,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            true
+          ],
+          "wallMs": 770.3338750000112,
+          "probabilities": [
+            0.009246382932109188,
+            0.8543441848159598,
+            0.11095926791706309,
+            0.0555447240508527,
+            0.0031436421705851197,
+            0.8176157432409888,
+            0.017925619737225673,
+            0.004361821149022363,
+            0.0026373657790148162,
+            0.30681073086056077
+          ],
+          "usage": {
+            "input_tokens": 630,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-sports-food-fitness",
+          "corpus": "broad",
+          "filters": [
+            "exaggerated claims that artificial intelligence will solve everything",
+            "food and cooking",
+            "personal feuds or public insults between people",
+            "government policy or election politics",
+            "sports results or commentary",
+            "gossip about famous entertainers or celebrities",
+            "cryptocurrency investing or promotion",
+            "exercise routines and fitness training",
+            "promotion of the author's own product or paid service",
+            "requests for likes, reposts, or replies to boost engagement"
+          ],
+          "expected": [
+            false,
+            true,
+            false,
+            false,
+            true,
+            false,
+            false,
+            true,
+            false,
+            false
+          ],
+          "wallMs": 780.7770419999724,
+          "probabilities": [
+            0.007186342301491171,
+            0.1652044752465128,
+            0.006963187962317172,
+            0.003610331269207347,
+            0.2687775026120501,
+            0.011844132646509789,
+            0.002587166938863095,
+            0.2776153896680479,
+            0.009960226180419801,
+            0.06213245552404537
+          ],
+          "usage": {
+            "input_tokens": 710,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-five-topic-mixed",
+          "corpus": "broad",
+          "filters": [
+            "sports results or commentary",
+            "personal feuds or public insults between people",
+            "food and cooking",
+            "requests for likes, reposts, or replies to boost engagement",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "exercise routines and fitness training",
+            "cryptocurrency investing or promotion",
+            "government policy or election politics",
+            "promotion of the author's own product or paid service",
+            "gossip about famous entertainers or celebrities"
+          ],
+          "expected": [
+            false,
+            true,
+            false,
+            true,
+            true,
+            false,
+            true,
+            false,
+            true,
+            false
+          ],
+          "wallMs": 802.1331670000218,
+          "probabilities": [
+            0.004956213591708832,
+            0.5973976120003486,
+            0.0029732498398759894,
+            0.8080739804142206,
+            0.914594388056529,
+            0.0037465740516775653,
+            0.6393209464907587,
+            0.010251966175620025,
+            0.8315256512987969,
+            0.12474794683240971
+          ],
+          "usage": {
+            "input_tokens": 810,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-all-topics-permuted",
+          "corpus": "broad",
+          "filters": [
+            "personal feuds or public insults between people",
+            "food and cooking",
+            "cryptocurrency investing or promotion",
+            "requests for likes, reposts, or replies to boost engagement",
+            "government policy or election politics",
+            "exercise routines and fitness training",
+            "gossip about famous entertainers or celebrities",
+            "promotion of the author's own product or paid service",
+            "sports results or commentary",
+            "exaggerated claims that artificial intelligence will solve everything"
+          ],
+          "expected": [
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "wallMs": 917.1074580000131,
+          "probabilities": [
+            0.0821938330247599,
+            0.024468578802492827,
+            0.2924627911400465,
+            0.9128573182268032,
+            0.10178008150342277,
+            0.05460333491453464,
+            0.4783567513793232,
+            0.9148317078529323,
+            0.048372420035143214,
+            0.951611799562226
+          ],
+          "usage": {
+            "input_tokens": 1200,
+            "output_tokens": 0
+          }
+        }
+      ],
+      "at05": {
+        "rage": {
+          "hide": {
+            "n": 40,
+            "tp": 15,
+            "fp": 0,
+            "fn": 3,
+            "tn": 22,
+            "accuracy": 0.925,
+            "precision": 1,
+            "recall": 0.8333333333333334,
+            "f1": 0.9090909090909091,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "exactVectors": 37,
+          "totalVectors": 40,
+          "exactVectorAccuracy": 0.925,
+          "individualDecisions": 40,
+          "individual": {
+            "n": 40,
+            "tp": 15,
+            "fp": 0,
+            "fn": 3,
+            "tn": 22,
+            "accuracy": 0.925,
+            "precision": 1,
+            "recall": 0.8333333333333334,
+            "f1": 0.9090909090909091,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "falseHides": 0,
+          "missedHides": 3,
+          "pairedAvailable": true,
+          "newFalseHides": 0,
+          "newMissedHides": 2,
+          "falseHideIds": [],
+          "missedHideIds": [
+            "rage:p14",
+            "rage:p15",
+            "rage:p18"
+          ],
+          "newFalseHideIds": [],
+          "newMissedHideIds": [
+            "rage:p15",
+            "rage:p18"
+          ],
+          "incorrectVectorIds": [
+            "rage:p14",
+            "rage:p15",
+            "rage:p18"
+          ]
+        },
+        "broad": {
+          "hide": {
+            "n": 48,
+            "tp": 35,
+            "fp": 0,
+            "fn": 4,
+            "tn": 9,
+            "accuracy": 0.9166666666666666,
+            "precision": 1,
+            "recall": 0.8974358974358975,
+            "f1": 0.945945945945946,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "exactVectors": 37,
+          "totalVectors": 48,
+          "exactVectorAccuracy": 0.7708333333333334,
+          "individualDecisions": 228,
+          "individual": {
+            "n": 228,
+            "tp": 60,
+            "fp": 0,
+            "fn": 25,
+            "tn": 143,
+            "accuracy": 0.8903508771929824,
+            "precision": 1,
+            "recall": 0.7058823529411765,
+            "f1": 0.8275862068965517,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "falseHides": 0,
+          "missedHides": 4,
+          "pairedAvailable": true,
+          "newFalseHides": 0,
+          "newMissedHides": 4,
+          "falseHideIds": [],
+          "missedHideIds": [
+            "broad:triple-crypto-and-food",
+            "broad:triple-fitness-and-politics",
+            "broad:five-all-topics-reversed",
+            "broad:ten-sports-food-fitness"
+          ],
+          "newFalseHideIds": [],
+          "newMissedHideIds": [
+            "broad:triple-crypto-and-food",
+            "broad:triple-fitness-and-politics",
+            "broad:five-all-topics-reversed",
+            "broad:ten-sports-food-fitness"
+          ],
+          "incorrectVectorIds": [
+            "broad:triple-crypto-and-food",
+            "broad:triple-fitness-and-politics",
+            "broad:triple-crypto-policy-own-guide",
+            "broad:five-all-topics-reversed",
+            "broad:five-food-and-fitness-separated",
+            "broad:five-sports-and-policy",
+            "broad:five-own-fitness-service",
+            "broad:ten-cooking-and-training",
+            "broad:ten-crypto-policy-own-guide",
+            "broad:ten-sports-food-fitness",
+            "broad:ten-all-topics-permuted"
+          ]
+        },
+        "all": {
+          "hide": {
+            "n": 88,
+            "tp": 50,
+            "fp": 0,
+            "fn": 7,
+            "tn": 31,
+            "accuracy": 0.9204545454545454,
+            "precision": 1,
+            "recall": 0.8771929824561403,
+            "f1": 0.9345794392523363,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "exactVectors": 74,
+          "totalVectors": 88,
+          "exactVectorAccuracy": 0.8409090909090909,
+          "individualDecisions": 268,
+          "individual": {
+            "n": 268,
+            "tp": 75,
+            "fp": 0,
+            "fn": 28,
+            "tn": 165,
+            "accuracy": 0.8955223880597015,
+            "precision": 1,
+            "recall": 0.7281553398058253,
+            "f1": 0.8426966292134831,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "falseHides": 0,
+          "missedHides": 7,
+          "pairedAvailable": true,
+          "newFalseHides": 0,
+          "newMissedHides": 6,
+          "falseHideIds": [],
+          "missedHideIds": [
+            "rage:p14",
+            "rage:p15",
+            "rage:p18",
+            "broad:triple-crypto-and-food",
+            "broad:triple-fitness-and-politics",
+            "broad:five-all-topics-reversed",
+            "broad:ten-sports-food-fitness"
+          ],
+          "newFalseHideIds": [],
+          "newMissedHideIds": [
+            "rage:p15",
+            "rage:p18",
+            "broad:triple-crypto-and-food",
+            "broad:triple-fitness-and-politics",
+            "broad:five-all-topics-reversed",
+            "broad:ten-sports-food-fitness"
+          ],
+          "incorrectVectorIds": [
+            "rage:p14",
+            "rage:p15",
+            "rage:p18",
+            "broad:triple-crypto-and-food",
+            "broad:triple-fitness-and-politics",
+            "broad:triple-crypto-policy-own-guide",
+            "broad:five-all-topics-reversed",
+            "broad:five-food-and-fitness-separated",
+            "broad:five-sports-and-policy",
+            "broad:five-own-fitness-service",
+            "broad:ten-cooking-and-training",
+            "broad:ten-crypto-policy-own-guide",
+            "broad:ten-sports-food-fitness",
+            "broad:ten-all-topics-permuted"
+          ]
+        }
+      },
+      "optimized": {
+        "cutoff": 0.2838977564844749,
+        "interval": {
+          "lower": 0.2609847821083891,
+          "upper": 0.30681073086056077,
+          "width": 0.045825948752171664,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "scores": {
+          "rage": {
+            "hide": {
+              "n": 40,
+              "tp": 18,
+              "fp": 0,
+              "fn": 0,
+              "tn": 22,
+              "accuracy": 1,
+              "precision": 1,
+              "recall": 1,
+              "f1": 1,
+              "specificity": 1,
+              "falsePositiveRate": 0
+            },
+            "exactVectors": 40,
+            "totalVectors": 40,
+            "exactVectorAccuracy": 1,
+            "individualDecisions": 40,
+            "individual": {
+              "n": 40,
+              "tp": 18,
+              "fp": 0,
+              "fn": 0,
+              "tn": 22,
+              "accuracy": 1,
+              "precision": 1,
+              "recall": 1,
+              "f1": 1,
+              "specificity": 1,
+              "falsePositiveRate": 0
+            },
+            "falseHides": 0,
+            "missedHides": 0,
+            "pairedAvailable": true,
+            "newFalseHides": 0,
+            "newMissedHides": 0,
+            "falseHideIds": [],
+            "missedHideIds": [],
+            "newFalseHideIds": [],
+            "newMissedHideIds": [],
+            "incorrectVectorIds": []
+          },
+          "broad": {
+            "hide": {
+              "n": 48,
+              "tp": 38,
+              "fp": 0,
+              "fn": 1,
+              "tn": 9,
+              "accuracy": 0.9791666666666666,
+              "precision": 1,
+              "recall": 0.9743589743589743,
+              "f1": 0.9870129870129869,
+              "specificity": 1,
+              "falsePositiveRate": 0
+            },
+            "exactVectors": 41,
+            "totalVectors": 48,
+            "exactVectorAccuracy": 0.8541666666666666,
+            "individualDecisions": 228,
+            "individual": {
+              "n": 228,
+              "tp": 70,
+              "fp": 1,
+              "fn": 15,
+              "tn": 142,
+              "accuracy": 0.9298245614035088,
+              "precision": 0.9859154929577465,
+              "recall": 0.8235294117647058,
+              "f1": 0.8974358974358974,
+              "specificity": 0.993006993006993,
+              "falsePositiveRate": 0.006993006993006993
+            },
+            "falseHides": 0,
+            "missedHides": 1,
+            "pairedAvailable": true,
+            "newFalseHides": 0,
+            "newMissedHides": 1,
+            "falseHideIds": [],
+            "missedHideIds": [
+              "broad:ten-sports-food-fitness"
+            ],
+            "newFalseHideIds": [],
+            "newMissedHideIds": [
+              "broad:ten-sports-food-fitness"
+            ],
+            "incorrectVectorIds": [
+              "broad:triple-fitness-and-politics",
+              "broad:five-all-topics-reversed",
+              "broad:five-food-and-fitness-separated",
+              "broad:five-sports-and-policy",
+              "broad:ten-cooking-and-training",
+              "broad:ten-sports-food-fitness",
+              "broad:ten-all-topics-permuted"
+            ]
+          },
+          "all": {
+            "hide": {
+              "n": 88,
+              "tp": 56,
+              "fp": 0,
+              "fn": 1,
+              "tn": 31,
+              "accuracy": 0.9886363636363636,
+              "precision": 1,
+              "recall": 0.9824561403508771,
+              "f1": 0.9911504424778761,
+              "specificity": 1,
+              "falsePositiveRate": 0
+            },
+            "exactVectors": 81,
+            "totalVectors": 88,
+            "exactVectorAccuracy": 0.9204545454545454,
+            "individualDecisions": 268,
+            "individual": {
+              "n": 268,
+              "tp": 88,
+              "fp": 1,
+              "fn": 15,
+              "tn": 164,
+              "accuracy": 0.9402985074626866,
+              "precision": 0.9887640449438202,
+              "recall": 0.8543689320388349,
+              "f1": 0.9166666666666666,
+              "specificity": 0.9939393939393939,
+              "falsePositiveRate": 0.006060606060606061
+            },
+            "falseHides": 0,
+            "missedHides": 1,
+            "pairedAvailable": true,
+            "newFalseHides": 0,
+            "newMissedHides": 1,
+            "falseHideIds": [],
+            "missedHideIds": [
+              "broad:ten-sports-food-fitness"
+            ],
+            "newFalseHideIds": [],
+            "newMissedHideIds": [
+              "broad:ten-sports-food-fitness"
+            ],
+            "incorrectVectorIds": [
+              "broad:triple-fitness-and-politics",
+              "broad:five-all-topics-reversed",
+              "broad:five-food-and-fitness-separated",
+              "broad:five-sports-and-policy",
+              "broad:ten-cooking-and-training",
+              "broad:ten-sports-food-fitness",
+              "broad:ten-all-topics-permuted"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "category-applies",
+      "hash": "63c1d9bc4c93b016b38f047d74585d73b08f54651031b80433da8b1f915aee3a",
+      "rows": [
+        {
+          "id": "p1",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 136.25866700004553,
+          "probabilities": [
+            0.7879460092499307
+          ],
+          "usage": {
+            "input_tokens": 173,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p2",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 126.58070799999405,
+          "probabilities": [
+            0.8331650355428222
+          ],
+          "usage": {
+            "input_tokens": 165,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p3",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 127.60637500003213,
+          "probabilities": [
+            0.8675826192051052
+          ],
+          "usage": {
+            "input_tokens": 171,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p4",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 127.02095799997915,
+          "probabilities": [
+            0.785358188551615
+          ],
+          "usage": {
+            "input_tokens": 169,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p5",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 127.689916000003,
+          "probabilities": [
+            0.7852776314240836
+          ],
+          "usage": {
+            "input_tokens": 171,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p6",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 128.22562499996275,
+          "probabilities": [
+            0.7668112561802459
+          ],
+          "usage": {
+            "input_tokens": 170,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p7",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 137.0830829999759,
+          "probabilities": [
+            0.8722033867605277
+          ],
+          "usage": {
+            "input_tokens": 175,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p8",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 127.19958299997961,
+          "probabilities": [
+            0.8798009209258799
+          ],
+          "usage": {
+            "input_tokens": 167,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p9",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 126.893041000003,
+          "probabilities": [
+            0.8451130456255275
+          ],
+          "usage": {
+            "input_tokens": 171,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p10",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 127.49179100000765,
+          "probabilities": [
+            0.5910744001781855
+          ],
+          "usage": {
+            "input_tokens": 169,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p11",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 130.26666600001045,
+          "probabilities": [
+            0.6651925725993101
+          ],
+          "usage": {
+            "input_tokens": 174,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p12",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 127.0037500000326,
+          "probabilities": [
+            0.5935279814858682
+          ],
+          "usage": {
+            "input_tokens": 162,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p13",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 126.49420800001826,
+          "probabilities": [
+            0.6473133851656243
+          ],
+          "usage": {
+            "input_tokens": 164,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p14",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 126.81699999998091,
+          "probabilities": [
+            0.32886523349955665
+          ],
+          "usage": {
+            "input_tokens": 164,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p15",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 125.45591700001387,
+          "probabilities": [
+            0.32092165017603824
+          ],
+          "usage": {
+            "input_tokens": 160,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p16",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 126.91212500003166,
+          "probabilities": [
+            0.8002161891618988
+          ],
+          "usage": {
+            "input_tokens": 162,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p17",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 127.03441699995892,
+          "probabilities": [
+            0.6451145577118286
+          ],
+          "usage": {
+            "input_tokens": 162,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "p18",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 127.91379200003576,
+          "probabilities": [
+            0.28265532827770007
+          ],
+          "usage": {
+            "input_tokens": 162,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "e1",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 127.44429100002162,
+          "probabilities": [
+            0.02052733810582486
+          ],
+          "usage": {
+            "input_tokens": 164,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "e2",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 127.91525000002002,
+          "probabilities": [
+            0.15797483407037827
+          ],
+          "usage": {
+            "input_tokens": 166,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "e3",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 129.76825000002282,
+          "probabilities": [
+            0.018986543209334312
+          ],
+          "usage": {
+            "input_tokens": 168,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "e4",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 131.95966699998826,
+          "probabilities": [
+            0.008712752712014918
+          ],
+          "usage": {
+            "input_tokens": 165,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a1",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 129.4865839999984,
+          "probabilities": [
+            0.1955927370953796
+          ],
+          "usage": {
+            "input_tokens": 168,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a2",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 129.82279100001324,
+          "probabilities": [
+            0.06759633868956405
+          ],
+          "usage": {
+            "input_tokens": 168,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a3",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 129.04220800002804,
+          "probabilities": [
+            0.12195920008851184
+          ],
+          "usage": {
+            "input_tokens": 164,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a4",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 129.35274999996182,
+          "probabilities": [
+            0.20041324277435318
+          ],
+          "usage": {
+            "input_tokens": 167,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a5",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 131.83191599999554,
+          "probabilities": [
+            0.1334635141100023
+          ],
+          "usage": {
+            "input_tokens": 165,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a6",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 128.87604200001806,
+          "probabilities": [
+            0.18495514190180834
+          ],
+          "usage": {
+            "input_tokens": 165,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a7",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 130.25983300001826,
+          "probabilities": [
+            0.043856319664130484
+          ],
+          "usage": {
+            "input_tokens": 169,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a8",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 129.94779100001324,
+          "probabilities": [
+            0.3128541722537823
+          ],
+          "usage": {
+            "input_tokens": 164,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a9",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 129.54062500002328,
+          "probabilities": [
+            0.06230978178475009
+          ],
+          "usage": {
+            "input_tokens": 166,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a10",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 134.99937500001397,
+          "probabilities": [
+            0.10346207601956924
+          ],
+          "usage": {
+            "input_tokens": 167,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a11",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 131.37970799999312,
+          "probabilities": [
+            0.0602297852679702
+          ],
+          "usage": {
+            "input_tokens": 162,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a12",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 129.42950000002747,
+          "probabilities": [
+            0.14952528443776755
+          ],
+          "usage": {
+            "input_tokens": 159,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a13",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 126.1938749999972,
+          "probabilities": [
+            0.05882196301370459
+          ],
+          "usage": {
+            "input_tokens": 159,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a14",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 128.65454099996714,
+          "probabilities": [
+            0.05215484648351628
+          ],
+          "usage": {
+            "input_tokens": 164,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a15",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 129.4487080000108,
+          "probabilities": [
+            0.07478422142081094
+          ],
+          "usage": {
+            "input_tokens": 161,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a16",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 129.7628750000149,
+          "probabilities": [
+            0.27824330540825065
+          ],
+          "usage": {
+            "input_tokens": 164,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a17",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 130.19720799999777,
+          "probabilities": [
+            0.06335020878033525
+          ],
+          "usage": {
+            "input_tokens": 162,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "a18",
+          "corpus": "rage",
+          "filters": [
+            "rage bait"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 130.47879199997988,
+          "probabilities": [
+            0.211867307926906
+          ],
+          "usage": {
+            "input_tokens": 163,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-crypto-positive",
+          "corpus": "broad",
+          "filters": [
+            "cryptocurrency investing or promotion"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 83.54608400003053,
+          "probabilities": [
+            0.8212653637542411
+          ],
+          "usage": {
+            "input_tokens": 73,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-crypto-negative",
+          "corpus": "broad",
+          "filters": [
+            "cryptocurrency investing or promotion"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 81.30637499998556,
+          "probabilities": [
+            0.007962850003299297
+          ],
+          "usage": {
+            "input_tokens": 75,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-sports-positive",
+          "corpus": "broad",
+          "filters": [
+            "sports results or commentary"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 79.27887500001816,
+          "probabilities": [
+            0.9231252127495555
+          ],
+          "usage": {
+            "input_tokens": 70,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-sports-negative",
+          "corpus": "broad",
+          "filters": [
+            "sports results or commentary"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 81.13054099999135,
+          "probabilities": [
+            0.007785892693949423
+          ],
+          "usage": {
+            "input_tokens": 69,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-food-positive",
+          "corpus": "broad",
+          "filters": [
+            "food and cooking"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 81.19395799998892,
+          "probabilities": [
+            0.9107155525944989
+          ],
+          "usage": {
+            "input_tokens": 71,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-fitness-positive",
+          "corpus": "broad",
+          "filters": [
+            "exercise routines and fitness training"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 82.69879100000253,
+          "probabilities": [
+            0.9223945700684513
+          ],
+          "usage": {
+            "input_tokens": 77,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-politics-positive",
+          "corpus": "broad",
+          "filters": [
+            "government policy or election politics"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 81.28566699998919,
+          "probabilities": [
+            0.9315908276321503
+          ],
+          "usage": {
+            "input_tokens": 68,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-ai-hype-negative",
+          "corpus": "broad",
+          "filters": [
+            "exaggerated claims that artificial intelligence will solve everything"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 83.3535419999971,
+          "probabilities": [
+            0.018666792725189955
+          ],
+          "usage": {
+            "input_tokens": 78,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-celebrity-positive",
+          "corpus": "broad",
+          "filters": [
+            "gossip about famous entertainers or celebrities"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 83.23766699997941,
+          "probabilities": [
+            0.9505724396794057
+          ],
+          "usage": {
+            "input_tokens": 78,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-promotion-negative",
+          "corpus": "broad",
+          "filters": [
+            "promotion of the author's own product or paid service"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 81.88745800004108,
+          "probabilities": [
+            0.014322399873057326
+          ],
+          "usage": {
+            "input_tokens": 80,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-engagement-positive",
+          "corpus": "broad",
+          "filters": [
+            "requests for likes, reposts, or replies to boost engagement"
+          ],
+          "expected": [
+            true
+          ],
+          "wallMs": 84.28166600002442,
+          "probabilities": [
+            0.9682442155059406
+          ],
+          "usage": {
+            "input_tokens": 81,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "single-drama-negative",
+          "corpus": "broad",
+          "filters": [
+            "personal feuds or public insults between people"
+          ],
+          "expected": [
+            false
+          ],
+          "wallMs": 83.8076669999864,
+          "probabilities": [
+            0.008262579083544231
+          ],
+          "usage": {
+            "input_tokens": 76,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-crypto-and-food",
+          "corpus": "broad",
+          "filters": [
+            "cryptocurrency investing or promotion",
+            "sports results or commentary",
+            "food and cooking"
+          ],
+          "expected": [
+            true,
+            false,
+            true
+          ],
+          "wallMs": 237.40133299998706,
+          "probabilities": [
+            0.7810026029123729,
+            0.007478823827377003,
+            0.8394700314005202
+          ],
+          "usage": {
+            "input_tokens": 219,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-sports-middle",
+          "corpus": "broad",
+          "filters": [
+            "food and cooking",
+            "sports results or commentary",
+            "cryptocurrency investing or promotion"
+          ],
+          "expected": [
+            false,
+            true,
+            false
+          ],
+          "wallMs": 235.6725420000148,
+          "probabilities": [
+            0.0034034613368491115,
+            0.919603162463097,
+            0.004642493652222253
+          ],
+          "usage": {
+            "input_tokens": 210,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-fitness-and-politics",
+          "corpus": "broad",
+          "filters": [
+            "exercise routines and fitness training",
+            "government policy or election politics",
+            "exaggerated claims that artificial intelligence will solve everything"
+          ],
+          "expected": [
+            true,
+            true,
+            false
+          ],
+          "wallMs": 241.14325000002282,
+          "probabilities": [
+            0.5313361504925304,
+            0.8966324339007017,
+            0.012863358512101228
+          ],
+          "usage": {
+            "input_tokens": 221,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-hype-promotion-engagement",
+          "corpus": "broad",
+          "filters": [
+            "exaggerated claims that artificial intelligence will solve everything",
+            "promotion of the author's own product or paid service",
+            "requests for likes, reposts, or replies to boost engagement"
+          ],
+          "expected": [
+            true,
+            true,
+            true
+          ],
+          "wallMs": 247.22991599998204,
+          "probabilities": [
+            0.9474997781812673,
+            0.9569743113224368,
+            0.9302525552826044
+          ],
+          "usage": {
+            "input_tokens": 251,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-celebrity-and-drama",
+          "corpus": "broad",
+          "filters": [
+            "gossip about famous entertainers or celebrities",
+            "personal feuds or public insults between people",
+            "government policy or election politics"
+          ],
+          "expected": [
+            true,
+            true,
+            false
+          ],
+          "wallMs": 240.92420800001128,
+          "probabilities": [
+            0.8161040841152011,
+            0.9453680994868285,
+            0.00935925318655969
+          ],
+          "usage": {
+            "input_tokens": 237,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-drama-and-engagement",
+          "corpus": "broad",
+          "filters": [
+            "personal feuds or public insults between people",
+            "requests for likes, reposts, or replies to boost engagement",
+            "promotion of the author's own product or paid service"
+          ],
+          "expected": [
+            true,
+            true,
+            false
+          ],
+          "wallMs": 246.6890419999836,
+          "probabilities": [
+            0.8717348593169959,
+            0.5020298737882237,
+            0.020384068624133445
+          ],
+          "usage": {
+            "input_tokens": 246,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-all-negative",
+          "corpus": "broad",
+          "filters": [
+            "food and cooking",
+            "exercise routines and fitness training",
+            "sports results or commentary"
+          ],
+          "expected": [
+            false,
+            false,
+            false
+          ],
+          "wallMs": 244.83445799996844,
+          "probabilities": [
+            0.004571180596006828,
+            0.0035303631158330423,
+            0.004957548853921235
+          ],
+          "usage": {
+            "input_tokens": 222,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-policy-only",
+          "corpus": "broad",
+          "filters": [
+            "government policy or election politics",
+            "cryptocurrency investing or promotion",
+            "exaggerated claims that artificial intelligence will solve everything"
+          ],
+          "expected": [
+            true,
+            false,
+            false
+          ],
+          "wallMs": 240.26466700003948,
+          "probabilities": [
+            0.7140420995879077,
+            0.005169666957812449,
+            0.009378989941407154
+          ],
+          "usage": {
+            "input_tokens": 221,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-selling-own-baking-class",
+          "corpus": "broad",
+          "filters": [
+            "promotion of the author's own product or paid service",
+            "food and cooking",
+            "cryptocurrency investing or promotion"
+          ],
+          "expected": [
+            true,
+            true,
+            false
+          ],
+          "wallMs": 243.75841700000456,
+          "probabilities": [
+            0.9262669414684831,
+            0.9177979924204832,
+            0.00882221214439477
+          ],
+          "usage": {
+            "input_tokens": 243,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-celebrity-middle",
+          "corpus": "broad",
+          "filters": [
+            "requests for likes, reposts, or replies to boost engagement",
+            "gossip about famous entertainers or celebrities",
+            "sports results or commentary"
+          ],
+          "expected": [
+            false,
+            true,
+            false
+          ],
+          "wallMs": 247.4713749999646,
+          "probabilities": [
+            0.07403762236609461,
+            0.9426275001780217,
+            0.006476987861634735
+          ],
+          "usage": {
+            "input_tokens": 222,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-fitness-only",
+          "corpus": "broad",
+          "filters": [
+            "exercise routines and fitness training",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "personal feuds or public insults between people"
+          ],
+          "expected": [
+            true,
+            false,
+            false
+          ],
+          "wallMs": 246.90245799999684,
+          "probabilities": [
+            0.9105724791022323,
+            0.005627734300326519,
+            0.0035275030179814505
+          ],
+          "usage": {
+            "input_tokens": 227,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "triple-crypto-policy-own-guide",
+          "corpus": "broad",
+          "filters": [
+            "cryptocurrency investing or promotion",
+            "government policy or election politics",
+            "promotion of the author's own product or paid service"
+          ],
+          "expected": [
+            true,
+            true,
+            true
+          ],
+          "wallMs": 240.45474999997532,
+          "probabilities": [
+            0.8327243605112662,
+            0.48433522033114185,
+            0.9389885265884657
+          ],
+          "usage": {
+            "input_tokens": 227,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-everyday-negative",
+          "corpus": "broad",
+          "filters": [
+            "cryptocurrency investing or promotion",
+            "sports results or commentary",
+            "food and cooking",
+            "exercise routines and fitness training",
+            "government policy or election politics"
+          ],
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 398.2046669999836,
+          "probabilities": [
+            0.014136879134521234,
+            0.011604120357532027,
+            0.006531454408986967,
+            0.007641587656645675,
+            0.008938535674005176
+          ],
+          "usage": {
+            "input_tokens": 372,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-all-topics-reversed",
+          "corpus": "broad",
+          "filters": [
+            "government policy or election politics",
+            "exercise routines and fitness training",
+            "food and cooking",
+            "sports results or commentary",
+            "cryptocurrency investing or promotion"
+          ],
+          "expected": [
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "wallMs": 408.35679199994775,
+          "probabilities": [
+            0.7652171921361877,
+            0.8151130277246637,
+            0.8217820514524635,
+            0.6393170020990712,
+            0.8578371039266862
+          ],
+          "usage": {
+            "input_tokens": 412,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-hype-gossip-sale-bait-feud",
+          "corpus": "broad",
+          "filters": [
+            "exaggerated claims that artificial intelligence will solve everything",
+            "gossip about famous entertainers or celebrities",
+            "promotion of the author's own product or paid service",
+            "requests for likes, reposts, or replies to boost engagement",
+            "personal feuds or public insults between people"
+          ],
+          "expected": [
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "wallMs": 426.0016249999753,
+          "probabilities": [
+            0.8956871258771455,
+            0.9041984577681562,
+            0.9136380517854781,
+            0.9237898248738007,
+            0.860212607023919
+          ],
+          "usage": {
+            "input_tokens": 478,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-second-group-negative",
+          "corpus": "broad",
+          "filters": [
+            "personal feuds or public insults between people",
+            "requests for likes, reposts, or replies to boost engagement",
+            "promotion of the author's own product or paid service",
+            "gossip about famous entertainers or celebrities",
+            "exaggerated claims that artificial intelligence will solve everything"
+          ],
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 414.7318749999977,
+          "probabilities": [
+            0.003978554203967441,
+            0.10031094550517881,
+            0.025248954059396565,
+            0.008809494205377202,
+            0.013092853296082433
+          ],
+          "usage": {
+            "input_tokens": 423,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-food-and-fitness-separated",
+          "corpus": "broad",
+          "filters": [
+            "food and cooking",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "cryptocurrency investing or promotion",
+            "promotion of the author's own product or paid service",
+            "exercise routines and fitness training"
+          ],
+          "expected": [
+            true,
+            false,
+            false,
+            false,
+            true
+          ],
+          "wallMs": 396.81058399996255,
+          "probabilities": [
+            0.6400687237704282,
+            0.005876556830678233,
+            0.0031379187450963643,
+            0.008877518993727835,
+            0.9039871478680274
+          ],
+          "usage": {
+            "input_tokens": 373,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-sports-and-policy",
+          "corpus": "broad",
+          "filters": [
+            "sports results or commentary",
+            "government policy or election politics",
+            "personal feuds or public insults between people",
+            "requests for likes, reposts, or replies to boost engagement",
+            "gossip about famous entertainers or celebrities"
+          ],
+          "expected": [
+            true,
+            true,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 401.7122920000111,
+          "probabilities": [
+            0.4756049231534572,
+            0.8909774224077381,
+            0.016460913168682412,
+            0.027106407347117802,
+            0.015603529825710144
+          ],
+          "usage": {
+            "input_tokens": 362,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-crypto-hype-own-service",
+          "corpus": "broad",
+          "filters": [
+            "cryptocurrency investing or promotion",
+            "promotion of the author's own product or paid service",
+            "food and cooking",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "government policy or election politics"
+          ],
+          "expected": [
+            true,
+            true,
+            false,
+            true,
+            false
+          ],
+          "wallMs": 405.0432500000461,
+          "probabilities": [
+            0.7741482751736631,
+            0.8762297587724395,
+            0.004501313234262148,
+            0.9302502406940956,
+            0.013413192550149774
+          ],
+          "usage": {
+            "input_tokens": 408,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-gossip-feud-engagement-permutation",
+          "corpus": "broad",
+          "filters": [
+            "exercise routines and fitness training",
+            "personal feuds or public insults between people",
+            "gossip about famous entertainers or celebrities",
+            "food and cooking",
+            "requests for likes, reposts, or replies to boost engagement"
+          ],
+          "expected": [
+            false,
+            true,
+            true,
+            false,
+            true
+          ],
+          "wallMs": 414.67075000004843,
+          "probabilities": [
+            0.003541297894256572,
+            0.8677371305044019,
+            0.9413699408733078,
+            0.004383907975308317,
+            0.8536219116897554
+          ],
+          "usage": {
+            "input_tokens": 416,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-own-fitness-service",
+          "corpus": "broad",
+          "filters": [
+            "promotion of the author's own product or paid service",
+            "sports results or commentary",
+            "exercise routines and fitness training",
+            "government policy or election politics",
+            "cryptocurrency investing or promotion"
+          ],
+          "expected": [
+            true,
+            false,
+            true,
+            false,
+            false
+          ],
+          "wallMs": 406.53275000001304,
+          "probabilities": [
+            0.4129902685965824,
+            0.08845866366325383,
+            0.902345288849787,
+            0.008186342820229713,
+            0.01589586482569565
+          ],
+          "usage": {
+            "input_tokens": 389,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-food-last-only",
+          "corpus": "broad",
+          "filters": [
+            "gossip about famous entertainers or celebrities",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "requests for likes, reposts, or replies to boost engagement",
+            "personal feuds or public insults between people",
+            "food and cooking"
+          ],
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            true
+          ],
+          "wallMs": 414.59491699998034,
+          "probabilities": [
+            0.005947372224611777,
+            0.005456650567261091,
+            0.055648599012374914,
+            0.0032707644030579796,
+            0.874148673106097
+          ],
+          "usage": {
+            "input_tokens": 411,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-policy-crypto-engagement",
+          "corpus": "broad",
+          "filters": [
+            "government policy or election politics",
+            "cryptocurrency investing or promotion",
+            "requests for likes, reposts, or replies to boost engagement",
+            "food and cooking",
+            "sports results or commentary"
+          ],
+          "expected": [
+            true,
+            true,
+            true,
+            false,
+            false
+          ],
+          "wallMs": 403.2450839999947,
+          "probabilities": [
+            0.7918780366463771,
+            0.8496506962425092,
+            0.9238194546671138,
+            0.007184431569314238,
+            0.01001024487582324
+          ],
+          "usage": {
+            "input_tokens": 384,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "five-ai-hype-first-only",
+          "corpus": "broad",
+          "filters": [
+            "exaggerated claims that artificial intelligence will solve everything",
+            "exercise routines and fitness training",
+            "promotion of the author's own product or paid service",
+            "personal feuds or public insults between people",
+            "gossip about famous entertainers or celebrities"
+          ],
+          "expected": [
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 407.4462080000085,
+          "probabilities": [
+            0.9651576838487466,
+            0.01827175494225532,
+            0.02489459237897153,
+            0.013792265201499523,
+            0.007021371506606626
+          ],
+          "usage": {
+            "input_tokens": 386,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-all-negative",
+          "corpus": "broad",
+          "filters": [
+            "cryptocurrency investing or promotion",
+            "sports results or commentary",
+            "food and cooking",
+            "exercise routines and fitness training",
+            "government policy or election politics",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "gossip about famous entertainers or celebrities",
+            "promotion of the author's own product or paid service",
+            "requests for likes, reposts, or replies to boost engagement",
+            "personal feuds or public insults between people"
+          ],
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 809.1775410000118,
+          "probabilities": [
+            0.004877668857715614,
+            0.00484608143142184,
+            0.004012226337464129,
+            0.003292330642119356,
+            0.005119297139804292,
+            0.0068749713696659035,
+            0.004637227172453398,
+            0.018187380883548737,
+            0.03109112302311574,
+            0.00317586774954212
+          ],
+          "usage": {
+            "input_tokens": 760,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-crypto-only",
+          "corpus": "broad",
+          "filters": [
+            "personal feuds or public insults between people",
+            "food and cooking",
+            "cryptocurrency investing or promotion",
+            "requests for likes, reposts, or replies to boost engagement",
+            "government policy or election politics",
+            "exercise routines and fitness training",
+            "gossip about famous entertainers or celebrities",
+            "promotion of the author's own product or paid service",
+            "sports results or commentary",
+            "exaggerated claims that artificial intelligence will solve everything"
+          ],
+          "expected": [
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 806.9477499999921,
+          "probabilities": [
+            0.0072822555210249025,
+            0.003628431061640596,
+            0.8372442937052779,
+            0.042379639579815796,
+            0.011784921072416337,
+            0.003989189316145128,
+            0.010218594343186602,
+            0.04077554165366641,
+            0.0068822205094275345,
+            0.009624835705502306
+          ],
+          "usage": {
+            "input_tokens": 720,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-sports-only",
+          "corpus": "broad",
+          "filters": [
+            "exaggerated claims that artificial intelligence will solve everything",
+            "promotion of the author's own product or paid service",
+            "exercise routines and fitness training",
+            "gossip about famous entertainers or celebrities",
+            "cryptocurrency investing or promotion",
+            "sports results or commentary",
+            "personal feuds or public insults between people",
+            "government policy or election politics",
+            "requests for likes, reposts, or replies to boost engagement",
+            "food and cooking"
+          ],
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 821.9604999999865,
+          "probabilities": [
+            0.004382293738812738,
+            0.00468713640033823,
+            0.019380085521414837,
+            0.00765102235495534,
+            0.0033114745157934557,
+            0.9029360986296661,
+            0.007043626263146706,
+            0.004709193220987055,
+            0.0270579980667193,
+            0.0020615427549772426
+          ],
+          "usage": {
+            "input_tokens": 790,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-cooking-and-training",
+          "corpus": "broad",
+          "filters": [
+            "exercise routines and fitness training",
+            "cryptocurrency investing or promotion",
+            "gossip about famous entertainers or celebrities",
+            "food and cooking",
+            "requests for likes, reposts, or replies to boost engagement",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "government policy or election politics",
+            "personal feuds or public insults between people",
+            "promotion of the author's own product or paid service",
+            "sports results or commentary"
+          ],
+          "expected": [
+            true,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 847.4866669999901,
+          "probabilities": [
+            0.8875202549012655,
+            0.003710884888633382,
+            0.005311792609469424,
+            0.5972344328580403,
+            0.028867849324684135,
+            0.006519965351629152,
+            0.0040755492283036715,
+            0.004031613365893929,
+            0.010157573411931976,
+            0.04664992525630356
+          ],
+          "usage": {
+            "input_tokens": 840,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-politics-only",
+          "corpus": "broad",
+          "filters": [
+            "food and cooking",
+            "sports results or commentary",
+            "requests for likes, reposts, or replies to boost engagement",
+            "cryptocurrency investing or promotion",
+            "promotion of the author's own product or paid service",
+            "gossip about famous entertainers or celebrities",
+            "government policy or election politics",
+            "exercise routines and fitness training",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "personal feuds or public insults between people"
+          ],
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 834.001707999967,
+          "probabilities": [
+            0.005320769715756049,
+            0.005452218559516452,
+            0.03245171021602723,
+            0.005428778721100048,
+            0.016013708933991403,
+            0.007766866150937053,
+            0.9014208755615922,
+            0.003310182259089579,
+            0.0099167107479903,
+            0.030821566840133333
+          ],
+          "usage": {
+            "input_tokens": 800,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-ai-hype-only",
+          "corpus": "broad",
+          "filters": [
+            "government policy or election politics",
+            "personal feuds or public insults between people",
+            "sports results or commentary",
+            "food and cooking",
+            "exercise routines and fitness training",
+            "gossip about famous entertainers or celebrities",
+            "requests for likes, reposts, or replies to boost engagement",
+            "cryptocurrency investing or promotion",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "promotion of the author's own product or paid service"
+          ],
+          "expected": [
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "wallMs": 825.1857500000042,
+          "probabilities": [
+            0.028554772416352778,
+            0.01353052369465128,
+            0.016001942513482578,
+            0.0120649797551109,
+            0.015250142631818354,
+            0.006548420148293843,
+            0.04900581424880723,
+            0.014080317307533096,
+            0.9590449246036232,
+            0.03107050727234544
+          ],
+          "usage": {
+            "input_tokens": 790,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-celebrity-feud",
+          "corpus": "broad",
+          "filters": [
+            "promotion of the author's own product or paid service",
+            "personal feuds or public insults between people",
+            "cryptocurrency investing or promotion",
+            "food and cooking",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "sports results or commentary",
+            "government policy or election politics",
+            "requests for likes, reposts, or replies to boost engagement",
+            "gossip about famous entertainers or celebrities",
+            "exercise routines and fitness training"
+          ],
+          "expected": [
+            false,
+            true,
+            false,
+            false,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false
+          ],
+          "wallMs": 823.2284999999683,
+          "probabilities": [
+            0.03451476913235627,
+            0.9308072408510026,
+            0.005405039568335428,
+            0.005135255617121382,
+            0.009136731573330495,
+            0.008185460271133056,
+            0.009673897597688153,
+            0.06642231556863762,
+            0.953900301588536,
+            0.004012106752829277
+          ],
+          "usage": {
+            "input_tokens": 780,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-own-product-and-engagement",
+          "corpus": "broad",
+          "filters": [
+            "requests for likes, reposts, or replies to boost engagement",
+            "exercise routines and fitness training",
+            "gossip about famous entertainers or celebrities",
+            "government policy or election politics",
+            "food and cooking",
+            "promotion of the author's own product or paid service",
+            "sports results or commentary",
+            "personal feuds or public insults between people",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "cryptocurrency investing or promotion"
+          ],
+          "expected": [
+            true,
+            false,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            false
+          ],
+          "wallMs": 837.0442080000066,
+          "probabilities": [
+            0.9002217443434782,
+            0.004773677135774793,
+            0.01658328694854756,
+            0.00484576030845187,
+            0.023714386821409125,
+            0.9251433903746433,
+            0.00479797757519305,
+            0.010450958494033307,
+            0.01120965185387538,
+            0.013939439439357562
+          ],
+          "usage": {
+            "input_tokens": 810,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-crypto-policy-own-guide",
+          "corpus": "broad",
+          "filters": [
+            "gossip about famous entertainers or celebrities",
+            "promotion of the author's own product or paid service",
+            "requests for likes, reposts, or replies to boost engagement",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "exercise routines and fitness training",
+            "cryptocurrency investing or promotion",
+            "personal feuds or public insults between people",
+            "sports results or commentary",
+            "food and cooking",
+            "government policy or election politics"
+          ],
+          "expected": [
+            false,
+            true,
+            false,
+            false,
+            false,
+            true,
+            false,
+            false,
+            false,
+            true
+          ],
+          "wallMs": 799.3633749999572,
+          "probabilities": [
+            0.008829414738056773,
+            0.8887339222963936,
+            0.0787919184306776,
+            0.04933549970759828,
+            0.003892114961491551,
+            0.8660746364424775,
+            0.01596979200389048,
+            0.005067287936701442,
+            0.0036707062874275546,
+            0.55114344556563
+          ],
+          "usage": {
+            "input_tokens": 740,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-sports-food-fitness",
+          "corpus": "broad",
+          "filters": [
+            "exaggerated claims that artificial intelligence will solve everything",
+            "food and cooking",
+            "personal feuds or public insults between people",
+            "government policy or election politics",
+            "sports results or commentary",
+            "gossip about famous entertainers or celebrities",
+            "cryptocurrency investing or promotion",
+            "exercise routines and fitness training",
+            "promotion of the author's own product or paid service",
+            "requests for likes, reposts, or replies to boost engagement"
+          ],
+          "expected": [
+            false,
+            true,
+            false,
+            false,
+            true,
+            false,
+            false,
+            true,
+            false,
+            false
+          ],
+          "wallMs": 819.3639170000097,
+          "probabilities": [
+            0.007992636144492497,
+            0.6961696762242864,
+            0.006615212410191438,
+            0.004975492226832442,
+            0.4279753084839327,
+            0.011796350195964783,
+            0.0049662338493977635,
+            0.845403633411086,
+            0.010181297860452979,
+            0.042049734402515644
+          ],
+          "usage": {
+            "input_tokens": 820,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-five-topic-mixed",
+          "corpus": "broad",
+          "filters": [
+            "sports results or commentary",
+            "personal feuds or public insults between people",
+            "food and cooking",
+            "requests for likes, reposts, or replies to boost engagement",
+            "exaggerated claims that artificial intelligence will solve everything",
+            "exercise routines and fitness training",
+            "cryptocurrency investing or promotion",
+            "government policy or election politics",
+            "promotion of the author's own product or paid service",
+            "gossip about famous entertainers or celebrities"
+          ],
+          "expected": [
+            false,
+            true,
+            false,
+            true,
+            true,
+            false,
+            true,
+            false,
+            true,
+            false
+          ],
+          "wallMs": 862.5309159999597,
+          "probabilities": [
+            0.007676907390498396,
+            0.6657154708049418,
+            0.0040931181663001895,
+            0.8995209065783453,
+            0.9038835342075651,
+            0.005003854980496822,
+            0.7452212267506397,
+            0.01638818422231379,
+            0.8512136419514881,
+            0.15700624026628737
+          ],
+          "usage": {
+            "input_tokens": 920,
+            "output_tokens": 0
+          }
+        },
+        {
+          "id": "ten-all-topics-permuted",
+          "corpus": "broad",
+          "filters": [
+            "personal feuds or public insults between people",
+            "food and cooking",
+            "cryptocurrency investing or promotion",
+            "requests for likes, reposts, or replies to boost engagement",
+            "government policy or election politics",
+            "exercise routines and fitness training",
+            "gossip about famous entertainers or celebrities",
+            "promotion of the author's own product or paid service",
+            "sports results or commentary",
+            "exaggerated claims that artificial intelligence will solve everything"
+          ],
+          "expected": [
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+            true
+          ],
+          "wallMs": 1228.6620000000112,
+          "probabilities": [
+            0.616132201998824,
+            0.22837532102025876,
+            0.6088255610624543,
+            0.9444229975029445,
+            0.35147604025869367,
+            0.5546619335914807,
+            0.8573651344597911,
+            0.9383731120351715,
+            0.2769698647629744,
+            0.9383439667617249
+          ],
+          "usage": {
+            "input_tokens": 1310,
+            "output_tokens": 0
+          }
+        }
+      ],
+      "at05": {
+        "rage": {
+          "hide": {
+            "n": 40,
+            "tp": 15,
+            "fp": 0,
+            "fn": 3,
+            "tn": 22,
+            "accuracy": 0.925,
+            "precision": 1,
+            "recall": 0.8333333333333334,
+            "f1": 0.9090909090909091,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "exactVectors": 37,
+          "totalVectors": 40,
+          "exactVectorAccuracy": 0.925,
+          "individualDecisions": 40,
+          "individual": {
+            "n": 40,
+            "tp": 15,
+            "fp": 0,
+            "fn": 3,
+            "tn": 22,
+            "accuracy": 0.925,
+            "precision": 1,
+            "recall": 0.8333333333333334,
+            "f1": 0.9090909090909091,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "falseHides": 0,
+          "missedHides": 3,
+          "pairedAvailable": true,
+          "newFalseHides": 0,
+          "newMissedHides": 2,
+          "falseHideIds": [],
+          "missedHideIds": [
+            "rage:p14",
+            "rage:p15",
+            "rage:p18"
+          ],
+          "newFalseHideIds": [],
+          "newMissedHideIds": [
+            "rage:p15",
+            "rage:p18"
+          ],
+          "incorrectVectorIds": [
+            "rage:p14",
+            "rage:p15",
+            "rage:p18"
+          ]
+        },
+        "broad": {
+          "hide": {
+            "n": 48,
+            "tp": 39,
+            "fp": 0,
+            "fn": 0,
+            "tn": 9,
+            "accuracy": 1,
+            "precision": 1,
+            "recall": 1,
+            "f1": 1,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "exactVectors": 43,
+          "totalVectors": 48,
+          "exactVectorAccuracy": 0.8958333333333334,
+          "individualDecisions": 228,
+          "individual": {
+            "n": 228,
+            "tp": 78,
+            "fp": 0,
+            "fn": 7,
+            "tn": 143,
+            "accuracy": 0.9692982456140351,
+            "precision": 1,
+            "recall": 0.9176470588235294,
+            "f1": 0.9570552147239264,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "falseHides": 0,
+          "missedHides": 0,
+          "pairedAvailable": true,
+          "newFalseHides": 0,
+          "newMissedHides": 0,
+          "falseHideIds": [],
+          "missedHideIds": [],
+          "newFalseHideIds": [],
+          "newMissedHideIds": [],
+          "incorrectVectorIds": [
+            "broad:triple-crypto-policy-own-guide",
+            "broad:five-sports-and-policy",
+            "broad:five-own-fitness-service",
+            "broad:ten-sports-food-fitness",
+            "broad:ten-all-topics-permuted"
+          ]
+        },
+        "all": {
+          "hide": {
+            "n": 88,
+            "tp": 54,
+            "fp": 0,
+            "fn": 3,
+            "tn": 31,
+            "accuracy": 0.9659090909090909,
+            "precision": 1,
+            "recall": 0.9473684210526315,
+            "f1": 0.972972972972973,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "exactVectors": 80,
+          "totalVectors": 88,
+          "exactVectorAccuracy": 0.9090909090909091,
+          "individualDecisions": 268,
+          "individual": {
+            "n": 268,
+            "tp": 93,
+            "fp": 0,
+            "fn": 10,
+            "tn": 165,
+            "accuracy": 0.9626865671641791,
+            "precision": 1,
+            "recall": 0.9029126213592233,
+            "f1": 0.9489795918367347,
+            "specificity": 1,
+            "falsePositiveRate": 0
+          },
+          "falseHides": 0,
+          "missedHides": 3,
+          "pairedAvailable": true,
+          "newFalseHides": 0,
+          "newMissedHides": 2,
+          "falseHideIds": [],
+          "missedHideIds": [
+            "rage:p14",
+            "rage:p15",
+            "rage:p18"
+          ],
+          "newFalseHideIds": [],
+          "newMissedHideIds": [
+            "rage:p15",
+            "rage:p18"
+          ],
+          "incorrectVectorIds": [
+            "rage:p14",
+            "rage:p15",
+            "rage:p18",
+            "broad:triple-crypto-policy-own-guide",
+            "broad:five-sports-and-policy",
+            "broad:five-own-fitness-service",
+            "broad:ten-sports-food-fitness",
+            "broad:ten-all-topics-permuted"
+          ]
+        }
+      },
+      "optimized": {
+        "cutoff": 0.3168879112149103,
+        "interval": {
+          "lower": 0.3128541722537823,
+          "upper": 0.32092165017603824,
+          "width": 0.008067477922255928,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "scores": {
+          "rage": {
+            "hide": {
+              "n": 40,
+              "tp": 17,
+              "fp": 0,
+              "fn": 1,
+              "tn": 22,
+              "accuracy": 0.975,
+              "precision": 1,
+              "recall": 0.9444444444444444,
+              "f1": 0.9714285714285714,
+              "specificity": 1,
+              "falsePositiveRate": 0
+            },
+            "exactVectors": 39,
+            "totalVectors": 40,
+            "exactVectorAccuracy": 0.975,
+            "individualDecisions": 40,
+            "individual": {
+              "n": 40,
+              "tp": 17,
+              "fp": 0,
+              "fn": 1,
+              "tn": 22,
+              "accuracy": 0.975,
+              "precision": 1,
+              "recall": 0.9444444444444444,
+              "f1": 0.9714285714285714,
+              "specificity": 1,
+              "falsePositiveRate": 0
+            },
+            "falseHides": 0,
+            "missedHides": 1,
+            "pairedAvailable": true,
+            "newFalseHides": 0,
+            "newMissedHides": 1,
+            "falseHideIds": [],
+            "missedHideIds": [
+              "rage:p18"
+            ],
+            "newFalseHideIds": [],
+            "newMissedHideIds": [
+              "rage:p18"
+            ],
+            "incorrectVectorIds": [
+              "rage:p18"
+            ]
+          },
+          "broad": {
+            "hide": {
+              "n": 48,
+              "tp": 39,
+              "fp": 0,
+              "fn": 0,
+              "tn": 9,
+              "accuracy": 1,
+              "precision": 1,
+              "recall": 1,
+              "f1": 1,
+              "specificity": 1,
+              "falsePositiveRate": 0
+            },
+            "exactVectors": 47,
+            "totalVectors": 48,
+            "exactVectorAccuracy": 0.9791666666666666,
+            "individualDecisions": 228,
+            "individual": {
+              "n": 228,
+              "tp": 83,
+              "fp": 0,
+              "fn": 2,
+              "tn": 143,
+              "accuracy": 0.9912280701754386,
+              "precision": 1,
+              "recall": 0.9764705882352941,
+              "f1": 0.988095238095238,
+              "specificity": 1,
+              "falsePositiveRate": 0
+            },
+            "falseHides": 0,
+            "missedHides": 0,
+            "pairedAvailable": true,
+            "newFalseHides": 0,
+            "newMissedHides": 0,
+            "falseHideIds": [],
+            "missedHideIds": [],
+            "newFalseHideIds": [],
+            "newMissedHideIds": [],
+            "incorrectVectorIds": [
+              "broad:ten-all-topics-permuted"
+            ]
+          },
+          "all": {
+            "hide": {
+              "n": 88,
+              "tp": 56,
+              "fp": 0,
+              "fn": 1,
+              "tn": 31,
+              "accuracy": 0.9886363636363636,
+              "precision": 1,
+              "recall": 0.9824561403508771,
+              "f1": 0.9911504424778761,
+              "specificity": 1,
+              "falsePositiveRate": 0
+            },
+            "exactVectors": 86,
+            "totalVectors": 88,
+            "exactVectorAccuracy": 0.9772727272727273,
+            "individualDecisions": 268,
+            "individual": {
+              "n": 268,
+              "tp": 100,
+              "fp": 0,
+              "fn": 3,
+              "tn": 165,
+              "accuracy": 0.9888059701492538,
+              "precision": 1,
+              "recall": 0.970873786407767,
+              "f1": 0.9852216748768473,
+              "specificity": 1,
+              "falsePositiveRate": 0
+            },
+            "falseHides": 0,
+            "missedHides": 1,
+            "pairedAvailable": true,
+            "newFalseHides": 0,
+            "newMissedHides": 1,
+            "falseHideIds": [],
+            "missedHideIds": [
+              "rage:p18"
+            ],
+            "newFalseHideIds": [],
+            "newMissedHideIds": [
+              "rage:p18"
+            ],
+            "incorrectVectorIds": [
+              "rage:p18",
+              "broad:ten-all-topics-permuted"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "runtimeSettings": {
+    "runtime": "llama",
+    "version": "0.49.0",
+    "build": "b12652-212c547fe",
+    "effectiveContext": 4096,
+    "parallel": 1,
+    "batch": 4096,
+    "ubatch": 4096,
+    "projector": false,
+    "runner": "llamacpp",
+    "quantization": "Q8_0",
+    "aliasDefinition": null
+  },
+  "finishedAt": "2026-11-24T21:22:21.353Z"
+}

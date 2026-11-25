@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 2,
+  "variant": {
+    "id": "llama-clef-flash-q4km",
+    "runtime": "llama",
+    "model": "ggml-org/Clef-Flash-GGUF:Q4_K_M",
+    "file": "Clef-Flash-Q4_K_M.gguf",
+    "family": "clef-flash",
+    "format": "GGUF Q4_K_M",
+    "batch": 4096
+  },
+  "identity": {
+    "repository": "ggml-org/Clef-Flash-GGUF",
+    "revision": "c3d925454595d792d5333da8b35f3c09911f7568",
+    "file": "Clef-Flash-Q4_K_M.gguf",
+    "sha256": "eef2968c238a80d49d340430f22410ea3db9934ad1c6fdb233a503cbf9a9b54e",
+    "family": "clef-flash",
+    "architecture": "clef",
+    "disk": {
+      "logicalBytes": 6732781824,
+      "allocatedBytes": 6744485888,
+      "scope": "Primary text GGUF; projector excluded; temporary runtime cache"
+    }
+  }
+}

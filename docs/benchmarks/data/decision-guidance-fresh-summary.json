@@ -1,0 +1,5143 @@
+{
+  "schemaVersion": 1,
+  "phase": "fresh-guidance",
+  "status": "complete",
+  "resultFile": "decision-guidance-fresh-result.json",
+  "resultSha256": "a9b851601bfa5cb2fcc88a219d258e4b66b751a5d6c67267a454cd86e5247380",
+  "registrationSha256": "927529a64e62542b099f641bffafe0211de08a399fa37d0563041dd79ab0e04e",
+  "cutoff": 0.290813258948728,
+  "counts": {
+    "posts": 84,
+    "intents": 6,
+    "decisionsPerStyle": 504,
+    "ambiguousPerStyle": 22,
+    "headlinePerStyle": 482,
+    "requests": 1764
+  },
+  "intents": [
+    {
+      "id": "rudeness",
+      "rubric": "Hide posts where the author is deliberately rude, sneering or contemptuous toward other people as a performance: insulting strangers or repliers, dismissing people as stupid or worthless, or posing as tough or 'unbothered' to get attention or engagement. Sarcastic or understated contempt aimed at people counts. Keep posts that are blunt but sincere critique of ideas or work, plain disagreement with reasons, posts that criticise or complain about rude behaviour (including quoting it to object), and ordinary posts.",
+      "labels": {
+        "short": "rude posts",
+        "guided": "posts being deliberately rude or edgy to get attention",
+        "guidedExclusion": "posts being deliberately rude or edgy to get attention, not blunt honest criticism"
+      }
+    },
+    {
+      "id": "humblebrag",
+      "rubric": "Hide posts that show off an achievement, status, wealth, looks or popularity while presenting it as a complaint, a burden, gratitude, self-deprecation or modesty, so that the brag is the real point. Keep open, sincere celebrations of good news, including ones that mention past struggle, real complaints and venting, modest posts about small personal wins that are not dressed up, and posts that mock or criticise humblebragging.",
+      "labels": {
+        "short": "humblebrags",
+        "guided": "posts bragging while pretending to complain or be humble",
+        "guidedExclusion": "posts bragging while pretending to complain or be humble, not sharing real good news"
+      }
+    },
+    {
+      "id": "doom",
+      "rubric": "Hide posts that make sweeping claims that society, the economy, the planet or 'everything' is collapsing or already lost and that nothing can be done, whether said outright or through sarcastic resignation. Keep specific factual reporting of bad news, worried posts that point to action or solutions, critiques of doomism, and personal bad-day hyperbole about the author's own small mishaps.",
+      "labels": {
+        "short": "doomposting",
+        "guided": "posts saying everything is collapsing and it's hopeless",
+        "guidedExclusion": "posts saying everything is collapsing and it's hopeless, not news about specific problems"
+      }
+    },
+    {
+      "id": "hustle",
+      "rubric": "Hide posts that glorify or promote overwork as a virtue: bragging about long hours, little sleep, no days off, or pre-dawn routines framed as what separates winners from everyone else, and posts that shame rest or balance. Keep posts that criticise or mock hustle culture, sincere burnout or recovery stories, plain descriptions of an early routine or heavy workload that do not hold it up as a moral standard, and people working long hours out of necessity without glorifying it.",
+      "labels": {
+        "short": "hustle culture",
+        "guided": "posts glorifying overwork, 5am routines and grinding",
+        "guidedExclusion": "posts glorifying overwork, 5am routines and grinding, not genuine productivity tips"
+      }
+    },
+    {
+      "id": "dunking",
+      "rubric": "Hide posts that mock, ridicule or invite a pile-on against an ordinary, non-public person's post, mistake or behaviour for laughs, including screenshot dunks, sarcastic quote-posts and 'everyone look at this' callouts, whether open or veiled. Keep posts that criticise dunk culture, laugh at the poster's own mistakes, gently correct misinformation without ridicule, and criticise public institutions or officials on the substance of what they did.",
+      "labels": {
+        "short": "dunking",
+        "guided": "posts mocking a random person's post or mistake",
+        "guidedExclusion": "posts mocking a random person's post or mistake, not criticism of public figures"
+      }
+    },
+    {
+      "id": "engagement",
+      "rubric": "Hide posts built mainly to get replies rather than to share anything or ask a real question: 'wrong answers only', 'which one are you', 'drop your X below', 'name a Y that Z', this-or-that picks, and vague prompts meant only to fill the replies, whether open or dressed up as casual chat. Keep real questions where the poster actually needs information or input, posts with real content that end with a natural question, practical requests for replies that serve a concrete purpose, and posts criticising engagement bait.",
+      "labels": {
+        "short": "engagement bait",
+        "guided": "posts asking questions just to get replies",
+        "guidedExclusion": "posts asking questions just to get replies, not genuine questions asking for help"
+      }
+    }
+  ],
+  "metrics": [
+    {
+      "mode": "single",
+      "style": "short",
+      "intentId": "all",
+      "n": 482,
+      "positives": 48,
+      "negatives": 434,
+      "auc": 0.8039074500768049,
+      "falseHides": 129,
+      "missedHides": 12,
+      "errors": 141,
+      "correct": 341,
+      "confusion": {
+        "tp": 36,
+        "fp": 129,
+        "fn": 12,
+        "tn": 305
+      },
+      "optimal": {
+        "cutoff": 0.8608067475355139,
+        "interval": {
+          "lower": 0.8480184260938919,
+          "upper": 0.8735950689771359,
+          "width": 0.025576642883244016,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.8480184260938919,
+            "upper": 0.8735950689771359,
+            "width": 0.025576642883244016,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.890970503474356,
+            "upper": 0.8934686429390462,
+            "width": 0.00249813946469013,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 42,
+        "falseHides": 2,
+        "missedHides": 40
+      },
+      "ambiguousExcluded": 22,
+      "nearMissFalseHides": 33,
+      "nearMissDecisions": 143,
+      "ownNearMissFalseHides": 8,
+      "ownNearMissDecisions": 24,
+      "missedSubtlePositives": 7,
+      "subtlePositiveDecisions": 18
+    },
+    {
+      "mode": "six-filter",
+      "style": "short",
+      "intentId": "all",
+      "n": 482,
+      "positives": 48,
+      "negatives": 434,
+      "auc": 0.7921947004608295,
+      "falseHides": 124,
+      "missedHides": 17,
+      "errors": 141,
+      "correct": 341,
+      "confusion": {
+        "tp": 31,
+        "fp": 124,
+        "fn": 17,
+        "tn": 310
+      },
+      "optimal": {
+        "cutoff": 0.8351962927355134,
+        "interval": {
+          "lower": 0.8324961645062763,
+          "upper": 0.8378964209647506,
+          "width": 0.005400256458474306,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.8324961645062763,
+            "upper": 0.8378964209647506,
+            "width": 0.005400256458474306,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.8486278943076527,
+            "upper": 0.8511269502833031,
+            "width": 0.002499055975650366,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 43,
+        "falseHides": 3,
+        "missedHides": 40
+      },
+      "ambiguousExcluded": 22,
+      "nearMissFalseHides": 34,
+      "nearMissDecisions": 143,
+      "ownNearMissFalseHides": 9,
+      "ownNearMissDecisions": 24,
+      "missedSubtlePositives": 9,
+      "subtlePositiveDecisions": 18
+    },
+    {
+      "mode": "single",
+      "style": "short",
+      "intentId": "rudeness",
+      "n": 75,
+      "positives": 8,
+      "negatives": 67,
+      "auc": 0.8190298507462687,
+      "falseHides": 5,
+      "missedHides": 4,
+      "errors": 9,
+      "correct": 66,
+      "confusion": {
+        "tp": 4,
+        "fp": 5,
+        "fn": 4,
+        "tn": 62
+      },
+      "optimal": {
+        "cutoff": 0.6007274297169308,
+        "interval": {
+          "lower": 0.58879652852369,
+          "upper": 0.6126583309101716,
+          "width": 0.023861802386481612,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.58879652852369,
+            "upper": 0.6126583309101716,
+            "width": 0.023861802386481612,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 6,
+        "falseHides": 0,
+        "missedHides": 6
+      },
+      "ambiguousExcluded": 9,
+      "nearMissFalseHides": 3,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 3,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "six-filter",
+      "style": "short",
+      "intentId": "rudeness",
+      "n": 75,
+      "positives": 8,
+      "negatives": 67,
+      "auc": 0.8246268656716418,
+      "falseHides": 6,
+      "missedHides": 4,
+      "errors": 10,
+      "correct": 65,
+      "confusion": {
+        "tp": 4,
+        "fp": 6,
+        "fn": 4,
+        "tn": 61
+      },
+      "optimal": {
+        "cutoff": 0.7630192044340484,
+        "interval": {
+          "lower": 0.6749114585847936,
+          "upper": 0.8511269502833031,
+          "width": 0.17621549169850947,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.594111088073943,
+            "upper": 0.6009401337862923,
+            "width": 0.006829045712349324,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.6749114585847936,
+            "upper": 0.8511269502833031,
+            "width": 0.17621549169850947,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 7,
+        "falseHides": 0,
+        "missedHides": 7
+      },
+      "ambiguousExcluded": 9,
+      "nearMissFalseHides": 3,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 3,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "single",
+      "style": "short",
+      "intentId": "humblebrag",
+      "n": 81,
+      "positives": 8,
+      "negatives": 73,
+      "auc": 0.6404109589041096,
+      "falseHides": 24,
+      "missedHides": 4,
+      "errors": 28,
+      "correct": 53,
+      "confusion": {
+        "tp": 4,
+        "fp": 24,
+        "fn": 4,
+        "tn": 49
+      },
+      "optimal": {
+        "cutoff": 0.5839232311254163,
+        "interval": {
+          "lower": 0.5545444459886251,
+          "upper": 0.6133020162622076,
+          "width": 0.05875757027358253,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.5545444459886251,
+            "upper": 0.6133020162622076,
+            "width": 0.05875757027358253,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 7,
+        "falseHides": 1,
+        "missedHides": 6
+      },
+      "ambiguousExcluded": 3,
+      "nearMissFalseHides": 6,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 3,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 1,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "six-filter",
+      "style": "short",
+      "intentId": "humblebrag",
+      "n": 81,
+      "positives": 8,
+      "negatives": 73,
+      "auc": 0.601027397260274,
+      "falseHides": 22,
+      "missedHides": 5,
+      "errors": 27,
+      "correct": 54,
+      "confusion": {
+        "tp": 3,
+        "fp": 22,
+        "fn": 5,
+        "tn": 51
+      },
+      "optimal": {
+        "cutoff": 0.6050571258356138,
+        "interval": {
+          "lower": 0.6017434135673561,
+          "upper": 0.6083708381038715,
+          "width": 0.006627424536515436,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.6017434135673561,
+            "upper": 0.6083708381038715,
+            "width": 0.006627424536515436,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 7,
+        "falseHides": 1,
+        "missedHides": 6
+      },
+      "ambiguousExcluded": 3,
+      "nearMissFalseHides": 5,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 3,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "single",
+      "style": "short",
+      "intentId": "doom",
+      "n": 84,
+      "positives": 8,
+      "negatives": 76,
+      "auc": 0.8963815789473685,
+      "falseHides": 35,
+      "missedHides": 1,
+      "errors": 36,
+      "correct": 48,
+      "confusion": {
+        "tp": 7,
+        "fp": 35,
+        "fn": 1,
+        "tn": 41
+      },
+      "optimal": {
+        "cutoff": 0.755919841074947,
+        "interval": {
+          "lower": 0.7430317817008136,
+          "upper": 0.7688079004490804,
+          "width": 0.025776118748266796,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.7430317817008136,
+            "upper": 0.7688079004490804,
+            "width": 0.025776118748266796,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 4,
+        "falseHides": 1,
+        "missedHides": 3
+      },
+      "ambiguousExcluded": 0,
+      "nearMissFalseHides": 9,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 1,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "six-filter",
+      "style": "short",
+      "intentId": "doom",
+      "n": 84,
+      "positives": 8,
+      "negatives": 76,
+      "auc": 0.8914473684210527,
+      "falseHides": 36,
+      "missedHides": 1,
+      "errors": 37,
+      "correct": 47,
+      "confusion": {
+        "tp": 7,
+        "fp": 36,
+        "fn": 1,
+        "tn": 40
+      },
+      "optimal": {
+        "cutoff": 0.7208234153840318,
+        "interval": {
+          "lower": 0.7087221642909389,
+          "upper": 0.7329246664771246,
+          "width": 0.024202502186185693,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.7087221642909389,
+            "upper": 0.7329246664771246,
+            "width": 0.024202502186185693,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.7360711176356106,
+            "upper": 0.7598815324234277,
+            "width": 0.02381041478781709,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 4,
+        "falseHides": 1,
+        "missedHides": 3
+      },
+      "ambiguousExcluded": 0,
+      "nearMissFalseHides": 9,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 1,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "single",
+      "style": "short",
+      "intentId": "hustle",
+      "n": 83,
+      "positives": 8,
+      "negatives": 75,
+      "auc": 0.9183333333333333,
+      "falseHides": 30,
+      "missedHides": 0,
+      "errors": 30,
+      "correct": 53,
+      "confusion": {
+        "tp": 8,
+        "fp": 30,
+        "fn": 0,
+        "tn": 45
+      },
+      "optimal": {
+        "cutoff": 0.9055628486727982,
+        "interval": {
+          "lower": 0.890970503474356,
+          "upper": 0.9201551938712403,
+          "width": 0.029184690396884316,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.8480184260938919,
+            "upper": 0.8735950689771359,
+            "width": 0.025576642883244016,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.890970503474356,
+            "upper": 0.9201551938712403,
+            "width": 0.029184690396884316,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 6,
+        "falseHides": 1,
+        "missedHides": 5
+      },
+      "ambiguousExcluded": 1,
+      "nearMissFalseHides": 9,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 3,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 0,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "six-filter",
+      "style": "short",
+      "intentId": "hustle",
+      "n": 83,
+      "positives": 8,
+      "negatives": 75,
+      "auc": 0.9166666666666666,
+      "falseHides": 31,
+      "missedHides": 0,
+      "errors": 31,
+      "correct": 52,
+      "confusion": {
+        "tp": 8,
+        "fp": 31,
+        "fn": 0,
+        "tn": 44
+      },
+      "optimal": {
+        "cutoff": 0.8351962927355134,
+        "interval": {
+          "lower": 0.8324961645062763,
+          "upper": 0.8378964209647506,
+          "width": 0.005400256458474306,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.8324961645062763,
+            "upper": 0.8378964209647506,
+            "width": 0.005400256458474306,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 5,
+        "falseHides": 1,
+        "missedHides": 4
+      },
+      "ambiguousExcluded": 1,
+      "nearMissFalseHides": 10,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 3,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 0,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "single",
+      "style": "short",
+      "intentId": "dunking",
+      "n": 79,
+      "positives": 8,
+      "negatives": 71,
+      "auc": 0.7570422535211268,
+      "falseHides": 13,
+      "missedHides": 3,
+      "errors": 16,
+      "correct": 63,
+      "confusion": {
+        "tp": 5,
+        "fp": 13,
+        "fn": 3,
+        "tn": 58
+      },
+      "optimal": {
+        "cutoff": 0.3333360764398961,
+        "interval": {
+          "lower": 0.33330501763476045,
+          "upper": 0.33336713524503175,
+          "width": 0.00006211761027130613,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.33330501763476045,
+            "upper": 0.33336713524503175,
+            "width": 0.00006211761027130613,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 7,
+        "falseHides": 2,
+        "missedHides": 5
+      },
+      "ambiguousExcluded": 5,
+      "nearMissFalseHides": 1,
+      "nearMissDecisions": 23,
+      "ownNearMissFalseHides": 0,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "six-filter",
+      "style": "short",
+      "intentId": "dunking",
+      "n": 79,
+      "positives": 8,
+      "negatives": 71,
+      "auc": 0.721830985915493,
+      "falseHides": 9,
+      "missedHides": 6,
+      "errors": 15,
+      "correct": 64,
+      "confusion": {
+        "tp": 2,
+        "fp": 9,
+        "fn": 6,
+        "tn": 62
+      },
+      "optimal": {
+        "cutoff": 0.7049063213404365,
+        "interval": {
+          "lower": 0.40981264268087303,
+          "upper": 1,
+          "width": 0.590187357319127,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.40981264268087303,
+            "upper": 1,
+            "width": 0.590187357319127,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 8,
+        "falseHides": 0,
+        "missedHides": 8
+      },
+      "ambiguousExcluded": 5,
+      "nearMissFalseHides": 1,
+      "nearMissDecisions": 23,
+      "ownNearMissFalseHides": 0,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "single",
+      "style": "short",
+      "intentId": "engagement",
+      "n": 80,
+      "positives": 8,
+      "negatives": 72,
+      "auc": 0.9027777777777778,
+      "falseHides": 22,
+      "missedHides": 0,
+      "errors": 22,
+      "correct": 58,
+      "confusion": {
+        "tp": 8,
+        "fp": 22,
+        "fn": 0,
+        "tn": 50
+      },
+      "optimal": {
+        "cutoff": 0.6908156472758497,
+        "interval": {
+          "lower": 0.6758874420129569,
+          "upper": 0.7057438525387424,
+          "width": 0.02985641052578547,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.6758874420129569,
+            "upper": 0.7057438525387424,
+            "width": 0.02985641052578547,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 6,
+        "falseHides": 0,
+        "missedHides": 6
+      },
+      "ambiguousExcluded": 4,
+      "nearMissFalseHides": 5,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 0,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 0,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "six-filter",
+      "style": "short",
+      "intentId": "engagement",
+      "n": 80,
+      "positives": 8,
+      "negatives": 72,
+      "auc": 0.8836805555555556,
+      "falseHides": 20,
+      "missedHides": 1,
+      "errors": 21,
+      "correct": 59,
+      "confusion": {
+        "tp": 7,
+        "fp": 20,
+        "fn": 1,
+        "tn": 52
+      },
+      "optimal": {
+        "cutoff": 0.9243139471538264,
+        "interval": {
+          "lower": 0.8486278943076527,
+          "upper": 1,
+          "width": 0.15137210569234727,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.6293961823928033,
+            "upper": 0.658157798623846,
+            "width": 0.028761616231042786,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.6685066684601605,
+            "upper": 0.7148930935211034,
+            "width": 0.046386425060942926,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.8486278943076527,
+            "upper": 1,
+            "width": 0.15137210569234727,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 8,
+        "falseHides": 0,
+        "missedHides": 8
+      },
+      "ambiguousExcluded": 4,
+      "nearMissFalseHides": 6,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 1,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "single",
+      "style": "guided",
+      "intentId": "all",
+      "n": 482,
+      "positives": 48,
+      "negatives": 434,
+      "auc": 0.8470142089093702,
+      "falseHides": 46,
+      "missedHides": 20,
+      "errors": 66,
+      "correct": 416,
+      "confusion": {
+        "tp": 28,
+        "fp": 46,
+        "fn": 20,
+        "tn": 388
+      },
+      "optimal": {
+        "cutoff": 0.7150138223417316,
+        "interval": {
+          "lower": 0.7059250024164384,
+          "upper": 0.7241026422670248,
+          "width": 0.018177639850586402,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.609200295619908,
+            "upper": 0.6215144460131334,
+            "width": 0.012314150393225476,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.7059250024164384,
+            "upper": 0.7241026422670248,
+            "width": 0.018177639850586402,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 39,
+        "falseHides": 4,
+        "missedHides": 35
+      },
+      "ambiguousExcluded": 22,
+      "nearMissFalseHides": 18,
+      "nearMissDecisions": 143,
+      "ownNearMissFalseHides": 9,
+      "ownNearMissDecisions": 24,
+      "missedSubtlePositives": 12,
+      "subtlePositiveDecisions": 18
+    },
+    {
+      "mode": "six-filter",
+      "style": "guided",
+      "intentId": "all",
+      "n": 482,
+      "positives": 48,
+      "negatives": 434,
+      "auc": 0.850086405529954,
+      "falseHides": 47,
+      "missedHides": 21,
+      "errors": 68,
+      "correct": 414,
+      "confusion": {
+        "tp": 27,
+        "fp": 47,
+        "fn": 21,
+        "tn": 387
+      },
+      "optimal": {
+        "cutoff": 0.7581185249213684,
+        "interval": {
+          "lower": 0.7529016856571015,
+          "upper": 0.7633353641856354,
+          "width": 0.01043367852853394,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.7529016856571015,
+            "upper": 0.7633353641856354,
+            "width": 0.01043367852853394,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 36,
+        "falseHides": 0,
+        "missedHides": 36
+      },
+      "ambiguousExcluded": 22,
+      "nearMissFalseHides": 16,
+      "nearMissDecisions": 143,
+      "ownNearMissFalseHides": 8,
+      "ownNearMissDecisions": 24,
+      "missedSubtlePositives": 10,
+      "subtlePositiveDecisions": 18
+    },
+    {
+      "mode": "single",
+      "style": "guided",
+      "intentId": "rudeness",
+      "n": 75,
+      "positives": 8,
+      "negatives": 67,
+      "auc": 0.8526119402985075,
+      "falseHides": 8,
+      "missedHides": 3,
+      "errors": 11,
+      "correct": 64,
+      "confusion": {
+        "tp": 5,
+        "fp": 8,
+        "fn": 3,
+        "tn": 59
+      },
+      "optimal": {
+        "cutoff": 0.7166027807362056,
+        "interval": {
+          "lower": 0.6999281773766092,
+          "upper": 0.7332773840958022,
+          "width": 0.03334920671919306,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.609200295619908,
+            "upper": 0.6402860394333487,
+            "width": 0.031085743813440758,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.6999281773766092,
+            "upper": 0.7332773840958022,
+            "width": 0.03334920671919306,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 5,
+        "falseHides": 0,
+        "missedHides": 5
+      },
+      "ambiguousExcluded": 9,
+      "nearMissFalseHides": 3,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 3,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "six-filter",
+      "style": "guided",
+      "intentId": "rudeness",
+      "n": 75,
+      "positives": 8,
+      "negatives": 67,
+      "auc": 0.8432835820895522,
+      "falseHides": 10,
+      "missedHides": 3,
+      "errors": 13,
+      "correct": 62,
+      "confusion": {
+        "tp": 5,
+        "fp": 10,
+        "fn": 3,
+        "tn": 57
+      },
+      "optimal": {
+        "cutoff": 0.7229127881889525,
+        "interval": {
+          "lower": 0.6824902121922698,
+          "upper": 0.7633353641856354,
+          "width": 0.08084515199336562,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.6824902121922698,
+            "upper": 0.7633353641856354,
+            "width": 0.08084515199336562,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 5,
+        "falseHides": 0,
+        "missedHides": 5
+      },
+      "ambiguousExcluded": 9,
+      "nearMissFalseHides": 4,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "single",
+      "style": "guided",
+      "intentId": "humblebrag",
+      "n": 81,
+      "positives": 8,
+      "negatives": 73,
+      "auc": 0.7311643835616438,
+      "falseHides": 9,
+      "missedHides": 5,
+      "errors": 14,
+      "correct": 67,
+      "confusion": {
+        "tp": 3,
+        "fp": 9,
+        "fn": 5,
+        "tn": 64
+      },
+      "optimal": {
+        "cutoff": 0.7774981995223302,
+        "interval": {
+          "lower": 0.5549963990446606,
+          "upper": 1,
+          "width": 0.4450036009553394,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.41518630943248114,
+            "upper": 0.42642861870168247,
+            "width": 0.011242309269201334,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.5549963990446606,
+            "upper": 1,
+            "width": 0.4450036009553394,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 8,
+        "falseHides": 0,
+        "missedHides": 8
+      },
+      "ambiguousExcluded": 3,
+      "nearMissFalseHides": 3,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "six-filter",
+      "style": "guided",
+      "intentId": "humblebrag",
+      "n": 81,
+      "positives": 8,
+      "negatives": 73,
+      "auc": 0.714041095890411,
+      "falseHides": 10,
+      "missedHides": 6,
+      "errors": 16,
+      "correct": 65,
+      "confusion": {
+        "tp": 2,
+        "fp": 10,
+        "fn": 6,
+        "tn": 63
+      },
+      "optimal": {
+        "cutoff": 0.7296853330904938,
+        "interval": {
+          "lower": 0.45937066618098743,
+          "upper": 1,
+          "width": 0.5406293338190126,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.45937066618098743,
+            "upper": 1,
+            "width": 0.5406293338190126,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 8,
+        "falseHides": 0,
+        "missedHides": 8
+      },
+      "ambiguousExcluded": 3,
+      "nearMissFalseHides": 2,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "single",
+      "style": "guided",
+      "intentId": "doom",
+      "n": 84,
+      "positives": 8,
+      "negatives": 76,
+      "auc": 0.8651315789473685,
+      "falseHides": 4,
+      "missedHides": 3,
+      "errors": 7,
+      "correct": 77,
+      "confusion": {
+        "tp": 5,
+        "fp": 4,
+        "fn": 3,
+        "tn": 72
+      },
+      "optimal": {
+        "cutoff": 0.8328634142628533,
+        "interval": {
+          "lower": 0.7628936735442969,
+          "upper": 0.9028331549814097,
+          "width": 0.13993948143711277,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.7628936735442969,
+            "upper": 0.9028331549814097,
+            "width": 0.13993948143711277,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 4,
+        "falseHides": 0,
+        "missedHides": 4
+      },
+      "ambiguousExcluded": 0,
+      "nearMissFalseHides": 3,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "six-filter",
+      "style": "guided",
+      "intentId": "doom",
+      "n": 84,
+      "positives": 8,
+      "negatives": 76,
+      "auc": 0.8733552631578947,
+      "falseHides": 1,
+      "missedHides": 3,
+      "errors": 4,
+      "correct": 80,
+      "confusion": {
+        "tp": 5,
+        "fp": 1,
+        "fn": 3,
+        "tn": 75
+      },
+      "optimal": {
+        "cutoff": 0.8190663915853206,
+        "interval": {
+          "lower": 0.7417992393047713,
+          "upper": 0.8963335438658698,
+          "width": 0.1545343045610985,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.2013844002461208,
+            "upper": 0.3291965574516096,
+            "width": 0.12781215720548877,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.7417992393047713,
+            "upper": 0.8963335438658698,
+            "width": 0.1545343045610985,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 4,
+        "falseHides": 0,
+        "missedHides": 4
+      },
+      "ambiguousExcluded": 0,
+      "nearMissFalseHides": 1,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "single",
+      "style": "guided",
+      "intentId": "hustle",
+      "n": 83,
+      "positives": 8,
+      "negatives": 75,
+      "auc": 0.86,
+      "falseHides": 18,
+      "missedHides": 2,
+      "errors": 20,
+      "correct": 63,
+      "confusion": {
+        "tp": 6,
+        "fp": 18,
+        "fn": 2,
+        "tn": 57
+      },
+      "optimal": {
+        "cutoff": 0.7150138223417316,
+        "interval": {
+          "lower": 0.7059250024164384,
+          "upper": 0.7241026422670248,
+          "width": 0.018177639850586402,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.7059250024164384,
+            "upper": 0.7241026422670248,
+            "width": 0.018177639850586402,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 4,
+        "falseHides": 1,
+        "missedHides": 3
+      },
+      "ambiguousExcluded": 1,
+      "nearMissFalseHides": 4,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 2,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 1,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "six-filter",
+      "style": "guided",
+      "intentId": "hustle",
+      "n": 83,
+      "positives": 8,
+      "negatives": 75,
+      "auc": 0.8833333333333333,
+      "falseHides": 19,
+      "missedHides": 2,
+      "errors": 21,
+      "correct": 62,
+      "confusion": {
+        "tp": 6,
+        "fp": 19,
+        "fn": 2,
+        "tn": 56
+      },
+      "optimal": {
+        "cutoff": 0.7586450124396371,
+        "interval": {
+          "lower": 0.7529016856571015,
+          "upper": 0.7643883392221729,
+          "width": 0.011486653565071392,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.7529016856571015,
+            "upper": 0.7643883392221729,
+            "width": 0.011486653565071392,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 4,
+        "falseHides": 0,
+        "missedHides": 4
+      },
+      "ambiguousExcluded": 1,
+      "nearMissFalseHides": 5,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 2,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 1,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "single",
+      "style": "guided",
+      "intentId": "dunking",
+      "n": 79,
+      "positives": 8,
+      "negatives": 71,
+      "auc": 0.9049295774647887,
+      "falseHides": 4,
+      "missedHides": 3,
+      "errors": 7,
+      "correct": 72,
+      "confusion": {
+        "tp": 5,
+        "fp": 4,
+        "fn": 3,
+        "tn": 67
+      },
+      "optimal": {
+        "cutoff": 0.3164250489261657,
+        "interval": {
+          "lower": 0.30939343321007057,
+          "upper": 0.3234566646422608,
+          "width": 0.014063231432190237,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.30939343321007057,
+            "upper": 0.3234566646422608,
+            "width": 0.014063231432190237,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 3,
+        "falseHides": 0,
+        "missedHides": 3
+      },
+      "ambiguousExcluded": 5,
+      "nearMissFalseHides": 2,
+      "nearMissDecisions": 23,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "six-filter",
+      "style": "guided",
+      "intentId": "dunking",
+      "n": 79,
+      "positives": 8,
+      "negatives": 71,
+      "auc": 0.903169014084507,
+      "falseHides": 3,
+      "missedHides": 2,
+      "errors": 5,
+      "correct": 74,
+      "confusion": {
+        "tp": 6,
+        "fp": 3,
+        "fn": 2,
+        "tn": 68
+      },
+      "optimal": {
+        "cutoff": 0.39374382101273,
+        "interval": {
+          "lower": 0.35886874110066547,
+          "upper": 0.42861890092479443,
+          "width": 0.06975015982412897,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.35886874110066547,
+            "upper": 0.42861890092479443,
+            "width": 0.06975015982412897,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 3,
+        "falseHides": 0,
+        "missedHides": 3
+      },
+      "ambiguousExcluded": 5,
+      "nearMissFalseHides": 1,
+      "nearMissDecisions": 23,
+      "ownNearMissFalseHides": 0,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "single",
+      "style": "guided",
+      "intentId": "engagement",
+      "n": 80,
+      "positives": 8,
+      "negatives": 72,
+      "auc": 0.9322916666666666,
+      "falseHides": 3,
+      "missedHides": 4,
+      "errors": 7,
+      "correct": 73,
+      "confusion": {
+        "tp": 4,
+        "fp": 3,
+        "fn": 4,
+        "tn": 69
+      },
+      "optimal": {
+        "cutoff": 0.21634536204933516,
+        "interval": {
+          "lower": 0.2094826732764779,
+          "upper": 0.22320805082219242,
+          "width": 0.013725377545714512,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.2094826732764779,
+            "upper": 0.22320805082219242,
+            "width": 0.013725377545714512,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 6,
+        "falseHides": 3,
+        "missedHides": 3
+      },
+      "ambiguousExcluded": 4,
+      "nearMissFalseHides": 3,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 3,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "six-filter",
+      "style": "guided",
+      "intentId": "engagement",
+      "n": 80,
+      "positives": 8,
+      "negatives": 72,
+      "auc": 0.9392361111111112,
+      "falseHides": 4,
+      "missedHides": 5,
+      "errors": 9,
+      "correct": 71,
+      "confusion": {
+        "tp": 3,
+        "fp": 4,
+        "fn": 5,
+        "tn": 68
+      },
+      "optimal": {
+        "cutoff": 0.7112181127967139,
+        "interval": {
+          "lower": 0.6027356872502992,
+          "upper": 0.8197005383431284,
+          "width": 0.21696485109282915,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.1577306306643607,
+            "upper": 0.1697846195432783,
+            "width": 0.01205398887891762,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.6027356872502992,
+            "upper": 0.8197005383431284,
+            "width": 0.21696485109282915,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 7,
+        "falseHides": 0,
+        "missedHides": 7
+      },
+      "ambiguousExcluded": 4,
+      "nearMissFalseHides": 3,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 3,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 1,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "single",
+      "style": "guidedExclusion",
+      "intentId": "all",
+      "n": 482,
+      "positives": 48,
+      "negatives": 434,
+      "auc": 0.8592549923195084,
+      "falseHides": 54,
+      "missedHides": 19,
+      "errors": 73,
+      "correct": 409,
+      "confusion": {
+        "tp": 29,
+        "fp": 54,
+        "fn": 19,
+        "tn": 380
+      },
+      "optimal": {
+        "cutoff": 0.6871537840919306,
+        "interval": {
+          "lower": 0.6809253143978192,
+          "upper": 0.6933822537860419,
+          "width": 0.012456939388222676,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.6809253143978192,
+            "upper": 0.6933822537860419,
+            "width": 0.012456939388222676,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 39,
+        "falseHides": 4,
+        "missedHides": 35
+      },
+      "ambiguousExcluded": 22,
+      "nearMissFalseHides": 20,
+      "nearMissDecisions": 143,
+      "ownNearMissFalseHides": 10,
+      "ownNearMissDecisions": 24,
+      "missedSubtlePositives": 11,
+      "subtlePositiveDecisions": 18
+    },
+    {
+      "mode": "six-filter",
+      "style": "guidedExclusion",
+      "intentId": "all",
+      "n": 482,
+      "positives": 48,
+      "negatives": 434,
+      "auc": 0.8603110599078341,
+      "falseHides": 53,
+      "missedHides": 23,
+      "errors": 76,
+      "correct": 406,
+      "confusion": {
+        "tp": 25,
+        "fp": 53,
+        "fn": 23,
+        "tn": 381
+      },
+      "optimal": {
+        "cutoff": 0.7030993845762363,
+        "interval": {
+          "lower": 0.6950060952667768,
+          "upper": 0.7111926738856958,
+          "width": 0.016186578618919034,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.6769986645561783,
+            "upper": 0.6850003453960405,
+            "width": 0.00800168083986219,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.6920483495537754,
+            "upper": 0.6927934139121876,
+            "width": 0.0007450643584122618,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.6950060952667768,
+            "upper": 0.7111926738856958,
+            "width": 0.016186578618919034,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 37,
+        "falseHides": 3,
+        "missedHides": 34
+      },
+      "ambiguousExcluded": 22,
+      "nearMissFalseHides": 17,
+      "nearMissDecisions": 143,
+      "ownNearMissFalseHides": 7,
+      "ownNearMissDecisions": 24,
+      "missedSubtlePositives": 12,
+      "subtlePositiveDecisions": 18
+    },
+    {
+      "mode": "single",
+      "style": "guidedExclusion",
+      "intentId": "rudeness",
+      "n": 75,
+      "positives": 8,
+      "negatives": 67,
+      "auc": 0.875,
+      "falseHides": 8,
+      "missedHides": 2,
+      "errors": 10,
+      "correct": 65,
+      "confusion": {
+        "tp": 6,
+        "fp": 8,
+        "fn": 2,
+        "tn": 59
+      },
+      "optimal": {
+        "cutoff": 0.670868898754801,
+        "interval": {
+          "lower": 0.6458558686508121,
+          "upper": 0.6958819288587899,
+          "width": 0.05002606020797773,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.6458558686508121,
+            "upper": 0.6958819288587899,
+            "width": 0.05002606020797773,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 5,
+        "falseHides": 0,
+        "missedHides": 5
+      },
+      "ambiguousExcluded": 9,
+      "nearMissFalseHides": 4,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 2,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "six-filter",
+      "style": "guidedExclusion",
+      "intentId": "rudeness",
+      "n": 75,
+      "positives": 8,
+      "negatives": 67,
+      "auc": 0.8526119402985075,
+      "falseHides": 10,
+      "missedHides": 3,
+      "errors": 13,
+      "correct": 62,
+      "confusion": {
+        "tp": 5,
+        "fp": 10,
+        "fn": 3,
+        "tn": 57
+      },
+      "optimal": {
+        "cutoff": 0.720288714348051,
+        "interval": {
+          "lower": 0.6950060952667768,
+          "upper": 0.7455713334293252,
+          "width": 0.05056523816254843,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.6950060952667768,
+            "upper": 0.7455713334293252,
+            "width": 0.05056523816254843,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 5,
+        "falseHides": 0,
+        "missedHides": 5
+      },
+      "ambiguousExcluded": 9,
+      "nearMissFalseHides": 3,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "single",
+      "style": "guidedExclusion",
+      "intentId": "humblebrag",
+      "n": 81,
+      "positives": 8,
+      "negatives": 73,
+      "auc": 0.7174657534246576,
+      "falseHides": 9,
+      "missedHides": 6,
+      "errors": 15,
+      "correct": 66,
+      "confusion": {
+        "tp": 2,
+        "fp": 9,
+        "fn": 6,
+        "tn": 64
+      },
+      "optimal": {
+        "cutoff": 0.7997062981506001,
+        "interval": {
+          "lower": 0.5994125963012003,
+          "upper": 1,
+          "width": 0.40058740369879975,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.5994125963012003,
+            "upper": 1,
+            "width": 0.40058740369879975,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 8,
+        "falseHides": 0,
+        "missedHides": 8
+      },
+      "ambiguousExcluded": 3,
+      "nearMissFalseHides": 3,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "six-filter",
+      "style": "guidedExclusion",
+      "intentId": "humblebrag",
+      "n": 81,
+      "positives": 8,
+      "negatives": 73,
+      "auc": 0.714041095890411,
+      "falseHides": 7,
+      "missedHides": 8,
+      "errors": 15,
+      "correct": 66,
+      "confusion": {
+        "tp": 0,
+        "fp": 7,
+        "fn": 8,
+        "tn": 66
+      },
+      "optimal": {
+        "cutoff": 0.8352287761215947,
+        "interval": {
+          "lower": 0.6704575522431895,
+          "upper": 1,
+          "width": 0.3295424477568105,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.6704575522431895,
+            "upper": 1,
+            "width": 0.3295424477568105,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 8,
+        "falseHides": 0,
+        "missedHides": 8
+      },
+      "ambiguousExcluded": 3,
+      "nearMissFalseHides": 2,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 3,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "single",
+      "style": "guidedExclusion",
+      "intentId": "doom",
+      "n": 84,
+      "positives": 8,
+      "negatives": 76,
+      "auc": 0.9177631578947368,
+      "falseHides": 2,
+      "missedHides": 2,
+      "errors": 4,
+      "correct": 80,
+      "confusion": {
+        "tp": 6,
+        "fp": 2,
+        "fn": 2,
+        "tn": 74
+      },
+      "optimal": {
+        "cutoff": 0.8087168180214884,
+        "interval": {
+          "lower": 0.7613699436925725,
+          "upper": 0.8560636923504044,
+          "width": 0.09469374865783187,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.17660751642030553,
+            "upper": 0.2400777454922485,
+            "width": 0.06347022907194297,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.287576603013787,
+            "upper": 0.3273015566828448,
+            "width": 0.03972495366905776,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.7613699436925725,
+            "upper": 0.8560636923504044,
+            "width": 0.09469374865783187,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 4,
+        "falseHides": 0,
+        "missedHides": 4
+      },
+      "ambiguousExcluded": 0,
+      "nearMissFalseHides": 1,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "six-filter",
+      "style": "guidedExclusion",
+      "intentId": "doom",
+      "n": 84,
+      "positives": 8,
+      "negatives": 76,
+      "auc": 0.9588815789473685,
+      "falseHides": 1,
+      "missedHides": 3,
+      "errors": 4,
+      "correct": 80,
+      "confusion": {
+        "tp": 5,
+        "fp": 1,
+        "fn": 3,
+        "tn": 75
+      },
+      "optimal": {
+        "cutoff": 0.33686917110518344,
+        "interval": {
+          "lower": 0.2329740901763723,
+          "upper": 0.44076425203399455,
+          "width": 0.20779016185762225,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.17250820580770904,
+            "upper": 0.19235617182199125,
+            "width": 0.01984796601428221,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.2329740901763723,
+            "upper": 0.44076425203399455,
+            "width": 0.20779016185762225,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.8171457728461528,
+            "upper": 0.8514371413577818,
+            "width": 0.03429136851162906,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 4,
+        "falseHides": 1,
+        "missedHides": 3
+      },
+      "ambiguousExcluded": 0,
+      "nearMissFalseHides": 1,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "single",
+      "style": "guidedExclusion",
+      "intentId": "hustle",
+      "n": 83,
+      "positives": 8,
+      "negatives": 75,
+      "auc": 0.8733333333333333,
+      "falseHides": 23,
+      "missedHides": 2,
+      "errors": 25,
+      "correct": 58,
+      "confusion": {
+        "tp": 6,
+        "fp": 23,
+        "fn": 2,
+        "tn": 52
+      },
+      "optimal": {
+        "cutoff": 0.8095745564867767,
+        "interval": {
+          "lower": 0.8018840369652376,
+          "upper": 0.8172650760083159,
+          "width": 0.015381039043078304,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.8018840369652376,
+            "upper": 0.8172650760083159,
+            "width": 0.015381039043078304,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 5,
+        "falseHides": 1,
+        "missedHides": 4
+      },
+      "ambiguousExcluded": 1,
+      "nearMissFalseHides": 6,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 3,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 1,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "six-filter",
+      "style": "guidedExclusion",
+      "intentId": "hustle",
+      "n": 83,
+      "positives": 8,
+      "negatives": 75,
+      "auc": 0.865,
+      "falseHides": 20,
+      "missedHides": 2,
+      "errors": 22,
+      "correct": 61,
+      "confusion": {
+        "tp": 6,
+        "fp": 20,
+        "fn": 2,
+        "tn": 55
+      },
+      "optimal": {
+        "cutoff": 0.6924208817329816,
+        "interval": {
+          "lower": 0.6920483495537754,
+          "upper": 0.6927934139121876,
+          "width": 0.0007450643584122618,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.6920483495537754,
+            "upper": 0.6927934139121876,
+            "width": 0.0007450643584122618,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 5,
+        "falseHides": 2,
+        "missedHides": 3
+      },
+      "ambiguousExcluded": 1,
+      "nearMissFalseHides": 5,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 2,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 1,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "single",
+      "style": "guidedExclusion",
+      "intentId": "dunking",
+      "n": 79,
+      "positives": 8,
+      "negatives": 71,
+      "auc": 0.897887323943662,
+      "falseHides": 10,
+      "missedHides": 2,
+      "errors": 12,
+      "correct": 67,
+      "confusion": {
+        "tp": 6,
+        "fp": 10,
+        "fn": 2,
+        "tn": 61
+      },
+      "optimal": {
+        "cutoff": 0.5376017613116411,
+        "interval": {
+          "lower": 0.5271274933238819,
+          "upper": 0.5480760292994002,
+          "width": 0.02094853597551838,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.4694778042518982,
+            "upper": 0.47552716956649216,
+            "width": 0.006049365314593935,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.5271274933238819,
+            "upper": 0.5480760292994002,
+            "width": 0.02094853597551838,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 4,
+        "falseHides": 0,
+        "missedHides": 4
+      },
+      "ambiguousExcluded": 5,
+      "nearMissFalseHides": 4,
+      "nearMissDecisions": 23,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "six-filter",
+      "style": "guidedExclusion",
+      "intentId": "dunking",
+      "n": 79,
+      "positives": 8,
+      "negatives": 71,
+      "auc": 0.9242957746478874,
+      "falseHides": 14,
+      "missedHides": 2,
+      "errors": 16,
+      "correct": 63,
+      "confusion": {
+        "tp": 6,
+        "fp": 14,
+        "fn": 2,
+        "tn": 57
+      },
+      "optimal": {
+        "cutoff": 0.5779892224988321,
+        "interval": {
+          "lower": 0.5415235234679633,
+          "upper": 0.6144549215297008,
+          "width": 0.07293139806173754,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.5415235234679633,
+            "upper": 0.6144549215297008,
+            "width": 0.07293139806173754,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 3,
+        "falseHides": 0,
+        "missedHides": 3
+      },
+      "ambiguousExcluded": 5,
+      "nearMissFalseHides": 5,
+      "nearMissDecisions": 23,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "single",
+      "style": "guidedExclusion",
+      "intentId": "engagement",
+      "n": 80,
+      "positives": 8,
+      "negatives": 72,
+      "auc": 0.9375,
+      "falseHides": 2,
+      "missedHides": 5,
+      "errors": 7,
+      "correct": 73,
+      "confusion": {
+        "tp": 3,
+        "fp": 2,
+        "fn": 5,
+        "tn": 70
+      },
+      "optimal": {
+        "cutoff": 0.17797959562542612,
+        "interval": {
+          "lower": 0.1744456539979867,
+          "upper": 0.18151353725286554,
+          "width": 0.007067883254878837,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.1744456539979867,
+            "upper": 0.18151353725286554,
+            "width": 0.007067883254878837,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 5,
+        "falseHides": 4,
+        "missedHides": 1
+      },
+      "ambiguousExcluded": 4,
+      "nearMissFalseHides": 2,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 2,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    },
+    {
+      "mode": "six-filter",
+      "style": "guidedExclusion",
+      "intentId": "engagement",
+      "n": 80,
+      "positives": 8,
+      "negatives": 72,
+      "auc": 0.9392361111111112,
+      "falseHides": 1,
+      "missedHides": 5,
+      "errors": 6,
+      "correct": 74,
+      "confusion": {
+        "tp": 3,
+        "fp": 1,
+        "fn": 5,
+        "tn": 71
+      },
+      "optimal": {
+        "cutoff": 0.5138515934068252,
+        "interval": {
+          "lower": 0.4835042045249035,
+          "upper": 0.5441989822887469,
+          "width": 0.060694777763843355,
+          "lowerInclusive": false,
+          "upperInclusive": true
+        },
+        "intervals": [
+          {
+            "lower": 0.19757145924113836,
+            "upper": 0.19951202750534547,
+            "width": 0.0019405682642071043,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.26786933207286656,
+            "upper": 0.31029340373319453,
+            "width": 0.04242407166032797,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          },
+          {
+            "lower": 0.4835042045249035,
+            "upper": 0.5441989822887469,
+            "width": 0.060694777763843355,
+            "lowerInclusive": false,
+            "upperInclusive": true
+          }
+        ],
+        "errors": 6,
+        "falseHides": 0,
+        "missedHides": 6
+      },
+      "ambiguousExcluded": 4,
+      "nearMissFalseHides": 1,
+      "nearMissDecisions": 24,
+      "ownNearMissFalseHides": 1,
+      "ownNearMissDecisions": 4,
+      "missedSubtlePositives": 2,
+      "subtlePositiveDecisions": 3
+    }
+  ],
+  "gates": {
+    "guidance": {
+      "checks": {
+        "errors": {
+          "actual": 66,
+          "reference": 141,
+          "comparison": "<",
+          "pass": true
+        },
+        "nearMissFalseHides": {
+          "actual": 18,
+          "reference": 33,
+          "comparison": "<=",
+          "pass": true
+        }
+      },
+      "supported": true
+    },
+    "exclusion": {
+      "checks": {
+        "nearMissFalseHides": {
+          "actual": 20,
+          "reference": 18,
+          "comparison": "<=",
+          "pass": false
+        },
+        "missedHides": {
+          "actual": 19,
+          "reference": 21,
+          "comparison": "<=",
+          "pass": true
+        }
+      },
+      "supported": false
+    }
+  },
+  "requestStats": [
+    {
+      "mode": "single",
+      "style": "short",
+      "intentId": "all",
+      "n": 504,
+      "medianMs": 29.4470205000016,
+      "medianInputTokens": 70,
+      "meanInputTokens": 70.25,
+      "minInputTokens": 55,
+      "maxInputTokens": 87
+    },
+    {
+      "mode": "single",
+      "style": "short",
+      "intentId": "rudeness",
+      "n": 84,
+      "medianMs": 29.441478999999163,
+      "medianInputTokens": 69,
+      "meanInputTokens": 69.58333333333333,
+      "minInputTokens": 55,
+      "maxInputTokens": 85
+    },
+    {
+      "mode": "single",
+      "style": "short",
+      "intentId": "humblebrag",
+      "n": 84,
+      "medianMs": 29.538312499999392,
+      "medianInputTokens": 71,
+      "meanInputTokens": 71.58333333333333,
+      "minInputTokens": 57,
+      "maxInputTokens": 87
+    },
+    {
+      "mode": "single",
+      "style": "short",
+      "intentId": "doom",
+      "n": 84,
+      "medianMs": 29.30866650000098,
+      "medianInputTokens": 70,
+      "meanInputTokens": 70.58333333333333,
+      "minInputTokens": 56,
+      "maxInputTokens": 86
+    },
+    {
+      "mode": "single",
+      "style": "short",
+      "intentId": "hustle",
+      "n": 84,
+      "medianMs": 29.524375000000873,
+      "medianInputTokens": 70,
+      "meanInputTokens": 70.58333333333333,
+      "minInputTokens": 56,
+      "maxInputTokens": 86
+    },
+    {
+      "mode": "single",
+      "style": "short",
+      "intentId": "dunking",
+      "n": 84,
+      "medianMs": 29.357791999997062,
+      "medianInputTokens": 69,
+      "meanInputTokens": 69.58333333333333,
+      "minInputTokens": 55,
+      "maxInputTokens": 85
+    },
+    {
+      "mode": "single",
+      "style": "short",
+      "intentId": "engagement",
+      "n": 84,
+      "medianMs": 29.437417000001005,
+      "medianInputTokens": 69,
+      "meanInputTokens": 69.58333333333333,
+      "minInputTokens": 55,
+      "maxInputTokens": 85
+    },
+    {
+      "mode": "six-filter",
+      "style": "short",
+      "intentId": "all",
+      "n": 84,
+      "medianMs": 63.308312499997555,
+      "medianInputTokens": 263,
+      "meanInputTokens": 263.5833333333333,
+      "minInputTokens": 249,
+      "maxInputTokens": 279
+    },
+    {
+      "mode": "single",
+      "style": "guided",
+      "intentId": "all",
+      "n": 504,
+      "medianMs": 29.783062500000597,
+      "medianInputTokens": 77,
+      "meanInputTokens": 76.75,
+      "minInputTokens": 60,
+      "maxInputTokens": 94
+    },
+    {
+      "mode": "single",
+      "style": "guided",
+      "intentId": "rudeness",
+      "n": 84,
+      "medianMs": 29.785354499997993,
+      "medianInputTokens": 76,
+      "meanInputTokens": 76.58333333333333,
+      "minInputTokens": 62,
+      "maxInputTokens": 92
+    },
+    {
+      "mode": "single",
+      "style": "guided",
+      "intentId": "humblebrag",
+      "n": 84,
+      "medianMs": 29.784520499997598,
+      "medianInputTokens": 77,
+      "meanInputTokens": 77.58333333333333,
+      "minInputTokens": 63,
+      "maxInputTokens": 93
+    },
+    {
+      "mode": "single",
+      "style": "guided",
+      "intentId": "doom",
+      "n": 84,
+      "medianMs": 29.767563000001246,
+      "medianInputTokens": 76,
+      "meanInputTokens": 76.58333333333333,
+      "minInputTokens": 62,
+      "maxInputTokens": 92
+    },
+    {
+      "mode": "single",
+      "style": "guided",
+      "intentId": "hustle",
+      "n": 84,
+      "medianMs": 29.876916500000334,
+      "medianInputTokens": 78,
+      "meanInputTokens": 78.58333333333333,
+      "minInputTokens": 64,
+      "maxInputTokens": 94
+    },
+    {
+      "mode": "single",
+      "style": "guided",
+      "intentId": "dunking",
+      "n": 84,
+      "medianMs": 29.859583499997825,
+      "medianInputTokens": 76,
+      "meanInputTokens": 76.58333333333333,
+      "minInputTokens": 62,
+      "maxInputTokens": 92
+    },
+    {
+      "mode": "single",
+      "style": "guided",
+      "intentId": "engagement",
+      "n": 84,
+      "medianMs": 29.722666999999092,
+      "medianInputTokens": 74,
+      "meanInputTokens": 74.58333333333333,
+      "minInputTokens": 60,
+      "maxInputTokens": 90
+    },
+    {
+      "mode": "six-filter",
+      "style": "guided",
+      "intentId": "all",
+      "n": 84,
+      "medianMs": 65.33712549999836,
+      "medianInputTokens": 302,
+      "meanInputTokens": 302.5833333333333,
+      "minInputTokens": 288,
+      "maxInputTokens": 318
+    },
+    {
+      "mode": "single",
+      "style": "guidedExclusion",
+      "intentId": "all",
+      "n": 504,
+      "medianMs": 30.16968750000069,
+      "medianInputTokens": 83,
+      "meanInputTokens": 82.58333333333333,
+      "minInputTokens": 67,
+      "maxInputTokens": 99
+    },
+    {
+      "mode": "single",
+      "style": "guidedExclusion",
+      "intentId": "rudeness",
+      "n": 84,
+      "medianMs": 30.055167000000893,
+      "medianInputTokens": 81,
+      "meanInputTokens": 81.58333333333333,
+      "minInputTokens": 67,
+      "maxInputTokens": 97
+    },
+    {
+      "mode": "single",
+      "style": "guidedExclusion",
+      "intentId": "humblebrag",
+      "n": 84,
+      "medianMs": 30.217020999998567,
+      "medianInputTokens": 83,
+      "meanInputTokens": 83.58333333333333,
+      "minInputTokens": 69,
+      "maxInputTokens": 99
+    },
+    {
+      "mode": "single",
+      "style": "guidedExclusion",
+      "intentId": "doom",
+      "n": 84,
+      "medianMs": 30.19579149999845,
+      "medianInputTokens": 82,
+      "meanInputTokens": 82.58333333333333,
+      "minInputTokens": 68,
+      "maxInputTokens": 98
+    },
+    {
+      "mode": "single",
+      "style": "guidedExclusion",
+      "intentId": "hustle",
+      "n": 84,
+      "medianMs": 30.214187500000207,
+      "medianInputTokens": 83,
+      "meanInputTokens": 83.58333333333333,
+      "minInputTokens": 69,
+      "maxInputTokens": 99
+    },
+    {
+      "mode": "single",
+      "style": "guidedExclusion",
+      "intentId": "dunking",
+      "n": 84,
+      "medianMs": 30.2751874999999,
+      "medianInputTokens": 82,
+      "meanInputTokens": 82.58333333333333,
+      "minInputTokens": 68,
+      "maxInputTokens": 98
+    },
+    {
+      "mode": "single",
+      "style": "guidedExclusion",
+      "intentId": "engagement",
+      "n": 84,
+      "medianMs": 30.06206249999923,
+      "medianInputTokens": 81,
+      "meanInputTokens": 81.58333333333333,
+      "minInputTokens": 67,
+      "maxInputTokens": 97
+    },
+    {
+      "mode": "six-filter",
+      "style": "guidedExclusion",
+      "intentId": "all",
+      "n": 84,
+      "medianMs": 67.23927100000219,
+      "medianInputTokens": 337,
+      "meanInputTokens": 337.5833333333333,
+      "minInputTokens": 323,
+      "maxInputTokens": 353
+    }
+  ],
+  "interference": [
+    {
+      "style": "short",
+      "intentId": "all",
+      "population": "headline",
+      "n": 482,
+      "medianAbsDelta": 0.0244316185616283,
+      "worstAbsDelta": 0.1727404522946958,
+      "flips": 40
+    },
+    {
+      "style": "short",
+      "intentId": "all",
+      "population": "allIncludingAmbiguous",
+      "n": 504,
+      "medianAbsDelta": 0.024343057092016562,
+      "worstAbsDelta": 0.1727404522946958,
+      "flips": 41
+    },
+    {
+      "style": "short",
+      "intentId": "rudeness",
+      "population": "headline",
+      "n": 75,
+      "medianAbsDelta": 0.008390940824413967,
+      "worstAbsDelta": 0.10842712271479132,
+      "flips": 1
+    },
+    {
+      "style": "short",
+      "intentId": "rudeness",
+      "population": "allIncludingAmbiguous",
+      "n": 84,
+      "medianAbsDelta": 0.009152345562274497,
+      "worstAbsDelta": 0.10842712271479132,
+      "flips": 1
+    },
+    {
+      "style": "short",
+      "intentId": "humblebrag",
+      "population": "headline",
+      "n": 81,
+      "medianAbsDelta": 0.018495957378816805,
+      "worstAbsDelta": 0.10595706042834174,
+      "flips": 9
+    },
+    {
+      "style": "short",
+      "intentId": "humblebrag",
+      "population": "allIncludingAmbiguous",
+      "n": 84,
+      "medianAbsDelta": 0.01833349485505397,
+      "worstAbsDelta": 0.10595706042834174,
+      "flips": 9
+    },
+    {
+      "style": "short",
+      "intentId": "doom",
+      "population": "headline",
+      "n": 84,
+      "medianAbsDelta": 0.025564349673498146,
+      "worstAbsDelta": 0.12105045647996318,
+      "flips": 3
+    },
+    {
+      "style": "short",
+      "intentId": "doom",
+      "population": "allIncludingAmbiguous",
+      "n": 84,
+      "medianAbsDelta": 0.025564349673498146,
+      "worstAbsDelta": 0.12105045647996318,
+      "flips": 3
+    },
+    {
+      "style": "short",
+      "intentId": "hustle",
+      "population": "headline",
+      "n": 83,
+      "medianAbsDelta": 0.036929693317995754,
+      "worstAbsDelta": 0.16895186700665588,
+      "flips": 9
+    },
+    {
+      "style": "short",
+      "intentId": "hustle",
+      "population": "allIncludingAmbiguous",
+      "n": 84,
+      "medianAbsDelta": 0.0377134220961413,
+      "worstAbsDelta": 0.16895186700665588,
+      "flips": 9
+    },
+    {
+      "style": "short",
+      "intentId": "dunking",
+      "population": "headline",
+      "n": 79,
+      "medianAbsDelta": 0.020049475585616983,
+      "worstAbsDelta": 0.10971794240177357,
+      "flips": 11
+    },
+    {
+      "style": "short",
+      "intentId": "dunking",
+      "population": "allIncludingAmbiguous",
+      "n": 84,
+      "medianAbsDelta": 0.019703936905304364,
+      "worstAbsDelta": 0.10971794240177357,
+      "flips": 11
+    },
+    {
+      "style": "short",
+      "intentId": "engagement",
+      "population": "headline",
+      "n": 80,
+      "medianAbsDelta": 0.03318510685703391,
+      "worstAbsDelta": 0.1727404522946958,
+      "flips": 7
+    },
+    {
+      "style": "short",
+      "intentId": "engagement",
+      "population": "allIncludingAmbiguous",
+      "n": 84,
+      "medianAbsDelta": 0.033419353129566995,
+      "worstAbsDelta": 0.1727404522946958,
+      "flips": 8
+    },
+    {
+      "style": "guided",
+      "intentId": "all",
+      "population": "headline",
+      "n": 482,
+      "medianAbsDelta": 0.012474483166659459,
+      "worstAbsDelta": 0.3398453670338396,
+      "flips": 28
+    },
+    {
+      "style": "guided",
+      "intentId": "all",
+      "population": "allIncludingAmbiguous",
+      "n": 504,
+      "medianAbsDelta": 0.01277588855844302,
+      "worstAbsDelta": 0.3398453670338396,
+      "flips": 28
+    },
+    {
+      "style": "guided",
+      "intentId": "rudeness",
+      "population": "headline",
+      "n": 75,
+      "medianAbsDelta": 0.012416052044384965,
+      "worstAbsDelta": 0.1332872683125334,
+      "flips": 4
+    },
+    {
+      "style": "guided",
+      "intentId": "rudeness",
+      "population": "allIncludingAmbiguous",
+      "n": 84,
+      "medianAbsDelta": 0.011933202214205872,
+      "worstAbsDelta": 0.1332872683125334,
+      "flips": 4
+    },
+    {
+      "style": "guided",
+      "intentId": "humblebrag",
+      "population": "headline",
+      "n": 81,
+      "medianAbsDelta": 0.021668030374283498,
+      "worstAbsDelta": 0.09562573286367315,
+      "flips": 4
+    },
+    {
+      "style": "guided",
+      "intentId": "humblebrag",
+      "population": "allIncludingAmbiguous",
+      "n": 84,
+      "medianAbsDelta": 0.02162802075271906,
+      "worstAbsDelta": 0.12468244498493802,
+      "flips": 4
+    },
+    {
+      "style": "guided",
+      "intentId": "doom",
+      "population": "headline",
+      "n": 84,
+      "medianAbsDelta": 0.008358852295936026,
+      "worstAbsDelta": 0.1996222373852144,
+      "flips": 3
+    },
+    {
+      "style": "guided",
+      "intentId": "doom",
+      "population": "allIncludingAmbiguous",
+      "n": 84,
+      "medianAbsDelta": 0.008358852295936026,
+      "worstAbsDelta": 0.1996222373852144,
+      "flips": 3
+    },
+    {
+      "style": "guided",
+      "intentId": "hustle",
+      "population": "headline",
+      "n": 83,
+      "medianAbsDelta": 0.02615689522111596,
+      "worstAbsDelta": 0.3398453670338396,
+      "flips": 7
+    },
+    {
+      "style": "guided",
+      "intentId": "hustle",
+      "population": "allIncludingAmbiguous",
+      "n": 84,
+      "medianAbsDelta": 0.027350228149067297,
+      "worstAbsDelta": 0.3398453670338396,
+      "flips": 7
+    },
+    {
+      "style": "guided",
+      "intentId": "dunking",
+      "population": "headline",
+      "n": 79,
+      "medianAbsDelta": 0.014829153016777896,
+      "worstAbsDelta": 0.13591387512196648,
+      "flips": 6
+    },
+    {
+      "style": "guided",
+      "intentId": "dunking",
+      "population": "allIncludingAmbiguous",
+      "n": 84,
+      "medianAbsDelta": 0.015967706226439067,
+      "worstAbsDelta": 0.13591387512196648,
+      "flips": 6
+    },
+    {
+      "style": "guided",
+      "intentId": "engagement",
+      "population": "headline",
+      "n": 80,
+      "medianAbsDelta": 0.004612669217061986,
+      "worstAbsDelta": 0.2488531050644628,
+      "flips": 4
+    },
+    {
+      "style": "guided",
+      "intentId": "engagement",
+      "population": "allIncludingAmbiguous",
+      "n": 84,
+      "medianAbsDelta": 0.0050809426426062804,
+      "worstAbsDelta": 0.2488531050644628,
+      "flips": 4
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "all",
+      "population": "headline",
+      "n": 482,
+      "medianAbsDelta": 0.015872111468870867,
+      "worstAbsDelta": 0.3723935898859804,
+      "flips": 25
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "all",
+      "population": "allIncludingAmbiguous",
+      "n": 504,
+      "medianAbsDelta": 0.016225014839273105,
+      "worstAbsDelta": 0.3723935898859804,
+      "flips": 29
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "rudeness",
+      "population": "headline",
+      "n": 75,
+      "medianAbsDelta": 0.007625280138469706,
+      "worstAbsDelta": 0.1980655330067596,
+      "flips": 5
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "rudeness",
+      "population": "allIncludingAmbiguous",
+      "n": 84,
+      "medianAbsDelta": 0.009078617561259755,
+      "worstAbsDelta": 0.1980655330067596,
+      "flips": 6
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "humblebrag",
+      "population": "headline",
+      "n": 81,
+      "medianAbsDelta": 0.01829845180133753,
+      "worstAbsDelta": 0.17804612166886769,
+      "flips": 8
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "humblebrag",
+      "population": "allIncludingAmbiguous",
+      "n": 84,
+      "medianAbsDelta": 0.01855340319221022,
+      "worstAbsDelta": 0.17804612166886769,
+      "flips": 8
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "doom",
+      "population": "headline",
+      "n": 84,
+      "medianAbsDelta": 0.009613814111260603,
+      "worstAbsDelta": 0.2202119852742897,
+      "flips": 2
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "doom",
+      "population": "allIncludingAmbiguous",
+      "n": 84,
+      "medianAbsDelta": 0.009613814111260603,
+      "worstAbsDelta": 0.2202119852742897,
+      "flips": 2
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "hustle",
+      "population": "headline",
+      "n": 83,
+      "medianAbsDelta": 0.033737347213946,
+      "worstAbsDelta": 0.3723935898859804,
+      "flips": 5
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "hustle",
+      "population": "allIncludingAmbiguous",
+      "n": 84,
+      "medianAbsDelta": 0.033668586553922714,
+      "worstAbsDelta": 0.3723935898859804,
+      "flips": 5
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "dunking",
+      "population": "headline",
+      "n": 79,
+      "medianAbsDelta": 0.023116285139614612,
+      "worstAbsDelta": 0.2218104768889066,
+      "flips": 4
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "dunking",
+      "population": "allIncludingAmbiguous",
+      "n": 84,
+      "medianAbsDelta": 0.0254583236879311,
+      "worstAbsDelta": 0.2218104768889066,
+      "flips": 6
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "engagement",
+      "population": "headline",
+      "n": 80,
+      "medianAbsDelta": 0.007689232175774101,
+      "worstAbsDelta": 0.17139200513123584,
+      "flips": 1
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "engagement",
+      "population": "allIncludingAmbiguous",
+      "n": 84,
+      "medianAbsDelta": 0.00809729539682735,
+      "worstAbsDelta": 0.17139200513123584,
+      "flips": 2
+    }
+  ],
+  "interferenceFlips": [
+    {
+      "style": "short",
+      "postId": "a-doom-02",
+      "intentId": "engagement",
+      "text": "Every institution is rotten and every system is failing at once. Voting won't help, protesting won't help. Enjoy the decline I guess.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.32634181550777835,
+      "multiProbability": 0.22717875457117384,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "b-dunking-02",
+      "intentId": "hustle",
+      "text": "Found a guy on here who put \"irregardless thinker\" in his bio unironically. Screenshotting before he deletes it, you all need to see this",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.35920153741225946,
+      "multiProbability": 0.2756565974259392,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "a-doom-07",
+      "intentId": "dunking",
+      "text": "me making a five-year plan as if any of this is still standing in five years 🤡",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2914751298753734,
+      "multiProbability": 0.23043971329094637,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "b-engagement-05",
+      "intentId": "hustle",
+      "text": "Drop your city and I'll tell you something about it 🙏 let's see how far this goes",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.27091952359285476,
+      "multiProbability": 0.3006452960531861,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "short",
+      "postId": "a-rudeness-05",
+      "intentId": "dunking",
+      "text": "Hot take: if you still use light mode you're a child and your opinion on anything is worthless. Fight me.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.30016393781978806,
+      "multiProbability": 0.2586048300816032,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "b-hustle-03",
+      "intentId": "humblebrag",
+      "text": "Everyone wants the results, nobody wants to miss the birthday parties. Haven't taken a weekend off in 3 years and I'd do it again tomorrow 💪",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.26311913784221697,
+      "multiProbability": 0.29332229919808805,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "short",
+      "postId": "a-humblebrag-14",
+      "intentId": "engagement",
+      "text": "Thread of underrated board games for two-player nights. Add yours below 👇",
+      "gold": false,
+      "ambiguous": true,
+      "singleProbability": 0.3820092575220549,
+      "multiProbability": 0.272610905387662,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "b-dunking-01",
+      "intentId": "dunking",
+      "text": "someone in my replies just said the Great Wall is visible from the moon with their whole chest 💀 ratio this person into orbit",
+      "gold": true,
+      "ambiguous": false,
+      "singleProbability": 0.3358534660175181,
+      "multiProbability": 0.28051652137462635,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "short",
+      "postId": "a-doom-05",
+      "intentId": "dunking",
+      "text": "Don't bother saving for retirement. There won't be an economy left by the time you're 60. Spend it now 🔥",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2827937431774971,
+      "multiProbability": 0.2923174571332194,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "short",
+      "postId": "a-humblebrag-08",
+      "intentId": "humblebrag",
+      "text": "Weird how a PhD and two published books still don't help me fold a fitted sheet 🙃",
+      "gold": true,
+      "ambiguous": false,
+      "singleProbability": 0.30610086983578294,
+      "multiProbability": 0.28357734450923894,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "short",
+      "postId": "a-humblebrag-08",
+      "intentId": "hustle",
+      "text": "Weird how a PhD and two published books still don't help me fold a fitted sheet 🙃",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.20414138792345835,
+      "multiProbability": 0.321835298759824,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "short",
+      "postId": "a-humblebrag-03",
+      "intentId": "hustle",
+      "text": "Nobody warns you how hard it is to park a car this wide. The new one barely fits in the garage at the lake house lol",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.14701605508709767,
+      "multiProbability": 0.31022519223595324,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "short",
+      "postId": "b-engagement-06",
+      "intentId": "humblebrag",
+      "text": "be honest. how many tabs do you have open right now",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.34779225444389045,
+      "multiProbability": 0.25520147924909714,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "b-engagement-06",
+      "intentId": "engagement",
+      "text": "be honest. how many tabs do you have open right now",
+      "gold": true,
+      "ambiguous": false,
+      "singleProbability": 0.441132343459797,
+      "multiProbability": 0.2891320016044424,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "short",
+      "postId": "b-dunking-05",
+      "intentId": "dunking",
+      "text": "random account with 12 followers just tried to explain inflation to me and it's the dumbest thing I've read all year. go look before he figures it out",
+      "gold": true,
+      "ambiguous": false,
+      "singleProbability": 0.33336713524503175,
+      "multiProbability": 0.27562790856199915,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "short",
+      "postId": "a-doom-04",
+      "intentId": "dunking",
+      "text": "nothing works anymore. roads, hospitals, the internet, people. it's all crumbling and there is no bottom",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.32323371581378,
+      "multiProbability": 0.22747629216668425,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "a-rudeness-11",
+      "intentId": "engagement",
+      "text": "Someone replied 'stay soft, stay irrelevant' to my post about my grandma's soup recipe. Why are people like this? Blocking and moving on.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.31089713693354365,
+      "multiProbability": 0.23692695207412212,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "a-doom-03",
+      "intentId": "dunking",
+      "text": "Kids born today will never know a stable world. The collapse already started and anyone telling you otherwise is coping.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.31855141067379444,
+      "multiProbability": 0.20883346827202087,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "a-doom-03",
+      "intentId": "engagement",
+      "text": "Kids born today will never know a stable world. The collapse already started and anyone telling you otherwise is coping.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.39643632790118777,
+      "multiProbability": 0.2778575924106686,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "b-hustle-14",
+      "intentId": "hustle",
+      "text": "the bus driver this morning waited for a guy sprinting half a block. small kindnesses, man.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.33495149664435153,
+      "multiProbability": 0.2746265270548353,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "b-engagement-04",
+      "intentId": "rudeness",
+      "text": "which one are you at a party: A) in the kitchen B) petting the dog C) leaving without saying bye D) the DJ nobody asked for",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.286355861787198,
+      "multiProbability": 0.3088278406801,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "short",
+      "postId": "b-engagement-04",
+      "intentId": "humblebrag",
+      "text": "which one are you at a party: A) in the kitchen B) petting the dog C) leaving without saying bye D) the DJ nobody asked for",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2852447097904261,
+      "multiProbability": 0.30341574212171724,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "short",
+      "postId": "a-rudeness-07",
+      "intentId": "hustle",
+      "text": "Love how people with 40 followers think I owe them a reply. Anyway.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2476320032434699,
+      "multiProbability": 0.29115802527700835,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "short",
+      "postId": "a-doom-11",
+      "intentId": "hustle",
+      "text": "Rent in this city is brutal right now. Our tenants' group meets Thursday to push the council vote, come if you can.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.1914086180621706,
+      "multiProbability": 0.32966030685831926,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "short",
+      "postId": "b-hustle-11",
+      "intentId": "doom",
+      "text": "Worked 70-hour weeks for two years at my first startup. Ended up in the ER with a heart arrhythmia at 29. Please don't romanticise this.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.30715104263113013,
+      "multiProbability": 0.28036521526616054,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "b-dunking-04",
+      "intentId": "hustle",
+      "text": "Imagine misspelling your own bakery's name on the sign and then posting it proudly. Sir. SIR. 😂",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.32755320359114903,
+      "multiProbability": 0.26477423179934256,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "a-rudeness-02",
+      "intentId": "hustle",
+      "text": "Not reading your thread. Didn't read the last one either. Nobody did. Stop tagging me.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.3251999468601413,
+      "multiProbability": 0.2889995266093068,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "b-engagement-13",
+      "intentId": "doom",
+      "text": "the trees on my street went from green to orange in like 3 days. autumn does not ease in.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.27020333686893666,
+      "multiProbability": 0.30079164896724586,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "short",
+      "postId": "b-engagement-11",
+      "intentId": "dunking",
+      "text": "so tired of \"wrong answers only\" posts. every timeline is just strangers doing free content for some account's reach.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2593802981226149,
+      "multiProbability": 0.29666587717767723,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "short",
+      "postId": "b-engagement-11",
+      "intentId": "engagement",
+      "text": "so tired of \"wrong answers only\" posts. every timeline is just strangers doing free content for some account's reach.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.26636935872246187,
+      "multiProbability": 0.3032465178958512,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "short",
+      "postId": "a-humblebrag-10",
+      "intentId": "dunking",
+      "text": "Genuinely exhausted. Worked a double, missed the bus, and the landlord raised rent again. Just need to vent.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.34180289625022287,
+      "multiProbability": 0.28746960134327426,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "a-rudeness-10",
+      "intentId": "doom",
+      "text": "There's a whole genre of account now that just insults strangers for engagement. 'Fight me' is not a personality. Being decent costs nothing.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2857624106609891,
+      "multiProbability": 0.3227511174419918,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "short",
+      "postId": "a-doom-08",
+      "intentId": "dunking",
+      "text": "Another 'record' summer. See you all at the next one. Back to scrolling, not like any of it matters.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.298725047881527,
+      "multiProbability": 0.25961865389025157,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "b-dunking-08",
+      "intentId": "humblebrag",
+      "text": "someone said they \"invented\" putting ice cream in espresso and I want to gently let them know affogato exists. but I won't. I'll just post it here instead 🙂",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.32871095395104216,
+      "multiProbability": 0.2901936847223371,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "b-dunking-08",
+      "intentId": "engagement",
+      "text": "someone said they \"invented\" putting ice cream in espresso and I want to gently let them know affogato exists. but I won't. I'll just post it here instead 🙂",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.3154712878762334,
+      "multiProbability": 0.2669346574207227,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "a-doom-06",
+      "intentId": "humblebrag",
+      "text": "Cute that people are still planting trees like there's going to be a 2050 🌱",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.3228399682928745,
+      "multiProbability": 0.2816984603520648,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "b-hustle-02",
+      "intentId": "humblebrag",
+      "text": "Nobody's coming to save you. 100-hour weeks until the vision is real. Sleep is for people who already made it.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.27996959452573666,
+      "multiProbability": 0.3183323409636244,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "short",
+      "postId": "b-dunking-10",
+      "intentId": "humblebrag",
+      "text": "I once replied \"congrats!!\" to a post about someone's dog passing away. I think about it weekly. anyway that's my entry for embarrassing-yourself week",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2924164487244972,
+      "multiProbability": 0.2868209429907388,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "b-dunking-10",
+      "intentId": "engagement",
+      "text": "I once replied \"congrats!!\" to a post about someone's dog passing away. I think about it weekly. anyway that's my entry for embarrassing-yourself week",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2847724494780376,
+      "multiProbability": 0.315533502912407,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "short",
+      "postId": "b-engagement-08",
+      "intentId": "humblebrag",
+      "text": "if you're seeing this you're one of the real ones. curious where everyone's tuning in from tonight 🌙",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.29098616129288885,
+      "multiProbability": 0.2688086022244381,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "short",
+      "postId": "b-dunking-03",
+      "intentId": "dunking",
+      "text": "this woman posted her \"gourmet date night dinner\" and it's one boiled hot dog with a parsley leaf on top. been laughing for 10 minutes. quote with your best roast",
+      "gold": true,
+      "ambiguous": false,
+      "singleProbability": 0.2931954936576484,
+      "multiProbability": 0.27589315523955166,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guided",
+      "postId": "a-humblebrag-10",
+      "intentId": "doom",
+      "text": "Genuinely exhausted. Worked a double, missed the bus, and the landlord raised rent again. Just need to vent.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.3891189548992012,
+      "multiProbability": 0.18949671751398678,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guided",
+      "postId": "a-rudeness-09",
+      "intentId": "doom",
+      "text": "Honest feedback: the new season falls apart after episode 3. The dialogue feels rushed and the ending doesn't earn its twist.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.30088636512879635,
+      "multiProbability": 0.13481547283379525,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guided",
+      "postId": "a-doom-03",
+      "intentId": "rudeness",
+      "text": "Kids born today will never know a stable world. The collapse already started and anyone telling you otherwise is coping.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2810220271247509,
+      "multiProbability": 0.4032883558762589,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guided",
+      "postId": "a-doom-03",
+      "intentId": "hustle",
+      "text": "Kids born today will never know a stable world. The collapse already started and anyone telling you otherwise is coping.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.24231694262122466,
+      "multiProbability": 0.33078261353869126,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guided",
+      "postId": "b-engagement-14",
+      "intentId": "hustle",
+      "text": "Fixed the squeaky door hinge with a bit of olive oil. Felt like a hardware wizard for about an hour.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.20635013075533007,
+      "multiProbability": 0.3069786810657432,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guided",
+      "postId": "b-dunking-07",
+      "intentId": "hustle",
+      "text": "Love that this guy's \"how I made my first 10k\" thread ends with him asking for gas money. Truly inspiring stuff.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.43759918332411196,
+      "multiProbability": 0.240746158083529,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guided",
+      "postId": "a-rudeness-01",
+      "intentId": "hustle",
+      "text": "imagine being this mid and still posting your opinions. couldn't be me. some of y'all should just log off permanently",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.3345000503804679,
+      "multiProbability": 0.25199689143308646,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guided",
+      "postId": "a-rudeness-01",
+      "intentId": "dunking",
+      "text": "imagine being this mid and still posting your opinions. couldn't be me. some of y'all should just log off permanently",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.30349321426534753,
+      "multiProbability": 0.22496745676819713,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guided",
+      "postId": "b-engagement-03",
+      "intentId": "engagement",
+      "text": "Name a movie everyone loves that you secretly can't stand. I'll start in the replies 👀",
+      "gold": true,
+      "ambiguous": false,
+      "singleProbability": 0.3385403596852913,
+      "multiProbability": 0.25651611154191156,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guided",
+      "postId": "b-engagement-07",
+      "intentId": "engagement",
+      "text": "unpopular opinion: cereal is a soup. not taking questions but I will be reading every single reply.",
+      "gold": true,
+      "ambiguous": false,
+      "singleProbability": 0.11031272213576104,
+      "multiProbability": 0.33509844463196864,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guided",
+      "postId": "a-rudeness-11",
+      "intentId": "dunking",
+      "text": "Someone replied 'stay soft, stay irrelevant' to my post about my grandma's soup recipe. Why are people like this? Blocking and moving on.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2590328511488952,
+      "multiProbability": 0.35886874110066547,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guided",
+      "postId": "a-doom-07",
+      "intentId": "dunking",
+      "text": "me making a five-year plan as if any of this is still standing in five years 🤡",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2605629191091202,
+      "multiProbability": 0.32833610121502443,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guided",
+      "postId": "b-dunking-06",
+      "intentId": "hustle",
+      "text": "not me reading a stranger's 2,000 word thread about why they quit their book club and pouring a fresh coffee for it ☕🍿",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2722003319282801,
+      "multiProbability": 0.3140422474898773,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guided",
+      "postId": "a-rudeness-02",
+      "intentId": "rudeness",
+      "text": "Not reading your thread. Didn't read the last one either. Nobody did. Stop tagging me.",
+      "gold": true,
+      "ambiguous": false,
+      "singleProbability": 0.3329009192576669,
+      "multiProbability": 0.24732059077598098,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guided",
+      "postId": "a-humblebrag-02",
+      "intentId": "humblebrag",
+      "text": "Still processing that I was picked for the regional 30 under 30 list. I honestly don't know why they chose me, I just show up every day and do the work 🙏",
+      "gold": true,
+      "ambiguous": false,
+      "singleProbability": 0.31911775726134556,
+      "multiProbability": 0.28792698952711815,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guided",
+      "postId": "a-rudeness-07",
+      "intentId": "rudeness",
+      "text": "Love how people with 40 followers think I owe them a reply. Anyway.",
+      "gold": true,
+      "ambiguous": false,
+      "singleProbability": 0.2527473134633532,
+      "multiProbability": 0.3860345817758866,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guided",
+      "postId": "b-engagement-11",
+      "intentId": "rudeness",
+      "text": "so tired of \"wrong answers only\" posts. every timeline is just strangers doing free content for some account's reach.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.26848510378870555,
+      "multiProbability": 0.2939473360208595,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guided",
+      "postId": "b-engagement-11",
+      "intentId": "dunking",
+      "text": "so tired of \"wrong answers only\" posts. every timeline is just strangers doing free content for some account's reach.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.3060140139433227,
+      "multiProbability": 0.21438442386732356,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guided",
+      "postId": "b-dunking-13",
+      "intentId": "doom",
+      "text": "my cat has decided the printer is her bed now. I no longer print things. this is my life.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.30601969285268266,
+      "multiProbability": 0.15349777172626025,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guided",
+      "postId": "b-dunking-04",
+      "intentId": "dunking",
+      "text": "Imagine misspelling your own bakery's name on the sign and then posting it proudly. Sir. SIR. 😂",
+      "gold": true,
+      "ambiguous": false,
+      "singleProbability": 0.19922707146512214,
+      "multiProbability": 0.3263048198267573,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guided",
+      "postId": "b-dunking-09",
+      "intentId": "humblebrag",
+      "text": "Please stop screenshotting regular people's bad takes for clout. They have 40 followers. You're just sending your audience to bully someone.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2930410943495373,
+      "multiProbability": 0.24052686005648838,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guided",
+      "postId": "b-dunking-09",
+      "intentId": "dunking",
+      "text": "Please stop screenshotting regular people's bad takes for clout. They have 40 followers. You're just sending your audience to bully someone.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2977308150055808,
+      "multiProbability": 0.2698772338677121,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guided",
+      "postId": "a-rudeness-05",
+      "intentId": "humblebrag",
+      "text": "Hot take: if you still use light mode you're a child and your opinion on anything is worthless. Fight me.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2543394000966326,
+      "multiProbability": 0.29277185912424986,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guided",
+      "postId": "a-rudeness-03",
+      "intentId": "humblebrag",
+      "text": "I don't do 'nice.' If my reply hurt your feelings that's a you problem 💅 Stay soft, stay irrelevant.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.28016484557921556,
+      "multiProbability": 0.320338367611946,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guided",
+      "postId": "a-rudeness-14",
+      "intentId": "engagement",
+      "text": "Anyone have a lentil soup recipe that isn't bland? Need something warm for this cold week.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2094826732764779,
+      "multiProbability": 0.39857243131808373,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guided",
+      "postId": "a-humblebrag-12",
+      "intentId": "hustle",
+      "text": "Small win: finished my first 5k without walking. Probably the slowest person there, but I'm proud of me.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.20721986829272965,
+      "multiProbability": 0.29117936530438704,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guided",
+      "postId": "a-doom-01",
+      "intentId": "hustle",
+      "text": "It's over. Housing, jobs, climate, all of it. There's no fixing any of this, we're just watching the last chapter play out.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.3768176381405533,
+      "multiProbability": 0.259138935843193,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guided",
+      "postId": "b-engagement-05",
+      "intentId": "engagement",
+      "text": "Drop your city and I'll tell you something about it 🙏 let's see how far this goes",
+      "gold": true,
+      "ambiguous": false,
+      "singleProbability": 0.29499993464480895,
+      "multiProbability": 0.17855403038357873,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "b-dunking-02",
+      "intentId": "rudeness",
+      "text": "Found a guy on here who put \"irregardless thinker\" in his bio unironically. Screenshotting before he deletes it, you all need to see this",
+      "gold": false,
+      "ambiguous": true,
+      "singleProbability": 0.2547437662095925,
+      "multiProbability": 0.29580489414962513,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "a-humblebrag-08",
+      "intentId": "rudeness",
+      "text": "Weird how a PhD and two published books still don't help me fold a fitted sheet 🙃",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.26174055228793847,
+      "multiProbability": 0.31853453844707225,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "a-rudeness-02",
+      "intentId": "rudeness",
+      "text": "Not reading your thread. Didn't read the last one either. Nobody did. Stop tagging me.",
+      "gold": true,
+      "ambiguous": false,
+      "singleProbability": 0.3375988030687389,
+      "multiProbability": 0.26598263766258357,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "a-rudeness-02",
+      "intentId": "dunking",
+      "text": "Not reading your thread. Didn't read the last one either. Nobody did. Stop tagging me.",
+      "gold": false,
+      "ambiguous": true,
+      "singleProbability": 0.28712064166829726,
+      "multiProbability": 0.39689931897330194,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "b-engagement-14",
+      "intentId": "hustle",
+      "text": "Fixed the squeaky door hinge with a bit of olive oil. Felt like a hardware wizard for about an hour.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.28203166921654316,
+      "multiProbability": 0.2911787766016161,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "a-doom-03",
+      "intentId": "rudeness",
+      "text": "Kids born today will never know a stable world. The collapse already started and anyone telling you otherwise is coping.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2863966658809608,
+      "multiProbability": 0.45594376142289617,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "b-engagement-06",
+      "intentId": "hustle",
+      "text": "be honest. how many tabs do you have open right now",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.4071592525601462,
+      "multiProbability": 0.2148322557454711,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "a-rudeness-07",
+      "intentId": "dunking",
+      "text": "Love how people with 40 followers think I owe them a reply. Anyway.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2728563033939133,
+      "multiProbability": 0.43334289794081454,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "b-hustle-02",
+      "intentId": "humblebrag",
+      "text": "Nobody's coming to save you. 100-hour weeks until the vision is real. Sleep is for people who already made it.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.33680497390100267,
+      "multiProbability": 0.27968980314140107,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "b-hustle-02",
+      "intentId": "doom",
+      "text": "Nobody's coming to save you. 100-hour weeks until the vision is real. Sleep is for people who already made it.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.3648369620173497,
+      "multiProbability": 0.2329740901763723,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "a-rudeness-13",
+      "intentId": "dunking",
+      "text": "finally repotted the monstera and it immediately dropped a leaf out of spite 🌿",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2653744852192388,
+      "multiProbability": 0.3537665633585796,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "a-humblebrag-11",
+      "intentId": "dunking",
+      "text": "Every 'so humbled to announce' post on here could just say 'I did a cool thing!' and honestly I'd like it more. Just say you're proud.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.22695829957011346,
+      "multiProbability": 0.32469596380282917,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "a-humblebrag-04",
+      "intentId": "humblebrag",
+      "text": "My biggest flaw is that I care too much. My manager literally had to force me to take time off after I closed the quarter at 220% of target 😅",
+      "gold": true,
+      "ambiguous": false,
+      "singleProbability": 0.32749799766038923,
+      "multiProbability": 0.27301804444148825,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "a-rudeness-08",
+      "intentId": "dunking",
+      "text": "sorry, I don't speak whatever this is. try again in a full sentence 🙂",
+      "gold": false,
+      "ambiguous": true,
+      "singleProbability": 0.21772801368637415,
+      "multiProbability": 0.33120579284155927,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "a-humblebrag-07",
+      "intentId": "humblebrag",
+      "text": "me: I'll keep training low-key this year\nalso me: accidentally runs a sub-3 marathon on an easy day 🤷",
+      "gold": true,
+      "ambiguous": false,
+      "singleProbability": 0.33558113530211353,
+      "multiProbability": 0.2902597858648245,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "b-dunking-06",
+      "intentId": "hustle",
+      "text": "not me reading a stranger's 2,000 word thread about why they quit their book club and pouring a fresh coffee for it ☕🍿",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.3438563908796401,
+      "multiProbability": 0.2825957167478181,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "a-rudeness-05",
+      "intentId": "humblebrag",
+      "text": "Hot take: if you still use light mode you're a child and your opinion on anything is worthless. Fight me.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2725404231852347,
+      "multiProbability": 0.30391181696580555,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "b-dunking-09",
+      "intentId": "humblebrag",
+      "text": "Please stop screenshotting regular people's bad takes for clout. They have 40 followers. You're just sending your audience to bully someone.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.3038671666038908,
+      "multiProbability": 0.25919383720592554,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "a-doom-05",
+      "intentId": "doom",
+      "text": "Don't bother saving for retirement. There won't be an economy left by the time you're 60. Spend it now 🔥",
+      "gold": true,
+      "ambiguous": false,
+      "singleProbability": 0.3273015566828448,
+      "multiProbability": 0.10708957140855506,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "a-doom-04",
+      "intentId": "rudeness",
+      "text": "nothing works anymore. roads, hospitals, the internet, people. it's all crumbling and there is no bottom",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2288993737345857,
+      "multiProbability": 0.2947607780252487,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "a-rudeness-11",
+      "intentId": "rudeness",
+      "text": "Someone replied 'stay soft, stay irrelevant' to my post about my grandma's soup recipe. Why are people like this? Blocking and moving on.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.308203370118308,
+      "multiProbability": 0.2750362490798123,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "a-rudeness-03",
+      "intentId": "humblebrag",
+      "text": "I don't do 'nice.' If my reply hurt your feelings that's a you problem 💅 Stay soft, stay irrelevant.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.2548832308227909,
+      "multiProbability": 0.32592895044702386,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "b-engagement-04",
+      "intentId": "dunking",
+      "text": "which one are you at a party: A) in the kitchen B) petting the dog C) leaving without saying bye D) the DJ nobody asked for",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.19202410275155501,
+      "multiProbability": 0.33454751501338714,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "a-rudeness-04",
+      "intentId": "engagement",
+      "text": "Every single person in my replies is dumber than the last. Genuinely impressive. Keep coming, I'm farming you for engagement.",
+      "gold": false,
+      "ambiguous": true,
+      "singleProbability": 0.15355161209897084,
+      "multiProbability": 0.29252224835943935,
+      "singleCorrect": true,
+      "multiCorrect": false
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "a-doom-07",
+      "intentId": "humblebrag",
+      "text": "me making a five-year plan as if any of this is still standing in five years 🤡",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.29327441081879607,
+      "multiProbability": 0.26343061244742666,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "b-hustle-09",
+      "intentId": "hustle",
+      "text": "someone on my timeline just posted \"sleep is for the weak\" and I genuinely want to know who hurt them 😭 take a nap king",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.32661676425352326,
+      "multiProbability": 0.18574358297893337,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "a-doom-08",
+      "intentId": "humblebrag",
+      "text": "Another 'record' summer. See you all at the next one. Back to scrolling, not like any of it matters.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.40646216515023803,
+      "multiProbability": 0.26192895570946995,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "a-doom-01",
+      "intentId": "hustle",
+      "text": "It's over. Housing, jobs, climate, all of it. There's no fixing any of this, we're just watching the last chapter play out.",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.36370530047801386,
+      "multiProbability": 0.19092045457872045,
+      "singleCorrect": false,
+      "multiCorrect": true
+    },
+    {
+      "style": "guidedExclusion",
+      "postId": "b-engagement-12",
+      "intentId": "engagement",
+      "text": "Three years of teaching kids to code taught me: start with games, never with syntax, and let them break things. Curious what's worked for other teachers?",
+      "gold": false,
+      "ambiguous": false,
+      "singleProbability": 0.3689634643723742,
+      "multiProbability": 0.19757145924113836,
+      "singleCorrect": false,
+      "multiCorrect": true
+    }
+  ],
+  "bounced": [
+    {
+      "style": "short",
+      "intentId": "all",
+      "n": 48,
+      "caught": 36,
+      "missed": 12,
+      "subtleMissed": 7,
+      "failures": [
+        {
+          "postId": "a-doom-06",
+          "text": "Cute that people are still planting trees like there's going to be a 2050 🌱",
+          "kind": "subtle-positive",
+          "probability": 0.16896309313180277,
+          "cutoff": 0.290813258948728,
+          "label": "doomposting"
+        },
+        {
+          "postId": "a-humblebrag-05",
+          "text": "Three job offers in one week and now I'm losing sleep over which one to take. First-world problems, I know. Grateful though 🙏",
+          "kind": "clear-positive",
+          "probability": 0.2090057098492192,
+          "cutoff": 0.290813258948728,
+          "label": "humblebrags"
+        },
+        {
+          "postId": "a-rudeness-06",
+          "text": "Oh wow, another person discovered that coffee exists and wrote nine tweets about it. So brave. Truly. 👏",
+          "kind": "subtle-positive",
+          "probability": 0.008974062396082609,
+          "cutoff": 0.290813258948728,
+          "label": "rude posts"
+        },
+        {
+          "postId": "a-rudeness-08",
+          "text": "sorry, I don't speak whatever this is. try again in a full sentence 🙂",
+          "kind": "subtle-positive",
+          "probability": 0.26884406332995536,
+          "cutoff": 0.290813258948728,
+          "label": "rude posts"
+        },
+        {
+          "postId": "b-dunking-07",
+          "text": "Love that this guy's \"how I made my first 10k\" thread ends with him asking for gas money. Truly inspiring stuff.",
+          "kind": "subtle-positive",
+          "probability": 0.2090591772481826,
+          "cutoff": 0.290813258948728,
+          "label": "dunking"
+        },
+        {
+          "postId": "b-dunking-04",
+          "text": "Imagine misspelling your own bakery's name on the sign and then posting it proudly. Sir. SIR. 😂",
+          "kind": "clear-positive",
+          "probability": 0.2760776748813996,
+          "cutoff": 0.290813258948728,
+          "label": "dunking"
+        },
+        {
+          "postId": "a-humblebrag-06",
+          "text": "Wore a hoodie to the conference so nobody would notice me. Still ended up doing four interviews before lunch.",
+          "kind": "subtle-positive",
+          "probability": 0.2652963656122825,
+          "cutoff": 0.290813258948728,
+          "label": "humblebrags"
+        },
+        {
+          "postId": "a-humblebrag-03",
+          "text": "Nobody warns you how hard it is to park a car this wide. The new one barely fits in the garage at the lake house lol",
+          "kind": "clear-positive",
+          "probability": 0.24309224995508272,
+          "cutoff": 0.290813258948728,
+          "label": "humblebrags"
+        },
+        {
+          "postId": "b-dunking-08",
+          "text": "someone said they \"invented\" putting ice cream in espresso and I want to gently let them know affogato exists. but I won't. I'll just post it here instead 🙂",
+          "kind": "subtle-positive",
+          "probability": 0.1550984088753616,
+          "cutoff": 0.290813258948728,
+          "label": "dunking"
+        },
+        {
+          "postId": "a-rudeness-07",
+          "text": "Love how people with 40 followers think I owe them a reply. Anyway.",
+          "kind": "subtle-positive",
+          "probability": 0.17628763951845516,
+          "cutoff": 0.290813258948728,
+          "label": "rude posts"
+        },
+        {
+          "postId": "a-humblebrag-01",
+          "text": "ugh so annoying when strangers keep stopping you at the airport for selfies and you nearly miss your flight. can't even get a coffee in peace 😩",
+          "kind": "clear-positive",
+          "probability": 0.12114424342832646,
+          "cutoff": 0.290813258948728,
+          "label": "humblebrags"
+        },
+        {
+          "postId": "a-rudeness-02",
+          "text": "Not reading your thread. Didn't read the last one either. Nobody did. Stop tagging me.",
+          "kind": "clear-positive",
+          "probability": 0.1991521697826016,
+          "cutoff": 0.290813258948728,
+          "label": "rude posts"
+        }
+      ]
+    },
+    {
+      "style": "short",
+      "intentId": "rudeness",
+      "n": 8,
+      "caught": 4,
+      "missed": 4,
+      "subtleMissed": 3,
+      "failures": [
+        {
+          "postId": "a-rudeness-06",
+          "text": "Oh wow, another person discovered that coffee exists and wrote nine tweets about it. So brave. Truly. 👏",
+          "kind": "subtle-positive",
+          "probability": 0.008974062396082609,
+          "cutoff": 0.290813258948728,
+          "label": "rude posts"
+        },
+        {
+          "postId": "a-rudeness-08",
+          "text": "sorry, I don't speak whatever this is. try again in a full sentence 🙂",
+          "kind": "subtle-positive",
+          "probability": 0.26884406332995536,
+          "cutoff": 0.290813258948728,
+          "label": "rude posts"
+        },
+        {
+          "postId": "a-rudeness-07",
+          "text": "Love how people with 40 followers think I owe them a reply. Anyway.",
+          "kind": "subtle-positive",
+          "probability": 0.17628763951845516,
+          "cutoff": 0.290813258948728,
+          "label": "rude posts"
+        },
+        {
+          "postId": "a-rudeness-02",
+          "text": "Not reading your thread. Didn't read the last one either. Nobody did. Stop tagging me.",
+          "kind": "clear-positive",
+          "probability": 0.1991521697826016,
+          "cutoff": 0.290813258948728,
+          "label": "rude posts"
+        }
+      ]
+    },
+    {
+      "style": "short",
+      "intentId": "humblebrag",
+      "n": 8,
+      "caught": 4,
+      "missed": 4,
+      "subtleMissed": 1,
+      "failures": [
+        {
+          "postId": "a-humblebrag-05",
+          "text": "Three job offers in one week and now I'm losing sleep over which one to take. First-world problems, I know. Grateful though 🙏",
+          "kind": "clear-positive",
+          "probability": 0.2090057098492192,
+          "cutoff": 0.290813258948728,
+          "label": "humblebrags"
+        },
+        {
+          "postId": "a-humblebrag-06",
+          "text": "Wore a hoodie to the conference so nobody would notice me. Still ended up doing four interviews before lunch.",
+          "kind": "subtle-positive",
+          "probability": 0.2652963656122825,
+          "cutoff": 0.290813258948728,
+          "label": "humblebrags"
+        },
+        {
+          "postId": "a-humblebrag-03",
+          "text": "Nobody warns you how hard it is to park a car this wide. The new one barely fits in the garage at the lake house lol",
+          "kind": "clear-positive",
+          "probability": 0.24309224995508272,
+          "cutoff": 0.290813258948728,
+          "label": "humblebrags"
+        },
+        {
+          "postId": "a-humblebrag-01",
+          "text": "ugh so annoying when strangers keep stopping you at the airport for selfies and you nearly miss your flight. can't even get a coffee in peace 😩",
+          "kind": "clear-positive",
+          "probability": 0.12114424342832646,
+          "cutoff": 0.290813258948728,
+          "label": "humblebrags"
+        }
+      ]
+    },
+    {
+      "style": "short",
+      "intentId": "doom",
+      "n": 8,
+      "caught": 7,
+      "missed": 1,
+      "subtleMissed": 1,
+      "failures": [
+        {
+          "postId": "a-doom-06",
+          "text": "Cute that people are still planting trees like there's going to be a 2050 🌱",
+          "kind": "subtle-positive",
+          "probability": 0.16896309313180277,
+          "cutoff": 0.290813258948728,
+          "label": "doomposting"
+        }
+      ]
+    },
+    {
+      "style": "short",
+      "intentId": "hustle",
+      "n": 8,
+      "caught": 8,
+      "missed": 0,
+      "subtleMissed": 0,
+      "failures": []
+    },
+    {
+      "style": "short",
+      "intentId": "dunking",
+      "n": 8,
+      "caught": 5,
+      "missed": 3,
+      "subtleMissed": 2,
+      "failures": [
+        {
+          "postId": "b-dunking-07",
+          "text": "Love that this guy's \"how I made my first 10k\" thread ends with him asking for gas money. Truly inspiring stuff.",
+          "kind": "subtle-positive",
+          "probability": 0.2090591772481826,
+          "cutoff": 0.290813258948728,
+          "label": "dunking"
+        },
+        {
+          "postId": "b-dunking-04",
+          "text": "Imagine misspelling your own bakery's name on the sign and then posting it proudly. Sir. SIR. 😂",
+          "kind": "clear-positive",
+          "probability": 0.2760776748813996,
+          "cutoff": 0.290813258948728,
+          "label": "dunking"
+        },
+        {
+          "postId": "b-dunking-08",
+          "text": "someone said they \"invented\" putting ice cream in espresso and I want to gently let them know affogato exists. but I won't. I'll just post it here instead 🙂",
+          "kind": "subtle-positive",
+          "probability": 0.1550984088753616,
+          "cutoff": 0.290813258948728,
+          "label": "dunking"
+        }
+      ]
+    },
+    {
+      "style": "short",
+      "intentId": "engagement",
+      "n": 8,
+      "caught": 8,
+      "missed": 0,
+      "subtleMissed": 0,
+      "failures": []
+    },
+    {
+      "style": "guided",
+      "intentId": "all",
+      "n": 48,
+      "caught": 28,
+      "missed": 20,
+      "subtleMissed": 12,
+      "failures": [
+        {
+          "postId": "a-rudeness-08",
+          "text": "sorry, I don't speak whatever this is. try again in a full sentence 🙂",
+          "kind": "subtle-positive",
+          "probability": 0.2493345875024622,
+          "cutoff": 0.290813258948728,
+          "label": "posts being deliberately rude or edgy to get attention"
+        },
+        {
+          "postId": "a-doom-06",
+          "text": "Cute that people are still planting trees like there's going to be a 2050 🌱",
+          "kind": "subtle-positive",
+          "probability": 0.01363751854802415,
+          "cutoff": 0.290813258948728,
+          "label": "posts saying everything is collapsing and it's hopeless"
+        },
+        {
+          "postId": "b-engagement-02",
+          "text": "You can only eat one for the rest of your life: pizza 🍕 or tacos 🌮. go.",
+          "kind": "clear-positive",
+          "probability": 0.08613437536184351,
+          "cutoff": 0.290813258948728,
+          "label": "posts asking questions just to get replies"
+        },
+        {
+          "postId": "b-engagement-07",
+          "text": "unpopular opinion: cereal is a soup. not taking questions but I will be reading every single reply.",
+          "kind": "subtle-positive",
+          "probability": 0.11031272213576104,
+          "cutoff": 0.290813258948728,
+          "label": "posts asking questions just to get replies"
+        },
+        {
+          "postId": "a-humblebrag-05",
+          "text": "Three job offers in one week and now I'm losing sleep over which one to take. First-world problems, I know. Grateful though 🙏",
+          "kind": "clear-positive",
+          "probability": 0.11766582123381615,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble"
+        },
+        {
+          "postId": "a-humblebrag-08",
+          "text": "Weird how a PhD and two published books still don't help me fold a fitted sheet 🙃",
+          "kind": "subtle-positive",
+          "probability": 0.28988004604216294,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble"
+        },
+        {
+          "postId": "b-dunking-07",
+          "text": "Love that this guy's \"how I made my first 10k\" thread ends with him asking for gas money. Truly inspiring stuff.",
+          "kind": "subtle-positive",
+          "probability": 0.09614898031052624,
+          "cutoff": 0.290813258948728,
+          "label": "posts mocking a random person's post or mistake"
+        },
+        {
+          "postId": "a-humblebrag-06",
+          "text": "Wore a hoodie to the conference so nobody would notice me. Still ended up doing four interviews before lunch.",
+          "kind": "subtle-positive",
+          "probability": 0.27578618307415625,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble"
+        },
+        {
+          "postId": "b-hustle-03",
+          "text": "Everyone wants the results, nobody wants to miss the birthday parties. Haven't taken a weekend off in 3 years and I'd do it again tomorrow 💪",
+          "kind": "clear-positive",
+          "probability": 0.09360911527055951,
+          "cutoff": 0.290813258948728,
+          "label": "posts glorifying overwork, 5am routines and grinding"
+        },
+        {
+          "postId": "b-dunking-08",
+          "text": "someone said they \"invented\" putting ice cream in espresso and I want to gently let them know affogato exists. but I won't. I'll just post it here instead 🙂",
+          "kind": "subtle-positive",
+          "probability": 0.0710320359345667,
+          "cutoff": 0.290813258948728,
+          "label": "posts mocking a random person's post or mistake"
+        },
+        {
+          "postId": "a-rudeness-07",
+          "text": "Love how people with 40 followers think I owe them a reply. Anyway.",
+          "kind": "subtle-positive",
+          "probability": 0.2527473134633532,
+          "cutoff": 0.290813258948728,
+          "label": "posts being deliberately rude or edgy to get attention"
+        },
+        {
+          "postId": "a-humblebrag-03",
+          "text": "Nobody warns you how hard it is to park a car this wide. The new one barely fits in the garage at the lake house lol",
+          "kind": "clear-positive",
+          "probability": 0.2317988757495925,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble"
+        },
+        {
+          "postId": "b-engagement-08",
+          "text": "if you're seeing this you're one of the real ones. curious where everyone's tuning in from tonight 🌙",
+          "kind": "subtle-positive",
+          "probability": 0.19966746786572265,
+          "cutoff": 0.290813258948728,
+          "label": "posts asking questions just to get replies"
+        },
+        {
+          "postId": "b-hustle-06",
+          "text": "funny how the people who \"need balance\" are always the same people asking how I got here 🙂",
+          "kind": "subtle-positive",
+          "probability": 0.19469637125119169,
+          "cutoff": 0.290813258948728,
+          "label": "posts glorifying overwork, 5am routines and grinding"
+        },
+        {
+          "postId": "b-dunking-04",
+          "text": "Imagine misspelling your own bakery's name on the sign and then posting it proudly. Sir. SIR. 😂",
+          "kind": "clear-positive",
+          "probability": 0.19922707146512214,
+          "cutoff": 0.290813258948728,
+          "label": "posts mocking a random person's post or mistake"
+        },
+        {
+          "postId": "a-rudeness-06",
+          "text": "Oh wow, another person discovered that coffee exists and wrote nine tweets about it. So brave. Truly. 👏",
+          "kind": "subtle-positive",
+          "probability": 0.01923792232942372,
+          "cutoff": 0.290813258948728,
+          "label": "posts being deliberately rude or edgy to get attention"
+        },
+        {
+          "postId": "a-doom-08",
+          "text": "Another 'record' summer. See you all at the next one. Back to scrolling, not like any of it matters.",
+          "kind": "subtle-positive",
+          "probability": 0.12914170314335033,
+          "cutoff": 0.290813258948728,
+          "label": "posts saying everything is collapsing and it's hopeless"
+        },
+        {
+          "postId": "a-humblebrag-01",
+          "text": "ugh so annoying when strangers keep stopping you at the airport for selfies and you nearly miss your flight. can't even get a coffee in peace 😩",
+          "kind": "clear-positive",
+          "probability": 0.09818711624215763,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble"
+        },
+        {
+          "postId": "a-doom-05",
+          "text": "Don't bother saving for retirement. There won't be an economy left by the time you're 60. Spend it now 🔥",
+          "kind": "clear-positive",
+          "probability": 0.21739565616184,
+          "cutoff": 0.290813258948728,
+          "label": "posts saying everything is collapsing and it's hopeless"
+        },
+        {
+          "postId": "b-engagement-01",
+          "text": "Describe your job badly. Wrong answers only 👇",
+          "kind": "clear-positive",
+          "probability": 0.22320805082219242,
+          "cutoff": 0.290813258948728,
+          "label": "posts asking questions just to get replies"
+        }
+      ]
+    },
+    {
+      "style": "guided",
+      "intentId": "rudeness",
+      "n": 8,
+      "caught": 5,
+      "missed": 3,
+      "subtleMissed": 3,
+      "failures": [
+        {
+          "postId": "a-rudeness-08",
+          "text": "sorry, I don't speak whatever this is. try again in a full sentence 🙂",
+          "kind": "subtle-positive",
+          "probability": 0.2493345875024622,
+          "cutoff": 0.290813258948728,
+          "label": "posts being deliberately rude or edgy to get attention"
+        },
+        {
+          "postId": "a-rudeness-07",
+          "text": "Love how people with 40 followers think I owe them a reply. Anyway.",
+          "kind": "subtle-positive",
+          "probability": 0.2527473134633532,
+          "cutoff": 0.290813258948728,
+          "label": "posts being deliberately rude or edgy to get attention"
+        },
+        {
+          "postId": "a-rudeness-06",
+          "text": "Oh wow, another person discovered that coffee exists and wrote nine tweets about it. So brave. Truly. 👏",
+          "kind": "subtle-positive",
+          "probability": 0.01923792232942372,
+          "cutoff": 0.290813258948728,
+          "label": "posts being deliberately rude or edgy to get attention"
+        }
+      ]
+    },
+    {
+      "style": "guided",
+      "intentId": "humblebrag",
+      "n": 8,
+      "caught": 3,
+      "missed": 5,
+      "subtleMissed": 2,
+      "failures": [
+        {
+          "postId": "a-humblebrag-05",
+          "text": "Three job offers in one week and now I'm losing sleep over which one to take. First-world problems, I know. Grateful though 🙏",
+          "kind": "clear-positive",
+          "probability": 0.11766582123381615,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble"
+        },
+        {
+          "postId": "a-humblebrag-08",
+          "text": "Weird how a PhD and two published books still don't help me fold a fitted sheet 🙃",
+          "kind": "subtle-positive",
+          "probability": 0.28988004604216294,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble"
+        },
+        {
+          "postId": "a-humblebrag-06",
+          "text": "Wore a hoodie to the conference so nobody would notice me. Still ended up doing four interviews before lunch.",
+          "kind": "subtle-positive",
+          "probability": 0.27578618307415625,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble"
+        },
+        {
+          "postId": "a-humblebrag-03",
+          "text": "Nobody warns you how hard it is to park a car this wide. The new one barely fits in the garage at the lake house lol",
+          "kind": "clear-positive",
+          "probability": 0.2317988757495925,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble"
+        },
+        {
+          "postId": "a-humblebrag-01",
+          "text": "ugh so annoying when strangers keep stopping you at the airport for selfies and you nearly miss your flight. can't even get a coffee in peace 😩",
+          "kind": "clear-positive",
+          "probability": 0.09818711624215763,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble"
+        }
+      ]
+    },
+    {
+      "style": "guided",
+      "intentId": "doom",
+      "n": 8,
+      "caught": 5,
+      "missed": 3,
+      "subtleMissed": 2,
+      "failures": [
+        {
+          "postId": "a-doom-06",
+          "text": "Cute that people are still planting trees like there's going to be a 2050 🌱",
+          "kind": "subtle-positive",
+          "probability": 0.01363751854802415,
+          "cutoff": 0.290813258948728,
+          "label": "posts saying everything is collapsing and it's hopeless"
+        },
+        {
+          "postId": "a-doom-08",
+          "text": "Another 'record' summer. See you all at the next one. Back to scrolling, not like any of it matters.",
+          "kind": "subtle-positive",
+          "probability": 0.12914170314335033,
+          "cutoff": 0.290813258948728,
+          "label": "posts saying everything is collapsing and it's hopeless"
+        },
+        {
+          "postId": "a-doom-05",
+          "text": "Don't bother saving for retirement. There won't be an economy left by the time you're 60. Spend it now 🔥",
+          "kind": "clear-positive",
+          "probability": 0.21739565616184,
+          "cutoff": 0.290813258948728,
+          "label": "posts saying everything is collapsing and it's hopeless"
+        }
+      ]
+    },
+    {
+      "style": "guided",
+      "intentId": "hustle",
+      "n": 8,
+      "caught": 6,
+      "missed": 2,
+      "subtleMissed": 1,
+      "failures": [
+        {
+          "postId": "b-hustle-03",
+          "text": "Everyone wants the results, nobody wants to miss the birthday parties. Haven't taken a weekend off in 3 years and I'd do it again tomorrow 💪",
+          "kind": "clear-positive",
+          "probability": 0.09360911527055951,
+          "cutoff": 0.290813258948728,
+          "label": "posts glorifying overwork, 5am routines and grinding"
+        },
+        {
+          "postId": "b-hustle-06",
+          "text": "funny how the people who \"need balance\" are always the same people asking how I got here 🙂",
+          "kind": "subtle-positive",
+          "probability": 0.19469637125119169,
+          "cutoff": 0.290813258948728,
+          "label": "posts glorifying overwork, 5am routines and grinding"
+        }
+      ]
+    },
+    {
+      "style": "guided",
+      "intentId": "dunking",
+      "n": 8,
+      "caught": 5,
+      "missed": 3,
+      "subtleMissed": 2,
+      "failures": [
+        {
+          "postId": "b-dunking-07",
+          "text": "Love that this guy's \"how I made my first 10k\" thread ends with him asking for gas money. Truly inspiring stuff.",
+          "kind": "subtle-positive",
+          "probability": 0.09614898031052624,
+          "cutoff": 0.290813258948728,
+          "label": "posts mocking a random person's post or mistake"
+        },
+        {
+          "postId": "b-dunking-08",
+          "text": "someone said they \"invented\" putting ice cream in espresso and I want to gently let them know affogato exists. but I won't. I'll just post it here instead 🙂",
+          "kind": "subtle-positive",
+          "probability": 0.0710320359345667,
+          "cutoff": 0.290813258948728,
+          "label": "posts mocking a random person's post or mistake"
+        },
+        {
+          "postId": "b-dunking-04",
+          "text": "Imagine misspelling your own bakery's name on the sign and then posting it proudly. Sir. SIR. 😂",
+          "kind": "clear-positive",
+          "probability": 0.19922707146512214,
+          "cutoff": 0.290813258948728,
+          "label": "posts mocking a random person's post or mistake"
+        }
+      ]
+    },
+    {
+      "style": "guided",
+      "intentId": "engagement",
+      "n": 8,
+      "caught": 4,
+      "missed": 4,
+      "subtleMissed": 2,
+      "failures": [
+        {
+          "postId": "b-engagement-02",
+          "text": "You can only eat one for the rest of your life: pizza 🍕 or tacos 🌮. go.",
+          "kind": "clear-positive",
+          "probability": 0.08613437536184351,
+          "cutoff": 0.290813258948728,
+          "label": "posts asking questions just to get replies"
+        },
+        {
+          "postId": "b-engagement-07",
+          "text": "unpopular opinion: cereal is a soup. not taking questions but I will be reading every single reply.",
+          "kind": "subtle-positive",
+          "probability": 0.11031272213576104,
+          "cutoff": 0.290813258948728,
+          "label": "posts asking questions just to get replies"
+        },
+        {
+          "postId": "b-engagement-08",
+          "text": "if you're seeing this you're one of the real ones. curious where everyone's tuning in from tonight 🌙",
+          "kind": "subtle-positive",
+          "probability": 0.19966746786572265,
+          "cutoff": 0.290813258948728,
+          "label": "posts asking questions just to get replies"
+        },
+        {
+          "postId": "b-engagement-01",
+          "text": "Describe your job badly. Wrong answers only 👇",
+          "kind": "clear-positive",
+          "probability": 0.22320805082219242,
+          "cutoff": 0.290813258948728,
+          "label": "posts asking questions just to get replies"
+        }
+      ]
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "all",
+      "n": 48,
+      "caught": 29,
+      "missed": 19,
+      "subtleMissed": 11,
+      "failures": [
+        {
+          "postId": "b-engagement-02",
+          "text": "You can only eat one for the rest of your life: pizza 🍕 or tacos 🌮. go.",
+          "kind": "clear-positive",
+          "probability": 0.07821567806642558,
+          "cutoff": 0.290813258948728,
+          "label": "posts asking questions just to get replies, not genuine questions asking for help"
+        },
+        {
+          "postId": "b-engagement-08",
+          "text": "if you're seeing this you're one of the real ones. curious where everyone's tuning in from tonight 🌙",
+          "kind": "subtle-positive",
+          "probability": 0.18151353725286554,
+          "cutoff": 0.290813258948728,
+          "label": "posts asking questions just to get replies, not genuine questions asking for help"
+        },
+        {
+          "postId": "a-humblebrag-05",
+          "text": "Three job offers in one week and now I'm losing sleep over which one to take. First-world problems, I know. Grateful though 🙏",
+          "kind": "clear-positive",
+          "probability": 0.08395961356002989,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble, not sharing real good news"
+        },
+        {
+          "postId": "a-rudeness-06",
+          "text": "Oh wow, another person discovered that coffee exists and wrote nine tweets about it. So brave. Truly. 👏",
+          "kind": "subtle-positive",
+          "probability": 0.029660268667947187,
+          "cutoff": 0.290813258948728,
+          "label": "posts being deliberately rude or edgy to get attention, not blunt honest criticism"
+        },
+        {
+          "postId": "a-humblebrag-06",
+          "text": "Wore a hoodie to the conference so nobody would notice me. Still ended up doing four interviews before lunch.",
+          "kind": "subtle-positive",
+          "probability": 0.21996541248489843,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble, not sharing real good news"
+        },
+        {
+          "postId": "b-hustle-06",
+          "text": "funny how the people who \"need balance\" are always the same people asking how I got here 🙂",
+          "kind": "subtle-positive",
+          "probability": 0.22314821547126398,
+          "cutoff": 0.290813258948728,
+          "label": "posts glorifying overwork, 5am routines and grinding, not genuine productivity tips"
+        },
+        {
+          "postId": "a-doom-06",
+          "text": "Cute that people are still planting trees like there's going to be a 2050 🌱",
+          "kind": "subtle-positive",
+          "probability": 0.037565129754198796,
+          "cutoff": 0.290813258948728,
+          "label": "posts saying everything is collapsing and it's hopeless, not news about specific problems"
+        },
+        {
+          "postId": "a-humblebrag-02",
+          "text": "Still processing that I was picked for the regional 30 under 30 list. I honestly don't know why they chose me, I just show up every day and do the work 🙏",
+          "kind": "clear-positive",
+          "probability": 0.27485088210997216,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble, not sharing real good news"
+        },
+        {
+          "postId": "b-dunking-08",
+          "text": "someone said they \"invented\" putting ice cream in espresso and I want to gently let them know affogato exists. but I won't. I'll just post it here instead 🙂",
+          "kind": "subtle-positive",
+          "probability": 0.10930397085257731,
+          "cutoff": 0.290813258948728,
+          "label": "posts mocking a random person's post or mistake, not criticism of public figures"
+        },
+        {
+          "postId": "b-hustle-03",
+          "text": "Everyone wants the results, nobody wants to miss the birthday parties. Haven't taken a weekend off in 3 years and I'd do it again tomorrow 💪",
+          "kind": "clear-positive",
+          "probability": 0.15821067250546794,
+          "cutoff": 0.290813258948728,
+          "label": "posts glorifying overwork, 5am routines and grinding, not genuine productivity tips"
+        },
+        {
+          "postId": "b-engagement-01",
+          "text": "Describe your job badly. Wrong answers only 👇",
+          "kind": "clear-positive",
+          "probability": 0.21166219379239484,
+          "cutoff": 0.290813258948728,
+          "label": "posts asking questions just to get replies, not genuine questions asking for help"
+        },
+        {
+          "postId": "a-humblebrag-03",
+          "text": "Nobody warns you how hard it is to park a car this wide. The new one barely fits in the garage at the lake house lol",
+          "kind": "clear-positive",
+          "probability": 0.22487956701834397,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble, not sharing real good news"
+        },
+        {
+          "postId": "a-rudeness-08",
+          "text": "sorry, I don't speak whatever this is. try again in a full sentence 🙂",
+          "kind": "subtle-positive",
+          "probability": 0.23050383272125985,
+          "cutoff": 0.290813258948728,
+          "label": "posts being deliberately rude or edgy to get attention, not blunt honest criticism"
+        },
+        {
+          "postId": "b-engagement-05",
+          "text": "Drop your city and I'll tell you something about it 🙏 let's see how far this goes",
+          "kind": "clear-positive",
+          "probability": 0.22020886535282438,
+          "cutoff": 0.290813258948728,
+          "label": "posts asking questions just to get replies, not genuine questions asking for help"
+        },
+        {
+          "postId": "a-humblebrag-08",
+          "text": "Weird how a PhD and two published books still don't help me fold a fitted sheet 🙃",
+          "kind": "subtle-positive",
+          "probability": 0.28553541985388275,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble, not sharing real good news"
+        },
+        {
+          "postId": "b-engagement-07",
+          "text": "unpopular opinion: cereal is a soup. not taking questions but I will be reading every single reply.",
+          "kind": "subtle-positive",
+          "probability": 0.20241663545181993,
+          "cutoff": 0.290813258948728,
+          "label": "posts asking questions just to get replies, not genuine questions asking for help"
+        },
+        {
+          "postId": "a-doom-08",
+          "text": "Another 'record' summer. See you all at the next one. Back to scrolling, not like any of it matters.",
+          "kind": "subtle-positive",
+          "probability": 0.2400777454922485,
+          "cutoff": 0.290813258948728,
+          "label": "posts saying everything is collapsing and it's hopeless, not news about specific problems"
+        },
+        {
+          "postId": "b-dunking-07",
+          "text": "Love that this guy's \"how I made my first 10k\" thread ends with him asking for gas money. Truly inspiring stuff.",
+          "kind": "subtle-positive",
+          "probability": 0.13370408112325996,
+          "cutoff": 0.290813258948728,
+          "label": "posts mocking a random person's post or mistake, not criticism of public figures"
+        },
+        {
+          "postId": "a-humblebrag-01",
+          "text": "ugh so annoying when strangers keep stopping you at the airport for selfies and you nearly miss your flight. can't even get a coffee in peace 😩",
+          "kind": "clear-positive",
+          "probability": 0.09920379555403576,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble, not sharing real good news"
+        }
+      ]
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "rudeness",
+      "n": 8,
+      "caught": 6,
+      "missed": 2,
+      "subtleMissed": 2,
+      "failures": [
+        {
+          "postId": "a-rudeness-06",
+          "text": "Oh wow, another person discovered that coffee exists and wrote nine tweets about it. So brave. Truly. 👏",
+          "kind": "subtle-positive",
+          "probability": 0.029660268667947187,
+          "cutoff": 0.290813258948728,
+          "label": "posts being deliberately rude or edgy to get attention, not blunt honest criticism"
+        },
+        {
+          "postId": "a-rudeness-08",
+          "text": "sorry, I don't speak whatever this is. try again in a full sentence 🙂",
+          "kind": "subtle-positive",
+          "probability": 0.23050383272125985,
+          "cutoff": 0.290813258948728,
+          "label": "posts being deliberately rude or edgy to get attention, not blunt honest criticism"
+        }
+      ]
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "humblebrag",
+      "n": 8,
+      "caught": 2,
+      "missed": 6,
+      "subtleMissed": 2,
+      "failures": [
+        {
+          "postId": "a-humblebrag-05",
+          "text": "Three job offers in one week and now I'm losing sleep over which one to take. First-world problems, I know. Grateful though 🙏",
+          "kind": "clear-positive",
+          "probability": 0.08395961356002989,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble, not sharing real good news"
+        },
+        {
+          "postId": "a-humblebrag-06",
+          "text": "Wore a hoodie to the conference so nobody would notice me. Still ended up doing four interviews before lunch.",
+          "kind": "subtle-positive",
+          "probability": 0.21996541248489843,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble, not sharing real good news"
+        },
+        {
+          "postId": "a-humblebrag-02",
+          "text": "Still processing that I was picked for the regional 30 under 30 list. I honestly don't know why they chose me, I just show up every day and do the work 🙏",
+          "kind": "clear-positive",
+          "probability": 0.27485088210997216,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble, not sharing real good news"
+        },
+        {
+          "postId": "a-humblebrag-03",
+          "text": "Nobody warns you how hard it is to park a car this wide. The new one barely fits in the garage at the lake house lol",
+          "kind": "clear-positive",
+          "probability": 0.22487956701834397,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble, not sharing real good news"
+        },
+        {
+          "postId": "a-humblebrag-08",
+          "text": "Weird how a PhD and two published books still don't help me fold a fitted sheet 🙃",
+          "kind": "subtle-positive",
+          "probability": 0.28553541985388275,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble, not sharing real good news"
+        },
+        {
+          "postId": "a-humblebrag-01",
+          "text": "ugh so annoying when strangers keep stopping you at the airport for selfies and you nearly miss your flight. can't even get a coffee in peace 😩",
+          "kind": "clear-positive",
+          "probability": 0.09920379555403576,
+          "cutoff": 0.290813258948728,
+          "label": "posts bragging while pretending to complain or be humble, not sharing real good news"
+        }
+      ]
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "doom",
+      "n": 8,
+      "caught": 6,
+      "missed": 2,
+      "subtleMissed": 2,
+      "failures": [
+        {
+          "postId": "a-doom-06",
+          "text": "Cute that people are still planting trees like there's going to be a 2050 🌱",
+          "kind": "subtle-positive",
+          "probability": 0.037565129754198796,
+          "cutoff": 0.290813258948728,
+          "label": "posts saying everything is collapsing and it's hopeless, not news about specific problems"
+        },
+        {
+          "postId": "a-doom-08",
+          "text": "Another 'record' summer. See you all at the next one. Back to scrolling, not like any of it matters.",
+          "kind": "subtle-positive",
+          "probability": 0.2400777454922485,
+          "cutoff": 0.290813258948728,
+          "label": "posts saying everything is collapsing and it's hopeless, not news about specific problems"
+        }
+      ]
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "hustle",
+      "n": 8,
+      "caught": 6,
+      "missed": 2,
+      "subtleMissed": 1,
+      "failures": [
+        {
+          "postId": "b-hustle-06",
+          "text": "funny how the people who \"need balance\" are always the same people asking how I got here 🙂",
+          "kind": "subtle-positive",
+          "probability": 0.22314821547126398,
+          "cutoff": 0.290813258948728,
+          "label": "posts glorifying overwork, 5am routines and grinding, not genuine productivity tips"
+        },
+        {
+          "postId": "b-hustle-03",
+          "text": "Everyone wants the results, nobody wants to miss the birthday parties. Haven't taken a weekend off in 3 years and I'd do it again tomorrow 💪",
+          "kind": "clear-positive",
+          "probability": 0.15821067250546794,
+          "cutoff": 0.290813258948728,
+          "label": "posts glorifying overwork, 5am routines and grinding, not genuine productivity tips"
+        }
+      ]
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "dunking",
+      "n": 8,
+      "caught": 6,
+      "missed": 2,
+      "subtleMissed": 2,
+      "failures": [
+        {
+          "postId": "b-dunking-08",
+          "text": "someone said they \"invented\" putting ice cream in espresso and I want to gently let them know affogato exists. but I won't. I'll just post it here instead 🙂",
+          "kind": "subtle-positive",
+          "probability": 0.10930397085257731,
+          "cutoff": 0.290813258948728,
+          "label": "posts mocking a random person's post or mistake, not criticism of public figures"
+        },
+        {
+          "postId": "b-dunking-07",
+          "text": "Love that this guy's \"how I made my first 10k\" thread ends with him asking for gas money. Truly inspiring stuff.",
+          "kind": "subtle-positive",
+          "probability": 0.13370408112325996,
+          "cutoff": 0.290813258948728,
+          "label": "posts mocking a random person's post or mistake, not criticism of public figures"
+        }
+      ]
+    },
+    {
+      "style": "guidedExclusion",
+      "intentId": "engagement",
+      "n": 8,
+      "caught": 3,
+      "missed": 5,
+      "subtleMissed": 2,
+      "failures": [
+        {
+          "postId": "b-engagement-02",
+          "text": "You can only eat one for the rest of your life: pizza 🍕 or tacos 🌮. go.",
+          "kind": "clear-positive",
+          "probability": 0.07821567806642558,
+          "cutoff": 0.290813258948728,
+          "label": "posts asking questions just to get replies, not genuine questions asking for help"
+        },
+        {
+          "postId": "b-engagement-08",
+          "text": "if you're seeing this you're one of the real ones. curious where everyone's tuning in from tonight 🌙",
+          "kind": "subtle-positive",
+          "probability": 0.18151353725286554,
+          "cutoff": 0.290813258948728,
+          "label": "posts asking questions just to get replies, not genuine questions asking for help"
+        },
+        {
+          "postId": "b-engagement-01",
+          "text": "Describe your job badly. Wrong answers only 👇",
+          "kind": "clear-positive",
+          "probability": 0.21166219379239484,
+          "cutoff": 0.290813258948728,
+          "label": "posts asking questions just to get replies, not genuine questions asking for help"
+        },
+        {
+          "postId": "b-engagement-05",
+          "text": "Drop your city and I'll tell you something about it 🙏 let's see how far this goes",
+          "kind": "clear-positive",
+          "probability": 0.22020886535282438,
+          "cutoff": 0.290813258948728,
+          "label": "posts asking questions just to get replies, not genuine questions asking for help"
+        },
+        {
+          "postId": "b-engagement-07",
+          "text": "unpopular opinion: cereal is a soup. not taking questions but I will be reading every single reply.",
+          "kind": "subtle-positive",
+          "probability": 0.20241663545181993,
+          "cutoff": 0.290813258948728,
+          "label": "posts asking questions just to get replies, not genuine questions asking for help"
+        }
+      ]
+    }
+  ],
+  "nearMissPaired": [
+    {
+      "comparison": "guided-vs-short",
+      "n": 143,
+      "newFalseHides": 10,
+      "repairedFalseHides": 25,
+      "ownNewFalseHides": 5,
+      "ownRepairedFalseHides": 4
+    },
+    {
+      "comparison": "exclusion-vs-guided",
+      "n": 143,
+      "newFalseHides": 5,
+      "repairedFalseHides": 3,
+      "ownNewFalseHides": 2,
+      "ownRepairedFalseHides": 1
+    }
+  ],
+  "immutableEvidenceUnchanged": true
+}

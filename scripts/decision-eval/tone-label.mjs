@@ -5,12 +5,19 @@
  * {schemaVersion:1, wordings:["W5"], policies:[{id:"chosen", template:"T0",
  *   stateTransform:"none", calibration:"none", shortRule:null, cutoff:0.4}],
  *  regressionCorpora:["original-validation","fresh-behaviour"],
- *  gates:[{name:"fewer errors",metric:"errors",policy:"chosen",comparator:"<",
- *    reference:"P0",slack:0}]}
+ *  gates:[{name:"fewer owner errors",metric:"errors",policy:"chosen",comparator:"<=",
+ *    reference:"P0",scope:"group:excessive-rudeness",factor:0.8,slack:0}]}
  * W0 and P0 are always included. Wording scores cover only the new corpus's
  * excessive-rudeness decisions; policies cover all new and selected regression
  * decisions. Gate policy/reference IDs may name a wording or a named policy;
- * reference may instead be a numeric count. Supported metrics are count fields
+ * reference may instead be a numeric count. Every gate requires scope and a
+ * positive finite factor; limit = factor * referenceValue + slack, with both
+ * policy and reference measured in the same scope. Scopes: all,
+ * corpus:tone-holdout, corpus:original-validation, corpus:fresh-behaviour,
+ * group:excessive-rudeness, group:fresh-*, group:orig-*. Group scopes contain only
+ * tone-holdout decisions; regression corpora must be included to gate on them.
+ * A policy's excessive-rudeness group uses W0; wording IDs use their own label.
+ * Supported metrics are count fields
  * documented by evaluateGates in tone-label-metrics.mjs. No holdout fitting is
  * performed: every policy cutoff (including shortRule) must be in the spec.
  *
@@ -40,6 +47,7 @@ import { WORDINGS, toneTemplateHash } from './tone-templates.mjs';
 import { CUTOFF, validatePolicy, evaluateGates } from './tone-label-metrics.mjs';
 import { buildTonePlan, analyzeTone, discoveryPolicies } from './tone-label-study.mjs';
 import { reportTone } from './tone-label-report.mjs';
+import { packToneEvidence, expandToneEvidence } from './tone-label-evidence.mjs';
 
 export const ROOT = new URL('../../', import.meta.url);
 export const FILES = Object.freeze({ discoveryRaw: 'decision-tone-discovery-raw.json', discoverySummary: 'decision-tone-discovery-summary.json',
@@ -49,13 +57,18 @@ export const PINNED_CORPUS_HASHES = Object.freeze({
   holdout: '3ad112fd60c7666599a83e79f04d77b9df50de93b482d2ff2d10ed8e77271031',
 });
 const VARIANT = variantById('llama-d1-2b-q8');
-const SOURCES = ['tone-label.mjs', 'tone-label-corpus.mjs', 'tone-label-metrics.mjs', 'tone-label-study.mjs', 'tone-templates.mjs',
+const SOURCES = ['tone-label.mjs', 'tone-label-corpus.mjs', 'tone-label-metrics.mjs', 'tone-label-study.mjs', 'tone-label-evidence.mjs', 'tone-templates.mjs',
   'wording-metrics.mjs', 'corpora.mjs', 'wording-probe.mjs', 'guidance-fresh.mjs', 'runtime.mjs', 'templates.mjs', 'registry.mjs'];
 export const hash = value => createHash('sha256').update(typeof value === 'string' || Buffer.isBuffer(value) ? value : JSON.stringify(value)).digest('hex');
 const insist = (ok, message) => { if (!ok) throw new Error(message); };
 const directory = root => new URL('docs/benchmarks/data/', root);
 const isHash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 const baseline = () => ({ id: 'P0', template: 'T0', stateTransform: 'none', calibration: 'none', shortRule: null, cutoff: CUTOFF });
+
+export function serializeTone(value) {
+  const evidence = value.evidenceFormat !== undefined || Array.isArray(value.rows) && value.plan && Array.isArray(value.requests);
+  return JSON.stringify(publicValue(evidence ? packToneEvidence(value) : value), null, evidence ? undefined : 2) + '\n';
+}
 
 /** Durable, redacted, atomic evidence replacement. Claims use exclusive open. */
 export async function saveTone(file, value, out) {
@@ -64,7 +77,7 @@ export async function saveTone(file, value, out) {
   let handle;
   try {
     handle = await open(temporary, 'wx');
-    await handle.writeFile(JSON.stringify(publicValue(value), null, 2) + '\n');
+    await handle.writeFile(serializeTone(value));
     await handle.sync(); await handle.close(); handle = null;
     await rename(temporary, new URL(file, out));
   } finally { await handle?.close(); await rm(temporary, { force: true }); }
@@ -74,7 +87,7 @@ async function exclusiveJSON(file, value, out) {
   let handle;
   try { handle = await open(new URL(file, out), 'wx'); }
   catch (error) { if (error.code === 'EEXIST') throw new Error(`${file} already exists; no second registration or attempt is permitted`); throw error; }
-  try { await handle.writeFile(JSON.stringify(publicValue(value), null, 2) + '\n'); await handle.sync(); }
+  try { await handle.writeFile(serializeTone(value)); await handle.sync(); }
   finally { await handle.close(); }
 }
 async function absent(file, out) {
@@ -170,8 +183,12 @@ export function validateSpec(spec) {
   }
   insist(Array.isArray(spec.regressionCorpora) && new Set(spec.regressionCorpora).size === spec.regressionCorpora.length
     && spec.regressionCorpora.every(name => ['original-validation', 'fresh-behaviour'].includes(name)), 'Invalid regression corpora');
+  const zero = () => Object.fromEntries(['errors', 'FP', 'FN', 'falseHides', 'missedHides', 'lowContentFP', 'shortPositiveFN', 'missedShortRude'].map(key => [key, 0]));
+  const policyScopes = ['all', 'corpus:tone-holdout', 'group:excessive-rudeness', 'group:fresh-*', 'group:orig-*',
+    ...spec.regressionCorpora.map(name => `corpus:${name}`)];
+  const wordingScopes = ['all', 'corpus:tone-holdout', 'group:excessive-rudeness'];
   const metrics = Object.fromEntries(['P0', 'W0', ...spec.wordings, ...spec.policies.map(p => p.id)].map(id => [id,
-    Object.fromEntries(['errors', 'FP', 'FN', 'falseHides', 'missedHides', 'lowContentFP', 'shortPositiveFN', 'missedShortRude'].map(key => [key, 0]))]));
+    { ...zero(), scopes: Object.fromEntries((Object.hasOwn(WORDINGS, id) ? wordingScopes : policyScopes).map(scope => [scope, zero()])) }]));
   evaluateGates(spec.gates, metrics);
   return structuredClone(spec);
 }
@@ -233,9 +250,12 @@ export async function executeTone(result, { out, frozen, rawFile, prepare = prep
   verify = () => probeSettings(frozen.selection, frozen.identity), unload = unloadProbe, check = async () => {} }) {
   let failure, journal;
   const journalFile = rawFile.replace(/\.json$/, '-journal.jsonl');
+  const journalOut = result.phase === 'tone-label-discovery'
+    ? new URL('../../../scripts/decision-eval/.tmp/tone-label/', out) : out;
   try {
     await mkdir(out, { recursive: true });
-    journal = await open(new URL(journalFile, out), result.phase === 'tone-label-holdout' ? 'wx' : 'w');
+    await mkdir(journalOut, { recursive: true });
+    journal = await open(new URL(journalFile, journalOut), result.phase === 'tone-label-holdout' ? 'wx' : 'w');
     await journal.writeFile(JSON.stringify(publicValue({ schemaVersion: 1, phase: result.phase, startedAt: result.startedAt,
       registrationSha256: result.registrationSha256 ?? null })) + '\n');
     await journal.sync();
@@ -266,7 +286,8 @@ export async function executeTone(result, { out, frozen, rawFile, prepare = prep
     try { await unload(); } catch (error) { failure ??= error; result.status = 'failed'; result.error = publicValue(error.message); }
     if (journal) {
       await journal.close();
-      result.journal = { file: journalFile, sha256: hash(await readFile(new URL(journalFile, out))) };
+      result.journal = { file: result.phase === 'tone-label-discovery' ? `scripts/decision-eval/.tmp/tone-label/${journalFile}` : journalFile,
+        sha256: hash(await readFile(new URL(journalFile, journalOut))) };
     }
     await saveTone(rawFile, result, out);
   }
@@ -274,7 +295,7 @@ export async function executeTone(result, { out, frozen, rawFile, prepare = prep
   return result;
 }
 export async function runHoldout({ root = ROOT, runtime = {} } = {}) {
-  const out = directory(root), result = JSON.parse(await readFile(new URL(FILES.result, out)));
+  const out = directory(root), result = expandToneEvidence(JSON.parse(await readFile(new URL(FILES.result, out))));
   const inputs = await checkToneRegistration(result, { root });
   await claimToneAttempt(result, out);
   result.status = 'running'; result.startedAt = new Date().toISOString(); await saveTone(FILES.result, result, out);
@@ -283,7 +304,7 @@ export async function runHoldout({ root = ROOT, runtime = {} } = {}) {
   return scoreTone({ root });
 }
 export async function scoreTone({ root = ROOT } = {}) {
-  const out = directory(root), bytes = await readFile(new URL(FILES.result, out)), result = JSON.parse(bytes);
+  const out = directory(root), bytes = await readFile(new URL(FILES.result, out)), result = expandToneEvidence(JSON.parse(bytes));
   const inputs = await checkToneRegistration(result, { root, pristine: false });
   const claim = JSON.parse(await readFile(new URL(FILES.attempt, out)));
   insist(claim.registrationSha256 === result.registrationSha256 && claim.registeredAt === result.registeredAt, 'Tone attempt claim differs');

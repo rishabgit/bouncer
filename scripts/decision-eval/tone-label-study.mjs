@@ -138,6 +138,28 @@ export function buildTonePlan({ phase, corpus, rows, wordings, policies }) {
         source: refs.wordings[id][source.key], twin: register(WORDINGS[id], 'T0', twin.text, twin.id, id),
       }])) });
   }
+  // Frozen holdout comparisons cross every selected wording with every policy.
+  // Append these registrations so discovery scheduling and its evidence remain
+  // byte-for-byte compatible, and keep W0 even for callers selecting other IDs.
+  if (phase === 'holdout') {
+    refs.wordingPolicies = {};
+    const wordingIds = [...new Set([...ids, 'W0'])];
+    const toneRows = rudeRows.filter(row => row.corpus === 'tone-holdout');
+    for (const { id, policy } of normalized) {
+      refs.wordingPolicies[id] = {};
+      for (const wordingId of wordingIds) {
+        const label = WORDINGS[wordingId];
+        refs.wordingPolicies[id][wordingId] = {};
+        for (const row of toneRows) {
+          const transformed = transformState(row.text, policy.stateTransform);
+          refs.wordingPolicies[id][wordingId][row.key] = transformed.unclassified ? { index: null, unclassified: true } : {
+            index: register(label, policy.template, transformed.text, row.postId, wordingId), unclassified: false,
+          };
+        }
+        if (policy.calibration === 'content-free') prior(label, policy.template);
+      }
+    }
+  }
   return { schemaVersion: 1, phase, templateHash: toneTemplateHash(), wordingIds: ids,
     policies: normalized, questions, requests, refs };
 }
@@ -172,6 +194,35 @@ function bucketMetrics(rows, field, options) {
     groups.get(value).push(row);
   }
   return Object.fromEntries([...groups].sort(([a], [b]) => a.localeCompare(b)).map(([key, values]) => [key, summarizeRows(values, options)]));
+}
+
+function scopedMetrics(rows, phase, options) {
+  const metrics = summarizeRows(rows, options);
+  const byCorpus = bucketMetrics(rows, 'corpus', options), byGroup = bucketMetrics(rows, 'group', options);
+  const toneGroups = bucketMetrics(rows.filter(row => row.corpus === `tone-${phase}`), 'group', options);
+  const scopes = {
+    all: metrics,
+    ...Object.fromEntries(Object.entries(byCorpus).map(([corpus, values]) => [`corpus:${corpus}`, values])),
+    ...Object.fromEntries(Object.entries(toneGroups)
+      .filter(([group]) => group === 'excessive-rudeness' || group.startsWith('fresh-') || group.startsWith('orig-'))
+      .map(([group, values]) => [`group:${group}`, values])),
+  };
+  return { ...metrics, byCorpus, byGroup, scopes };
+}
+
+const ownerRow = (row, phase) => row.corpus === `tone-${phase}` && rude(row) && row.label === WORDINGS.W0;
+const decisionSnapshot = row => ({ probability: row.probability, cutoff: row.cutoff,
+  hidden: row.hidden, unclassified: row.unclassified });
+const ownerDetails = row => ({ postId: row.postId, text: row.text, subtype: row.subtype ?? 'unspecified',
+  gold: row.gold, ambiguous: row.ambiguous });
+
+function ownerFlips(baseline, candidate, phase) {
+  const baselineByKey = new Map(baseline.map(row => [row.key, row]));
+  return candidate.filter(row => ownerRow(row, phase)
+    && row.hidden !== baselineByKey.get(row.key).hidden).map(row => ({
+    ...ownerDetails(row), baseline: decisionSnapshot(baselineByKey.get(row.key)), candidate: decisionSnapshot(row),
+    effect: row.hidden === row.gold ? 'fixed' : 'broke',
+  }));
 }
 
 function rank(values) {
@@ -284,11 +335,20 @@ function shortPlateau(rows, maxOwnWords, cutoffs, candidates) {
 function shortGrid(rows) {
   const cutoffs = Array.from({ length: 66 }, (_, index) => (index + 30) / 100);
   const table = [], bestByMaxOwnWords = [];
+  const baseline = rows.map(row => applyPolicy(row, basePolicy()));
+  const ownerRows = baseline.filter(row => ownerRow(row, 'discovery'));
+  const ownerIndices = new Map(ownerRows.map((row, index) => [row.key, index]));
+  const ownerDecisions = ownerRows.map(row => ({ ...ownerDetails(row), baseline: decisionSnapshot(row) }));
+  const compactOwnerFlips = applied => applied.filter(row => ownerIndices.has(row.key)
+    && row.hidden !== ownerDecisions[ownerIndices.get(row.key)].baseline.hidden).map(row => ({
+    decision: ownerIndices.get(row.key), candidate: decisionSnapshot(row), effect: row.hidden === row.gold ? 'fixed' : 'broke',
+  }));
   for (let maxOwnWords = 0; maxOwnWords <= 5; maxOwnWords++) {
     const candidates = cutoffs.map(cutoff => {
       const policy = { ...basePolicy(), shortRule: { maxOwnWords, cutoff } };
       const applied = rows.map(row => applyPolicy(row, policy));
-      return { cutoff, ...gridCounts(applied), byCorpus: gridBuckets(applied, 'corpus'), byGroup: gridBuckets(applied, 'group') };
+      return { cutoff, ...gridCounts(applied), byCorpus: gridBuckets(applied, 'corpus'), byGroup: gridBuckets(applied, 'group'),
+        ownerFlips: compactOwnerFlips(applied) };
     });
     const { plateau, cutoff, minimumErrors } = shortPlateau(rows, maxOwnWords, cutoffs, candidates);
     const policy = { ...basePolicy(), shortRule: { maxOwnWords, cutoff } };
@@ -296,13 +356,15 @@ function shortGrid(rows) {
     const metrics = summarizeRows(applied);
     insist(metrics.errors === minimumErrors, 'Short-rule midpoint differs from minimum grid errors');
     bestByMaxOwnWords.push({ maxOwnWords, cutoff, plateau, policy,
-      ...metrics, byCorpus: bucketMetrics(applied, 'corpus'), byGroup: bucketMetrics(applied, 'group') });
+      ...metrics, byCorpus: bucketMetrics(applied, 'corpus'), byGroup: bucketMetrics(applied, 'group'),
+      ownerFlips: ownerFlips(baseline, applied, 'discovery') });
     table.push({ maxOwnWords, ...compactGridCounts(candidates),
-      byCorpus: compactGridBuckets(candidates, 'byCorpus'), byGroup: compactGridBuckets(candidates, 'byGroup') });
+      byCorpus: compactGridBuckets(candidates, 'byCorpus'), byGroup: compactGridBuckets(candidates, 'byGroup'),
+      ownerFlips: candidates.map(candidate => candidate.ownerFlips) });
   }
   const ordered = [...bestByMaxOwnWords].sort((a, b) => a.errors - b.errors || b.plateau.width - a.plateau.width
     || Math.abs(a.cutoff - 0.5) - Math.abs(b.cutoff - 0.5) || a.maxOwnWords - b.maxOwnWords || a.cutoff - b.cutoff);
-  return { cutoffs, table, bestByMaxOwnWords, best: ordered[0],
+  return { cutoffs, table, ownerDecisions, bestByMaxOwnWords, best: ordered[0],
     selection: 'Lowest grid errors; widest constant-error interval containing an optimal grid point; midpoint closest to 0.5; lowest maxOwnWords, then lower midpoint.' };
 }
 
@@ -319,7 +381,7 @@ export function analyzeTone({ phase, corpus, rows, plan, requests, policies, wor
   const wordingMetrics = plan.wordingIds.map(id => {
     const applied = rows.filter(rude).map(row => applyPolicy({ ...row, label: WORDINGS[id],
       probability: score(plan.refs.wordings[id][row.key]) }, basePolicy()));
-    return { id, label: WORDINGS[id], ...summarizeRows(applied, metricOptions), byCorpus: bucketMetrics(applied, 'corpus', metricOptions),
+    return { id, label: WORDINGS[id], ...scopedMetrics(applied, phase, metricOptions),
       medianMs: median(rows.filter(rude).map(row => recorded[plan.refs.wordings[id][row.key]].wallMs)) };
   });
   const evaluatedPolicies = [], appliedByPolicy = new Map();
@@ -340,9 +402,24 @@ export function analyzeTone({ phase, corpus, rows, plan, requests, policies, wor
     appliedByPolicy.set(id, applied);
     const indices = [...new Set(Object.values(plan.refs.policies[id]).map(ref => ref.index).filter(index => index !== null))];
     evaluatedPolicies.push({ id, policy, optimizedOnDiscovery: descriptor.optimize,
-      ...summarizeRows(applied, metricOptions), byCorpus: bucketMetrics(applied, 'corpus', metricOptions), byGroup: bucketMetrics(applied, 'group', metricOptions),
+      ...scopedMetrics(applied, phase, metricOptions),
       medianMs: median(indices.map(index => recorded[index].wallMs)) });
   }
+  const baseline = appliedByPolicy.get('P0');
+  if (evaluatedPolicies.some(policy => policy.id !== 'P0')) insist(baseline, 'Owner flips require P0 baseline metrics');
+  for (const evaluated of evaluatedPolicies) {
+    if (evaluated.id !== 'P0') evaluated.ownerFlips = ownerFlips(baseline, appliedByPolicy.get(evaluated.id), phase);
+  }
+  const wordingPolicies = phase === 'holdout' ? evaluatedPolicies.flatMap(({ id: policyId, policy }) =>
+    Object.entries(plan.refs.wordingPolicies[policyId]).map(([wordingId, refs]) => {
+      const label = WORDINGS[wordingId];
+      const applied = rows.filter(row => Object.hasOwn(refs, row.key)).map(row => {
+        const ref = refs[row.key];
+        return applyPolicy({ ...row, label, probability: ref.index === null ? 0 : score(ref.index), unclassified: ref.unclassified },
+          policy, policy.calibration === 'content-free' ? priorValues(label, policy.template) : []);
+      });
+      return { wordingId, policyId, policy, ...scopedMetrics(applied, phase, metricOptions) };
+    })) : [];
   const subtypeDistributions = ['W0', 'W5'].map(id => {
     const buckets = new Map();
     for (const row of rows.filter(rude)) {
@@ -391,7 +468,7 @@ export function analyzeTone({ phase, corpus, rows, plan, requests, policies, wor
   return { schemaVersion: 1, phase, cutoff: CUTOFF,
     counts: { decisions: rows.length, scoredDecisions: rows.filter(row => !row.ambiguous).length,
       ambiguous: rows.filter(row => row.ambiguous).length, questions: Object.keys(plan.questions).length, requests: requests.length },
-    wordings: wordingMetrics, policies: evaluatedPolicies,
+    wordings: wordingMetrics, policies: evaluatedPolicies, ...(phase === 'holdout' ? { wordingPolicies } : {}),
     shortRuleGrid: phase === 'discovery' ? shortGrid(rawBaseline) : null,
     diagnostics, gates: evaluateGates(gates, Object.fromEntries([...evaluatedPolicies, ...wordingMetrics].map(metric => [metric.id, metric]))) };
 }

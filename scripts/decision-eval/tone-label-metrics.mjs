@@ -3,6 +3,15 @@ import { TONE_TEMPLATES } from './tone-templates.mjs';
 
 export const CUTOFF = 0.290813258948728;
 export const CONTENT_FREE = Object.freeze(['.', '…', '-', 'N/A', '?']);
+export const GATE_SCOPES = Object.freeze([
+  'all',
+  'corpus:tone-holdout',
+  'corpus:original-validation',
+  'corpus:fresh-behaviour',
+  'group:excessive-rudeness',
+  'group:fresh-*',
+  'group:orig-*',
+]);
 
 function object(value, name) {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
@@ -111,6 +120,7 @@ export function applyPolicy(row, policy, priors = []) {
     ...row,
     rawProbability: row.probability,
     probability: adjusted,
+    cutoff,
     hidden: !unclassified && adjusted >= cutoff,
     unclassified,
   };
@@ -148,6 +158,7 @@ export function summarizeRows(rows, { includeOptimal = true } = {}) {
   let shortPositiveFN = 0;
   let missedShortRude = 0;
   const fpBySubtype = {};
+  const fnBySubtype = {};
   for (const row of scored) {
     confusion[row.hidden ? (row.gold ? 'tp' : 'fp') : (row.gold ? 'fn' : 'tn')] += 1;
     unclassified += Number(Boolean(row.unclassified));
@@ -164,6 +175,13 @@ export function summarizeRows(rows, { includeOptimal = true } = {}) {
       });
     }
     if (!row.hidden && row.gold) {
+      const subtype = typeof row.subtype === 'string' && row.subtype ? row.subtype : 'unspecified';
+      Object.defineProperty(fnBySubtype, subtype, {
+        value: (Object.hasOwn(fnBySubtype, subtype) ? fnBySubtype[subtype] : 0) + 1,
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
       if (length <= 5) shortPositiveFN += 1;
       if (row.subtype === 'short-rude' || (row.intentId === 'excessive-rudeness' && length <= 5)) {
         missedShortRude += 1;
@@ -189,6 +207,7 @@ export function summarizeRows(rows, { includeOptimal = true } = {}) {
     shortPositiveFN,
     missedShortRude,
     fpBySubtype,
+    fnBySubtype,
   };
 }
 
@@ -202,14 +221,26 @@ function policyOptimal(rows) {
 const GATE_METRICS = new Set([
   'errors', 'FP', 'FN', 'falseHides', 'missedHides', 'lowContentFP', 'shortPositiveFN', 'missedShortRude',
 ]);
+const GATE_SCOPE_SET = new Set(GATE_SCOPES);
 
-function metricValue(metricsById, policyId, metric) {
+function metricValue(metricsById, policyId, metric, scope) {
   if (!Object.hasOwn(metricsById, policyId)) throw new TypeError(`Missing metrics for policy ${policyId}`);
-  const metrics = metricsById[policyId];
+  let metrics = metricsById[policyId];
   object(metrics, `Metrics for ${policyId}`);
+  if (scope !== 'all' || Object.hasOwn(metrics, 'scopes')) {
+    if (!Object.hasOwn(metrics, 'scopes')) {
+      throw new TypeError(`Missing scope ${scope} for policy ${policyId}`);
+    }
+    object(metrics.scopes, `Metric scopes for ${policyId}`);
+    if (!Object.hasOwn(metrics.scopes, scope)) {
+      throw new TypeError(`Missing scope ${scope} for policy ${policyId}`);
+    }
+    metrics = metrics.scopes[scope];
+    object(metrics, `Metrics in scope ${scope} for ${policyId}`);
+  }
   if (!Object.hasOwn(metrics, metric) || typeof metrics[metric] !== 'number'
     || !Number.isFinite(metrics[metric]) || metrics[metric] < 0) {
-    throw new TypeError(`Missing or invalid ${metric} for policy ${policyId}`);
+    throw new TypeError(`Missing or invalid ${metric} in scope ${scope} for policy ${policyId}`);
   }
   return metrics[metric];
 }
@@ -219,26 +250,30 @@ export function evaluateGates(gates, metricsById) {
   if (!Array.isArray(gates)) throw new TypeError('gates must be an array');
   object(metricsById, 'metricsById');
   const checks = gates.map((gate, index) => {
-    exactKeys(gate, ['name', 'metric', 'policy', 'comparator', 'reference', 'slack'], `gates[${index}]`);
+    exactKeys(gate, ['name', 'metric', 'policy', 'comparator', 'reference', 'slack', 'scope', 'factor'], `gates[${index}]`);
     if (typeof gate.name !== 'string' || !gate.name.trim()
       || typeof gate.policy !== 'string' || !gate.policy.trim()) {
       throw new TypeError(`gates[${index}] requires nonempty name and policy`);
     }
     if (!GATE_METRICS.has(gate.metric)) throw new TypeError(`Unknown gate metric: ${String(gate.metric)}`);
+    if (!GATE_SCOPE_SET.has(gate.scope)) throw new TypeError(`Unknown gate scope: ${String(gate.scope)}`);
     if (gate.comparator !== '<' && gate.comparator !== '<=') {
       throw new TypeError(`Unknown gate comparator: ${String(gate.comparator)}`);
     }
     if (typeof gate.slack !== 'number' || !Number.isFinite(gate.slack) || gate.slack < 0) {
       throw new TypeError('Gate slack must be finite and nonnegative');
     }
-    const actual = metricValue(metricsById, gate.policy, gate.metric);
+    if (typeof gate.factor !== 'number' || !Number.isFinite(gate.factor) || gate.factor <= 0) {
+      throw new TypeError('Gate factor must be finite and positive');
+    }
+    const actual = metricValue(metricsById, gate.policy, gate.metric, gate.scope);
     let referenceValue;
     if (typeof gate.reference === 'string' && gate.reference.trim()) {
-      referenceValue = metricValue(metricsById, gate.reference, gate.metric);
+      referenceValue = metricValue(metricsById, gate.reference, gate.metric, gate.scope);
     } else if (typeof gate.reference === 'number' && Number.isFinite(gate.reference) && gate.reference >= 0) {
       referenceValue = gate.reference;
     } else throw new TypeError('Gate reference must be a policy ID or a finite nonnegative number');
-    const limit = referenceValue + gate.slack;
+    const limit = gate.factor * referenceValue + gate.slack;
     if (!Number.isFinite(limit)) throw new TypeError('Gate limit must be finite');
     return {
       ...gate,

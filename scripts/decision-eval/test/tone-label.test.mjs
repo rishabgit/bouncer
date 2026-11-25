@@ -12,13 +12,17 @@ import { CORPUS_FILES, AUDIT_FILE, writeToneCorpora } from '../tone-label-corpus
 import { loadCorpora } from '../corpora.mjs';
 import { CUTOFF } from '../tone-label-metrics.mjs';
 import { renderToneSection, replaceToneSection, reportTone, TONE_MARKERS } from '../tone-label-report.mjs';
+import { packToneEvidence, expandToneEvidence } from '../tone-label-evidence.mjs';
+import { buildTonePlan, discoveryPolicies } from '../tone-label-study.mjs';
+import { WORDINGS } from '../tone-templates.mjs';
+import { convertDiscovery, verifyDiscovery, discoverySummary } from '../tone-label-convert.mjs';
 
 const fixturePaths = Object.fromEntries(['discovery', 'holdout', 'labeler1', 'labeler2', 'rubrics'].map(name =>
   [name, new URL(`./fixtures/tone-label/${name}.json`, import.meta.url)]));
 const spec = () => ({ schemaVersion: 1, wordings: ['W5'], policies: [{ id: 'chosen', template: 'T0',
   stateTransform: 'none', calibration: 'none', shortRule: { maxOwnWords: 2, cutoff: 0.6 }, cutoff: CUTOFF }],
-regressionCorpora: [], gates: [{ name: 'wording errors', metric: 'errors', policy: 'W5', comparator: '<=', reference: 'W0', slack: 0 },
-  { name: 'policy false hides', metric: 'FP', policy: 'chosen', comparator: '<=', reference: 'P0', slack: 0 }] });
+regressionCorpora: [], gates: [{ name: 'wording errors', metric: 'errors', policy: 'W5', comparator: '<=', reference: 'W0', slack: 0, scope: 'all', factor: 1 },
+  { name: 'policy false hides', metric: 'FP', policy: 'chosen', comparator: '<=', reference: 'P0', slack: 0, scope: 'all', factor: 1 }] });
 
 async function temporary(run, populated = true) {
   const path = await mkdtemp(join(tmpdir(), 'tone-label-runner-')), root = pathToFileURL(`${path}/`), out = new URL('docs/benchmarks/data/', root);
@@ -40,8 +44,21 @@ test('specs freeze exact policy fields, gate namespaces and regression corpora',
     s => { s.policies[0].id = 'P0'; }, s => { s.policies[0].id = 'W0'; }, s => { s.policies[0].optimize = true; },
     s => { s.policies[0].cutoff = null; }, s => { s.regressionCorpora = ['discovery']; },
     s => { s.regressionCorpora = ['fresh-behaviour', 'fresh-behaviour']; }, s => { s.gates[0].policy = 'absent'; },
-    s => { s.gates[0].metric = 'auc'; }];
+    s => { s.gates[0].metric = 'auc'; }, s => { delete s.gates[0].scope; }, s => { delete s.gates[0].factor; },
+    s => { s.gates[0].factor = 0; }, s => { s.gates[0].scope = 'corpus:fresh-behaviour'; }];
   for (const mutate of invalid) { const changed = spec(); mutate(changed); assert.throws(() => validateSpec(changed)); }
+});
+
+test('spec gates require available same-scope policy and wording references', () => {
+  const scoped = spec();
+  scoped.gates[0].scope = 'group:excessive-rudeness'; scoped.gates[0].factor = .8;
+  assert.deepEqual(validateSpec(scoped), scoped);
+  scoped.gates[1].scope = 'corpus:fresh-behaviour';
+  assert.throws(() => validateSpec(scoped), /scope/);
+  scoped.regressionCorpora.push('fresh-behaviour');
+  assert.deepEqual(validateSpec(scoped), scoped);
+  scoped.gates[1].reference = 'W0';
+  assert.throws(() => validateSpec(scoped), /scope/);
 });
 
 test('original discovery conversion preserves the wording-probe D-label per-decision population', async () => {
@@ -127,6 +144,10 @@ test('discovery runs without a holdout file and never asks its loader to read ho
     assert.ok(reads.every(name => name.endsWith(AUDIT_FILE) || name.endsWith(CORPUS_FILES.discovery)));
     const raw = JSON.parse(await readFile(new URL(FILES.discoveryRaw, out)));
     assert.equal(raw.status, 'failed'); assert.equal(raw.requestsIssued, 0);
+    assert.equal(raw.schemaVersion, 2);
+    assert.match(raw.journal.file, /^scripts\/decision-eval\/\.tmp\//);
+    assert.equal(hash(await readFile(new URL(raw.journal.file, root))), raw.journal.sha256);
+    await assert.rejects(readFile(new URL(FILES.discoveryRaw.replace(/\.json$/, '-journal.jsonl'), out)), /ENOENT/);
   });
 });
 
@@ -204,12 +225,74 @@ test('synthetic holdout journals before sends, scores without inference, and ren
     assert.ok(markdown.startsWith('Before\n\n')); assert.ok(markdown.endsWith('\n\nAfter\n'));
     assert.match(markdown, /Tone label study/); assert.match(markdown, /wording errors/);
     assert.doesNotMatch(markdown, /\bOld\b|recommend/i);
-    const raw = JSON.parse(await readFile(new URL(FILES.result, out)));
+    const stored = JSON.parse(await readFile(new URL(FILES.result, out)));
+    assert.equal(stored.schemaVersion, 2);
+    assert.equal(stored.plan, undefined); assert.equal(stored.rows, undefined); assert.equal(stored.requests, undefined);
+    const raw = expandToneEvidence(stored);
     raw.requests[0].inputTokens = settings.effectiveContext;
     await saveTone(FILES.result, raw, out);
     await assert.rejects(scoreTone({ root }), /token|Truncation/i);
     await assert.rejects(reportTone({ root }), /raw SHA-256 differs/);
   });
+});
+
+function syntheticDiscovery() {
+  const corpusSnapshot = { split: 'discovery', twins: [{ id: 'twin', sourceId: 'rude', text: '@a kind words' }] };
+  const rows = [{ id: 'rude', text: '@a you idiot', gold: true, subtype: 'short-rude' },
+    { id: 'empty', text: '@a @b', gold: false, subtype: 'low-content' }].map(post => ({
+    key: post.id, postId: post.id, text: post.text, intentId: 'excessive-rudeness', labelKey: 'excessive-rudeness',
+    label: WORDINGS.W0, gold: post.gold, ambiguous: false, corpus: 'tone-discovery', group: 'excessive-rudeness', subtype: post.subtype,
+  }));
+  const policies = discoveryPolicies(), wordings = Object.keys(WORDINGS);
+  const plan = buildTonePlan({ phase: 'discovery', corpus: corpusSnapshot, rows, policies, wordings });
+  return { schemaVersion: 1, phase: 'tone-label-discovery', status: 'complete', startedAt: '2026-11-25T00:00:00.000Z',
+    finishedAt: '2026-11-25T00:01:00.000Z', corpusSnapshot, rows, policies, wordings, plan,
+    protectedHashes: {}, model: { synthetic: true }, corpusHashes: { synthetic: 'a'.repeat(64) }, activeRequest: null,
+    requestsIssued: plan.requests.length, requests: plan.requests.map(({ state, ...request }) => ({ ...request,
+      probability: state.includes('idiot') ? .7 : .1, wallMs: 1.2345678901234567, inputTokens: 40 })) };
+}
+
+test('compact raw format round-trips measurements, optional fields, inputs and deterministic plans', () => {
+  const original = syntheticDiscovery();
+  original.rows[0].extra = null;
+  original.requests[0].extra = null;
+  original.requests[1].extra = { nested: ['retained', 1e-12] };
+  const compact = packToneEvidence(original), bytes = JSON.stringify(compact);
+  assert.ok(bytes.length < JSON.stringify(original).length / 2);
+  assert.equal(compact.plan, undefined); assert.equal(compact.rows, undefined); assert.equal(compact.requests, undefined);
+  assert.deepEqual(expandToneEvidence(JSON.parse(bytes)), original);
+  assert.deepEqual(discoverySummary(expandToneEvidence(JSON.parse(bytes))), discoverySummary(original));
+  for (const mutate of [r => { r.planSha256 = 'a'.repeat(64); }, r => { r.questions.q0.f0.instructions = 'changed'; },
+    r => { r.rowTable.values[0][0] = 99999; }, r => { r.requestTable.values[0][0] = -1; },
+    r => { r.requestTable.missing[0] = [99999]; }]) {
+    const changed = structuredClone(compact); mutate(changed);
+    assert.throws(() => expandToneEvidence(changed), /tone|Tone/);
+  }
+});
+
+test('offline discovery conversion preserves headlines and moves only its journal to local storage', async () => {
+  await temporary(async ({ root, out }) => {
+    const raw = syntheticDiscovery(), name = FILES.discoveryRaw.replace(/\.json$/, '-journal.jsonl');
+    const journal = JSON.stringify({ phase: raw.phase, startedAt: raw.startedAt }) + '\n';
+    raw.journal = { file: name, sha256: hash(journal) };
+    const bytes = JSON.stringify(raw, null, 2) + '\n';
+    await writeFile(new URL(FILES.discoveryRaw, out), bytes);
+    await writeFile(new URL(name, out), journal);
+    await saveTone(FILES.discoverySummary, { ...discoverySummary(raw), rawSha256: hash(bytes) }, out);
+    const output = [], converted = await convertDiscovery({ root, log: line => output.push(line) });
+    assert.deepEqual(converted.before, converted.after); assert.match(output.join('\n'), /MATCH true/);
+    const expanded = expandToneEvidence(JSON.parse(await readFile(new URL(FILES.discoveryRaw, out))));
+    assert.equal(expanded.journal.sha256, hash(await readFile(new URL(expanded.journal.file, root))));
+    await assert.rejects(readFile(new URL(name, out)), /ENOENT/);
+    assert.deepEqual((await verifyDiscovery({ root, log: () => {} })).after, converted.before);
+    await assert.rejects(convertDiscovery({ root, log: () => {} }), /already converted/);
+    const doc = new URL('docs/benchmarks/decision-models.md', root);
+    await writeFile(doc, 'Outside\n');
+    const markdown = await reportTone({ root });
+    for (const text of ['Short-rule grid', 'W0 subtype probabilities', 'Source-to-twin', 'Handle-noise', 'Template sensitivity', 'Content-free prior'])
+      assert.ok(markdown.includes(text), text);
+    assert.doesNotMatch(markdown, /@a you idiot|@a kind words|recommend/i);
+  }, false);
 });
 
 test('uncertain malformed sends fail with an active journal entry and unload once', async () => {

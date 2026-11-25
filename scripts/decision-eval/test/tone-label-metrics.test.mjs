@@ -4,7 +4,7 @@ import { RAGE_DEFINITION, TEMPLATES } from '../templates.mjs';
 import { optimalCutoff } from '../wording-metrics.mjs';
 import { TONE_TEMPLATES, WORDINGS, toneQuestion, toneTemplateHash } from '../tone-templates.mjs';
 import {
-  CUTOFF, CONTENT_FREE, applyPolicy, calibrateProbability, evaluateGates,
+  CUTOFF, CONTENT_FREE, GATE_SCOPES, applyPolicy, calibrateProbability, evaluateGates,
   ownWords, stripLeadingMentions, summarizeRows, transformState, validatePolicy,
 } from '../tone-label-metrics.mjs';
 
@@ -139,7 +139,7 @@ test('policy validation accepts only the complete preregistered policy schema', 
 test('policy decisions use inclusive cutoffs and retain raw probability and original text', () => {
   const row = Object.freeze({ text: '@alice @bob rude', probability: CUTOFF, gold: true });
   const result = applyPolicy(row, policy({ stateTransform: 'strip-leading-mentions' }));
-  assert.deepEqual(result, { ...row, rawProbability: CUTOFF, hidden: true, unclassified: false });
+  assert.deepEqual(result, { ...row, rawProbability: CUTOFF, cutoff: CUTOFF, hidden: true, unclassified: false });
   assert.equal(row.probability, CUTOFF);
   const calibrated = applyPolicy({ text: 'rude', probability: 0.5 },
     policy({ calibration: 'content-free' }), [0.8, 0.8, 0.8, 0.8, 0.8]);
@@ -160,6 +160,14 @@ test('short rules use the original own-word count with an inclusive word boundar
   assert.equal(applyPolicy({ text: 'six own words fit in here', probability: 0.2 }, short).hidden, true);
   assert.equal(applyPolicy({ text: '😠 @a https://example.test', probability: 0.7 },
     policy({ shortRule: { maxOwnWords: 0, cutoff: 0.8 } })).hidden, false);
+});
+
+test('policy results report the applied cutoff for short, ordinary and unclassified rows', () => {
+  const short = policy({ cutoff: 0.2, shortRule: { maxOwnWords: 2, cutoff: 0.8 } });
+  assert.equal(applyPolicy({ text: 'two words', probability: 0.7, cutoff: 0.9 }, short).cutoff, 0.8);
+  assert.equal(applyPolicy({ text: 'three own words', probability: 0.7 }, short).cutoff, 0.2);
+  assert.equal(applyPolicy({ text: '@a', probability: 1 },
+    { ...short, stateTransform: 'strip-leading-mentions' }).cutoff, 0.8);
 });
 
 test('stripped or explicitly unclassified posts stay visible even at cutoff zero', () => {
@@ -206,8 +214,30 @@ test('summaries score actual hidden decisions and exclude ambiguous gold', () =>
   assert.equal(summary.shortPositiveFN, 1);
   assert.equal(summary.missedShortRude, 1);
   assert.deepEqual(summary.fpBySubtype, { 'content-free': 1, civil: 1 });
+  assert.deepEqual(summary.fnBySubtype, { 'short-rude': 1, 'long-rude': 1 });
   close(summary.auc, 0.25);
   assert.deepEqual(summary.optimal, optimalCutoff(rows.filter(row => !row.ambiguous && !row.unclassified)));
+});
+
+test('false-negative subtype counts use eligible rows and safe own keys', () => {
+  const summary = summarizeRows([
+    { text: 'one', gold: true, probability: 0.1, hidden: false, subtype: '__proto__' },
+    { text: 'two', gold: true, probability: 0.1, hidden: false, subtype: '__proto__' },
+    { text: 'three', gold: true, probability: 0.1, hidden: false },
+    { text: 'four', gold: true, probability: 0.1, hidden: false, subtype: '' },
+    { text: 'five', gold: true, probability: 0.1, hidden: false, subtype: 'constructor' },
+    { text: 'ambiguous positive', gold: true, probability: 0.1, hidden: false,
+      ambiguous: true, subtype: '__proto__' },
+    { text: 'true positive', gold: true, probability: 0.9, hidden: true, subtype: 'correct' },
+    { text: 'true negative', gold: false, probability: 0.1, hidden: false, subtype: 'correct' },
+    { text: 'false positive', gold: false, probability: 0.9, hidden: true, subtype: 'fp-only' },
+  ]);
+  assert.deepEqual(summary.fnBySubtype, JSON.parse('{"__proto__":2,"unspecified":2,"constructor":1}'));
+  assert.equal(Object.getPrototypeOf(summary.fnBySubtype), Object.prototype);
+  assert.deepEqual(summary.fpBySubtype, { 'fp-only': 1 });
+  assert.equal(summary.FN, 5);
+  assert.equal(summary.ambiguousExcluded, 1);
+  assert.deepEqual(summarizeRows([], { includeOptimal: false }).fnBySubtype, {});
 });
 
 test('summary reuses the widest optimal interval midpoint from frozen wording math', () => {
@@ -252,7 +282,7 @@ test('summary rejects malformed scored decisions rather than silently dropping t
 
 const gate = changes => ({
   name: 'candidate errors improve', metric: 'errors', policy: 'candidate',
-  comparator: '<', reference: 'baseline', slack: 0, ...changes,
+  comparator: '<', reference: 'baseline', slack: 0, scope: 'all', factor: 1, ...changes,
 });
 
 test('gates resolve policy and numeric references with strict and inclusive comparisons', () => {
@@ -273,14 +303,101 @@ test('gates resolve policy and numeric references with strict and inclusive comp
   assert.deepEqual(evaluateGates([], metrics), { pass: true, checks: [] });
 });
 
+test('relative gates multiply policy and numeric references before adding slack', () => {
+  const metrics = { candidate: { errors: 2 }, baseline: { errors: 3 } };
+  const gates = [
+    gate({ factor: 0.5, slack: 0.6 }),
+    gate({ factor: 0.5, slack: 0.5 }),
+    gate({ factor: 0.5, slack: 0.5, comparator: '<=' }),
+    gate({ factor: 0.5, reference: 4 }),
+    gate({ factor: 0.5, reference: 4, comparator: '<=' }),
+    gate({ factor: 2, reference: 0, slack: 2, comparator: '<=' }),
+  ];
+  const result = evaluateGates(gates, metrics);
+  assert.equal(result.pass, false);
+  assert.deepEqual(result.checks.map(check => check.limit), [2.1, 2, 2, 2, 2, 2]);
+  assert.deepEqual(result.checks.map(check => check.pass), [true, false, true, false, true, true]);
+});
+
+test('scoped gates use matching subject and reference populations and prefer scopes.all', () => {
+  assert.deepEqual(GATE_SCOPES, [
+    'all', 'corpus:tone-holdout', 'corpus:original-validation', 'corpus:fresh-behaviour',
+    'group:excessive-rudeness', 'group:fresh-*', 'group:orig-*',
+  ]);
+  assert(Object.isFrozen(GATE_SCOPES));
+  const metrics = {
+    candidate: { errors: 100, scopes: {
+      all: { errors: 4 },
+      'corpus:tone-holdout': { errors: 2 },
+      'corpus:original-validation': { errors: 2 },
+      'corpus:fresh-behaviour': { errors: 1 },
+      'group:excessive-rudeness': { errors: 1 },
+      'group:fresh-*': { errors: 0 },
+      'group:orig-*': { errors: 1 },
+    } },
+    baseline: { errors: 0, scopes: {
+      all: { errors: 5 },
+      'corpus:tone-holdout': { errors: 4 },
+      'corpus:original-validation': { errors: 2 },
+      'corpus:fresh-behaviour': { errors: 0 },
+      'group:excessive-rudeness': { errors: 4 },
+      'group:fresh-*': { errors: 2 },
+      'group:orig-*': { errors: 1 },
+    } },
+  };
+  const result = evaluateGates(GATE_SCOPES.map(scope => gate({ scope, factor: 0.75 })), metrics);
+  assert.equal(result.pass, false);
+  assert.deepEqual(result.checks.map(check => check.actual), [4, 2, 2, 1, 1, 0, 1]);
+  assert.deepEqual(result.checks.map(check => check.referenceValue), [5, 4, 2, 0, 4, 2, 1]);
+  assert.deepEqual(result.checks.map(check => check.pass), [false, true, false, false, true, true, false]);
+  const numeric = evaluateGates([
+    gate({ scope: 'corpus:fresh-behaviour', reference: 2, factor: 0.5, comparator: '<=' }),
+  ], metrics);
+  assert.equal(numeric.pass, true);
+  assert.equal(numeric.checks[0].actual, 1);
+  assert.equal(numeric.checks[0].limit, 1);
+});
+
+test('scoped gates reject absent subject or reference populations without falling back', () => {
+  const scope = 'corpus:tone-holdout';
+  const valid = { errors: 1, scopes: { [scope]: { errors: 1 } } };
+  const missing = { errors: 0, scopes: { all: { errors: 0 } } };
+  assert.throws(() => evaluateGates([gate({ scope })], { candidate: missing, baseline: valid }),
+    /Missing scope corpus:tone-holdout for policy candidate/u);
+  assert.throws(() => evaluateGates([gate({ scope })], { candidate: valid, baseline: missing }),
+    /Missing scope corpus:tone-holdout for policy baseline/u);
+  for (const candidate of [
+    { errors: 0 },
+    { errors: 0, scopes: null },
+    { errors: 0, scopes: [] },
+    { errors: 0, scopes: Object.create({ [scope]: { errors: 0 } }) },
+    { errors: 0, scopes: { [scope]: null } },
+    { errors: 0, scopes: { [scope]: { FP: 0 } } },
+  ]) {
+    assert.throws(() => evaluateGates([gate({ scope })], { candidate, baseline: valid }), TypeError);
+  }
+  assert.throws(() => evaluateGates([gate({ reference: 1 })], { candidate: valid }),
+    TypeError, 'scopes.all is required once explicit scopes exist');
+  assert.throws(() => evaluateGates([gate()], {
+    candidate: { errors: 0, scopes: { all: { errors: 0 } } }, baseline: valid,
+  }), /Missing scope all for policy baseline/u);
+});
+
 test('gate validation fails closed for unknown schema and missing or nonfinite counts', () => {
   const validMetrics = { candidate: { errors: 2 }, baseline: { errors: 3 } };
   const valid = gate();
-  const missing = { ...valid };
-  delete missing.slack;
-  for (const invalid of [null, [], missing, { ...valid, extra: true },
+  for (const field of Object.keys(valid)) {
+    const missing = { ...valid };
+    delete missing[field];
+    assert.throws(() => evaluateGates([missing], validMetrics), TypeError);
+  }
+  for (const invalid of [null, [], { ...valid, extra: true },
     gate({ metric: 'auc' }), gate({ comparator: '>' }), gate({ name: '' }), gate({ policy: '' }),
     gate({ slack: -1 }), gate({ slack: Infinity }), gate({ slack: '0' }),
+    gate({ factor: 0 }), gate({ factor: -1 }), gate({ factor: NaN }), gate({ factor: Infinity }),
+    gate({ factor: '1' }), gate({ factor: null }), gate({ factor: undefined }),
+    gate({ scope: '' }), gate({ scope: 'tone-holdout' }), gate({ scope: 'group:fresh-topic' }),
+    gate({ scope: '__proto__' }), gate({ scope: null }), gate({ scope: undefined }),
     gate({ reference: NaN }), gate({ reference: -1 }), gate({ reference: '' }),
     gate({ reference: {} }), gate({ policy: 'missing' }), gate({ reference: 'missing' })]) {
     assert.throws(() => evaluateGates([invalid], validMetrics), TypeError);
@@ -291,6 +408,8 @@ test('gate validation fails closed for unknown schema and missing or nonfinite c
   }
   assert.throws(() => evaluateGates([valid], { candidate: {}, baseline: { errors: 3 } }), TypeError);
   assert.throws(() => evaluateGates([gate({ reference: Number.MAX_VALUE, slack: Number.MAX_VALUE })], validMetrics), TypeError);
+  assert.throws(() => evaluateGates([gate({ reference: Number.MAX_VALUE, factor: 2 })], validMetrics), /Gate limit must be finite/u);
+  assert.throws(() => evaluateGates([gate({ factor: Number.MAX_VALUE })], validMetrics), /Gate limit must be finite/u);
   assert.throws(() => evaluateGates(null, validMetrics), TypeError);
   assert.throws(() => evaluateGates([], null), TypeError);
 });

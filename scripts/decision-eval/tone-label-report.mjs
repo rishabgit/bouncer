@@ -3,6 +3,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { isDeepStrictEqual as same } from 'node:util';
 import { publicValue } from './runtime.mjs';
 import { evaluateGates } from './tone-label-metrics.mjs';
+import { expandToneEvidence } from './tone-label-evidence.mjs';
 
 export const TONE_MARKERS = Object.freeze(['<!-- tone-label-study:start -->', '<!-- tone-label-study:end -->']);
 const NAMES = { discovery: 'decision-tone-discovery-summary.json', holdout: 'decision-tone-holdout-summary.json' };
@@ -14,6 +15,47 @@ const table = (head, rows) => [`| ${head.join(' | ')} |`, `| ${head.map(() => '-
   ...rows.map(row => `| ${row.map(text).join(' | ')} |`)].join('\n');
 const cutoff = policy => policy?.shortRule
   ? `${policy.cutoff}; ≤${policy.shortRule.maxOwnWords} words: ${policy.shortRule.cutoff}` : policy?.cutoff;
+const median = values => {
+  const sorted = [...values].sort((a, b) => a - b), middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
+};
+
+function discoveryDetails(summary) {
+  const lines = [], diagnostics = summary.diagnostics ?? {}, grid = summary.shortRuleGrid?.bestByMaxOwnWords;
+  if (grid?.length) lines.push('Short-rule grid: saved best cutoffs for posts with at most N own words.', '',
+    table(['N', 'Short cutoff', 'Errors', 'FP', 'FN'], grid.map(row =>
+      [row.maxOwnWords, number(row.cutoff), row.errors, row.FP ?? row.falseHides, row.FN ?? row.missedHides])), '');
+  const subtypes = diagnostics.subtypeDistributions?.find(row => row.wording === 'W0')?.subtypes;
+  if (subtypes?.length) lines.push(`W0 subtype probabilities; shares use the recorded cutoff of ${summary.cutoff}.`, '',
+    table(['Subtype', 'n', 'Median', 'Share ≥ cutoff'], subtypes.map(row =>
+      [row.subtype, row.n, number(row.median), number(row.shareAtOrAboveCutoff)])), '');
+  const twins = diagnostics.twins?.filter(row => ['W0', 'W5'].includes(row.wording));
+  if (twins?.length) lines.push('Source-to-twin probability drops.', '',
+    table(['Wording', 'Pairs', 'Median source − twin'], twins.map(row =>
+      [row.wording, row.n, number(row.medianSourceMinusTwin)])), '');
+  if (diagnostics.handleSensitivity?.length) {
+    const rows = ['W0', 'W5'].flatMap(id => {
+      const values = diagnostics.handleSensitivity.flatMap(row => row.wordings?.filter(wording => wording.id === id) ?? []);
+      if (!values.length) return [];
+      const ranges = values.map(row => row.max - row.min);
+      return [[id, values.length, `${number(Math.min(...values.map(row => row.min)))}–${number(Math.max(...values.map(row => row.max)))}`,
+        number(median(ranges)), number(Math.max(...ranges)), values.filter(row => row.crossesCutoff).length]];
+    });
+    if (rows.length) lines.push('Handle-noise probabilities across the saved variants.', '',
+      table(['Wording', 'Texts', 'Probability min–max', 'Median text range', 'Max text range', 'Texts crossing cutoff'], rows), '');
+  }
+  if (diagnostics.templateSensitivity?.length) lines.push('Template sensitivity.', '',
+    table(['Template', 'n', 'AUC n', 'Spearman vs T0', 'AUC'], diagnostics.templateSensitivity.map(row =>
+      [row.template, row.n, row.aucN, number(row.spearmanVsT0), number(row.auc)])), '');
+  if (diagnostics.contentFreePriors?.length) {
+    const states = ['.', '…', '-', 'N/A', '?'];
+    lines.push('Content-free prior probabilities by intent and wording ID.', '',
+      table(['Template', 'Label IDs', ...states], diagnostics.contentFreePriors.map(row =>
+        [row.template, (row.labelKeys ?? [...(row.intentIds ?? []), ...(row.wordingIds ?? [])]).join(', '),
+          ...states.map(state => number(row.probabilities[row.states.indexOf(state)]))])), '');
+  }
+  return lines;
+}
 
 function checkMetric(row) {
   insist(['n', 'positives', 'negatives', 'FP', 'FN', 'errors', 'correct', 'lowContentFP', 'shortPositiveFN']
@@ -50,16 +92,18 @@ export function renderToneSection({ discovery, holdout } = {}) {
   for (const [name, summary] of [['Discovery', discovery], ['Holdout', holdout]]) {
     if (!summary) continue;
     insist(summary.status === 'complete' && Array.isArray(summary.wordings) && Array.isArray(summary.policies), 'Invalid tone summary');
-    lines.push(`**${name}**`, '', table(['Wording', 'n', 'Errors', 'FP / FN', 'AUC', ...(name === 'Discovery' ? ['Best cutoff / errors'] : [])], summary.wordings.map(row =>
-      [row.id, row.n, row.errors, `${row.FP ?? row.falseHides} / ${row.FN ?? row.missedHides}`, number(row.auc),
+    lines.push(`**${name}**`, '', table(['Wording', 'Label', 'n', 'Errors', 'FP / FN', 'AUC', ...(name === 'Discovery' ? ['Best cutoff / errors'] : [])], summary.wordings.map(row =>
+      [row.id, row.label, row.n, row.errors, `${row.FP ?? row.falseHides} / ${row.FN ?? row.missedHides}`, number(row.auc),
         ...(name === 'Discovery' ? [row.optimal ? `${number(row.optimal.cutoff)} / ${row.optimal.errors}` : '—'] : [])])), '',
-    table(['Policy', 'n', 'Cutoff', 'Errors', 'FP / FN', 'Low-content FP', 'Short-positive FN'], summary.policies.map(row =>
-      [row.id, row.n, cutoff(row.policy) ?? row.cutoff, row.errors, `${row.FP ?? row.falseHides} / ${row.FN ?? row.missedHides}`,
+    table(['Policy', 'Template', 'State transform', 'Calibration', 'n', 'Cutoff', 'Errors', 'FP / FN', 'Low-content FP', 'Short-positive FN'], summary.policies.map(row =>
+      [row.id, row.policy?.template, row.policy?.stateTransform, row.policy?.calibration, row.n, cutoff(row.policy) ?? row.cutoff, row.errors, `${row.FP ?? row.falseHides} / ${row.FN ?? row.missedHides}`,
         row.lowContentFP, row.shortPositiveFN])), '', `[${name} summary](data/${name === 'Discovery' ? NAMES.discovery : NAMES.holdout}).`, '');
+    if (name === 'Discovery') lines.push(...discoveryDetails(summary));
     if (name === 'Holdout') {
       insist(summary.gates && Array.isArray(summary.gates.checks), 'Missing registered tone gate verdicts');
-      lines.push(table(['Gate', 'Actual', 'Comparator', 'Reference + slack', 'Verdict'], summary.gates.checks.map(gate =>
-        [gate.name, gate.actual, gate.comparator, gate.limit, gate.pass ? 'PASS' : 'FAIL'])), '');
+      lines.push(table(['Gate', 'Scope', 'Actual', 'Comparator', 'factor × ref + slack', 'Verdict'], summary.gates.checks.map(gate =>
+        [gate.name, gate.scope, gate.actual, gate.comparator, `${gate.factor} × ${gate.referenceValue} + ${gate.slack} = ${gate.limit}`,
+          gate.pass ? 'PASS' : 'FAIL'])), '');
     }
   }
   return lines.join('\n');
@@ -86,7 +130,7 @@ export async function reportTone({ root = new URL('../../', import.meta.url) } =
     const rawName = name === 'discovery' ? 'decision-tone-discovery-raw.json' : 'decision-tone-holdout-result.json';
     const rawBytes = await readFile(new URL(rawName, out));
     insist(summary.rawFile === rawName && summary.rawSha256 === hash(rawBytes), 'Tone report raw SHA-256 differs');
-    const raw = JSON.parse(rawBytes); checkSummary(summary, raw, name);
+    const raw = expandToneEvidence(JSON.parse(rawBytes)); checkSummary(summary, raw, name);
     for (const [receipt, digest] of Object.entries(raw.protectedHashes ?? {})) {
       insist(/^decision-[^/]+\.json$/.test(receipt) && !receipt.includes('..')
         && hash(await readFile(new URL(receipt, out))) === digest, 'Tone report protected receipt differs');

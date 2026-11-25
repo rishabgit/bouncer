@@ -1,6 +1,6 @@
 // Fixed System One client. Metadata never loads weights; failures affect one post.
 import type { EvaluationPostData, FilterScore, LocalModelStatus } from '../types';
-import { DECISION_MODEL, DECISION_CLASSIFIER_FINGERPRINT, LLAMA_ENDPOINT, decisionQuestions } from '../shared/decision-model';
+import { DECISION_MODEL, DECISION_CLASSIFIER_FINGERPRINT, LLAMA_ENDPOINT, decisionCutoff, decisionQuestions } from '../shared/decision-model';
 import { truncateText } from '../shared/utils';
 import { getStorage, setStorage } from '../shared/storage';
 import { InferenceQueue, STALE_WORK_ERROR } from './inference-queue';
@@ -204,7 +204,8 @@ export class LocalEngine {
         const response = await request('/v1/systemone', body);
         assertCurrent();
         const scores = parseDecisionAnswers(response, requestFilters);
-        const matches = scores.filter(({ score }) => score >= DECISION_MODEL.cutoff).map(({ label }) => label);
+        const cutoff = decisionCutoff(body.state);
+        const matches = scores.filter(({ score }) => score >= cutoff).map(({ label }) => label);
         assertCurrent();
         return {
           shouldHide: matches.length > 0,

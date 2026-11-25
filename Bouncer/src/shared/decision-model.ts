@@ -10,6 +10,7 @@ export interface DecisionModel {
   templateId: string;
   template: string;
   cutoff: number;
+  shortRule: Readonly<{ maxOwnWords: number; cutoff: number; ownWords: string }>;
   settings: Readonly<Record<'ctx-size' | 'parallel' | 'batch-size' | 'ubatch-size', number>>;
   noProjector: boolean;
   rageDefinition: string;
@@ -29,6 +30,7 @@ export const DECISION_MODEL: Readonly<DecisionModel> = Object.freeze({
   templateId: 'matches-category',
   template: 'Does this social media post match the category {category}? Answer yes if it matches, otherwise no.',
   cutoff: 0.290813258948728,
+  shortRule: Object.freeze({ maxOwnWords: 3, cutoff: 0.7, ownWords: 'v1-whitespace-letters-digits' }),
   settings: Object.freeze({ 'ctx-size': 4096, parallel: 1, 'batch-size': 4096, 'ubatch-size': 4096 }),
   noProjector: true,
   rageDefinition: 'For categories like "rage bait" or "outrage farming", answer yes only when the post is engineered to provoke anger or amplify a pile-on: repost/share/quote/tag requests, ratio calls, "make this loud" framing, "wake up" outrage escalation, or language that pushes readers to attack or shame a target. Answer no for sincere frustration, fair criticism, personal hardship, civic participation, ordinary sarcasm, or calm pessimism unless the post is also trying to farm outrage.',
@@ -60,6 +62,22 @@ export function decisionModelFingerprint(model: Readonly<DecisionModel> = DECISI
 }
 
 export const DECISION_CLASSIFIER_FINGERPRINT = decisionModelFingerprint();
+
+/**
+ * Must stay identical to ownWords in scripts/decision-eval/tone-label-metrics.mjs,
+ * which the registered holdout evaluated.
+ * Bump shortRule.ownWords whenever this counting policy changes.
+ */
+export function ownWords(text: string): number {
+  return text.replace(/https?:\/\/\S+/giu, '').replace(/@\w+/gu, '')
+    .split(/\s+/u).filter(token => /[\p{L}\p{N}]/u.test(token)).length;
+}
+
+/** Judge the exact request state, after input-budget truncation. */
+export function decisionCutoff(textSent: string): number {
+  return ownWords(textSent) <= DECISION_MODEL.shortRule.maxOwnWords
+    ? DECISION_MODEL.shortRule.cutoff : DECISION_MODEL.cutoff;
+}
 
 export function decisionQuestions(filters: string[]): Record<string, { type: 'noul'; instructions: string }> {
   if (!filters.length || filters.some(filter => typeof filter !== 'string' || !filter.trim())) {

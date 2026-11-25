@@ -52,7 +52,7 @@ or live-feed behavior.
 ### Single local classifier
 
 Llama.app System One is the sole inference path. Keep model identity, endpoint,
-request template, rage-bait guidance, probability cutoff and classifier
+request template, rage-bait guidance, probability cutoffs and classifier
 fingerprint in `src/shared/decision-model.ts`. Use the current storage schema
 directly for fresh installs, without migrations, retired-storage cleanup or
 compatibility aliases. Manual decisions remain durable across worker restarts.
@@ -77,8 +77,16 @@ websites can access localhost.
 Classification sends bare post text as `state` and one `noul` question per
 filter, keyed `f0`, `f1`, and so on in input order, using the frozen
 `matches-category` template. Accept only a complete set of finite probabilities
-in [0, 1], and reject `response.truncated: true`. The exact matching rule is
-`probability >= 0.290813258948728`. Enforce at most ten active filters. Post
+in [0, 1], and reject `response.truncated: true`. Match when `probability >= cutoff`:
+use `0.70` for at most three own words in the sent `state`, otherwise
+`0.290813258948728`, regardless of filter phrase. Count own words by removing
+case-insensitive `https?://\S+` http(s) links, then `@\w+` handles, and splitting
+on whitespace. Count each token containing a Unicode letter or digit as one
+own word. Keep this counter identical to the registered holdout's `ownWords` in
+`scripts/decision-eval/tone-label-metrics.mjs` and keep its version in the
+classifier fingerprint.
+See the [tone label study](docs/benchmarks/decision-models.md#tone-label-study).
+Enforce at most ten active filters. Post
 truncation counts ASCII UTF-16 code units as one and non-ASCII code units as
 two, preserves surrogate pairs and fits the full question/text budget. Keep
 input limits in the classifier fingerprint. Keep manual/cache reads ahead of

@@ -58,10 +58,14 @@ Tone filters can overhide or miss posts. Plain descriptions worked better than
 short tone labels in the recorded evaluation; [quality and limits](docs/models.md#quality-and-limits)
 records the results and their boundaries.
 
+Every filter matches at a probability of at least `0.70` for at most three own
+words in the sent text or `0.290813258948728` otherwise, excluding http(s) links
+and @handles; see [quality and limits](docs/models.md#quality-and-limits).
+
 ## Development
 
 From `Bouncer/`, run `npm run build`, `npm run lint` and `npm run test`.
-The classifier’s model, endpoint, request template, cutoff and input limits are
+The classifier’s model, endpoint, request template, cutoffs and input limits are
 defined in `src/shared/decision-model.ts`. Follow
 [browser testing](docs/browser-testing.md) for a future human check of the real
 extension. Unit tests and recorded model evaluations do not establish live-feed

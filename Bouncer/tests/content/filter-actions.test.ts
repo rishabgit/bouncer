@@ -269,23 +269,26 @@ describe('live content filter actions', () => {
     vi.unstubAllGlobals();
   });
 
-  it.each([false, true])('renders scores and copies exact classification details with cached=%s', async cached => {
+  it.each([false, true].flatMap(cached => [
+    { cached, textSent: 'Criticism of rudeness. 😤', cutoff: 0.7 },
+    { cached, textSent: 'Criticism of this rudeness. 😤', cutoff: DECISION_MODEL.cutoff },
+  ]))('renders scores and copies exact classification details with cached=$cached cutoff=$cutoff', async ({ cached, textSent, cutoff }) => {
     const writeText = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal('navigator', { clipboard: { writeText } });
     storage.descriptions_twitter = ['excessive rudeness', 'spam, scams', 'bird watching'];
     await useRealTwitterAdapter();
-    const textSent = 'Criticism of rudeness. 😤';
     const article = post('1', textSent);
     article.insertAdjacentHTML('beforeend', '<div role="link"><div data-testid="tweetText">A rude quoted post.</div></div>');
     await start();
     expect(evaluations[0].message.post).toBe(textSent);
     const scores = [
-      { label: 'excessive rudeness', score: 0.8 },
+      { label: 'excessive rudeness', score: 0.7 },
       { label: 'spam, scams', score: 0.09 },
       { label: 'bird watching', score: DECISION_MODEL.cutoff },
     ];
+    const birdMatched = cutoff === DECISION_MODEL.cutoff;
     const timestamp = 1795551234567;
-    evaluations[0].resolve({ shouldHide: true, reasoning: 'Matched', matches: ['excessive rudeness', 'bird watching'],
+    evaluations[0].resolve({ shouldHide: true, reasoning: 'Matched', matches: birdMatched ? ['excessive rudeness', 'bird watching'] : ['excessive rudeness'],
       scores, textSent, model: DECISION_MODEL.id, timestamp, cached, rawResponse: '{"answers":{"f0":{}}}',
     });
     await flush();
@@ -293,14 +296,15 @@ describe('live content filter actions', () => {
     document.body.appendChild(panel);
     ui.renderFilteredPostsView(panel);
     expect(panel.querySelector('.slop-post-text')?.textContent).toBe(textSent);
-    expect(panel.querySelector('.slop-post-reasoning')?.textContent).toBe('Matched: excessive rudeness · 0.80, bird watching · 0.29');
+    expect(panel.querySelector('.slop-post-reasoning')?.textContent).toBe(birdMatched
+      ? 'Matched: excessive rudeness · 0.70, bird watching · 0.29' : 'Matched: excessive rudeness · 0.70');
     const details = panel.querySelector<HTMLDetailsElement>('.classification-details')!;
     expect(details.open).toBe(false);
     expect(details.closest('a')).toBeNull();
     expect(details.querySelector('summary')?.textContent).toBe('Details');
-    expect(details.textContent).toContain(`Matched when score ≥ ${DECISION_MODEL.cutoff}`);
+    expect(details.textContent).toContain(`Matched when score ≥ ${cutoff}`);
     expect(Array.from(details.querySelectorAll('li'), item => item.textContent)).toEqual([
-      'excessive rudeness · 0.80 · Matched', 'spam, scams · 0.09 · Not matched', 'bird watching · 0.29 · Matched',
+      'excessive rudeness · 0.70 · Matched', 'spam, scams · 0.09 · Not matched', `bird watching · 0.29 · ${birdMatched ? 'Matched' : 'Not matched'}`,
     ]);
     expect(details.querySelector('pre')?.textContent).toBe(textSent);
     expect(ui.getFilteredPosts()[0].evaluationText).toBe(textSent);
@@ -313,8 +317,8 @@ describe('live content filter actions', () => {
     expect(writeText).toHaveBeenCalledTimes(1);
     expect(JSON.parse(writeText.mock.calls[0][0])).toEqual({
       bouncerVersion: '2.0.0', model: DECISION_MODEL.id, templateId: DECISION_MODEL.templateId,
-      cutoff: DECISION_MODEL.cutoff, postUrl: 'https://x.com/synthetic/status/1', textSent,
-      scores: scores.map(entry => ({ ...entry, matched: entry.score >= DECISION_MODEL.cutoff })), classifiedAt: timestamp,
+      cutoff, postUrl: 'https://x.com/synthetic/status/1', textSent,
+      scores: [{ ...scores[0], matched: true }, { ...scores[1], matched: false }, { ...scores[2], matched: birdMatched }], classifiedAt: timestamp,
     });
     expect(sendMessage).toHaveBeenCalledTimes(messagesBeforeCopy);
     expect(details.querySelector('[role="status"]')?.textContent).toBe('Copied');
@@ -322,6 +326,7 @@ describe('live content filter actions', () => {
     expect(details.querySelector('[role="status"]')?.textContent).toBe('');
     ui.showReasoningPopup(article, 0, 0);
     expect(document.querySelector('.reasoning-details pre')?.textContent).toBe(textSent);
+    expect(document.querySelector('.reasoning-details')?.textContent).toContain(`Matched when score ≥ ${cutoff}`);
     expect(document.querySelector('.post-filter-reasoning-popup')?.textContent).not.toContain('Raw Model Response');
   });
 

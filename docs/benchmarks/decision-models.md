@@ -1369,6 +1369,16 @@ Pinned corpus hashes:
 - `native-isolation-holdout.json`: `18841a6609d9e68493c629880bc03eeaa233eab890245e5cfd5c2eaa9e9d4159`
 - `native-migration-validation.json`: `354e80566fdf889e213aec9072387c42f8286a48347379b1142073cba3fa4e27`
 
+## Tone label study findings
+
+This study asked why a rudeness filter hides harmless posts, and whether label wording, the question template or a label-agnostic rule can fix it. It used two independently authored synthetic splits (discovery and holdout, 112 posts each, slurs masked), gold for 18 filter intents confirmed by two blind labelers, and a holdout registered before inference and run once.
+
+- **Vocabulary, not acts.** Under the typed label, posts that swear at things, criticise rudeness, quote an insult to object to it or tease friends were hidden at rates of 60 to 100%. The same posts rewritten without the rude-sounding words were rarely hidden: 16 of 23 originals against 1 of 23 rewrites on discovery, and 16 against 3 on the holdout. Sarcastic contempt without rude words was mostly missed.
+- **Almost no words of their own.** Mean scores on five content-free inputs ranged from 0.11 to 0.36 across labels, at or above the general cutoff for some, and changing only the @handle of a short reply moved its typed-label score by up to about 0.28 (0.36 when the variant with no handle is included).
+- **Wording and templates.** Thirteen wordings made 27 to 31 errors on the 112 discovery posts; pooled over both splits, no tested wording beat the label as typed (54 errors against 54 to 57). Three of four alternative templates ranked posts almost identically (Spearman 0.94 to 0.99); the fourth agreed less (0.74) and was worse.
+- **Stricter cutoffs trade errors.** A uniform 0.72 cutoff cut the owner label's false hides on the holdout from 21 to 3 but raised misses from 6 to 12, three of them slur posts, and missed 30 topic decisions on the earlier validation set. It is not adopted.
+- **Short-post rule adopted.** Requiring 0.70 for posts with at most three own words passed every registered gate: tone-holdout errors fell from 231 to 177 with no added misses, and the owner label was unchanged. The earlier validation and behaviour corpora contain no posts with three or fewer own words, so they could not show an effect; short topical posts were thinly covered (one scored positive decision in the holdout; a second was excluded as ambiguous). The extension now applies it.
+
 <!-- tone-label-study:start -->
 ## Tone label study
 

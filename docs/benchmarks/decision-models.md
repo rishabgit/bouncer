@@ -1499,4 +1499,30 @@ Content-free prior probabilities by intent and wording ID.
 | T0 | W10 | 0.1516 | 0.1983 | 0.0937 | 0.0920 | 0.0967 |
 | T0 | W11 | 0.2011 | 0.2595 | 0.1754 | 0.1531 | 0.1458 |
 | T0 | W12 | 0.1914 | 0.2364 | 0.1347 | 0.1170 | 0.1122 |
+
+**Holdout**
+
+| Wording | Label | n | Errors | FP / FN | AUC |
+| --- | --- | --- | --- | --- | --- |
+| W0 | performative rudeness that are execessive like unnecessary usage of slurs | 109 | 27 | 21 / 6 | 0.8681 |
+| W5 | posts insulting people or using slurs | 109 | 26 | 21 / 5 | 0.8776 |
+| W11 | posts mocking or insulting people to look edgy | 109 | 30 | 26 / 4 | 0.8961 |
+| W12 | posts insulting or attacking a person | 109 | 28 | 23 / 5 | 0.8763 |
+
+| Policy | Template | State transform | Calibration | n | Cutoff | Errors | FP / FN | Low-content FP | Short-positive FN |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| P0 | T0 | none | none | 3060 | 0.290813258948728 | 299 | 273 / 26 | 38 | 1 |
+| Q | T0 | none | none | 3060 | 0.290813258948728; ≤3 words: 0.7 | 245 | 219 / 26 | 3 | 1 |
+| S | T0 | none | none | 3060 | 0.72 | 125 | 45 / 80 | 3 | 3 |
+
+[Holdout summary](data/decision-tone-holdout-summary.json).
+
+| Gate | Scope | Actual | Comparator | factor × ref + slack | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| G1 fewer errors on the tone holdout, all intents | corpus:tone-holdout | 177 | <= | 0.85 × 231 + 0 = 196.35 | PASS |
+| G2 bounded extra misses on the tone holdout | corpus:tone-holdout | 6 | <= | 1 × 6 + 2 = 8 | PASS |
+| G3 original validation not worse | corpus:original-validation | 2 | <= | 1 × 2 + 1 = 3 | PASS |
+| G4 earlier behaviour corpus not worse | corpus:fresh-behaviour | 66 | <= | 1 × 66 + 1 = 67 | PASS |
+| G5 owner label errors not worse | group:excessive-rudeness | 27 | <= | 1 × 27 + 0 = 27 | PASS |
+| G6 owner label at most one extra miss | group:excessive-rudeness | 6 | <= | 1 × 6 + 1 = 7 | PASS |
 <!-- tone-label-study:end -->

@@ -12,7 +12,7 @@ export interface DetectorSnapshot {
   shouldHide?: boolean;
   reasoning?: string;
   category?: string | null;
-  /** Exact matched phrases when known; legacy cache entries may omit them. */
+  /** Exact matched phrases for automatic or phrase-based manual decisions. */
   matches?: string[];
   error?: string;
   /** Either pre-run skip reason or post-race "aborted because other detector
@@ -20,26 +20,33 @@ export interface DetectorSnapshot {
   skipReason?: string;
 }
 
+export interface FilterScore {
+  label: string;
+  score: number;
+}
+
+/** Request-time data retained for debugging, including the final truncated state. */
+export interface ClassificationDetails {
+  scores?: FilterScore[];
+  textSent?: string;
+  timestamp?: number;
+  model?: string;
+}
+
 /** The cached verdict for a post — what the local classifier produces and what gets stored. */
-export interface EvaluationResult {
+export interface EvaluationResult extends ClassificationDetails {
   shouldHide: boolean;
   reasoning: string;
   category?: string | null;
-  /** Exact matched phrases when known; legacy cache entries may omit them. */
+  /** Exact matched phrases for automatic or phrase-based manual decisions. */
   matches?: string[];
   rawResponse?: string | null;
-  timestamp?: number;
-  /** Which model produced this evaluation. */
-  model?: string;
   /** Set by the background when the result came from the evaluation cache. */
   cached?: boolean;
-  /** Selected engine and immutable choice revision that produced this verdict. */
-  engine?: InferenceEngineId;
-  selectionRevision?: number;
-  /** Fixed artifact, prompt/parser and inference/input contract. */
+  /** Fixed local provider that produced this verdict. */
+  engine?: 'llama.app';
+  /** Fixed decision model, question template, cutoff and input contract. */
   classifierFingerprint?: string;
-  /** Invalid model output remains an explicit failure, never a negative hit. */
-  malformed?: boolean;
   /** Explicit local Bounce/Restore decision, preserved across DOM updates. */
   userOverride?: boolean;
   /** Per-detector snapshots so a cache hit can rebuild the same tab UI. */
@@ -56,12 +63,10 @@ export interface EvaluationPostData {
 /** What the pipeline returns to content scripts via chrome.runtime.sendMessage. */
 export type PipelineResponse = EvaluationResult | PipelineError | PipelineRetry | null;
 
-/** Evaluation failed — content should track for retry via error broadcasts. */
+/** Evaluation failed for this post — content keeps it visible and records the error. */
 export interface PipelineError {
   error: 'local_model';
   reasoning: string;
-  /** Expected setup waits resume on status/choice changes, without a retry loop. */
-  availabilityReason?: 'not_configured' | 'needs_download' | 'downloading' | 'switching' | 'browser_cancelled';
 }
 
 /** Transient signal — content should remove from processed and retry later. */
@@ -109,40 +114,11 @@ export interface FilteredPost {
   category: string | null;
   matches?: string[];
   userOverride?: boolean;
+  classification?: ClassificationDetails;
   timestamp: number;
 }
 
 // ==================== Models & Config ====================
-
-export type InferenceEngineId = 'litertlm' | 'ollama';
-
-/** The explicit choice is independent of download, permission or readiness. */
-export interface EngineSelection {
-  engine: InferenceEngineId | null;
-  revision: number;
-}
-
-export interface NativeModelDef {
-  name: string;
-  display: string;
-  backend: 'ollama';
-  manifestDigest: string | null;
-  weightDigest: string;
-  contextTokens: number;
-}
-
-export interface BrowserModelDef {
-  name: string;
-  display: string;
-  backend: 'litertlm';
-  weightDigest: string;
-  contextTokens: number;
-  sizeBytes: number;
-  litertlmConfig: { modelUrl: string; maxTokens: number };
-}
-
-/** Two immutable artifacts, never a custom-model or endpoint catalog. */
-export type LocalModelDef = NativeModelDef | BrowserModelDef;
 
 /** Fields shared between runtime Settings and the chrome.storage.local schema. */
 interface SettingsBase {
@@ -158,28 +134,10 @@ export interface Settings extends SettingsBase {
 }
 
 export interface LocalModelStatus {
-  state: 'not_configured' | 'needs_download' | 'downloading' | 'canceling' | 'switching'
-    | 'not_connected' | 'ready' | 'loading' | 'filtering' | 'paused'
-    | 'missing_model' | 'blocked' | 'recovery_required' | 'error';
+  state: 'checking' | 'ready' | 'unavailable'
+    | 'missing_model' | 'settings_required' | 'error';
   message: string;
-  reason?: string;
   revision: number;
-  engine?: InferenceEngineId | null;
-  selectionRevision?: number;
-  progress?: number;
-  receivedBytes?: number;
-  totalBytes?: number;
-  /** Qualified operator restart is an explicit trust boundary, not an API ack. */
-  recoveryQualified?: boolean;
-}
-
-/** Durable native lease. Never store post text, phrases, or response content. */
-export interface NativeOperationFence {
-  schemaVersion: 1;
-  operationId: string;
-  epoch: number;
-  startedAt: number;
-  modelDigest: string;
 }
 
 // ==================== Platform Adapter ====================
@@ -241,47 +199,24 @@ export interface PendingEvaluation {
   siteId: SiteId;
 }
 
-// ==================== Chat Messages ====================
-
-export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
-
 // ==================== Chrome Extension Messages ====================
 
 export type ContentToBackgroundMessage =
   | { type: 'pageLoad' }
   | { type: 'evaluatePost'; evaluationId: string; post: string; postUrl: string | null; siteId: SiteId }
-  | { type: 'suggestAnnoyingReasons'; post: string; siteId?: SiteId }
   | { type: 'clearCache' }
   | { type: 'clearSinglePost'; post: string }
-  | { type: 'bouncePost'; post: string; phrase?: string; reasoning?: string; siteId: SiteId }
+  | { type: 'bouncePost'; post: string; phrase: string; reasoning?: string; siteId: SiteId }
   | { type: 'getStats' }
   | { type: 'getReasoning'; post: string }
   | { type: 'getErrorStatus' }
-  | { type: 'getNativeModelStatus' }
   | { type: 'getLocalModelStatus' }
-  | { type: 'selectInferenceEngine'; engine: InferenceEngineId }
-  | { type: 'downloadBrowserModel' }
-  | { type: 'cancelBrowserDownload' }
-  | { type: 'deleteBrowserModel' }
-  | { type: 'retryLocalModel' }
-  | { type: 'connectNativeModel' }
-  | { type: 'retryNativeModel' }
-  | { type: 'recoverNativeModel'; operatorRestartConfirmed: true }
-  | { type: 'preemptInference' }
-  | { type: 'overrideCacheEntry'; post: string; shouldHide: boolean; reasoning?: string }
-  // Dev-only latency benchmark (gated by __DEV__ in the background dispatch).
-  | { type: 'benchmark'; op: 'status' | 'load' | 'infer' | 'unload'; selectionRevision?: number; post?: { text: string }; categories?: string[]; promptMode?: 'baseline' | 'intent' };
+  | { type: 'overrideCacheEntry'; post: string; shouldHide: boolean; reasoning?: string };
 
 export type BackgroundToContentMessage =
   | { type: 'ping' }
   | { type: 'errorStatusUpdate'; errorType: 'local_model' | null; count: number }
-  | { type: 'reEvaluateErrors' }
   | { type: 'getPositions'; postUrls: string[]; evaluationIds?: string[] }
-  | { type: 'processingPost'; postUrl: string }
-  | { type: 'annoyingProgress'; verified: number; total: number }
   | { type: 'evaluationStarted'; evaluationId: string; detectorNames: string[] }
   | { type: 'detectorResponse'; evaluationId: string; detectorName: string; shouldHide?: boolean; reasoning?: string; category?: string | null; matches?: string[]; error?: string; skipped?: boolean; skipReason?: string };
 
@@ -303,7 +238,7 @@ export interface PostOperations {
 
 export interface PostState {
   processedPosts: WeakSet<HTMLElement>;
-  postReasonings: WeakMap<HTMLElement, { shouldHide: boolean; reasoning: string; rawResponse?: string | null; isModelError?: boolean; category?: string | null; matches?: string[]; userOverride?: boolean }>;
+  postReasonings: WeakMap<HTMLElement, ClassificationDetails & { shouldHide: boolean; reasoning: string; rawResponse?: string | null; isModelError?: boolean; category?: string | null; matches?: string[]; userOverride?: boolean }>;
   pendingPosts: Set<HTMLElement>;
 }
 
@@ -319,16 +254,7 @@ export type DescriptionKey = `descriptions_${SiteId}`;
 
 /** Typed schema for chrome.storage.local keys. */
 export type StorageSchema = SettingsBase & {
-  engineSelection: EngineSelection;
-  engineChoiceSchemaVersion: number;
-  engineChoiceModelCacheCleanupVersion: number;
-  localModelStatus: LocalModelStatus;
-  browserModelStatus: LocalModelStatus;
-  browserCacheGeneration: string;
   nativeModelStatus: LocalModelStatus;
-  nativeOperationFence: NativeOperationFence;
   evaluationCache: Record<string, EvaluationResult>;
   stats: { filtered: number; evaluated: number; totalCost: number };
-  nativeCutoverSchemaVersion: number;
-  nativeModelCacheCleanupVersion: number;
 } & DescriptionKeys;

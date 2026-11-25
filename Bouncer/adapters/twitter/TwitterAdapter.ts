@@ -126,28 +126,19 @@ window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
     const timeEl = article.querySelector('time');
     const timeText = timeEl ? timeEl.textContent : null;
 
-    const tweetTextEls = article.querySelectorAll('[data-testid="tweetText"]');
-    const textParts: string[] = [];
-    tweetTextEls.forEach((el, index) => {
-      const raw = el.textContent?.replace(/\s+/g, ' ').trim();
-      if (raw) {
-        if (index === 0) {
-          textParts.push(raw);
-        } else {
-          textParts.push(`[Quoted: ${raw}]`);
-        }
-      }
-    });
-    const text = textParts.join(' ');
+    const tweetTextEls = Array.from(article.querySelectorAll('[data-testid="tweetText"]'));
+    // Only the first own text block enters classification. A bare quote can
+    // have a tweetText block only inside its quote card or nested article.
+    const mainTextEl = tweetTextEls.find(el => el.parentElement && this._isOwnPostElement(article, el.parentElement));
+    const text = mainTextEl?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
 
     // Main tweet text as HTML (preserves links, emojis, formatting)
-    const mainTextEl = tweetTextEls[0];
     const textHtml = mainTextEl ? mainTextEl.innerHTML : '';
 
     // Quote tweet — extract full metadata from the quote card container
     let quote: QuoteContent | null = null;
-    if (tweetTextEls.length > 1) {
-      const quoteTextEl = tweetTextEls[1];
+    const quoteTextEl = tweetTextEls.find(el => el !== mainTextEl);
+    if (quoteTextEl) {
       // The quote card is the nearest ancestor with role="link"
       const quoteCard = quoteTextEl.closest('[role="link"]');
 
@@ -592,9 +583,7 @@ window.BouncerAdapter = class TwitterAdapter implements PlatformAdapter {
 
     const author = data.userName || '';
     const handle = data.userHandle || '';
-    const text = data.quotedTweet
-      ? data.fullText + ' [Quoted: ' + data.quotedTweet.fullText + ']'
-      : data.fullText;
+    const text = data.fullText;
 
     // Merge quoted tweet images
     if (data.quotedTweet?.imageUrls?.length) {

@@ -1,6 +1,5 @@
 import type {
   DescriptionKey,
-  SiteId,
   StorageSchema,
 } from '../types';
 
@@ -25,49 +24,12 @@ export async function removeStorage<K extends keyof StorageSchema>(
   await chrome.storage.local.remove(keys);
 }
 
-function siteIdFromDescKey(key: DescriptionKey): SiteId {
-  return key.slice('descriptions_'.length) as SiteId;
-}
-
-function descriptionsKeyFor(siteId: SiteId): DescriptionKey {
-  return `descriptions_${siteId}` as DescriptionKey;
-}
-
-async function loadMainList(siteId: SiteId): Promise<string[]> {
-  const descKey = descriptionsKeyFor(siteId);
-  // Use untyped get for legacy migration keys that are no longer in StorageSchema.
-  const data = await chrome.storage.local.get([
-    descKey,
-    `filterPacks_${siteId}`,
-    `activeFilterPack_${siteId}`,
-    `activeFilterPacks_${siteId}`,
-  ]);
-
-  const legacyActiveSet = data[`activeFilterPacks_${siteId}`];
-  if (Array.isArray(legacyActiveSet)) {
-    const packs = (data[`filterPacks_${siteId}`] as Record<string, string[]> | undefined) ?? {};
-    const seedNames = (legacyActiveSet as unknown[]).filter(
-      (n): n is string => typeof n === 'string' && Boolean(packs[n])
-    );
-    const seen = new Set<string>();
-    const mainList: string[] = [];
-    for (const n of seedNames) {
-      for (const p of packs[n] || []) {
-        if (!seen.has(p)) { seen.add(p); mainList.push(p); }
-      }
-    }
-    await chrome.storage.local.set({ [descKey]: mainList });
-    await chrome.storage.local.remove([`activeFilterPack_${siteId}`, `activeFilterPacks_${siteId}`]);
-    return mainList;
-  }
-
-  return Array.isArray(data[descKey])
-    ? (data[descKey] as string[]).filter((p): p is string => typeof p === 'string')
-    : [];
-}
-
 export async function getDescriptions(descriptionsKey: DescriptionKey): Promise<string[]> {
-  return loadMainList(siteIdFromDescKey(descriptionsKey));
+  const data = await getStorage([descriptionsKey]);
+  const descriptions = data[descriptionsKey];
+  return Array.isArray(descriptions)
+    ? descriptions.filter((phrase): phrase is string => typeof phrase === 'string' && phrase.trim().length > 0)
+    : [];
 }
 
 export async function setDescriptions(descriptionsKey: DescriptionKey, descriptions: string[]): Promise<void> {

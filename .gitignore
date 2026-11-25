@@ -21,17 +21,6 @@ Bouncer/.env.dev
 # Node
 node_modules/
 
-# Playwright / test scripts
-.playwright-profile/
-screenshots/
-test-filtered-view.mjs
-
-# Local model preparation, synthetic qualification traces and rollback snapshots
-.native-preparation/
-.native-qualification/
-.native-rollback/
-.macos-ollama-setup-review/
-
 # Decision-model local logs, raw archives and Python bytecode
 /scripts/decision-eval/.tmp/
 /scripts/decision-eval/__pycache__/

@@ -3,8 +3,10 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import DOMPurify from 'dompurify';
-import type { BackgroundToContentMessage, EngineSelection, EvaluationResult, PipelineResponse, PlatformAdapter, PostContent } from '../../src/types.js';
+import type { BackgroundToContentMessage, EvaluationResult, PipelineResponse, PlatformAdapter, PostContent } from '../../src/types.js';
 import { generateCacheKey } from '../../src/shared/utils.js';
+import { FILTER_LABEL_GUIDANCE } from '../../src/shared/filter-guidance.js';
+import { DECISION_MODEL, MAX_ACTIVE_FILTERS, MAX_FILTERS_WARNING } from '../../src/shared/decision-model.js';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -19,11 +21,10 @@ describe('live content filter actions', () => {
   let storage: Record<string, unknown>;
   let storageListeners: Array<(changes: Record<string, chrome.storage.StorageChange>, areaName?: string) => void>;
   let messageListeners: Array<(message: BackgroundToContentMessage, sender: object, respond: () => void) => void>;
-  let evaluations: Array<{ message: { evaluationId: string; post: string }; selection?: EngineSelection; resolve: (value: PipelineResponse) => void }>;
+  let evaluations: Array<{ message: { evaluationId: string; post: string }; resolve: (value: PipelineResponse) => void }>;
   let sendMessage: ReturnType<typeof vi.fn>;
   let permalink: boolean;
   let mutationObservers: Array<{ callback: MutationCallback; options?: MutationObserverInit }>;
-  let suggestions: ReturnType<typeof deferred<{ reasons: string[] }>> | null;
   let bounceResponse: ReturnType<typeof deferred<{ success: boolean; error?: string }>> | null;
   let restoreResponse: ReturnType<typeof deferred<{ success: boolean; error?: string }>> | null;
 
@@ -60,28 +61,19 @@ describe('live content filter actions', () => {
     ui = await import('../../src/content/ui.js');
   }
 
-  async function verdict(index: number, matches?: string[], cached = true): Promise<void> {
-    const selection = evaluations[index].selection;
-    evaluations[index].resolve({ shouldHide: true, reasoning: '| yes |', matches, category: matches?.join(', ') || 'legacy', cached,
-      ...(selection ? { engine: selection.engine!, selectionRevision: selection.revision, classifierFingerprint: `synthetic-${selection.engine}` } : {}) });
+  async function verdict(index: number, matches: string[], cached = true): Promise<void> {
+    evaluations[index].resolve({ shouldHide: true, reasoning: '| yes |', matches, category: matches.join(', '), cached });
     await flush();
   }
 
   async function openBounce(article: HTMLElement): Promise<void> {
-    article.querySelector<HTMLElement>('.ff-why-annoying-btn')!.click();
+    article.querySelector<HTMLElement>('.ff-bounce-button')!.click();
     await flush();
   }
 
-  async function startSelected(): Promise<void> {
-    storage.engineSelection = { engine: 'ollama', revision: 7 };
-    storage.localModelStatus = { state: 'ready', message: '', revision: 90, engine: 'ollama', selectionRevision: 7 };
+  async function startReady(): Promise<void> {
+    storage.nativeModelStatus = { state: 'ready', message: '', revision: 90 };
     await start();
-  }
-
-  function switchEngine(state = 'ready'): void {
-    const selection = { engine: 'litertlm', revision: ((storage.engineSelection as EngineSelection | undefined)?.revision || 0) + 1 };
-    change('engineSelection', selection);
-    change('localModelStatus', { state, message: '', revision: 1, engine: selection.engine, selectionRevision: selection.revision });
   }
 
   function recycle(article: HTMLElement, id: string): void {
@@ -128,7 +120,7 @@ describe('live content filter actions', () => {
 
   function canonicalXContent(id = '1'): PostContent {
     return {
-      text: 'A formatted excerpt with the complete store-only continuation. [Quoted: Complete synthetic quote.]',
+      text: 'A formatted excerpt with the complete store-only continuation.',
       author: 'Synthetic Ada', handle: '@synthetic', avatarUrl: null, timeText: null,
       textHtml: '', quote: null, postUrl: `https://x.com/synthetic/status/${id}`,
       imageUrls: [], hasMediaContainer: false, fromStore: true,
@@ -187,14 +179,13 @@ describe('live content filter actions', () => {
     Object.defineProperty(document, 'readyState', { value: 'complete', configurable: true });
     delete (window as Window & { __bouncerContentScriptLoaded?: boolean }).__bouncerContentScriptLoaded;
     permalink = false;
-    suggestions = null;
     bounceResponse = null;
     restoreResponse = null;
     evaluations = [];
     storageListeners = [];
     messageListeners = [];
     mutationObservers = [];
-    storage = { enabled: true, filterReplies: true, selectedModel: 'local:gemma-4-E2B-it-web', descriptions_twitter: ['rage'] };
+    storage = { enabled: true, filterReplies: true, nativeModelStatus: { state: 'ready', message: '', revision: 1 }, descriptions_twitter: ['rage'] };
     vi.stubGlobal('DOMPurify', DOMPurify);
 
     vi.stubGlobal('MutationObserver', class {
@@ -244,10 +235,9 @@ describe('live content filter actions', () => {
     sendMessage = vi.fn(async (message: { type: string; evaluationId: string; post: string; phrase?: string }) => {
       if (message.type === 'evaluatePost') {
         const evaluation = deferred<PipelineResponse>();
-        evaluations.push({ message, resolve: evaluation.resolve, selection: storage.engineSelection ? { ...storage.engineSelection as EngineSelection } : undefined });
+        evaluations.push({ message, resolve: evaluation.resolve });
         return evaluation.promise;
       }
-      if (message.type === 'suggestAnnoyingReasons') return suggestions?.promise || { reasons: ['rage', 'new phrase'] };
       if (message.type === 'bouncePost') {
         if (message.phrase && !(storage.descriptions_twitter as string[]).includes(message.phrase)) {
           change('descriptions_twitter', [...storage.descriptions_twitter as string[], message.phrase]);
@@ -258,7 +248,7 @@ describe('live content filter actions', () => {
       return { success: true };
     });
     vi.stubGlobal('chrome', {
-      runtime: { sendMessage, getURL: (path: string) => path, onMessage: { addListener: (listener: typeof messageListeners[number]) => messageListeners.push(listener), removeListener: () => {} } },
+      runtime: { sendMessage, getManifest: () => ({ version: '2.0.0' }), getURL: (path: string) => path, onMessage: { addListener: (listener: typeof messageListeners[number]) => messageListeners.push(listener), removeListener: () => {} } },
       storage: {
         local: {
           get: vi.fn(async (keys: string[]) => Object.fromEntries(keys.map(key => [key, storage[key]]))),
@@ -277,6 +267,132 @@ describe('live content filter actions', () => {
     vi.useRealTimers();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
+  });
+
+  it.each([false, true])('renders scores and copies exact classification details with cached=%s', async cached => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal('navigator', { clipboard: { writeText } });
+    storage.descriptions_twitter = ['excessive rudeness', 'spam, scams', 'bird watching'];
+    await useRealTwitterAdapter();
+    const textSent = 'Criticism of rudeness. 😤';
+    const article = post('1', textSent);
+    article.insertAdjacentHTML('beforeend', '<div role="link"><div data-testid="tweetText">A rude quoted post.</div></div>');
+    await start();
+    expect(evaluations[0].message.post).toBe(textSent);
+    const scores = [
+      { label: 'excessive rudeness', score: 0.8 },
+      { label: 'spam, scams', score: 0.09 },
+      { label: 'bird watching', score: DECISION_MODEL.cutoff },
+    ];
+    const timestamp = 1795551234567;
+    evaluations[0].resolve({ shouldHide: true, reasoning: 'Matched', matches: ['excessive rudeness', 'bird watching'],
+      scores, textSent, model: DECISION_MODEL.id, timestamp, cached, rawResponse: '{"answers":{"f0":{}}}',
+    });
+    await flush();
+    const panel = document.createElement('div');
+    document.body.appendChild(panel);
+    ui.renderFilteredPostsView(panel);
+    expect(panel.querySelector('.slop-post-reasoning')?.textContent).toBe('Matched: excessive rudeness · 0.80, bird watching · 0.29');
+    const details = panel.querySelector<HTMLDetailsElement>('.classification-details')!;
+    expect(details.open).toBe(false);
+    expect(details.closest('a')).toBeNull();
+    expect(details.querySelector('summary')?.textContent).toBe('Details');
+    expect(details.textContent).toContain(`Matched when score ≥ ${DECISION_MODEL.cutoff}`);
+    expect(Array.from(details.querySelectorAll('li'), item => item.textContent)).toEqual([
+      'excessive rudeness · 0.80 · Matched', 'spam, scams · 0.09 · Not matched', 'bird watching · 0.29 · Matched',
+    ]);
+    expect(details.querySelector('pre')?.textContent).toBe(textSent);
+    expect(ui.getFilteredPosts()[0].evaluationText).toBe(textSent);
+    expect(panel.querySelector('.slop-quote-text')?.textContent).toBe('A rude quoted post.');
+    expect(writeText).not.toHaveBeenCalled();
+    const messagesBeforeCopy = sendMessage.mock.calls.length;
+    details.open = true;
+    details.querySelector<HTMLButtonElement>('.classification-copy')!.click();
+    await flush();
+    expect(writeText).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(writeText.mock.calls[0][0])).toEqual({
+      bouncerVersion: '2.0.0', model: DECISION_MODEL.id, templateId: DECISION_MODEL.templateId,
+      cutoff: DECISION_MODEL.cutoff, postUrl: 'https://x.com/synthetic/status/1', textSent,
+      scores: scores.map(entry => ({ ...entry, matched: entry.score >= DECISION_MODEL.cutoff })), classifiedAt: timestamp,
+    });
+    expect(sendMessage).toHaveBeenCalledTimes(messagesBeforeCopy);
+    expect(details.querySelector('[role="status"]')?.textContent).toBe('Copied');
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(details.querySelector('[role="status"]')?.textContent).toBe('');
+    ui.showReasoningPopup(article, 0, 0);
+    expect(document.querySelector('.reasoning-details pre')?.textContent).toBe(textSent);
+    expect(document.querySelector('.post-filter-reasoning-popup')?.textContent).not.toContain('Raw Model Response');
+  });
+
+  it.each(['bare quote', 'media only'])('leaves a %s visible without submitting an evaluation', async kind => {
+    await useRealTwitterAdapter();
+    const article = post('1');
+    article.querySelector('[data-text]')!.remove();
+    article.insertAdjacentHTML('beforeend', kind === 'bare quote'
+      ? '<div role="link"><div data-testid="tweetText">A rude quoted post.</div></div>'
+      : '<div data-testid="tweetPhoto"><img src="https://pbs.twimg.com/media/synthetic.jpg"></div>');
+    await start();
+    expect(evaluations).toHaveLength(0);
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+  });
+
+  it('classifies a quoted post independently when it also appears on its own', async () => {
+    await useRealTwitterAdapter();
+    const ownText = 'This rudeness is unacceptable.';
+    const rudeText = 'A rude quoted post.';
+    const quoter = post('1', ownText);
+    quoter.insertAdjacentHTML('beforeend', `<div role="link"><div data-testid="tweetText">${rudeText}</div></div>`);
+    const standalone = post('2', rudeText);
+    await start();
+    expect(evaluations.map(({ message }) => message.post)).toEqual([ownText, rudeText]);
+    expect(generateCacheKey(evaluations[0].message.post)).not.toBe(generateCacheKey(`${ownText} [Quoted: ${rudeText}]`));
+    evaluations[0].resolve({ shouldHide: false, reasoning: 'No match', matches: [] });
+    await verdict(1, ['rage']);
+    expect(adapter.getPostContainer(quoter).style.display).toBe('');
+    expect(adapter.getPostContainer(standalone).style.display).toBe('none');
+    expect(ui.getFilteredPosts().map(entry => entry.post.postUrl)).toEqual([standalone.dataset.url]);
+  });
+
+  it.each(['unavailable', 'denied'])('renders entries without scores and selects JSON when clipboard is %s', async mode => {
+    vi.stubGlobal('navigator', { clipboard: mode === 'unavailable' ? undefined
+      : { writeText: vi.fn().mockRejectedValue(new Error('Clipboard denied')) } });
+    post('1');
+    await start();
+    await verdict(0, ['rage']);
+    renderRestorePanel();
+    const details = document.querySelector<HTMLDetailsElement>('.classification-details')!;
+    expect(document.querySelector('.slop-post-reasoning')?.textContent).toBe('Matched: rage');
+    expect(details.querySelectorAll('li')).toHaveLength(0);
+    details.open = true;
+    details.querySelector<HTMLButtonElement>('.classification-copy')!.click();
+    await flush();
+    const fallback = details.querySelector<HTMLTextAreaElement>('textarea')!;
+    expect(fallback.readOnly).toBe(true);
+    expect(document.activeElement).toBe(fallback);
+    expect(fallback.selectionStart).toBe(0);
+    expect(fallback.selectionEnd).toBe(fallback.value.length);
+    expect(JSON.parse(fallback.value)).toEqual({
+      bouncerVersion: '2.0.0', model: DECISION_MODEL.id, templateId: DECISION_MODEL.templateId,
+      cutoff: DECISION_MODEL.cutoff, postUrl: 'https://x.com/synthetic/status/1', textSent: null, scores: [], classifiedAt: null,
+    });
+  });
+
+  it('replaces score snapshots and clears automatic details when a manual hide replaces them', async () => {
+    const article = post('1');
+    await start();
+    const scores = [{ label: 'rage', score: 0.8 }];
+    evaluations[0].resolve({ shouldHide: true, reasoning: 'Matched', matches: ['rage'], scores, textSent: 'Original state' });
+    await flush();
+    scores[0].score = 0.1;
+    expect(ui.getFilteredPosts()[0].classification?.scores).toEqual([{ label: 'rage', score: 0.8 }]);
+    const content = adapter.extractPostContent(article);
+    ui.storeFilteredPost(article, content, 'New classification', '', 'rage', ['rage'], false, content.text,
+      { scores: [{ label: 'rage', score: 0.7 }], textSent: 'New state' });
+    expect(ui.getFilteredPosts()[0].classification?.textSent).toBe('New state');
+    expect(ui.getFilteredPosts()[0].classification?.scores).toEqual([{ label: 'rage', score: 0.7 }]);
+    ui.storeFilteredPost(article, content, 'Bounced by you', '', 'rage', ['rage'], true);
+    expect(ui.getFilteredPosts()[0].classification).toBeUndefined();
   });
 
   it('submits a fresh evaluation for an unchanged queued article after SPA queue cancellation', async () => {
@@ -614,10 +730,10 @@ describe('live content filter actions', () => {
     expect(Array.from(document.querySelectorAll('.reasoning-match-chip'), chip => chip.textContent)).toEqual(['spam, scams']);
   });
 
-  it.each([true, false])('restores and evaluates equal-length rule replacements with complete matches: %s', async complete => {
+  it('restores and evaluates equal-length rule replacements with exact matches', async () => {
     const article = post('1');
     await start();
-    await verdict(0, complete ? ['rage'] : undefined);
+    await verdict(0, ['rage']);
     change('descriptions_twitter', ['replacement']);
     await flush();
     expect(adapter.getPostContainer(article).style.display).toBe('');
@@ -625,8 +741,8 @@ describe('live content filter actions', () => {
     expect(evaluations.length).toBe(2);
   });
 
-  it('preserves a cached explicit hide across rule changes and the automatic share-code exemption', async () => {
-    const article = post('1', 'Synthetic filter pack bncr2_example');
+  it('preserves a cached explicit hide across rule changes', async () => {
+    const article = post('1', 'Synthetic manually hidden post');
     const nextReply = post('2', 'Synthetic threaded reply', true);
     await start();
     evaluations[0].resolve({ shouldHide: true, reasoning: 'User blocked', userOverride: true, cached: true });
@@ -868,7 +984,9 @@ describe('live content filter actions', () => {
     const display = adapter.extractPostContent(article);
     expect(display.author).toBe('Synthetic Ada@synthetic·2h');
     expect(display.text).toBe('A formatted excerpt…');
-    expect(evaluations[0].message.post).toBe(`Synthetic Ada: ${canonical.text}`);
+    expect(evaluations[0].message.post).toBe(canonical.text);
+    expect(evaluations[0].message.post).not.toContain('Synthetic Ada');
+    expect(evaluations[0].message.post).not.toContain('@synthetic');
 
     await ui.bouncePost(article, display, 'rage');
     await vi.advanceTimersByTimeAsync(300);
@@ -942,18 +1060,18 @@ describe('live content filter actions', () => {
     const article = realXPost('1');
     await start();
     const display = adapter.extractPostContent(article);
-    ui.storeFilteredPost(article, display, 'Synthetic legacy snapshot', '', 'rage', ['rage']);
-    expect(ui.getFilteredPosts()[0].evaluationText).toBe('Synthetic Ada@synthetic·2h: A formatted excerpt…');
+    ui.storeFilteredPost(article, display, 'Synthetic current display snapshot', '', 'rage', ['rage']);
+    expect(ui.getFilteredPosts()[0].evaluationText).toBe('A formatted excerpt…');
 
     await ui.bouncePost(article, display, 'rage');
     expect(ui.getFilteredPosts()).toHaveLength(1);
-    expect(ui.getFilteredPosts()[0].evaluationText).toBe(`Synthetic Ada: ${canonical.text}`);
+    expect(ui.getFilteredPosts()[0].evaluationText).toBe(canonical.text);
     renderRestorePanel().click();
     await flush();
-    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'overrideCacheEntry', post: `Synthetic Ada: ${canonical.text}` }));
+    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'overrideCacheEntry', post: canonical.text }));
   });
 
-  it('lets Restore preempt an older canonical Bounce lookup without persisting or republishing its hide', async () => {
+  it('lets Restore supersede an older canonical Bounce lookup without persisting or republishing its hide', async () => {
     const canonical = canonicalXContent();
     await useRealTwitterAdapter(canonical);
     const article = realXPost('1');
@@ -1358,10 +1476,10 @@ describe('live content filter actions', () => {
 
     expect(adapter.getPostContainer(article).style.display).toBe('');
     expect(ui.getFilteredPosts()).toHaveLength(0);
-    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'overrideCacheEntry', post: `Synthetic Ada: ${canonical.text}` }));
+    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'overrideCacheEntry', post: canonical.text }));
   });
 
-  it('looks up reasoning by the canonical X author and complete store text', async () => {
+  it('looks up reasoning by the complete canonical X text', async () => {
     const canonical = canonicalXContent();
     await useRealTwitterAdapter(canonical);
     const article = realXPost('1');
@@ -1412,21 +1530,72 @@ describe('live content filter actions', () => {
     expect(evaluations).toHaveLength(2);
   });
 
-  it.each(['rage', 'new phrase'])('bounces an existing/new suggested chip atomically despite an older automatic keep: %s', async phrase => {
+  it('keeps an eleventh filter draft in the phrase input and shows the count limit', async () => {
+    storage.descriptions_twitter = Array.from({ length: MAX_ACTIVE_FILTERS }, (_, index) => `saved filter ${index}`);
+    await start();
+    const input = document.querySelector<HTMLInputElement>('.filter-phrases-input')!;
+    input.value = 'posts mocking strangers';
+    input.dispatchEvent(new KeyboardEvent('keypress', { key: 'Enter', bubbles: true }));
+    await flush();
+    expect(input.value).toBe('posts mocking strangers');
+    expect(document.querySelector('.ff-category-limit-warning')?.textContent).toBe(MAX_FILTERS_WARNING);
+    expect(storage.descriptions_twitter).toHaveLength(MAX_ACTIVE_FILTERS);
+    expect(chrome.storage.local.set).not.toHaveBeenCalled();
+  });
+
+  it('keeps the unaccepted pasted phrases when the tenth filter fills the limit', async () => {
+    storage.descriptions_twitter = Array.from({ length: MAX_ACTIVE_FILTERS - 1 }, (_, index) => `saved filter ${index}`);
+    await start();
+    const input = document.querySelector<HTMLInputElement>('.filter-phrases-input')!;
+    const paste = new Event('paste', { bubbles: true, cancelable: true });
+    Object.defineProperty(paste, 'clipboardData', { value: { getData: () => 'celebrity gossip, posts mocking strangers' } });
+    input.dispatchEvent(paste);
+    await flush();
+    expect(input.value).toBe('posts mocking strangers');
+    expect(storage.descriptions_twitter).toHaveLength(MAX_ACTIVE_FILTERS);
+    expect(storage.descriptions_twitter).toContain('celebrity gossip');
+    expect(document.querySelector('.ff-category-limit-warning')?.textContent).toBe(MAX_FILTERS_WARNING);
+  });
+
+  it('uses plain placeholder examples and omits blank stored filter rows', async () => {
+    storage.descriptions_twitter = [' ', 'celebrity gossip', '\n'];
+    await start();
+    expect([...document.querySelectorAll('.filter-phrase-inline')].map(phrase => phrase.textContent)).toEqual(['celebrity gossip']);
+    expect([...document.querySelectorAll('.filter-placeholder-track span')].map(phrase => phrase.textContent)).toEqual([
+      'posts asking for likes or reposts', 'celebrity gossip', 'crypto price predictions', 'posts mocking strangers',
+      'posts asking for likes or reposts',
+    ]);
+  });
+
+  it('preserves literal category prefixes and pipes in displayed reasoning', async () => {
+    const article = post('1');
+    await start();
+    const reasoning = 'category 1: literal label | <plain text>';
+    evaluations[0].resolve({ shouldHide: false, reasoning });
+    await flush();
+    ui.showReasoningPopup(article, 20, 20);
+    expect(document.querySelector('.post-filter-reasoning-popup .reasoning-text')?.textContent).toBe(reasoning);
+    expect(document.querySelector('.post-filter-reasoning-popup plain')).toBeNull();
+  });
+
+  it.each(['rage', 'crypto price hype'])('bounces an entered existing/new label atomically despite an older automatic keep: %s', async phrase => {
     const article = post('1');
     await start();
     bounceResponse = deferred();
+    const messagesBeforeOpen = sendMessage.mock.calls.length;
     await openBounce(article);
-    Array.from(document.querySelectorAll<HTMLButtonElement>('.ff-annoying-chip')).find(chip => chip.textContent === phrase)!.click();
-    expect(sendMessage.mock.calls.some(([message]) => message.type === 'bouncePost')).toBe(false);
-    document.querySelector<HTMLButtonElement>('.ff-annoying-bounce')!.click();
+    expect(sendMessage).toHaveBeenCalledTimes(messagesBeforeOpen);
+    const input = document.querySelector<HTMLInputElement>('.ff-bounce-input')!;
+    input.value = phrase;
+    input.dispatchEvent(new Event('input'));
+    document.querySelector<HTMLButtonElement>('.ff-bounce-confirm')!.click();
     await flush();
     evaluations[0].resolve({ shouldHide: false, reasoning: 'old automatic keep' });
     await vi.advanceTimersByTimeAsync(300);
     expect(adapter.getPostContainer(article).style.display).toBe('none');
     expect(ui.getFilteredPosts()[0].userOverride).toBe(true);
     expect(ui.getFilteredPosts()[0].matches).toEqual([phrase]);
-    expect(sendMessage.mock.calls.filter(([message]) => message.type === 'bouncePost')).toHaveLength(1);
+    expect(sendMessage.mock.calls.slice(messagesBeforeOpen).map(([message]) => message.type)).toEqual(['bouncePost']);
     expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'bouncePost', phrase, siteId: 'twitter' }));
     expect(sendMessage.mock.calls.some(([message]) => message.type === 'overrideCacheEntry')).toBe(false);
     expect(chrome.storage.local.set).not.toHaveBeenCalled();
@@ -1434,19 +1603,194 @@ describe('live content filter actions', () => {
     await flush();
   });
 
-  it.each(['custom', 'without phrase', 'pending suggestions'])('uses the same atomic chosen-post action for %s', async action => {
+  it('keeps an over-limit new label draft and post visible with the existing limit warning', async () => {
+    storage.descriptions_twitter = ['x'.repeat(1000)];
     const article = post('1');
     await start();
-    if (action === 'pending suggestions') suggestions = deferred();
     await openBounce(article);
-    if (action === 'custom') {
-      const input = document.querySelector<HTMLInputElement>('.ff-annoying-custom-input')!;
-      input.value = 'rage';
-    }
-    document.querySelector<HTMLButtonElement>('.ff-annoying-bounce')!.click();
+    const input = document.querySelector<HTMLInputElement>('.ff-bounce-input')!;
+    input.value = 'crypto price hype';
+    input.dispatchEvent(new Event('input'));
+    const calls = sendMessage.mock.calls.length;
+    document.querySelector<HTMLButtonElement>('.ff-bounce-confirm')!.click();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(input.value).toBe('crypto price hype');
+    expect(document.querySelector('.ff-bounce-tooltip')).not.toBeNull();
+    expect(document.querySelector('.ff-bounce-tooltip .ff-category-limit-warning')?.textContent).toContain('too many filter categories');
+    expect(document.querySelector<HTMLButtonElement>('.ff-bounce-confirm')?.disabled).toBe(false);
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+    expect(sendMessage).toHaveBeenCalledTimes(calls);
+    expect(storage.descriptions_twitter).toEqual(['x'.repeat(1000)]);
+  });
+
+  it('retains the label and shows the limit warning when the authoritative background rejects it', async () => {
+    const article = post('1');
+    await start();
+    const original = sendMessage.getMockImplementation()!;
+    sendMessage.mockImplementation(async message => message.type === 'bouncePost'
+      ? { success: false, error: 'Filter phrases exceed the 1000-character limit.' } : original(message));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    await openBounce(article);
+    const input = document.querySelector<HTMLInputElement>('.ff-bounce-input')!;
+    input.value = 'crypto price hype';
+    input.dispatchEvent(new Event('input'));
+    document.querySelector<HTMLButtonElement>('.ff-bounce-confirm')!.click();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'bouncePost', phrase: 'crypto price hype' }));
+    expect(input.value).toBe('crypto price hype');
+    expect(document.querySelector('.ff-bounce-tooltip')).not.toBeNull();
+    expect(document.querySelector('.ff-bounce-tooltip .ff-category-limit-warning')?.textContent).toContain('too many filter categories');
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+    expect(storage.descriptions_twitter).toEqual(['rage']);
+  });
+
+  it('still Bounces an existing duplicate label at full filter capacity', async () => {
+    const phrase = 'x'.repeat(1000);
+    storage.descriptions_twitter = [phrase];
+    const article = post('1');
+    await start();
+    await openBounce(article);
+    const input = document.querySelector<HTMLInputElement>('.ff-bounce-input')!;
+    input.value = phrase;
+    input.dispatchEvent(new Event('input'));
+    document.querySelector<HTMLButtonElement>('.ff-bounce-confirm')!.click();
     await vi.advanceTimersByTimeAsync(300);
     expect(adapter.getPostContainer(article).style.display).toBe('none');
-    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'bouncePost', phrase: action === 'custom' ? 'rage' : undefined }));
+    expect(document.querySelector('.ff-bounce-tooltip')).toBeNull();
+    expect(document.querySelector('.ff-category-limit-warning')).toBeNull();
+    expect(storage.descriptions_twitter).toEqual([phrase]);
+    expect(ui.getFilteredPosts()[0].matches).toEqual([phrase]);
+    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'bouncePost', phrase }));
+  });
+
+  it('keeps an eleventh Bounce label draft visible without submitting a manual decision', async () => {
+    storage.descriptions_twitter = Array.from({ length: MAX_ACTIVE_FILTERS }, (_, index) => `saved filter ${index}`);
+    const article = post('1');
+    await start();
+    await openBounce(article);
+    const input = document.querySelector<HTMLInputElement>('.ff-bounce-input')!;
+    input.value = 'posts mocking strangers';
+    input.dispatchEvent(new Event('input'));
+    const calls = sendMessage.mock.calls.length;
+    document.querySelector<HTMLButtonElement>('.ff-bounce-confirm')!.click();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(input.value).toBe('posts mocking strangers');
+    expect(document.querySelector('.ff-bounce-tooltip .ff-category-limit-warning')?.textContent).toBe(MAX_FILTERS_WARNING);
+    expect(document.querySelector<HTMLButtonElement>('.ff-bounce-confirm')?.disabled).toBe(false);
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+    expect(sendMessage).toHaveBeenCalledTimes(calls);
+  });
+
+  it('still Bounces an existing saved label when ten filters are active', async () => {
+    const phrases = Array.from({ length: MAX_ACTIVE_FILTERS }, (_, index) => `saved filter ${index}`);
+    storage.descriptions_twitter = phrases;
+    const article = post('1');
+    await start();
+    await openBounce(article);
+    const input = document.querySelector<HTMLInputElement>('.ff-bounce-input')!;
+    input.value = phrases[0];
+    input.dispatchEvent(new Event('input'));
+    document.querySelector<HTMLButtonElement>('.ff-bounce-confirm')!.click();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    expect(document.querySelector('.ff-bounce-tooltip')).toBeNull();
+    expect(storage.descriptions_twitter).toEqual(phrases);
+    expect(ui.getFilteredPosts()[0].matches).toEqual([phrases[0]]);
+  });
+
+  it('retains the Bounce draft when the background rejects a newly full filter list', async () => {
+    const article = post('1');
+    await start();
+    const original = sendMessage.getMockImplementation()!;
+    sendMessage.mockImplementation(async message => message.type === 'bouncePost'
+      ? { success: false, error: MAX_FILTERS_WARNING } : original(message));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    await openBounce(article);
+    const input = document.querySelector<HTMLInputElement>('.ff-bounce-input')!;
+    input.value = 'posts mocking strangers';
+    input.dispatchEvent(new Event('input'));
+    document.querySelector<HTMLButtonElement>('.ff-bounce-confirm')!.click();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(input.value).toBe('posts mocking strangers');
+    expect(document.querySelector('.ff-bounce-tooltip .ff-category-limit-warning')?.textContent).toBe(MAX_FILTERS_WARNING);
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+  });
+
+  it('normalizes required labels and rejects empty helper calls before claiming the post', async () => {
+    const article = post('1');
+    await start();
+    const calls = sendMessage.mock.calls.length;
+    await expect(ui.bouncePost(article, adapter.extractPostContent(article), '  ')).resolves.toBe(false);
+    expect(sendMessage).toHaveBeenCalledTimes(calls);
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+    await expect(ui.bouncePost(article, adapter.extractPostContent(article), '  rage  ')).resolves.toBe(true);
+    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'bouncePost', phrase: 'rage', reasoning: 'User blocked: rage' }));
+    expect(ui.getFilteredPosts()[0].matches).toEqual(['rage']);
+  });
+
+  it('renders the shared guidance once and leaves a blank-label post visible without model messages', async () => {
+    const article = post('1');
+    await start();
+    const calls = sendMessage.mock.calls.length;
+    await openBounce(article);
+    const input = document.querySelector<HTMLInputElement>('.ff-bounce-input')!;
+    expect(document.querySelectorAll('.filter-label-guidance')).toHaveLength(1);
+    expect(document.querySelector('.filter-label-guidance')?.textContent).toBe(FILTER_LABEL_GUIDANCE);
+    input.value = '   ';
+    input.dispatchEvent(new Event('input'));
+    expect(document.querySelector<HTMLButtonElement>('.ff-bounce-confirm')?.disabled).toBe(true);
+    document.querySelector<HTMLFormElement>('.ff-bounce-form')!.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await vi.advanceTimersByTimeAsync(300);
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(document.querySelector('.ff-bounce-tooltip')).not.toBeNull();
+    expect(sendMessage).toHaveBeenCalledTimes(calls);
+  });
+
+  it('selects a missed saved filter without model messages or a duplicate phrase', async () => {
+    const article = post('1');
+    await start();
+    const calls = sendMessage.mock.calls.length;
+    await openBounce(article);
+    document.querySelector<HTMLButtonElement>('.ff-missed-link')!.click();
+    await flush();
+    expect(sendMessage).toHaveBeenCalledTimes(calls);
+    const choice = document.querySelector<HTMLButtonElement>('.ff-existing-filter')!;
+    expect(choice.textContent).toBe('rage');
+    choice.click();
+    expect(document.querySelector<HTMLInputElement>('.ff-bounce-input')?.value).toBe('rage');
+    document.querySelector<HTMLButtonElement>('.ff-bounce-confirm')!.click();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(adapter.getPostContainer(article).style.display).toBe('none');
+    expect(storage.descriptions_twitter).toEqual(['rage']);
+    expect(sendMessage.mock.calls.slice(calls).map(([message]) => message.type)).toEqual(['bouncePost']);
+  });
+
+  it.each(['entered label', 'missed saved filter'])('rejects a stale %s submission after X recycles the article', async path => {
+    const article = post('1');
+    await start();
+    await openBounce(article);
+    if (path === 'missed saved filter') {
+      document.querySelector<HTMLButtonElement>('.ff-missed-link')!.click();
+      await flush();
+      document.querySelector<HTMLButtonElement>('.ff-existing-filter')!.click();
+    } else {
+      const input = document.querySelector<HTMLInputElement>('.ff-bounce-input')!;
+      input.value = 'crypto price hype';
+      input.dispatchEvent(new Event('input'));
+    }
+    const calls = sendMessage.mock.calls.length;
+    recycle(article, '2');
+    document.querySelector<HTMLButtonElement>('.ff-bounce-confirm')!.click();
+    await vi.advanceTimersByTimeAsync(300);
+    expect(sendMessage).toHaveBeenCalledTimes(calls);
+    expect(adapter.getPostContainer(article).style.display).toBe('');
+    expect(ui.getFilteredPosts()).toHaveLength(0);
+    expect(document.querySelector('.ff-bounce-tooltip')).toBeNull();
   });
 
   it('offers explicit Bounce with reply filtering already off and hides only the selected reply', async () => {
@@ -1457,8 +1801,10 @@ describe('live content filter actions', () => {
     await start();
     expect(evaluations).toHaveLength(0);
     await openBounce(reply);
-    document.querySelector<HTMLElement>('.ff-annoying-chip')!.click();
-    document.querySelector<HTMLButtonElement>('.ff-annoying-bounce')!.click();
+    const input = document.querySelector<HTMLInputElement>('.ff-bounce-input')!;
+    input.value = 'rage';
+    input.dispatchEvent(new Event('input'));
+    document.querySelector<HTMLButtonElement>('.ff-bounce-confirm')!.click();
     await vi.advanceTimersByTimeAsync(300);
     notifyRecycling(reply);
     await vi.advanceTimersByTimeAsync(50);
@@ -1504,214 +1850,27 @@ describe('live content filter actions', () => {
     expect(ui.getFilteredPosts()).toHaveLength(0);
     expect(error).toHaveBeenCalled();
   });
-  it('switches automatic hides while preserving live manual Bounce, Restore, panel rows and counts', async () => {
-    const automatic = post('1');
-    const manual = post('2');
-    const restored = post('3');
-    await startSelected();
-    const count = adoptFilteredCount();
-    await verdict(0, ['rage']);
-    await verdict(2, ['rage']);
-    await ui.bouncePost(manual, adapter.extractPostContent(manual), 'rage');
-    await vi.advanceTimersByTimeAsync(300);
-    renderRestorePanel();
-    document.querySelector<HTMLButtonElement>('a[href="https://x.com/synthetic/status/3"] .slop-restore')!.click();
-    await flush();
-    switchEngine();
-    await flush();
-
-    expect(adapter.getPostContainer(automatic).style.display).toBe('');
-    expect(adapter.getPostContainer(manual).style.display).toBe('none');
-    expect(adapter.getPostContainer(restored).style.display).toBe('');
-    expect(ui.getFilteredPosts()).toHaveLength(1);
-    expect(ui.getFilteredPosts()[0].post.postUrl).toContain('/2');
-    expect(count.textContent).toBe('(1)');
-    expect(evaluations).toHaveLength(4);
-    await verdict(3, ['rage']);
-    expect(adapter.getPostContainer(automatic).style.display).toBe('none');
-    expect(ui.getFilteredPosts()).toHaveLength(2);
-  });
-
-  it.each(['inference', 'automatic fade'])('rejects old verdicts and hides during an engine switch in %s', async stage => {
+  it('keeps local label entry usable while Llama.app is unavailable', async () => {
     const article = post('1');
-    await startSelected();
-    const old = evaluations[0];
-    if (stage === 'automatic fade') await verdict(0, ['rage'], false);
-    switchEngine();
-    await flush();
-    old.resolve({ shouldHide: true, reasoning: 'stale native result', engine: 'ollama', selectionRevision: 7, matches: ['rage'] });
-    messageListeners.forEach(listener => listener({ type: 'detectorResponse', evaluationId: old.message.evaluationId, detectorName: 'filter', shouldHide: true, reasoning: 'stale native detector' }, {}, () => {}));
-    await vi.advanceTimersByTimeAsync(300);
-    expect(adapter.getPostContainer(article).style.display).toBe('');
-    expect(article.style.opacity).toBe('');
-    expect(ui.getFilteredPosts()).toHaveLength(0);
-    expect(evaluations).toHaveLength(2);
-    await verdict(1, ['rage']);
-    expect(adapter.getPostContainer(article).style.display).toBe('none');
-  });
-
-  it.each(['extraction', 'writing'])('retains in-flight manual Bounce ownership through a switch during %s', async stage => {
-    const article = post('1');
-    await startSelected();
-    const lookup = deferred<PostContent | null>();
-    if (stage === 'extraction') vi.spyOn(adapter, 'extractPostContentFromStore').mockReturnValueOnce(lookup.promise);
-    bounceResponse = deferred();
-    const bounce = ui.bouncePost(article, adapter.extractPostContent(article), 'rage');
-    await flush();
-    switchEngine();
-    await flush();
-    expect(evaluations).toHaveLength(1);
-    if (stage === 'extraction') lookup.resolve(adapter.extractPostContent(article));
-    await flush();
-    bounceResponse.resolve({ success: true });
-    await expect(bounce).resolves.toBe(true);
-    await vi.advanceTimersByTimeAsync(300);
-    expect(adapter.getPostContainer(article).style.display).toBe('none');
-    expect(ui.getFilteredPosts()).toHaveLength(1);
-    expect(ui.getFilteredPosts()[0].userOverride).toBe(true);
-  });
-
-  it.each(['success', 'failure'])('settles an in-flight Restore after an engine switch with %s', async outcome => {
-    const article = post('1');
-    await startSelected();
-    await verdict(0, ['rage']);
-    restoreResponse = deferred();
-    renderRestorePanel().click();
-    await flush();
-    switchEngine();
-    await flush();
-    expect(adapter.getPostContainer(article).style.display).toBe('none');
-    expect(ui.getFilteredPosts()).toHaveLength(1);
-    expect(evaluations).toHaveLength(1);
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    restoreResponse.resolve(outcome === 'success' ? { success: true } : { success: false, error: 'synthetic write failed' });
-    await flush();
-    expect(adapter.getPostContainer(article).style.display).toBe('');
-    expect(ui.getFilteredPosts()).toHaveLength(0);
-    expect(evaluations).toHaveLength(outcome === 'failure' ? 2 : 1);
-  });
-
-  it('retains a previous manual hide when Restore fails across a switch', async () => {
-    const article = post('1');
-    await startSelected();
-    await ui.bouncePost(article, adapter.extractPostContent(article), 'rage');
-    await vi.advanceTimersByTimeAsync(300);
-    restoreResponse = deferred();
-    renderRestorePanel().click();
-    await flush();
-    switchEngine();
-    await flush();
-    vi.spyOn(console, 'error').mockImplementation(() => {});
-    restoreResponse.resolve({ success: false, error: 'synthetic write failed' });
-    await flush();
-    expect(adapter.getPostContainer(article).style.display).toBe('none');
-    expect(ui.getFilteredPosts()).toHaveLength(1);
-    expect(ui.getFilteredPosts()[0].userOverride).toBe(true);
-  });
-
-  it('restores an automatic hide on navigation without evaluating a page outside the feed scope', async () => {
-    const article = post('1');
-    await startSelected();
-    await verdict(0, ['rage']);
-    vi.spyOn(adapter, 'shouldProcessCurrentPage').mockReturnValue(false);
-    switchEngine();
-    await flush();
-    expect(adapter.getPostContainer(article).style.display).toBe('');
-    expect(evaluations).toHaveLength(1);
-  });
-
-  it('evaluates recycled DOM under the new engine and rejects the previous post result', async () => {
-    const article = post('1');
-    await startSelected();
-    recycle(article, '2');
-    switchEngine();
-    await flush();
-    await verdict(0, ['rage']);
-    expect(adapter.getPostContainer(article).style.display).toBe('');
-    expect(evaluations).toHaveLength(2);
-    expect(evaluations[1].message.post).toContain('replacement 2');
-    await verdict(1, ['rage']);
-    expect(ui.getFilteredPosts()[0].post.postUrl).toContain('/2');
-  });
-
-  it('keeps reply filtering independent during a switch and excludes the opened main post', async () => {
-    permalink = true;
-    const main = post('1');
-    main.dataset.main = 'true';
-    const reply = post('2');
-    await startSelected();
-    await verdict(0, ['rage'], false);
-    change('filterReplies', false);
-    switchEngine();
-    await vi.advanceTimersByTimeAsync(300);
-    expect(evaluations).toHaveLength(1);
-    expect(adapter.getPostContainer(reply).style.display).toBe('');
-    expect(ui.getFilteredPosts()).toHaveLength(0);
-    change('filterReplies', true);
-    await flush();
-    expect(evaluations).toHaveLength(2);
-    expect(evaluations[1].message.post).toContain('tweet 2');
-  });
-
-  it('rejects old suggestions after a switch while retaining typed input and manual actions', async () => {
-    const article = post('1');
-    await startSelected();
-    suggestions = deferred();
+    await startReady();
+    change('nativeModelStatus', { state: 'unavailable', message: '', revision: 91 });
+    const calls = sendMessage.mock.calls.length;
     await openBounce(article);
-    const input = document.querySelector<HTMLInputElement>('.ff-annoying-custom-input')!;
-    input.value = 'my chosen phrase';
-    switchEngine('needs_download');
-    suggestions.resolve({ reasons: ['old engine suggestion'] });
-    await flush();
-    expect(input.value).toBe('my chosen phrase');
-    expect(document.querySelectorAll('.ff-annoying-chip')).toHaveLength(0);
-    expect(document.querySelector('.ff-annoying-suggestions')?.textContent).toContain('Browser AI setup');
-    expect(document.querySelector('.ff-annoying-suggestions')?.textContent).toContain('Settings');
-    document.querySelector<HTMLButtonElement>('.ff-annoying-bounce')!.click();
-    await vi.advanceTimersByTimeAsync(300);
-    expect(adapter.getPostContainer(article).style.display).toBe('none');
-    expect(sendMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'bouncePost', phrase: 'my chosen phrase' }));
+    expect(document.querySelector<HTMLInputElement>('.ff-bounce-input')?.disabled).toBe(false);
+    expect(sendMessage).toHaveBeenCalledTimes(calls);
+    document.querySelector<HTMLButtonElement>('.ff-bounce-cancel')!.click();
+    expect(document.querySelector('.ff-bounce-tooltip')).toBeNull();
   });
 
-  it('does not request suggestions when selected Browser AI has no downloaded model', async () => {
-    const article = post('1');
-    await startSelected();
-    switchEngine('needs_download');
-    await flush();
-    await openBounce(article);
-    expect(sendMessage.mock.calls.filter(([message]) => message.type === 'suggestAnnoyingReasons')).toHaveLength(0);
-    expect(document.querySelector('.ff-annoying-suggestions')?.textContent).toContain('Browser AI setup');
-    expect(document.querySelector<HTMLInputElement>('.ff-annoying-custom-input')?.disabled).toBe(false);
-    document.querySelector<HTMLButtonElement>('.ff-annoying-cancel')!.click();
-    expect(document.querySelector('.ff-annoying-tooltip')).toBeNull();
-  });
-
-  it('rejects late reasoning-popup suggestions after the engine changes', async () => {
-    const article = post('1');
-    await startSelected();
-    suggestions = deferred();
-    ui.showReasoningPopup(article, 10, 10);
-    expect(document.querySelector('.reasoning-suggest-btn')?.textContent).toBe('Find filter suggestions');
-    document.querySelector<HTMLButtonElement>('.reasoning-suggest-btn')!.click();
-    await flush();
-    switchEngine('needs_download');
-    suggestions.resolve({ reasons: ['old engine suggestion'] });
-    await flush();
-    expect(document.querySelectorAll('.reasoning-suggestion-chip')).toHaveLength(0);
-    document.querySelector<HTMLButtonElement>('.reasoning-suggest-btn')!.click();
-    await flush();
-    expect(document.querySelector('.reasoning-suggestions')?.textContent).toContain('Browser AI setup');
-    expect(sendMessage.mock.calls.filter(([message]) => message.type === 'suggestAnnoyingReasons')).toHaveLength(1);
-  });
-
-  it('shows one selected-engine banner only when automatic filtering has phrases and is enabled', async () => {
+  it('shows one native status banner when automatic filtering has phrases and is enabled', async () => {
     post('1');
-    await startSelected();
-    switchEngine('needs_download');
+    await startReady();
+    change('nativeModelStatus', { state: 'unavailable', message: '', revision: 91 });
     await vi.advanceTimersByTimeAsync(20);
     const banner = document.querySelector<HTMLElement>('.bouncer-model-status')!;
     expect(banner.classList.contains('visible')).toBe(true);
     expect(document.querySelectorAll('.bouncer-model-status')).toHaveLength(1);
+    expect(banner.textContent).toContain('Start Llama.app');
     change('enabled', false);
     expect(banner.classList.contains('visible')).toBe(false);
     change('enabled', true);
@@ -1721,47 +1880,12 @@ describe('live content filter actions', () => {
     expect(banner.classList.contains('visible')).toBe(false);
   });
 
-  it.each(['not_configured', 'needs_download', 'downloading', 'switching'] as const)('waits without a timer or post error for expected %s availability', async reason => {
-    const article = post('1');
-    await startSelected();
-    change('localModelStatus', { state: reason, message: '', engine: 'ollama', selectionRevision: 7, revision: 91 });
-    evaluations[0].resolve({ error: 'local_model', availabilityReason: reason, reasoning: 'Synthetic setup wait' });
-    await flush();
-    await vi.advanceTimersByTimeAsync(5000);
-    expect(evaluations).toHaveLength(1);
-    expect(article.classList.contains('ff-error')).toBe(false);
-    expect(article.hasAttribute('data-ff-pending')).toBe(false);
-    change('localModelStatus', { state: 'ready', message: '', engine: 'ollama', selectionRevision: 7, revision: 92 });
-    await flush();
-    expect(evaluations).toHaveLength(2);
-  });
-
-  it('reads the engine-selection event before a stale initial settings snapshot', async () => {
-    const article = post('1');
-    const oldSelection = { engine: 'ollama', revision: 7 };
-    storage.engineSelection = oldSelection;
-    const initial = deferred<Record<string, unknown>>();
-    const originalGet = chrome.storage.local.get as ReturnType<typeof vi.fn>;
-    const existingGet = originalGet.getMockImplementation()!;
-    originalGet.mockImplementation(async (keys: string[]) => keys.includes('engineSelection') && keys.includes('filterReplies')
-      ? initial.promise : existingGet(keys));
-    await start();
-    switchEngine();
-    await flush();
-    expect(evaluations).toHaveLength(0);
-    initial.resolve({ enabled: true, filterReplies: true, engineSelection: oldSelection });
-    await flush();
-    expect(evaluations).toHaveLength(1);
-    await verdict(0, ['rage']);
-    expect(adapter.getPostContainer(article).style.display).toBe('none');
-  });
-
   it('does not submit a reply after its setting changes during store extraction', async () => {
     permalink = true;
     const reply = post('1');
     const lookup = deferred<PostContent | null>();
     vi.spyOn(adapter, 'extractPostContentFromStore').mockReturnValueOnce(lookup.promise);
-    await startSelected();
+    await startReady();
     change('filterReplies', false);
     lookup.resolve(adapter.extractPostContent(reply));
     await flush();
@@ -1769,31 +1893,22 @@ describe('live content filter actions', () => {
     expect(adapter.getPostContainer(reply).style.display).toBe('');
   });
 
-  it('does not reuse a completed suggestion request across committed engine choices', async () => {
-    const article = post('1');
-    await startSelected();
-    await openBounce(article);
-    expect(document.querySelectorAll('.ff-annoying-chip')).toHaveLength(2);
-    document.querySelector<HTMLButtonElement>('.ff-annoying-cancel')!.click();
-    switchEngine();
-    await flush();
-    suggestions = deferred();
-    await openBounce(article);
-    expect(document.querySelectorAll('.ff-annoying-chip')).toHaveLength(0);
-    expect(sendMessage.mock.calls.filter(([message]) => message.type === 'suggestAnnoyingReasons')).toHaveLength(2);
-    suggestions.resolve({ reasons: ['fresh browser suggestion'] });
-    await flush();
-    expect(document.querySelector('.ff-annoying-chip')?.textContent).toBe('fresh browser suggestion');
-  });
-
-  it('does not revive an old warning animation after the selected engine is ready', async () => {
+  it('does not revive an old warning animation after Llama.app is ready', async () => {
     post('1');
-    await startSelected();
-    switchEngine('needs_download');
-    const selection = storage.engineSelection as EngineSelection;
-    change('localModelStatus', { state: 'ready', message: '', revision: 2, engine: selection.engine, selectionRevision: selection.revision });
+    await startReady();
+    change('nativeModelStatus', { state: 'unavailable', message: '', revision: 91 });
+    change('nativeModelStatus', { state: 'ready', message: '', revision: 92 });
     await vi.advanceTimersByTimeAsync(20);
     expect(document.querySelector('.bouncer-model-status')?.classList.contains('visible')).toBe(false);
+  });
+
+  it('keeps the native status banner quiet when stored filters contain only whitespace', async () => {
+    storage.descriptions_twitter = [' ', '\n'];
+    storage.nativeModelStatus = { state: 'unavailable', message: '', revision: 1 };
+    post('1');
+    await start();
+    await vi.advanceTimersByTimeAsync(20);
+    expect(document.querySelector('.bouncer-model-status')?.classList.contains('visible')).not.toBe(true);
   });
 
 });

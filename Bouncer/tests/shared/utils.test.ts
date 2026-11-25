@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   generateCacheKey,
-  cleanReasoning,
+  formatPostForEvaluation,
+  truncateText,
+  weightedTextLength,
 } from '../../src/shared/utils.js';
+import type { PostContent } from '../../src/types.js';
 
 // ==================== generateCacheKey ====================
 
@@ -33,27 +36,38 @@ describe('generateCacheKey', () => {
 
 });
 
-// ==================== cleanReasoning ====================
+describe('formatPostForEvaluation', () => {
+  it('submits only complete post text and excludes author metadata', () => {
+    const post: PostContent = {
+      text: 'Post text | category 1: literal words', author: 'An unrelated author', handle: '@unrelated',
+      avatarUrl: null, timeText: '2h', textHtml: '', quote: null,
+      postUrl: 'https://x.com/unrelated/status/1', imageUrls: [], hasMediaContainer: false,
+    };
+    expect(formatPostForEvaluation(post)).toBe(post.text);
+    expect(formatPostForEvaluation({ ...post, author: 'A different author', handle: '@different' })).toBe(post.text);
+  });
+});
 
-describe('cleanReasoning', () => {
-  it('returns null/undefined as-is', () => {
-    expect(cleanReasoning(null)).toBeNull();
-    expect(cleanReasoning(undefined)).toBeUndefined();
+describe('weighted text bounds', () => {
+  it('counts ASCII once and every non-ASCII UTF-16 code unit twice', () => {
+    expect(weightedTextLength('A\n\u007f')).toBe(3);
+    expect(weightedTextLength('é界')).toBe(4);
+    expect(weightedTextLength('😀')).toBe(4);
+    expect(weightedTextLength('Aé😀界')).toBe(9);
   });
 
-  it('removes category prefixes', () => {
-    expect(cleanReasoning('category 1: Sports content')).toBe('Sports content');
+  it('keeps the longest prefix within the weighted budget', () => {
+    expect(truncateText('aé界z', 4)).toBe('aé');
+    expect(truncateText('aé界z', 5)).toBe('aé界');
+    expect(truncateText('aé界z', 6)).toBe('aé界z');
+    expect(truncateText('ASCII', 3)).toBe('ASC');
+    expect(truncateText('text', 0)).toBe('');
   });
 
-  it('splits on pipe separators', () => {
-    expect(cleanReasoning('Part one | Part two')).toBe('Part one Part two');
-  });
-
-  it('handles combined category prefix and pipe', () => {
-    expect(cleanReasoning('category 1: Sports | category 2: Politics')).toBe('Sports Politics');
-  });
-
-  it('returns original if result would be empty', () => {
-    expect(cleanReasoning('|||')).toBe('|||');
+  it('never splits a surrogate pair when its complete weight does not fit', () => {
+    expect(truncateText('a😀z', 4)).toBe('a');
+    expect(truncateText('a😀z', 5)).toBe('a😀');
+    expect(truncateText('😀z', 3)).toBe('');
+    expect(truncateText('😀z', 5)).toBe('😀z');
   });
 });

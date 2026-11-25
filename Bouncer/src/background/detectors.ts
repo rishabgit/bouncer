@@ -1,17 +1,18 @@
 // The fixed classifier result and its one-result dispatch boundary.
+import type { FilterScore } from '../types';
 
 export interface DetectorResult {
   shouldHide: boolean;
   reasoning: string;
   category?: string | null;
   matches?: string[];
+  scores?: FilterScore[];
+  textSent?: string;
   rawResponse?: string | null;
   inferenceTime?: number;
-  malformed?: boolean;
   classifierFingerprint?: string;
   modelId?: string;
-  engine?: import('../types').InferenceEngineId;
-  selectionRevision?: number;
+  engine?: 'llama.app';
 }
 
 /** Dispatch exactly once for a terminal result or error; propagate failures. */

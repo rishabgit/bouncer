@@ -1,9 +1,8 @@
 // Bouncer - Content Script
 // Entry point: post processing, observers, init, storage/message listeners
 
-import type { PlatformAdapter, PostContent, PostState, PipelineResponse, BackgroundToContentMessage, DescriptionKey, EngineSelection } from '../types';
-import { getStorage, removeStorage, getDescriptions, setDescriptions } from '../shared/storage';
-import { FILTER_PACK_CODE_PREFIX } from '../shared/share-encoding';
+import type { PlatformAdapter, PostContent, PostState, PipelineResponse, BackgroundToContentMessage, DescriptionKey } from '../types';
+import { getStorage } from '../shared/storage';
 import { postViewportPriority } from './geometry';
 import { hasScheduledFilteredHide, restoreFilteredContainer, scheduleFilteredHide } from './dom-state';
 import { currentPostDecision, forgetPostDecision, isPostIdentityCurrent, postIdentity, rememberPostDecision } from './filter-actions';
@@ -18,15 +17,12 @@ import {
   markPostPending, markPostVerified, getVerificationBar,
   storeFilteredPost, hidePost,
   addContextMenuHandler,
-  addWhyAnnoyingButton,
-  processImportCodeInPost,
+  addBounceButton,
   handleDOMMutation,
   setupSearchBarHide,
   initDetectorStates,
   updateDetectorState,
   reconcileFilterChanges,
-  reconcileEngineChange,
-  updateContentEngineSelection,
   removeFilteredPostForArticle,
   resetPostForRecycling,
   clearDetectorStates,
@@ -62,18 +58,6 @@ import { formatPostForEvaluation } from '../shared/utils';
   // Site-specific storage key for filter phrases
   const descriptionsKey: DescriptionKey = `descriptions_${adapter.siteId}`;
 
-  // One-time migration: move descriptions from sync to local storage
-  (async () => {
-    const localArr = await getDescriptions(descriptionsKey);
-    if (localArr.length) return; // already migrated
-    const syncArr = await getDescriptions(descriptionsKey);
-    if (syncArr.length) {
-      await setDescriptions(descriptionsKey, syncArr);
-      await removeStorage(descriptionsKey);
-    }
-  })().catch(err => console.error('[Bouncer] Migration failed:', err));
-
-
   // ==================== Core State ====================
 
   const processedPosts = new WeakSet<HTMLElement>();
@@ -87,14 +71,12 @@ import { formatPostForEvaluation } from '../shared/utils';
   const stuckPostCheckDelay = 5000;
   let enabled = true;
   let filterGeneration = 0;
-  let engineSelection: EngineSelection | undefined;
   let settingsInitialized = false;
   const settingsChangedDuringInit = new Set<string>();
   // Cached `filterReplies` setting; loaded on init and kept current by the
   // storage-change listener below. Defaults to true so the gate is a no-op
   // until the user explicitly opts out.
   let filterReplies = true;
-  let currentlyProcessingPostUrl: string | null = null;
 
   // ==================== Wire up modules ====================
 
@@ -277,11 +259,6 @@ import { formatPostForEvaluation } from '../shared/utils';
       releaseEvaluation(evaluationId);
       console.log('[Bouncer] evaluatePost response:', JSON.stringify(response)?.substring(0, 200));
 
-      // Clear processing tracker when this post's evaluation completes
-      if (content.postUrl && content.postUrl === currentlyProcessingPostUrl) {
-        currentlyProcessingPostUrl = null;
-      }
-
       if (!isPostIdentityCurrent(adapter, article, identity) || generation !== filterGeneration
           || !enabled || currentPostDecision(adapter, article)?.userOverride) return;
 
@@ -316,55 +293,33 @@ import { formatPostForEvaluation } from '../shared/utils';
       }
 
       if ('error' in response) {
-        if (response.availabilityReason) {
-          // Setup/download/switching is an expected wait, with one feed banner.
-          // A matching selected-engine Ready event will release eligible posts.
-          processedPosts.delete(article);
-          markPostVerified(article);
-          return;
-        }
-        // PipelineError - track for retry via error broadcasts
+        // Per-post failure: retain the error and keep this post visible.
         postReasonings.set(article, { shouldHide: false, isModelError: true, reasoning: response.reasoning });
         if (content.postUrl) errorPostUrls.add(content.postUrl);
         article.dataset.errorType = response.error;
         const verificationBar = getVerificationBar(article);
         verificationBar.classList.remove('pending', 'verified');
-        // Local runtime failures leave the bar invisible until the background
-        // recovery timer releases this post for re-evaluation.
+        // This post keeps its error marker; later posts continue normally.
         article.removeAttribute('data-ff-pending');
         article.classList.add('ff-error');
         return;
       }
 
-      // Automatic verdicts carry the immutable lease that actually evaluated
-      // the post. Cached manual decisions remain engine-independent.
-      if (!response.userOverride && engineSelection
-          && (response.engine !== engineSelection.engine || response.selectionRevision !== engineSelection.revision)) {
-        processedPosts.delete(article);
-        markPostVerified(article);
-        return;
-      }
-
-      // EvaluationResult. Tweets that share a Bouncer filter pack are exempt
-      // from auto-hiding — otherwise the import button would get filtered
-      // before the recipient could click it. The substring check is robust:
-      // bncr2_ is the share-code prefix and is unique enough that false
-      // positives are effectively zero. Manual user-flagged hides (in ui.ts)
-      // remain unaffected — this only vetoes the AI's automatic decision.
-      const containsShareCode = (article.textContent || '').includes(FILTER_PACK_CODE_PREFIX);
-      const effectiveShouldHide = response.shouldHide && (response.userOverride || !containsShareCode);
-
       postReasonings.set(article, {
-        shouldHide: effectiveShouldHide,
+        shouldHide: response.shouldHide,
         reasoning: response.reasoning || 'No reasoning available',
         rawResponse: response.rawResponse || null,
         category: response.category ?? null,
         matches: response.matches,
         userOverride: response.userOverride,
+        scores: response.scores,
+        textSent: response.textSent,
+        model: response.model,
+        timestamp: response.userOverride ? undefined : response.timestamp,
       });
-      rememberPostDecision(article, { identity, shouldHide: effectiveShouldHide, matches: response.matches, userOverride: response.userOverride });
+      rememberPostDecision(article, { identity, shouldHide: response.shouldHide, matches: response.matches, userOverride: response.userOverride });
 
-      if (effectiveShouldHide) {
+      if (response.shouldHide) {
         if (content.postUrl) {
           errorPostUrls.delete(content.postUrl);
         }
@@ -384,7 +339,7 @@ import { formatPostForEvaluation } from '../shared/utils';
         };
 
         // Store in filtered posts list
-        storeFilteredPost(article, mergedContent, response.reasoning, response.rawResponse || '', response.category || null, response.matches, response.userOverride, formatPostForEvaluation(content));
+        storeFilteredPost(article, mergedContent, response.reasoning, response.rawResponse || '', response.category || null, response.matches, response.userOverride, formatPostForEvaluation(content), response);
 
         const hideIfCurrent = () => {
           const decision = currentPostDecision(adapter, article);
@@ -447,7 +402,7 @@ import { formatPostForEvaluation } from '../shared/utils';
     if (adapter.isMainPost(article)) return;
 
     addContextMenuHandler(article);
-    addWhyAnnoyingButton(article);
+    addBounceButton(article);
 
     // "Filter replies/comments" toggle: on a permalink page everything
     // below the main post is a reply. The main-timeline filter is
@@ -541,31 +496,6 @@ import { formatPostForEvaluation } from '../shared/utils';
     pendingPostReeval.set(article, timeoutId);
   }
 
-  // ==================== Import-Code Observer ====================
-
-  // The "import filter pack" transform is a pure DOM enhancement — it doesn't
-  // classify or filter anything. Run it on every visible tweet regardless of
-  // adapter.shouldProcessCurrentPage(), so profile pages, the explore feed,
-  // search, and individual tweet permalinks all get the button swap too.
-  function observeImportCodes() {
-    const scan = (root: ParentNode) => {
-      root.querySelectorAll<HTMLElement>(adapter.selectors.post).forEach(processImportCodeInPost);
-    };
-    scan(document);
-    const observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        for (const node of mutation.addedNodes) {
-          if (node.nodeType !== Node.ELEMENT_NODE) continue;
-          const el = node as HTMLElement;
-          if (!el.querySelectorAll) continue;
-          if (el.matches?.(adapter.selectors.post)) processImportCodeInPost(el);
-          scan(el);
-        }
-      }
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-  }
-
   // ==================== Observer ====================
 
   function observePosts() {
@@ -616,24 +546,9 @@ import { formatPostForEvaluation } from '../shared/utils';
 
   // ==================== Init ====================
 
-  // Listen before the initial snapshot so a switch cannot lose its generation
-  // fence while storage is being read. Only committed events outrank that read.
+  // Listen before the initial snapshot so setting changes outrank that read.
   chrome.storage.onChanged.addListener((changes) => {
       if (!settingsInitialized) Object.keys(changes).forEach(key => settingsChangedDuringInit.add(key));
-      if (changes.engineSelection) {
-        const selection = changes.engineSelection.newValue as EngineSelection | undefined;
-        if (selection && (!engineSelection || selection.revision > engineSelection.revision)) {
-          // Invalidate evaluations and detector dispatches synchronously,
-          // before setup/status awaits or a new engine can publish a result.
-          filterGeneration++;
-          engineSelection = { ...selection };
-          updateContentEngineSelection(selection);
-          currentlyProcessingPostUrl = null;
-          errorPostUrls.clear();
-          reconcileEngineChange();
-          if (settingsInitialized) processExistingPosts();
-        }
-      }
       if (changes.enabled) {
         filterGeneration++;
         enabled = changes.enabled.newValue as boolean;
@@ -654,8 +569,10 @@ import { formatPostForEvaluation } from '../shared/utils';
       }
       if (changes[descriptionsKey]) {
         syncFilterPhrases();
-        const oldDescs = (changes[descriptionsKey].oldValue as string[] | undefined) || [];
-        const newDescs = (changes[descriptionsKey].newValue as string[] | undefined) || [];
+        const activePhrases = (value: unknown): string[] => Array.isArray(value)
+          ? value.filter((phrase): phrase is string => typeof phrase === 'string' && !!phrase.trim()) : [];
+        const oldDescs = activePhrases(changes[descriptionsKey].oldValue);
+        const newDescs = activePhrases(changes[descriptionsKey].newValue);
         if (oldDescs.length !== newDescs.length || oldDescs.some((phrase, index) => phrase !== newDescs[index])) {
           filterGeneration++;
           reconcileFilterChanges(newDescs, false);
@@ -684,12 +601,9 @@ import { formatPostForEvaluation } from '../shared/utils';
 
 
   async function init() {
-    const data = await getStorage(['enabled', 'filterReplies', 'engineSelection']);
+    const data = await getStorage(['enabled', 'filterReplies']);
     if (!settingsChangedDuringInit.has('enabled')) enabled = data.enabled !== false;
-    if (!settingsChangedDuringInit.has('engineSelection')) engineSelection = data.engineSelection;
-    if (engineSelection) updateContentEngineSelection(engineSelection);
-    // Treat undefined as true so users on builds released before this
-    // setting existed keep their current behavior.
+    // Fresh profiles filter replies until the setting is explicitly disabled.
     if (!settingsChangedDuringInit.has('filterReplies')) filterReplies = data.filterReplies !== false;
     settingsInitialized = true;
 
@@ -697,11 +611,6 @@ import { formatPostForEvaluation } from '../shared/utils';
       observePosts();
       processExistingPosts();
     }
-
-    // Always run the import-code transform, even on pages where filter
-    // classification is gated off (profiles, notifications, lists, etc.) —
-    // users should be able to import shared filter packs from anywhere.
-    observeImportCodes();
 
     injectFilterPhrasesInput();
     injectBottomFilterBox();
@@ -767,41 +676,6 @@ import { formatPostForEvaluation } from '../shared/utils';
         }
       }
     }, stuckPostCheckDelay);
-
-    // Preempt local model inference when user scrolls past the processing post
-    let preemptScrollTimeout: ReturnType<typeof setTimeout> | null = null;
-    window.addEventListener('scroll', () => {
-      if (!currentlyProcessingPostUrl) return;
-      if (preemptScrollTimeout) return; // Already debouncing
-      preemptScrollTimeout = setTimeout(() => {
-        preemptScrollTimeout = null;
-        if (!currentlyProcessingPostUrl) return;
-
-        // Check if the processing post is still in the viewport
-        let processingInViewport = false;
-        let pendingInViewport = false;
-        const allPosts = findPosts();
-        for (const article of allPosts) {
-          const rect = article.getBoundingClientRect();
-          const inViewport = rect.bottom > 0 && rect.top < window.innerHeight;
-          if (!inViewport) continue;
-
-          const postUrl = adapter.getPostUrl(article);
-          if (postUrl === currentlyProcessingPostUrl) {
-            processingInViewport = true;
-            break; // No need to preempt
-          }
-          if (pendingPosts.has(article)) {
-            pendingInViewport = true;
-          }
-        }
-
-        if (!processingInViewport && pendingInViewport) {
-          currentlyProcessingPostUrl = null;
-          chrome.runtime.sendMessage({ type: 'preemptInference' }).catch(() => {});
-        }
-      }, 200);
-    }, { passive: true });
   }
 
   // ==================== Message Listener ====================
@@ -812,34 +686,6 @@ import { formatPostForEvaluation } from '../shared/utils';
         sendResponse({ alive: true });
         return;
       case 'errorStatusUpdate':
-        sendResponse({ received: true });
-        break;
-      case 'reEvaluateErrors': {
-        const posts = findPosts();
-        let reEvaluatedCount = 0;
-        posts.forEach(article => {
-          if (article.dataset.filteredByExtension) return;
-
-          const content = extractPostContent(article);
-          const isErrorByAttr = !!article.dataset.errorType;
-          const isErrorByUrl = content.postUrl && errorPostUrls.has(content.postUrl);
-
-          if (isErrorByAttr || isErrorByUrl) {
-            delete article.dataset.errorType;
-            if (content.postUrl) {
-              errorPostUrls.delete(content.postUrl);
-            }
-            processedPosts.delete(article);
-            processPost(article, true);
-            reEvaluatedCount++;
-          }
-        });
-        errorPostUrls.clear();
-        sendResponse({ success: true, count: reEvaluatedCount });
-        break;
-      }
-      case 'processingPost':
-        currentlyProcessingPostUrl = message.postUrl;
         sendResponse({ received: true });
         break;
       case 'evaluationStarted': {

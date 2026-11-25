@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "wordings": ["W5", "W11", "W12"],
+  "policies": [
+    {"id": "Q", "template": "T0", "stateTransform": "none", "calibration": "none", "shortRule": {"maxOwnWords": 3, "cutoff": 0.7}, "cutoff": 0.290813258948728},
+    {"id": "S", "template": "T0", "stateTransform": "none", "calibration": "none", "shortRule": null, "cutoff": 0.72}
+  ],
+  "regressionCorpora": ["original-validation", "fresh-behaviour"],
+  "gates": [
+    {"name": "G1 fewer errors on the tone holdout, all intents", "metric": "errors", "policy": "Q", "comparator": "<=", "reference": "P0", "factor": 0.85, "slack": 0, "scope": "corpus:tone-holdout"},
+    {"name": "G2 bounded extra misses on the tone holdout", "metric": "FN", "policy": "Q", "comparator": "<=", "reference": "P0", "factor": 1, "slack": 2, "scope": "corpus:tone-holdout"},
+    {"name": "G3 original validation not worse", "metric": "errors", "policy": "Q", "comparator": "<=", "reference": "P0", "factor": 1, "slack": 1, "scope": "corpus:original-validation"},
+    {"name": "G4 earlier behaviour corpus not worse", "metric": "errors", "policy": "Q", "comparator": "<=", "reference": "P0", "factor": 1, "slack": 1, "scope": "corpus:fresh-behaviour"},
+    {"name": "G5 owner label errors not worse", "metric": "errors", "policy": "Q", "comparator": "<=", "reference": "P0", "factor": 1, "slack": 0, "scope": "group:excessive-rudeness"},
+    {"name": "G6 owner label at most one extra miss", "metric": "FN", "policy": "Q", "comparator": "<=", "reference": "P0", "factor": 1, "slack": 1, "scope": "group:excessive-rudeness"}
+  ]
+}

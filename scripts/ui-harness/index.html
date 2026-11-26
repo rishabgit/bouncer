@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en" style="overflow-y: scroll; overscroll-behavior-y: none;">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bouncer UI harness</title>
+<link rel="stylesheet" href="/ext/content.css">
+<link rel="stylesheet" href="/ext/adapters/twitter/twitter.css">
+<style>
+  /* X's root layout. Elements appended to <body> land near the top of the
+     page, so scroll behaviour matches X rather than an ordinary long page. */
+  html, body { height: 100%; }
+  #react-root { height: 100%; display: flex; }
+  body { margin: 0; font: 15px/1.4 system-ui, sans-serif; color: rgb(15, 20, 25); background: #fff; }
+  #react-root > div { flex: 1; display: flex; justify-content: center; }
+  header { width: 88px; }
+  main { width: 600px; border-left: 1px solid rgb(239, 243, 244); border-right: 1px solid rgb(239, 243, 244); }
+  [role="tablist"] { display: flex; gap: 32px; padding: 14px 16px; border-bottom: 1px solid rgb(239, 243, 244); }
+  [role="tab"] { color: inherit; text-decoration: none; }
+  [role="tab"][aria-selected="true"] { font-weight: 700; }
+  [data-testid="cellInnerDiv"] { padding: 12px 16px; border-bottom: 1px solid rgb(239, 243, 244); }
+  [data-testid="User-Name"] a { color: inherit; text-decoration: none; }
+  [role="group"] { display: flex; gap: 24px; margin-top: 8px; }
+  [role="group"] button { border: 0; background: none; cursor: pointer; color: rgb(83, 100, 113); }
+  [data-testid="sidebarColumn"] { width: 350px; padding: 0 16px; }
+</style>
+</head>
+<body>
+<!-- Only the structure the X adapter reads is reproduced. All posts are synthetic. -->
+<div id="react-root">
+  <div>
+    <header><nav role="navigation" aria-label="Primary">Home</nav></header>
+    <main role="main">
+      <div data-testid="primaryColumn">
+        <nav role="navigation">
+          <div role="tablist">
+            <a role="tab" aria-selected="true" href="/home">For you</a>
+            <a role="tab" aria-selected="false" href="/home">Following</a>
+          </div>
+        </nav>
+        <section aria-label="Timeline"><div id="timeline"></div></section>
+      </div>
+    </main>
+    <div data-testid="sidebarColumn"><div><div><div><div></div></div></div></div></div>
+  </div>
+</div>
+<script>
+  const sentences = [
+    'Planted tomatoes on the balcony this morning and the basil is finally coming up.',
+    'This coin is going to 100x by Friday, get in before the price explodes.',
+    'Our team shipped the new search page today after three weeks of testing.',
+    'Does anyone have a good recipe for a quick weeknight dal?',
+    'Train was twenty minutes late again, so I read half a book on the platform.',
+    'lol',
+    'Price prediction thread: why this token will moon next week.',
+    'Finished the long trail run along the river, legs are done for the day.',
+  ];
+  // A minimal stand-in for X's React tree and Redux store. The real
+  // fiber-extractor.js reads full post text from it, as it does on X.
+  const state = { entities: { tweets: { entities: {} }, users: { entities: {} } } };
+  document.getElementById('react-root')['__reactContainer$harness'] = {
+    memoizedProps: { store: { getState: () => state } },
+  };
+  const timeline = document.getElementById('timeline');
+  for (let index = 1; index <= 40; index++) {
+    const id = String(1000 + index);
+    state.entities.tweets.entities[id] = { full_text: `${sentences[index % sentences.length]} (#${index})`, user_id_str: `u${index}` };
+    state.entities.users.entities[`u${index}`] = { name: `Synthetic ${index}`, screen_name: `synthetic${index}` };
+    const cell = document.createElement('div');
+    cell['__reactFiber$harness'] = { memoizedProps: { entry: { entryId: `tweet-${id}` } } };
+    cell.dataset.testid = 'cellInnerDiv';
+    cell.innerHTML = `
+      <article data-testid="tweet" role="article" tabindex="0">
+        <div data-testid="User-Name">
+          <a href="https://x.com/synthetic${index}" role="link">Synthetic ${index}</a> ·
+          <a href="https://x.com/synthetic${index}/status/${id}" role="link"><time datetime="2026-01-01T10:00:00.000Z">Jan 1</time></a>
+        </div>
+        <div data-testid="tweetText" lang="en">${sentences[index % sentences.length]} (#${index})</div>
+        <div role="group">
+          <div><button data-testid="reply" aria-label="Reply">Reply</button></div>
+          <div><button data-testid="retweet" aria-label="Repost">Repost</button></div>
+          <div><button data-testid="like" aria-label="Like">Like</button></div>
+          <div><button data-testid="bookmark" aria-label="Bookmark">Save</button></div>
+          <div><button aria-label="Share post">Share</button></div>
+        </div>
+      </article>`;
+    timeline.appendChild(cell);
+  }
+</script>
+<script src="/mock-chrome.js"></script>
+<script src="/ext/dompurify.js"></script>
+<script src="/ext/dist/TwitterAdapter.js"></script>
+<script src="/ext/dist/content.js"></script>
+</body>
+</html>

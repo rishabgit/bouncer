@@ -2307,6 +2307,22 @@ describe('live content filter actions', () => {
     await flush();
   });
 
+  it('places the Bounce box before focusing its field, without scrolling the feed', async () => {
+    const article = post('1');
+    await start();
+    const realFocus = HTMLElement.prototype.focus;
+    let placementAtFocus: string | undefined;
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement, options?: FocusOptions) {
+      placementAtFocus = this.closest<HTMLElement>('.ff-bounce-tooltip')?.style.position;
+      realFocus.call(this, options);
+    });
+    await openBounce(article);
+    expect(focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
+    expect(placementAtFocus).toBe('fixed');
+    expect(document.activeElement).toBe(document.querySelector('.ff-bounce-input'));
+    focus.mockRestore();
+  });
+
   it('keeps an over-limit new label draft and post visible with the existing limit warning', async () => {
     storage.descriptions_twitter = ['x'.repeat(1000)];
     const article = post('1');

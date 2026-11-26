@@ -2483,7 +2483,7 @@ export function createBounceComposer(
       if (read === filtersRead) filters.textContent = 'Couldn’t read your filters. Close and reopen this list to try again.';
     });
   });
-  return { focus: () => input.focus() };
+  return { focus: () => input.focus({ preventScroll: true }) };
 }
 
 // Add a local Bounce action beside the post controls.
@@ -2625,7 +2625,6 @@ export function addBounceButton(article: HTMLElement) {
       if (positionFrame !== null) cancelAnimationFrame(positionFrame);
       positionFrame = null;
     });
-    schedulePosition();
 
     const composer = createBounceComposer(tooltipContent, async phrase => {
       const isCurrent = () => tooltip.isConnected
@@ -2644,6 +2643,10 @@ export function addBounceButton(article: HTMLElement) {
       else schedulePosition();
       return saved;
     }, removeTooltip, () => getDescriptions(_deps.descriptionsKey));
+    // Place the box before focusing its field. Unplaced, it sits in the page
+    // flow at the end of <body>, so focusing it scrolled the feed away and
+    // the scroll handler then closed the box.
+    positionTooltip();
     composer.focus();
   });
 

@@ -45,7 +45,9 @@ npm run test
 Load `Bouncer/` unpacked from your browser’s extensions page. Follow the
 [human browser check](docs/browser-testing.md) for real extension verification;
 unit tests do not establish browser permissions, worker transport, model quality
-or live-feed behavior.
+or live-feed behavior. Reproduce and check feed UI changes on the
+[local UI harness](docs/browser-testing.md#local-ui-harness) first; it runs the
+built content scripts without X, the worker or the model.
 
 ## Architecture and invariants
 

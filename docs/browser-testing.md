@@ -62,3 +62,23 @@ Record what was actually observed, including failures and any debugger
 instrumentation. Stop test sessions you started when finished. Keep synthetic
 fixture checks, recorded model results and unit passes distinct from live-feed
 qualification.
+
+## Local UI harness
+
+`scripts/ui-harness/` runs the built content scripts on a local X-shaped page
+with 40 synthetic posts, a stand-in for X's post store and stubbed extension
+APIs. Use it to reproduce and check feed UI such as Bounce, the filter box,
+popovers and hiding, without X, a browser profile or Llama.app:
+
+```bash
+(cd Bouncer && npm run build)
+node scripts/ui-harness/serve.mjs   # http://127.0.0.1:4177/home
+```
+
+Every post stays visible unless `bouncerHarness.classify` is replaced from the
+page console, and `bouncerHarness.messages` records what the content script
+sent to the worker. The stub worker keeps the real filter limits but nothing
+survives a reload: there is no evaluation cache, so Bounce and Restore are not
+remembered and post Details are empty. The page copies X's desktop layout, not
+its narrow layout with the bottom bar. The harness does not run the background
+worker, the model or the real X page, so it does not replace the checks above.

@@ -10,6 +10,7 @@ on:
       - "Bouncer/**"
       - "scripts/decision-eval/**"
       - "docs/benchmarks/**"
+      - "scripts/check-version-bump.sh"
       - ".github/workflows/lint_test_build.yml"
 
 jobs:
@@ -28,6 +29,16 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm run test
+
+  version-bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: scripts/check-version-bump.sh "$BASE_SHA"
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
 
   decision-eval-tests:
     runs-on: ubuntu-latest

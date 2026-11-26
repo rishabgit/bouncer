@@ -82,6 +82,16 @@ describe('native-only Chrome packaging', () => {
     expect(result.stdout).not.toMatch(/Building/iu);
   });
 
+  it('keeps one extension version across the manifest sources and npm package', () => {
+    const read = filename => JSON.parse(readFileSync(path.join(SOURCE_ROOT, filename), 'utf8'));
+    const { version } = read('manifest.base.json');
+    expect(version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(read('manifest.chrome.json')).not.toHaveProperty('version');
+    expect(read('package.json').version).toBe(version);
+    const lock = read('package-lock.json');
+    expect([lock.version, lock.packages[''].version]).toEqual([version, version]);
+  });
+
   it('uses only the expected runtime dependencies and platform commands', () => {
     const pkg = JSON.parse(readFileSync(path.join(SOURCE_ROOT, 'package.json'), 'utf8'));
     expect(Object.keys(pkg.dependencies).sort()).toEqual(['dompurify']);

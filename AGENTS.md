@@ -42,6 +42,14 @@ npm run lint
 npm run test
 ```
 
+**Version.** A change to anything the extension loads (everything under
+`Bouncer/` except tests, docs and development tooling) raises `version` in
+`Bouncer/manifest.base.json`, `Bouncer/package.json` and
+`Bouncer/package-lock.json`: major for a change that needs new setup or drops
+saved data, minor for new behaviour, patch for a fix.
+`scripts/check-version-bump.sh` enforces this in CI. Copy details reports this
+version, so it must identify the build behind a reported case.
+
 Load `Bouncer/` unpacked from your browser’s extensions page. Follow the
 [human browser check](docs/browser-testing.md) for real extension verification;
 unit tests do not establish browser permissions, worker transport, model quality
